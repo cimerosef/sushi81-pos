@@ -76,7 +76,9 @@ When Hiboutik server-side printing fails, staff must be able to paste the text o
 
 ### G-08 — Make payment status and reconciliation explicit
 
-Order state and payment state must be separate. The POS must support unpaid, partial and settled situations, actual cash/card splits, overdue-payment follow-up and a clear amount-to-enter-in-Hiboutik summary.
+Order state and payment state must be separate. The POS must support unpaid, partial and settled situations, actual cash/card splits, overdue-payment follow-up and clear end-of-day reconciliation information.
+
+For normal POS-originated orders, today's POS card total is also the amount that needs to be represented in Hiboutik. The UI therefore does not need to show a redundant second amount when both figures are identical. Exceptional Hiboutik emergency-import discrepancies must instead be surfaced explicitly when they exist.
 
 ### G-09 — Improve recoverability and maintainability
 
@@ -103,10 +105,14 @@ The operator must be able to add/remove products and directly change the quantit
 Products may define one or more selectable choices such as flavour or menu variant. These choices must be selectable during order entry and remain attached to the relevant order item.
 
 **FR-005 — Option price adjustment**  
-A configured product option may have a predefined price adjustment such as `+0 €`, `+1 €` or `+2 €`. The order-entry workflow must also allow an authorized operator-entered custom price adjustment/value when the real-world situation requires an amount not present among the presets. Exact validation and UI behavior will be defined in `catalogue-management.md` / `business-rules.md`.
+A configured product option may have a predefined price adjustment such as `+0 €`, `+1 €` or `+2 €`. The order-entry workflow must also allow an operator-entered custom **option price adjustment** when the real-world situation requires an amount not present among the presets.
+
+This custom amount changes the option/add-on adjustment only. Ordinary order entry must not allow the operator to overwrite the catalogue product's base unit price.
+
+Exact validation and UI behavior will be defined in `catalogue-management.md` / `business-rules.md`.
 
 **FR-006 — Historical item snapshot**  
-When an order is committed, the order must preserve the product information needed to reconstruct that historical sale, including sale-time name, price, VAT and selected options/price adjustments. Later catalogue edits or imports must not rewrite historical orders.
+When an order is committed, the order must preserve the product information needed to reconstruct that historical sale, including sale-time name, base price, VAT and selected options/price adjustments. Later catalogue edits or imports must not rewrite historical orders.
 
 **FR-007 — In-application catalogue maintenance**  
 Catalogue maintenance must be possible without editing Excel. The operator must be able to add products, edit approved catalogue/commercial attributes, activate/deactivate products and manage product options.
@@ -169,8 +175,10 @@ The operator must be able to record actual cash and card/non-cash amounts. The a
 **FR-024 — Payment-event history**  
 The preferred v1 data model is to record each actual payment event separately with at least date/time, amount and payment method. This supports partial payments, cross-day settlement, daily received-payment totals and settlement-year assignment. Free-text notes are not the primary payment ledger.
 
-**FR-025 — Payment finalization**  
+**FR-025 — Payment finalization and correction**  
 The operator must be able to retrieve an existing order, add/correct payment information and mark it fully settled without editing the database directly.
+
+A payment that was recorded incorrectly must be correctable through the application. The target design should preserve enough history/audit information to understand that a correction occurred, while presenting the operator with the final corrected payment result for normal daily work.
 
 **FR-026 — Overdue unsettled attention**  
 An order must appear in the overdue-unsettled area only when its planned fulfilment date is earlier than the current date and its payment state is not fully settled. Normal same-day unpaid orders and legitimate future orders must not appear there.
@@ -178,10 +186,10 @@ An order must appear in the overdue-unsettled area only when its planned fulfilm
 **FR-027 — Received-payment date attribution**  
 Operational daily received-payment totals are based on the date money is actually received, not the order creation or fulfilment date. For partial payments, only the amount actually received on a date contributes to that day's totals.
 
-**FR-028 — Hiboutik amount-to-enter summary**  
-The POS must display one clear total for the POS-originated card amount that still needs to be represented/entered in Hiboutik. The amount is attributed to the date the card payment is actually received. v1 does not require automatic submission to Hiboutik.
+**FR-028 — Hiboutik card-revenue relationship**  
+For ordinary POS-originated orders, the card amount received on a given day is also the amount that must ultimately be represented/entered in Hiboutik for that day.
 
-Hiboutik emergency-import orders must be excluded from this dedicated amount because they already originate in Hiboutik.
+Because these values are normally identical, the main interface does not need a permanently duplicated "amount to enter in Hiboutik" number when it would simply repeat today's POS card total. v1 does not require automatic submission to Hiboutik.
 
 Direct control of the card terminal is outside v1.
 
@@ -246,13 +254,29 @@ The parser must preserve operationally important information such as requested p
 **FR-053 — Emergency-order marker**  
 Emergency-imported Hiboutik orders must be visibly distinguishable from ordinary POS-created orders. The main interface must show a clear current-day count/indicator using a distinctive visual treatment.
 
-**FR-054 — Emergency-order accounting/statistics boundary**  
+**FR-054 — Preserve Hiboutik original amount and POS actual amount**  
+An emergency-imported Hiboutik order must preserve the **original total received from the Hiboutik email** separately from the amount that the POS calculates/uses operationally after any local discount or adjustment.
+
+The operator must also be able to record the payment actually received for the emergency order so that end-of-day reconciliation can compare:
+
+- Hiboutik's original order amount;
+- the POS operational/actual amount;
+- the actual payment received and payment method.
+
+This payment information exists for reconciliation of the emergency copy; it does not turn the emergency record into a new POS-originated sale.
+
+**FR-055 — Emergency-order accounting/statistics boundary**  
 An emergency-imported Hiboutik order is a local operational/printing copy of an order that already exists in Hiboutik. It must therefore:
 
-- remain available in the POS for viewing, printing and future-order reminders where applicable;
-- be excluded from the POS received-payment/turnover totals;
-- be excluded from the POS-originated card amount-to-enter-in-Hiboutik total;
+- remain available in the POS for viewing, printing, payment/reconciliation reference and future-order reminders where applicable;
+- be excluded from ordinary POS-originated received-payment/turnover totals;
+- be excluded from the ordinary POS card amount that must be newly entered into Hiboutik;
 - be excluded from export into `Gestion SUSHI 81.xlsm`.
+
+**FR-056 — Emergency reconciliation discrepancy**  
+When a Hiboutik emergency order's original Hiboutik amount differs from the POS operational/actual amount and/or recorded payment outcome, the main/reconciliation interface must surface a clear exception/discrepancy indicator so that the difference is not forgotten during daily review.
+
+When no such exception exists, the main screen does not need to display a redundant Hiboutik-specific reconciliation amount.
 
 The exact email formats, parser behavior and error handling will be specified in `paste-order-import.md` using sanitized samples.
 
@@ -291,10 +315,20 @@ The final export schema, period rules and transfer mechanism will be specified i
 ### 5.9 Main-screen operational overview
 
 **FR-080 — Received-payment summary**  
-The main interface must provide an at-a-glance current-day received-payment/payment-method summary that updates from actual payment events. It is not an order-creation-date sales counter.
+The main interface must provide an at-a-glance current-day summary for **ordinary POS-originated payments** showing at least:
+
+- today's actual amount received;
+- today's card (`CB`) amount;
+- today's cash (`Espèce`) amount.
+
+These values update from actual payment events and are attributed by payment date rather than order-creation date.
+
+Under normal conditions, today's POS card amount is also the amount that must be entered/represented in Hiboutik, so a duplicate fourth figure is unnecessary. A Hiboutik-specific warning/amount should appear only when an emergency-import discrepancy creates a real exception that requires review.
 
 **FR-081 — Due-today advance orders**  
 The main interface does **not** need a generic panel listing all same-day orders. Its "today" reminder function is specifically to surface advance orders whose planned fulfilment date has now arrived. This reminder is operational and does not depend on the order's payment state.
+
+An advance order that becomes due today remains visible in this due-today reminder for the rest of that calendar day. v1 does not require an additional "processed/collected" state merely to remove it early.
 
 **FR-082 — Future orders**  
 The main interface must show the total number of orders whose planned fulfilment date is after today. The operator can open the area to inspect the actual orders/dates; the compact home-screen indicator does not need date-by-date counts.
@@ -302,8 +336,10 @@ The main interface must show the total number of orders whose planned fulfilment
 **FR-083 — Overdue unsettled orders**  
 The main interface must show a clearly distinct overdue-unsettled area for past-due orders that remain unpaid or partially paid.
 
-**FR-084 — Hiboutik emergency-order count**  
+**FR-084 — Hiboutik emergency-order count and discrepancy alert**  
 Today's emergency-imported Hiboutik orders must be visibly identifiable and their count shown through an appropriate distinctive visual treatment.
+
+If any such order has an unresolved amount/payment discrepancy, the main/reconciliation interface must also provide a clear warning/entry point for that exception.
 
 **FR-085 — Business configuration**  
 Configuration expected to change during normal business use must not require source-code changes.
@@ -377,6 +413,7 @@ The following are deliberately **out of scope** for v1 unless a later explicit d
 - direct electronic control of the bank card terminal;
 - POS-managed execution of card refunds;
 - full refund-accounting workflow inside the POS;
+- arbitrary order-time overriding of a catalogue product's base price;
 - full accounting system;
 - replacing `Gestion SUSHI 81.xlsm`;
 - heavyweight CRM/customer-profile management.
@@ -402,8 +439,8 @@ Phase 1 does not yet freeze:
 - exact lifecycle state names and detailed transitions;
 - exact replacement/linking behavior for modified settled orders;
 - exact discount/minimum/delivery business rules;
-- exact option-group configuration and custom-price validation;
-- detailed payment-method model and payment correction rules;
+- exact option-group configuration and custom option-price validation;
+- detailed payment-method model, payment-correction implementation and audit representation;
 - exact lightweight telephone-history UI;
 - detailed catalogue import/export schema;
 - database engine and physical schema;
@@ -412,7 +449,7 @@ Phase 1 does not yet freeze:
 - exact placement/style of the language switch;
 - live-data location and multi-computer synchronization mechanics;
 - backup implementation;
-- exact Hiboutik email parser rules;
+- exact Hiboutik email parser rules and emergency-reconciliation UI;
 - printer model/protocol and final ticket layouts;
 - final `Gestion SUSHI 81.xlsm` export schema.
 
