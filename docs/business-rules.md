@@ -25,7 +25,7 @@ The following constraints are already established by `current-system.md` and `pr
 - product options may carry predefined or operator-entered option-price adjustments;
 - normal business configuration expected to change must not require source-code edits.
 
-The Phase 1 restriction on changing a catalogue product's **base unit price** does not prevent an operator from overriding the **final order total** at order level. These are separate concepts.
+The Phase 1 restriction on changing a catalogue product's **base unit price** does not prevent an operator from directly editing the **order total**. These are separate concepts.
 
 ## 3. Current-system rules that require target confirmation
 
@@ -92,24 +92,30 @@ Phase 2 must define:
 - whether a custom adjustment requires a comment/reason;
 - how adjustments interact with discount eligibility and VAT.
 
-### 4.5 Manual final order total — approved Phase 2 decision
+### 4.5 Editable order total — approved Phase 2 decision
 
-The application must calculate a normal order total from the current product lines, quantities, product-option adjustments and approved pricing/discount rules.
+The order-entry interface has **one authoritative order-total field**, not separate "system total" and "final total" fields.
 
-However, the operator must also be able to manually set a **final recorded order total** when an exceptional real-world situation requires a value different from the system-calculated total.
+Normal behavior is:
 
-The rules are:
+- the application calculates the order total from product lines, quantities, product-option adjustments and approved pricing/discount rules;
+- that calculated amount is written directly into the ordinary order-total field;
+- the operator may directly edit that same order-total field when an exceptional real-world situation requires a different amount;
+- after a manual edit, the entered amount itself becomes the authoritative total for that order.
 
-- the product catalogue base unit prices remain unchanged;
-- historical order-item snapshots remain unchanged unless the operator separately edits the actual items/options;
-- the system-calculated total should remain available for reference;
-- the manually entered final order total becomes the authoritative order total used for the retained business record, printing, close/reconciliation validation and downstream turnover/export behavior unless another specification explicitly says otherwise;
-- a difference between the system-calculated total and the final recorded total may be visibly indicated to the operator, but the difference must **not** block saving or confirming the order;
-- no mandatory refund, surcharge, correction or reason workflow is created merely because the two totals differ.
+The application must not require a second visible amount field merely to preserve the automatically calculated value.
 
-This capability is intentional. Sushi81 POS is a practical operational/turnover-recording tool, and the operator may encounter exceptional situations not anticipated by the normal pricing rules. The software should allow the operator to record the business amount that has actually been decided rather than forcing the calculated product total to remain authoritative.
+Manual editing of the order total:
 
-The exact UI control for invoking/resetting a manual total override will be decided during UI design.
+- does **not** change catalogue product base prices;
+- does **not** require the product lines to mathematically add up to the manually entered total;
+- does **not** require a mandatory reason, refund, surcharge or correction workflow;
+- must not be rejected merely because it differs from what the normal pricing rules would calculate;
+- controls the order amount used for printing, closing/reconciliation, retained turnover and downstream export unless another specification explicitly says otherwise.
+
+If product lines, quantities, options or discount choices are changed after a manual total has been entered, the UI must avoid silently destroying the operator's intentional value. The exact interaction for recalculating/replacing a manually edited total will be decided during UI design, but any automatic recalculation that would overwrite an explicit manual edit must be clear to the operator rather than hidden.
+
+This capability is intentional. Sushi81 POS is a practical operational/turnover-recording tool, and the operator may encounter exceptional situations not anticipated by the normal pricing rules. The software should allow the operator to record the business amount that has actually been decided.
 
 ### 4.6 Rounding and monetary consistency
 
@@ -117,7 +123,7 @@ All target pricing rules must define deterministic euro-cent rounding so that ca
 
 The exact rounding point for percentage discounts and VAT presentation remains to be frozen.
 
-A manually overridden final order total is itself stored to euro-cent precision and is not silently recalculated back to the product-derived total.
+The authoritative editable order total is stored to euro-cent precision.
 
 ## 5. Configuration principle
 
@@ -138,9 +144,9 @@ Before this document becomes baseline, Phase 2 must explicitly approve at least:
 7. discount interaction with product options;
 8. rounding rules for percentage discounts and order totals;
 9. which commercial values are operator-configurable in v1;
-10. exact UI interaction for applying or resetting a manual final-order-total override.
+10. exact UI interaction when product changes occur after the operator has manually edited the order total, including how the operator can deliberately request recalculation.
 
-The ability to manually override the final order total itself is already approved and is no longer an open question.
+The ability to directly edit the ordinary order-total field itself is already approved and is no longer an open question.
 
 ## 7. Approval rule
 
