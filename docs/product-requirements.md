@@ -106,6 +106,12 @@ Products may have one or more operator-selectable customer choices, such as an i
 **FR-006 — Preserve item-specific choices**  
 Selected product options must remain attached to the specific order item and remain available when the order is viewed, modified or printed.
 
+**FR-007 — In-application catalogue maintenance**  
+Normal catalogue maintenance must be possible from the standalone application without editing Excel. The operator must be able to add products, change approved commercial/catalogue attributes, activate/deactivate products and manage configured product options while preserving historical order data.
+
+**FR-008 — Catalogue batch import/export**  
+The product must provide a practical batch import/export mechanism for catalogue maintenance using an approved tabular format such as Excel or CSV. Exact columns, validation and conflict handling will be defined in `catalogue-management.md`.
+
 Detailed catalogue maintenance and option-group rules will be defined in `catalogue-management.md`.
 
 ### 5.2 Order creation and customer/order information
@@ -136,6 +142,9 @@ The system must be capable of recording the relevant planned pickup/delivery dat
 
 **FR-018 — Future-order entry**  
 The normal order-entry workflow must provide a simple way to mark an order as a future order and choose its planned future fulfilment date. Same-day ordering should remain the low-friction default so that the future-order control does not add unnecessary work to ordinary orders.
+
+**FR-019 — Automatic future-order progression**  
+An order with a future planned fulfilment date must remain in the future-orders area before that date and automatically become part of today's orders when the planned fulfilment date arrives; the operator must not need to manually change its category/state for this transition.
 
 ### 5.3 Order state and payment state
 
@@ -168,9 +177,15 @@ For the Phase 1 product baseline, an order becomes an overdue-payment attention 
 **FR-026 — Hiboutik card amount summary**  
 The application must clearly display a single current total for the POS-originated card amount that still needs to be represented/entered in Hiboutik according to the approved business process. v1 does not require automatic submission to Hiboutik.
 
-A Hiboutik emergency-import order must be excluded from this dedicated amount-to-enter total because that order already originates in Hiboutik. This exclusion does not prevent the emergency order from participating in other appropriate POS operational or turnover displays.
+The amount is attributed to the date on which the relevant card payment is actually received, not to the order-creation or fulfilment date. A Hiboutik emergency-import order must be excluded from this dedicated amount-to-enter total because that order already originates in Hiboutik. This exclusion does not prevent the emergency order from participating in other appropriate POS operational displays.
 
 Direct electronic control of a bank card terminal is not assumed for v1 unless later explicitly approved.
+
+**FR-027 — Payment-event history**  
+The target data model should record each actual payment event with at least its date/time, amount and payment method so that partial payments and payments on different dates remain reconstructable. This is the preferred v1 design because it directly supports daily reconciliation and settlement-year logic; free-text notes are not the primary payment ledger.
+
+**FR-028 — Receipt-date attribution**  
+Operational daily received-payment totals must be based on the date money is actually received. An order may therefore have distinct creation, fulfilment and payment dates. For a partial payment, only the amount actually received on a given date contributes to that date's payment totals.
 
 ### 5.4 Order lifecycle, retrieval and navigation
 
@@ -182,6 +197,8 @@ The operator must be able to retrieve an existing order when permitted by the li
 
 **FR-032 — Modify order**  
 The operator must be able to modify an existing order while preserving the approved historical/audit behavior.
+
+For already fully settled orders, v1 should avoid silently rewriting the original financial history. Common post-payment changes may be handled through a supplementary order for additional items/amounts or through an approved cancel/replace workflow when an order must be reduced. Exact replacement/linking semantics will be frozen in `order-lifecycle.md`.
 
 **FR-033 — Cancel order**  
 Cancellation must not silently destroy business history that must be retained.
@@ -245,6 +262,8 @@ The POS must generate and print the approved kitchen ticket.
 **FR-061 — Customer/order ticket at order creation**  
 Order creation must support the operational printout needed before customer payment, including the customer/order ticket used to identify and attach the order to the prepared package.
 
+A future order should use the same default operational behavior: when the order is confirmed, the required kitchen and customer/order printouts are generated immediately so that the operator can retain them as a physical reminder until fulfilment day.
+
 **FR-062 — Payment-updated customer reprint**  
 After payment is recorded or corrected, the operator must be able to reprint the customer ticket/receipt so that the latest approved payment information can be reflected when required.
 
@@ -269,13 +288,13 @@ The final export schema, period-selection rules and transfer mechanism will be s
 ### 5.9 Operational overview and administration
 
 **FR-080 — Daily operational summary**  
-The main interface must show an at-a-glance current-day turnover/payment summary and should update automatically from committed/payment-updated data.
+The main interface must show an at-a-glance current-day received-payment/operational summary and should update automatically from payment updates. The daily received amount is attributed by actual payment date rather than order-creation date.
 
 **FR-081 — Today's orders**  
 The main interface must provide an immediately accessible view/summary of today's orders.
 
 **FR-082 — Future orders**  
-The main interface must provide a clearly visible future-orders area so that orders already received for a later fulfilment date are not forgotten. The operator must be able to open this area and inspect the relevant future orders.
+The main interface must provide a clearly visible future-orders area so that orders already received for a later fulfilment date are not forgotten. The compact main-screen indicator only needs to show the total number of future orders; the operator can open the area to inspect their dates and details.
 
 **FR-083 — Overdue unsettled orders**  
 The main interface must provide a clearly visible overdue-unsettled area for orders whose planned fulfilment date has passed and whose payment state remains unpaid or partially paid. This area must be distinct from today's normal unpaid orders and from legitimate future orders.
@@ -345,11 +364,12 @@ Phase 1 establishes product direction but does not yet freeze:
 
 - exact order states, replacement semantics and state labels;
 - exact edge-case lifecycle behavior around overdue unpaid/partial orders beyond the approved fulfilment-date rule;
+- exact post-payment replacement/linking workflow beyond the requirement not to silently rewrite settled financial history;
 - exact discount and minimum-order rules;
-- detailed payment-method model beyond support for pending, partial, settled and structured split amounts;
+- detailed payment-method model beyond support for pending, partial, settled, structured split amounts and payment-event history;
 - detailed product-option/group rules;
 - exact lightweight telephone-history assistance;
-- catalogue maintenance workflow;
+- detailed catalogue import/export schema and validation;
 - database engine and physical schema;
 - archive database naming/attachment implementation;
 - application framework/UI technology and exact placement/style of the French/Chinese language switch;
@@ -372,6 +392,8 @@ In particular:
 - no automatic Hiboutik API integration is required for v1;
 - Hiboutik emergency import exists to protect operations when Hiboutik printing fails, not to duplicate all web orders into the POS as a normal workflow;
 - telephone and walk-in orders do not need to be distinguished as separate business sources unless a later requirement creates real value from doing so;
+- POS-managed refund processing is not required for v1; any card-terminal refund remains an external operational action unless a later explicit requirement brings refunds into scope;
+- the new POS does not require migration of completed historical `POS_Caisse.xlsm` orders at cutover. Orders that are still active in the old system may be completed there, while newly received orders begin in the new POS from the agreed cutover point;
 - implementation must not silently introduce unapproved external services or recurring-cost dependencies.
 
 ## 9. Phase 1 success criteria
