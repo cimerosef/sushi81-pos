@@ -16,8 +16,7 @@ It does not define the order lifecycle, physical database schema, UI layout, pri
 The following constraints are already established by `current-system.md` and `product-requirements.md`:
 
 - fulfilment modes are `Retrait` and `Livraison`;
-- delivery address is required for delivery;
-- telephone number is useful but is not universally mandatory;
+- telephone number and delivery address are useful operational information, but Phase 2 may refine when they are mandatory;
 - the application retains a free-text operational comment field;
 - planned fulfilment date/time is structured separately from comments;
 - product discounts depend on catalogue-level discount eligibility;
@@ -43,7 +42,7 @@ The current Excel/VBA system behaves as follows:
 - no delivery fee;
 - current minimum original order total is €30;
 - current delivery orders are charged at normal price and do not use the pickup 10% discount workflow;
-- address is mandatory.
+- address is normally operationally expected.
 
 These current behaviors are inputs to Phase 2, not automatically frozen target rules unless explicitly approved below.
 
@@ -129,9 +128,11 @@ Fulfilment mode is a **mandatory order field**. If neither option has been selec
 
 When a new order is initialized from an existing order's reusable customer information, the prior order's fulfilment mode is **not inherited**. The operator must explicitly choose `Retrait` or `Livraison` again for the new order.
 
-Delivery address remains mandatory for `Livraison`.
-
 Telephone number is **optional for both `Retrait` and `Livraison`**. A missing telephone number must never by itself prevent order confirmation.
+
+Delivery address is also **optional at the time a `Livraison` order is confirmed**. A missing address must not prevent the order from being created, saved, printed or otherwise completed in the normal order-entry workflow.
+
+The operator must be able to reopen the same existing `Livraison` order later and add or correct the delivery address without creating a replacement order. The latest saved address then becomes the address used for subsequent viewing and reprinting.
 
 The normal fast-entry workflow should allow the operator to type a standard French 10-digit telephone number as ten continuous digits without inserting spaces manually, for example:
 
@@ -233,10 +234,11 @@ The following are already approved and are no longer open questions:
 - every new order must explicitly select `Retrait` or `Livraison` before confirmation;
 - fulfilment mode is not inherited when creating a new order from an existing order's customer information;
 - telephone is optional for both Retrait and Livraison;
+- delivery address is optional at initial Livraison confirmation and may be added or corrected later on the same order;
 - standard 10-digit telephone entry may be typed without spaces and is displayed/printed in grouped form such as `06 12 34 56 78` after save;
 - the ordinary order-total field is directly editable;
 - later price-affecting order changes automatically recalculate and replace any manual total override.
 
 ## 7. Approval rule
 
-This file remains a Draft until the remaining target rules above are explicitly approved. Codex must implement the approved Retrait and Livraison semantics and must not restore former VBA warning/override behavior or hard-code configurable commercial thresholds without explicit product approval.
+This file remains a Draft until the remaining target rules above are explicitly approved. Codex must implement the approved Retrait and Livraison semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, or hard-code configurable commercial thresholds without explicit product approval.
