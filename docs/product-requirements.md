@@ -7,11 +7,13 @@
 
 ## 1. Purpose
 
-Sushi81 POS is a dedicated Windows desktop application intended to replace the Excel/VBA-centered POS workflow currently used by Sushi 81 and to provide a stable foundation for local order management, printing, online-order intake and accounting export.
+Sushi81 POS is a dedicated Windows desktop application intended to replace the Excel/VBA-centered `POS_Caisse.xlsm` workflow currently used by Sushi 81.
 
-The product must preserve the speed and business-specific simplicity of the current workflow while improving reliability, data durability, maintainability and testability.
+The application is primarily an order-entry and operational order-management tool for telephone and walk-in orders. It does **not** replace `Gestion SUSHI 81.xlsm`, which remains part of the management workflow and must continue to receive the approved POS data export.
 
-This document defines the Phase 1 product boundary. Detailed business rules and architecture are intentionally deferred to the later documents in the project roadmap.
+The product must preserve the speed and business-specific simplicity of the current workflow while improving reliability, payment-state handling, data durability, searchability, printing and maintainability.
+
+This document defines the Phase 1 product boundary. Detailed business rules, lifecycle semantics and architecture are intentionally deferred to later documents in the project roadmap.
 
 ## 2. Product vision
 
@@ -19,301 +21,345 @@ The v1 product should behave like a focused operational tool built specifically 
 
 Its core principles are:
 
-- **fast in daily use** — common counter operations should require minimal clicks and typing;
-- **local-first** — core POS work must not depend on a remote SaaS service being available;
-- **reliable** — business data must survive application restarts, software updates and ordinary workstation failures when the documented recovery process is followed;
-- **business-specific** — the product should implement approved Sushi 81 workflows without unnecessary generic POS complexity;
-- **maintainable** — application code, business rules, persisted data and integrations should be separable and testable;
-- **evolvable** — later changes to printing, import/export or storage should not require rebuilding the entire product concept;
-- **cost-conscious** — the product should not introduce a mandatory recurring paid dependency unless explicitly approved.
+- **fast in daily use** — common order-entry actions should require minimal clicks and typing;
+- **local-first** — core POS work must not depend on a hosted backend;
+- **reliable** — committed business data must survive normal application restarts and updates;
+- **business-specific** — implement approved Sushi 81 workflows without unrelated POS complexity;
+- **maintainable** — UI, business rules, persisted data and integrations should be separable and testable;
+- **evolvable** — later changes to printing, export, storage or Hiboutik support should not require redesigning the whole product;
+- **cost-conscious** — no mandatory recurring paid dependency without explicit approval.
 
-## 3. Primary users
+## 3. Primary users and deployment model
 
-The primary users are Sushi 81 staff operating the POS during normal business activity.
+The primary users are Sushi 81 staff operating the POS during normal business activity and the owner performing end-of-day review and administration.
 
-The owner/administrator also needs to be able to maintain the business configuration and obtain the data required for accounting and operational follow-up.
+The same application should provide the same functional capability on both the shop computer and the home computer so that either computer can replace the other in an emergency.
 
-The v1 product is designed for Sushi 81's own operational environment. Multi-tenant SaaS behavior and a general-purpose commercial POS product are not requirements for v1.
+The target architecture must prevent or safely handle conflicting simultaneous access to the same live business database. The normal business workflow does not require the two computers to operate the live database concurrently.
+
+The v1 application does not require login, employee accounts, roles or permissions.
 
 ## 4. v1 product goals
 
-### G-01 — Replace the Excel/VBA operational dependency
+### G-01 — Replace the Excel/VBA POS dependency
 
-The normal POS workflow must be executable from a standalone Windows application without requiring Microsoft Excel or VBA to run the POS itself.
+Normal order entry, order retrieval, payment follow-up, printing and day-to-day POS administration must work from the standalone Windows application without requiring Excel/VBA.
 
-Existing Excel files may remain part of migration, accounting or transitional workflows until their replacement interfaces are explicitly specified.
+### G-02 — Preserve and improve fast order entry
 
-### G-02 — Preserve fast order entry
+The interaction model must be at least as practical as the current UserForm and should remove known friction such as inconvenient quantity editing.
 
-The target POS must support rapid creation of an order using an interaction model at least as practical as the current UserForm workflow.
+### G-03 — Maintain a durable current operational database
 
-### G-03 — Centralize order data
+The POS must retain durable order data for normal operational use rather than deleting old rows merely to keep an Excel workbook small.
 
-Orders created or imported into the POS must be represented as durable application data rather than existing only as transient UI state or workbook cells.
+The live operational database is intended to retain approximately one natural year's operational data. Older completed data must be manually archivable by year into separate archive databases according to the approved archive rules.
 
-### G-04 — Support Sushi 81 fulfilment workflows
+### G-04 — Keep `Gestion SUSHI 81.xlsm` in the workflow
 
-The system must support the approved pickup and delivery workflows and retain the information required to execute them correctly.
+The POS remains an order-entry system. It must continue to provide the approved data transfer/export needed by `Gestion SUSHI 81.xlsm`; v1 does not attempt to replace the management workbook's broader role.
 
-### G-05 — Support operational printing
+### G-05 — Support Sushi 81 fulfilment workflows
 
-The system must support the approved kitchen-ticket and customer-ticket workflows.
+The system must support approved pickup and delivery workflows and retain the information needed to execute them correctly.
 
-### G-06 — Support online-order intake
+### G-06 — Support operational printing and reliable reprinting
 
-The system must provide a controlled way to bring supported online-order information into the POS without forcing staff to manually reconstruct every field.
+The system must support kitchen/customer operational printouts, payment-updated customer reprints and later reprinting of retained or archived orders.
 
-The first planned integration path is the pasted-order workflow defined later in `paste-order-import.md`.
+### G-07 — Support Hiboutik emergency-print fallback
 
-### G-07 — Preserve accounting continuity
+When Hiboutik server-side printing is unavailable, the POS must provide a controlled emergency path for pasting Hiboutik order-email text, reviewing the parsed order and generating local printable order output.
 
-The POS must retain sufficient structured information to generate the approved accounting/export output required by Sushi 81's existing accounting process.
+### G-08 — Support clear payment and reconciliation workflows
 
-### G-08 — Improve recoverability and maintainability
+The POS must distinguish order state from payment state, support partial/mixed payments, make unresolved payment situations visible at the appropriate time, and clearly expose the card amount that must be represented in Hiboutik.
 
-The target system must make application updates, data backup, recovery, schema evolution and automated testing safer and more explicit than in the current workbook-centered design.
+### G-09 — Improve recoverability and maintainability
+
+Application updates, backup, restore, schema evolution and automated testing must be safer and more explicit than in the workbook-centered design.
 
 ## 5. Functional requirements
-
-The following requirements define capabilities that v1 must support. Detailed semantics remain governed by the later business-design documents.
 
 ### 5.1 Catalogue and product selection
 
 **FR-001 — Product catalogue**  
-The application must be able to load and use a structured Sushi 81 product catalogue.
+The application must use a structured Sushi 81 product catalogue.
 
 **FR-002 — Product search and selection**  
-The operator must be able to find and add products quickly during order entry. Product search must support both product code and product name, and the product-selection workflow must preserve both fast double-click addition and an explicit add action.
+Product search must support both product code and product name. Product addition must support both fast double-click addition and an explicit add action.
 
 **FR-003 — Cart management**  
-The operator must be able to view the current cart, change quantities and remove or add items before finalization. For an item already in the cart, the operator must be able to select the line and adjust its quantity directly through a convenient quantity control and/or `+`/`-` actions without having to reopen the item through a separate edit gesture.
+The operator must be able to view the current cart, add/remove items and change quantities. An item already in the cart must be directly adjustable through a convenient quantity field and/or `+`/`-` controls without requiring a separate double-click edit workflow.
 
 **FR-004 — Prices and commercial attributes**  
-The catalogue must be capable of carrying the information required by approved pricing and discount rules.
+The catalogue must carry the information needed by approved pricing, VAT and discount rules.
 
 **FR-005 — Product options and choices**  
-The catalogue/order-entry model must support products that require one or more operator-selectable customer choices, such as choosing one flavour from several available flavours for an ice cream or choosing an allowed variant within a menu item. These choices must be selectable directly during order entry instead of relying only on free-text comments, and the selected choice must remain attached to the relevant ordered item for operational use and printing.
+Products may have one or more operator-selectable customer choices, such as an ice-cream flavour or a menu variant. These selections must be made directly during order entry rather than relying only on free-text comments.
 
-The exact catalogue editing, option-group model, required/optional choice rules and source-of-truth model will be defined in `catalogue-management.md` and the later business-design documents.
+**FR-006 — Preserve item-specific choices**  
+Selected product options must remain attached to the specific order item and remain available when the order is viewed, modified or printed.
 
-### 5.2 Order creation
+Detailed catalogue maintenance and option-group rules will be defined in `catalogue-management.md`.
+
+### 5.2 Order creation and customer/order information
 
 **FR-010 — Create order**  
-The operator must be able to create a new order from selected catalogue items.
+The operator must be able to create orders quickly from catalogue items.
 
 **FR-011 — Fulfilment mode**  
-The order must support the approved fulfilment modes, including pickup and delivery.
+Orders must support pickup and delivery.
 
 **FR-012 — Required fulfilment information**  
-The system must enforce the information required for the selected fulfilment mode, such as delivery information when applicable.
+The system must enforce information required by the selected fulfilment mode, such as delivery address where applicable.
 
 **FR-013 — Commercial rules**  
-The system must apply the approved minimum-order, discount and other commercial rules automatically and consistently.
+Approved discount, threshold and delivery rules must be applied consistently. Exact rules will be frozen in `business-rules.md`.
 
-**FR-014 — Preserve item-specific customer choices**  
-When an ordered product has configured options or variants, the chosen values must be stored with that order item and remain available when the order is viewed, modified, reprinted or otherwise processed.
+**FR-014 — Telephone usability**  
+Telephone entry must support readable French-style grouping automatically. Telephone must not be assumed mandatory for every walk-in order.
 
-**FR-015 — Telephone entry usability**  
-Where a telephone number is entered, the UI must support readable French-style grouping automatically rather than requiring the operator to type spaces manually. Whether telephone is mandatory for a particular order type will be defined by the later business rules; v1 must not assume that every walk-in order has a telephone number.
+**FR-015 — Free-text operational comment**  
+A flexible order-level comment field must remain available for preparation instructions, customer requests and other operational notes not covered by structured fields.
 
-The final rules are not frozen here; they will be defined in `business-rules.md`.
+**FR-016 — Lightweight historical assistance**  
+The product does not require a formal customer-profile/CRM system in v1. However, when a telephone number has appeared previously, the operator should be able to consult useful historical information such as previously used delivery addresses or relevant order comments/preferences when practical. Exact behavior will be defined later and must not create a heavyweight customer-management workflow.
 
-### 5.3 Payments
+**FR-017 — Structured fulfilment date/time**  
+The system must be capable of recording the relevant planned pickup/delivery date and time separately from free-text comments. This is required so that future orders can be distinguished from overdue unpaid orders and from normal same-day unpaid orders.
 
-**FR-020 — Payment recording**  
+### 5.3 Order state and payment state
+
+**FR-020 — Separate order and payment state**  
+Order lifecycle state and payment state must be represented separately. Cancellation or replacement of an order must not be encoded as a payment state, and unpaid/partially paid/settled must not be encoded only through the order status.
+
+**FR-021 — Payment states**  
+The target payment model must support at least:
+
+- unpaid / payment pending;
+- partially paid;
+- fully settled.
+
+Exact labels and transitions will be frozen in `order-lifecycle.md`.
+
+**FR-022 — Payment recording**  
 The POS must record the approved payment method or payment composition associated with an order.
 
-The current system includes categories such as `CB`, `Espèces` and `DIV`, but the target payment model will be frozen in the business-design phase.
+**FR-023 — Structured split-payment amounts**  
+The operator must be able to record actual cash and non-cash/card amounts for a mixed or partial payment. The application must display the order total, amount already paid and remaining balance and verify the mathematical consistency of the payment entries.
 
-**FR-021 — Payment processing boundary**  
-Phase 1 requires recording payment information for POS operations. Direct electronic control of, or settlement through, a bank card terminal is not assumed unless a later approved specification explicitly introduces it.
+**FR-024 — Payment finalization workflow**  
+The operator must be able to retrieve an existing order, add or correct payment information and mark it fully settled without editing the underlying database directly.
 
-**FR-022 — Structured split-payment amounts**  
-The target payment model must support recording the actual monetary split of a mixed payment instead of representing the entire order only with a generic `DIV` category or a free-text note. At minimum, the operator must be able to enter the cash amount and non-cash/card amount and verify that their sum equals the order total.
+**FR-025 — Outstanding-payment attention**  
+The main interface must provide a clearly visible way to surface unpaid or partially paid orders that require follow-up, while avoiding false alerts for normal same-day unpaid orders and legitimate future orders whose pickup/delivery date has not yet arrived.
 
-**FR-023 — Payment finalization workflow**  
-The application must support retrieving an existing unpaid or payment-unconfirmed order, recording or confirming its final payment composition, and completing the payment-related workflow without requiring direct editing of the underlying data store.
+A candidate rule is to treat an order as requiring attention only after its relevant fulfilment date has passed and it remains not fully settled; the exact threshold/timing will be frozen in `order-lifecycle.md`.
+
+**FR-026 — Hiboutik card amount summary**  
+The application must clearly display a single current total for the POS-originated card amount that must be represented/entered in Hiboutik according to the approved business process. v1 does not require automatic submission to Hiboutik.
+
+Direct electronic control of a bank card terminal is not assumed for v1 unless later explicitly approved.
 
 ### 5.4 Order lifecycle, retrieval and navigation
 
 **FR-030 — Persist order**  
-An order must be durably stored according to the approved lifecycle.
+A confirmed order must be durably stored according to the approved lifecycle.
 
 **FR-031 — Reload order**  
-The operator must be able to retrieve an existing order when the approved lifecycle permits it.
+The operator must be able to retrieve an existing order when permitted by the lifecycle.
 
 **FR-032 — Modify order**  
-The operator must be able to modify an order when allowed by the approved lifecycle and business rules.
+The operator must be able to modify an existing order while preserving the approved historical/audit behavior.
 
 **FR-033 — Cancel order**  
-The product must support the approved cancellation workflow without silently destroying historical business data that must be retained.
+Cancellation must not silently destroy business history that must be retained.
 
 **FR-034 — Abandon in-progress edits**  
-The operator must be able to abandon an uncommitted edit and return to the previously persisted state where applicable.
+The operator must be able to abandon uncommitted edits and return to the persisted state.
 
 **FR-035 — Practical order search**  
-The order-search interface must allow the operator to find an order using more than raw visual comparison of telephone numbers. Search/filtering must be able to use practical order information including telephone number and comment/remark text; additional useful fields may be included if approved during UI design.
+Search/filtering must support practical order information including telephone number and comment text; additional useful fields may be included during UI design.
 
 **FR-036 — Distinguish current and older orders**  
-When the order list contains both today's orders and older retained orders, the UI must make their age/date visually clear. A muted/grey treatment for non-current-day orders is an acceptable design direction, but the exact styling will be decided during UI design.
+The order list must visually distinguish today's orders from older retained orders. Muted/grey styling for older orders is an acceptable design direction.
 
-Exact states, finalization behavior, audit requirements and edit/cancel permissions will be defined in `order-lifecycle.md`.
+**FR-037 — Current database first**  
+Normal order search must prioritize the live/current operational database. Archived years do not need to participate in every ordinary search automatically.
 
-### 5.5 Online-order intake
+**FR-038 — Archive access**  
+The operator must be able to explicitly open/select an archived year and search or inspect archived orders when needed.
 
-**FR-040 — Paste external order data**  
-The system must provide an operator-facing method to paste supported external order text/data for parsing.
+### 5.5 Retention and annual archive
 
-**FR-041 — Review parsed result**  
-Imported data must be presented in a way that allows the operator to detect parsing problems before committing an incorrect order.
+**FR-040 — Natural-year archive model**  
+Completed historical data must be manually archivable by natural year into a separate archive database rather than remaining indefinitely in the live operational database.
 
-**FR-042 — Preserve operational date information**  
-The import workflow must preserve operationally important information such as the requested pickup date so that future orders cannot be mistaken for same-day orders.
+**FR-041 — Settlement-year assignment**  
+For archive/reporting-year assignment, an order that remains unpaid across a year boundary belongs to the natural year in which it becomes fully settled. The record must nevertheless retain its original creation date and planned/actual fulfilment information.
 
-The exact supported Hiboutik format, parser behavior and error handling will be specified in `paste-order-import.md` and validated with samples under `samples/pasted-orders/`.
+**FR-042 — Do not archive unresolved payments**  
+An unpaid or partially paid order must not be removed from the live operational database merely because its creation or fulfilment date belongs to an older year.
 
-### 5.6 Printing
+Once it is fully settled, it becomes eligible for the appropriate archive year according to the approved settlement-year rule.
 
-**FR-050 — Kitchen ticket**  
-The POS must support generation and printing of the approved kitchen ticket.
+**FR-043 — Reprint retained and archived orders**  
+Any order still present in the live database must be reprintable. Archived orders must remain accessible through archive selection so that kitchen/customer output can be regenerated when needed.
 
-**FR-051 — Customer ticket**  
-The POS must support generation and printing of the approved customer ticket.
+Exact archive-file naming, database attachment/opening behavior and physical storage will be defined in `storage-strategy.md`.
 
-**FR-052 — Print failure handling**  
-A printing problem must not silently corrupt or lose the underlying order data.
+### 5.6 Hiboutik emergency order import
 
-**FR-053 — Separate operational and payment printing moments**  
-The target workflow must allow the kitchen ticket to be printed when the order is created while allowing the customer ticket to be printed separately when payment is finalized, so that the customer ticket can reflect the confirmed payment information rather than being forced to print before the payment method is known.
+**FR-050 — Emergency paste import**  
+The POS must provide an operator-facing method to paste the text of the automatic Hiboutik order-summary email when Hiboutik server-side printing is unavailable.
 
-**FR-054 — Selective reprint**  
-The operator must be able to retrieve an existing order and reprint the kitchen ticket or customer ticket independently when needed.
+**FR-051 — Review parsed result**  
+Parsed order content must be shown for review before committing/printing so that a parsing error does not silently become a wrong kitchen order.
 
-Printer configuration, templates, retry/reprint behavior, statutory receipt content and implementation architecture will be defined in `printing.md`.
+**FR-052 — Preserve operational date information**  
+The emergency import must preserve important operational information such as requested pickup/delivery date/time so a future order cannot be mistaken for a same-day order.
 
-### 5.7 Export
+**FR-053 — Emergency-order marker**  
+Emergency-imported Hiboutik orders must be visibly distinguishable from ordinary POS-created orders. The main interface should provide a clear current-day indicator/count of emergency orders, using a distinctive visual treatment such as a different color.
 
-**FR-060 — Structured export**  
-The POS must be able to export the approved business/accounting data in a deterministic format.
+The exact Hiboutik email formats, parser behavior and error handling will be specified in `paste-order-import.md` and validated with sanitized samples.
 
-**FR-061 — Accounting compatibility**  
-The exported information must be sufficient to preserve the approved VAT, sales-account and transaction distinctions required by Sushi 81's accounting workflow.
+The treatment of emergency-imported orders in the dedicated "amount to enter in Hiboutik" total remains to be explicitly confirmed; Phase 1 must not guess this behavior.
 
-The exact export schema, period rules and mappings will be defined in `export.md`.
+### 5.7 Printing
 
-### 5.8 Operational overview and administrative capabilities
+**FR-060 — Kitchen ticket**  
+The POS must generate and print the approved kitchen ticket.
 
-**FR-070 — Business configuration**  
-Configuration that is expected to change during normal business operation must not require source-code changes.
+**FR-061 — Customer/order ticket at order creation**  
+Order creation must support the operational printout needed before customer payment, including the customer/order ticket used to identify and attach the order to the prepared package.
 
-**FR-071 — Diagnostics**  
+**FR-062 — Payment-updated customer reprint**  
+After payment is recorded or corrected, the operator must be able to reprint the customer ticket/receipt so that the latest approved payment information can be reflected when required.
+
+**FR-063 — Selective reprint**  
+Kitchen and customer output must be independently reprintable for an existing order.
+
+**FR-064 — Print failure handling**  
+A printing problem must not corrupt or lose the persisted order.
+
+Printer configuration, statutory receipt content, VAT display, templates, retry behavior and implementation architecture will be defined in `printing.md`.
+
+### 5.8 Export and `Gestion SUSHI 81.xlsm`
+
+**FR-070 — Structured export**  
+The POS must export the approved order and sales-detail data in a deterministic form suitable for transfer into `Gestion SUSHI 81.xlsm`.
+
+**FR-071 — Preserve management compatibility**  
+The transfer must preserve the business information required for the management workbook's current-year sales history, LCL reconciliation and product-sales analysis.
+
+The final export schema, period-selection rules and transfer mechanism will be specified in `export.md`.
+
+### 5.9 Operational overview and administration
+
+**FR-080 — Daily operational summary**  
+The main interface must show an at-a-glance current-day turnover/payment summary and should update automatically from committed/payment-updated data.
+
+**FR-081 — Outstanding-payment summary**  
+The main interface must provide a clearly visible summary/entry point for payment situations that genuinely require follow-up according to the approved overdue/future-order rule.
+
+**FR-082 — Emergency-order summary**  
+The main interface must make today's Hiboutik emergency-import orders visibly identifiable and show their count or equivalent clear indicator.
+
+**FR-083 — Business configuration**  
+Configuration expected to change in normal operation must not require source-code changes.
+
+**FR-084 — Diagnostics**  
 The application must provide enough diagnostics to understand operational failures without exposing or committing sensitive production data.
-
-**FR-072 — Daily operational summary**  
-The main operational interface must provide an at-a-glance summary of the current day's turnover and approved payment breakdown. The summary should update automatically from committed/payment-updated order data rather than depending on a manual refresh as the normal workflow.
-
-The exact settings surface, reconciliation display and logging design may be refined during architecture and implementation planning.
 
 ## 6. Non-functional requirements
 
-### NFR-001 — Windows desktop application
+**NFR-001 — Windows desktop**  
+The v1 POS must run as a desktop-class Windows application on the supported Sushi 81 workstations.
 
-The v1 POS must run as a native or desktop-class application on the supported Windows environment used by Sushi 81.
+**NFR-002 — Local-first core operation**  
+Core order-entry, order-management and printing workflows must not depend on a mandatory hosted application backend.
 
-### NFR-002 — Local-first core operation
+**NFR-003 — Data durability**  
+Committed business data must survive normal application restart/crash scenarios and must not depend on the application remaining open.
 
-Core order-entry and order-management functions must continue to work without a mandatory connection to a hosted application backend.
+**NFR-004 — Recoverability**  
+A documented backup and restore path must exist before production use.
 
-Features that inherently depend on an external system may report that dependency separately, but they must not make locally stored orders unavailable.
+**NFR-005 — Safe schema evolution**  
+Persistent-data schema changes must be versioned and testable. Updates must not silently reset or discard production data.
 
-### NFR-003 — Data durability
+**NFR-006 — Separation of application and business data**  
+Deployment must not rely on executable files and the live business database being in the same folder or disk partition. Final locations will be defined in `storage-strategy.md`.
 
-Committed business data must be stored durably and must not depend on the application remaining open.
+**NFR-007 — Performance and responsiveness**  
+Common actions—search, add item, quantity change, order lookup, payment update and ordinary navigation—should feel immediate. Printing should be initiated without recurring multi-second UI stalls like those experienced in the VBA workflow.
 
-A normal application crash or restart must not erase already committed orders.
+**NFR-008 — Usability**  
+The primary workflow must minimize unnecessary dialogs and choices during live order entry.
 
-### NFR-004 — Recoverability
+**NFR-009 — Testability**  
+Core business logic, persistence, parsing, archive/export behavior and printing-data generation must be testable independently from manual production UI interaction.
 
-The architecture must provide a documented backup and restore path for business data before production use.
+**NFR-010 — Dependency discipline**  
+Prefer free/open-source dependencies compatible with the approved architecture. Paid, hosted or subscription dependencies require explicit approval.
 
-### NFR-005 — Safe schema evolution
+**NFR-011 — Sensitive-data protection**  
+Real customer, order, payment, credential or other sensitive production data must not be committed to Git. Test fixtures must be synthetic or sanitized.
 
-Persistent-data schema changes must be versioned and testable. An application update must not silently reset or discard production business data.
+**NFR-012 — Maintainability**  
+UI, business rules, persistence, printing and integrations should have clear boundaries.
 
-### NFR-006 — Separation of application and business data
+**NFR-013 — Lightweight access model**  
+No login, employee-account or permission framework is required in v1.
 
-The deployment design must not rely on the executable files and the live business database being located in the same folder or on the same disk partition.
-
-The final storage locations and configuration mechanism will be defined in `storage-strategy.md`, but application installation and business-data placement must remain logically separable.
-
-### NFR-007 — Performance and responsiveness
-
-Common operator actions—opening an order, product search, adding items, changing quantities, finding an order and moving through normal order-entry steps—should feel immediate on the target workstation and should not require network round trips for local data.
-
-Printing must be initiated without unnecessarily blocking the order-entry interface; the target design should avoid the recurring multi-second UI stalls experienced in the current VBA workflow.
-
-### NFR-008 — Usability
-
-The primary workflow must be optimized for frequent operational use, with minimal unnecessary dialogs or configuration choices during order entry.
-
-### NFR-009 — Testability
-
-Core business logic, persistence behavior, import parsing and export generation must be designed so that they can be covered by automated tests without requiring manual interaction with the production UI.
-
-### NFR-010 — Dependency discipline
-
-Prefer free and open-source dependencies compatible with the approved architecture. A paid, hosted, proprietary or subscription dependency that creates recurring operational cost must not be introduced without an explicit approved decision.
-
-### NFR-011 — Sensitive-data protection
-
-Real customer, order, payment, credential or other sensitive production data must not be committed to Git. Test fixtures must use synthetic or appropriately sanitized data.
-
-### NFR-012 — Maintainability
-
-UI, business rules, persistence and external integrations should have clear boundaries so that changes in one area do not unnecessarily destabilize the others.
-
-### NFR-013 — Lightweight access model
-
-The internal v1 application does not require a login flow, employee account system or role/permission framework. Such a system must not be introduced unless a later explicit business requirement justifies it.
+**NFR-014 — Multi-computer safety**  
+Both supported computers must be able to run the full application, but the storage/synchronization design must prevent unsafe concurrent writes or database conflicts when the same live data is involved.
 
 ## 7. Product boundaries for Phase 1
 
-Phase 1 establishes the product direction but deliberately does not freeze the following:
+Phase 1 establishes product direction but does not yet freeze:
 
-- exact order states and finalization semantics;
+- exact order states, replacement semantics and state labels;
+- exact rules for when an unpaid/partial order becomes an attention item;
 - exact discount and minimum-order rules;
-- the final payment data model beyond the requirement to preserve structured mixed-payment amounts;
-- detailed product-option/group configuration rules;
-- exact customer/contact-history behavior;
+- detailed payment-method model beyond support for pending, partial, settled and structured split amounts;
+- detailed product-option/group rules;
+- exact lightweight telephone-history assistance;
 - catalogue maintenance workflow;
 - database engine and physical schema;
-- application framework and UI technology;
-- data-file location and migration mechanics;
-- multi-PC synchronization behavior;
+- archive database naming/attachment implementation;
+- application framework/UI technology;
+- live-data location and multi-computer synchronization mechanics;
 - backup implementation;
-- exact Hiboutik pasted-order format;
-- exact mechanism, if any, for optimizing transfer of POS-originated card revenue into Hiboutik;
-- printer model/protocol and ticket templates;
-- accounting export schema;
-- exact visual styling of order-age/status cues and the daily dashboard.
+- exact Hiboutik email format/parser;
+- whether Hiboutik emergency imports participate in the dedicated "amount to enter in Hiboutik" total;
+- printer model/protocol and final ticket templates;
+- final `Gestion SUSHI 81.xlsm` export schema.
 
-Those topics have dedicated documents in Phases 2–4.
+Those decisions belong to the later business, architecture, storage and integration documents.
 
 ## 8. v1 scope discipline
 
-The product should solve the operational POS and order-management problem Sushi 81 actually has today. Features must not be added merely because they are common in generic POS products.
+The product should solve the operational Sushi 81 order-entry problem without becoming a generic POS or CRM.
 
-In particular, implementation work must not silently introduce new business behavior, external services, recurring-cost dependencies or major integrations that have not been approved in the relevant design document.
+In particular:
 
-The existing business requirement that POS-originated card revenue ultimately be represented correctly in Hiboutik remains in scope as an operational constraint. The future system may optimize how that requirement is fulfilled, but Phase 1 does not assume that it should be removed.
+- `Gestion SUSHI 81.xlsm` remains outside the POS replacement scope;
+- no employee/account/permission system is required;
+- no automatic Hiboutik API integration is required for v1;
+- Hiboutik emergency import exists to protect operations when Hiboutik printing fails, not to duplicate all web orders into the POS as a normal workflow;
+- telephone and walk-in orders do not need to be distinguished as separate business sources unless a later requirement creates real value from doing so;
+- implementation must not silently introduce unapproved external services or recurring-cost dependencies.
 
 ## 9. Phase 1 success criteria
 
 Phase 1 is complete when:
 
-1. the current operational baseline is accurately described in `current-system.md`;
-2. the v1 product goals and required capability areas in this document are accepted as the planning baseline;
-3. any incorrect assumptions found during review are corrected before they propagate into Phase 2;
-4. unresolved details are deliberately assigned to the later roadmap documents rather than being guessed during implementation.
+1. `current-system.md` is an approved baseline of the existing operation;
+2. the v1 product goals and capability boundaries in this document are accepted;
+3. incorrect assumptions are corrected before Phase 2;
+4. unresolved lifecycle/business/storage details are explicitly deferred rather than guessed.
 
-Approval of Phase 1 does **not** authorize production implementation. The repository roadmap requires the relevant business, architecture, storage, integration and acceptance documents to be reviewed before the architecture-freeze milestone and before production implementation begins.
+Approval of Phase 1 does **not** authorize production implementation. The repository roadmap still requires the later business, architecture, storage, integration and acceptance documents to be reviewed before architecture freeze and production implementation.
