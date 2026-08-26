@@ -19,6 +19,7 @@ It covers:
 - future-order and overdue behavior;
 - order modification and cancellation;
 - creation of a new order from an existing order's customer information;
+- real-time operational turnover monitoring;
 - daily received-payment summaries;
 - lifecycle treatment of Hiboutik emergency-import copies.
 
@@ -35,7 +36,8 @@ Phase 2 freezes these simple principles:
 - **the order has one authoritative editable total field**;
 - **a manual total edit is temporary and any later price-affecting order change automatically recalculates the total under normal pricing rules**;
 - **an order may be closed only when recorded cash + card exactly equals that current order total**;
-- **daily summaries use the amount actually received on each date, not the nominal value of the whole order**;
+- **real-time operational turnover and received-payment summaries are separate metrics**;
+- **daily received-payment summaries use the amount actually received on each date, not the nominal value of the whole order**;
 - **only the latest saved order version needs to be retained for normal business use; v1 does not require an order revision-history feature.**
 
 The following principles remain fixed:
@@ -49,11 +51,12 @@ The following principles remain fixed:
 7. Due-today advance-order visibility is operational and does not depend on whether payment has already been entered.
 8. Partial and mixed payments are representable structurally through CB and Espèce amounts.
 9. Daily received-payment totals represent money actually received on that date, not unpaid order value.
-10. Hiboutik emergency-import records are operational/printing copies, not new POS-originated sales; they remain excluded from ordinary POS turnover/card-entry/export totals.
-11. External card-terminal refund/additional-charge handling remains outside the POS in v1.
-12. The operator may directly edit the order total without changing catalogue product base prices.
-13. A later change to products, quantities, options/price adjustments or discounts automatically recalculates and replaces any prior manual total override.
-14. Every new order must explicitly select a fulfilment mode: `Retrait` or `Livraison`. No order may be confirmed without that selection.
+10. Real-time operational turnover represents the value of valid orders attributed to the relevant operating day and does not depend on payment state or order closure.
+11. Hiboutik emergency-import records are operational/printing copies, not new POS-originated sales; they remain excluded from ordinary POS turnover/card-entry/export totals.
+12. External card-terminal refund/additional-charge handling remains outside the POS in v1.
+13. The operator may directly edit the order total without changing catalogue product base prices.
+14. A later change to products, quantities, options/price adjustments or discounts automatically recalculates and replaces any prior manual total override.
+15. Every new order must explicitly select a fulfilment mode: `Retrait` or `Livraison`. No order may be confirmed without that selection.
 
 ## 3. Lifecycle dimensions
 
@@ -62,7 +65,7 @@ At minimum, an order has independent lifecycle dimensions:
 - **business/order status** — `Open`, `Closed` or `Cancelled`;
 - **payment information** — cumulative cash and card amounts recorded for the order;
 - **order total** — one authoritative editable amount, normally system-calculated but directly editable by the operator;
-- **planned fulfilment date/time** — used to derive future, due-today and overdue attention;
+- **planned fulfilment date/time** — used to derive future, due-today and overdue attention and, subject to final Phase 2 confirmation, the operating-day attribution for real-time turnover;
 - **source type** — ordinary POS-originated order versus Hiboutik emergency-import copy.
 
 Future-order, due-today and overdue labels are operational views derived from the underlying order data rather than separate destructive lifecycle states.
@@ -169,7 +172,7 @@ A previously closed order may still be edited. If a later edit causes CB + Espè
 
 ### 4.7 Daily received-payment summary — approved Phase 2 decision
 
-The current-day summary represents **money actually received on that date**, not the nominal value of every order created or due that day.
+The current-day received-payment summary represents **money actually received on that date**, not the nominal value of every order created or due that day.
 
 It must show at least:
 
@@ -177,7 +180,7 @@ It must show at least:
 - today's actual CB amount received;
 - today's actual Espèce amount received.
 
-An order does not need to be closed in order for an amount already received to contribute to the daily summary.
+An order does not need to be closed in order for an amount already received to contribute to the daily received-payment summary.
 
 Examples:
 
@@ -186,11 +189,36 @@ Examples:
 - a fully unpaid open order contributes €0;
 - if €20 was received yesterday and an additional €30 is received today, yesterday's summary contains €20 and today's summary contains €30.
 
-The existence of open orders must not block generation or display of the daily summary.
+The existence of open orders must not block generation or display of the daily received-payment summary.
 
 The application may separately show open/unsettled orders as an operational reminder.
 
-### 4.8 Future / due today / overdue
+### 4.8 Real-time operational turnover — approved concept, attribution basis to confirm
+
+The main screen must also provide a separate **real-time operational turnover** figure, intended to answer the practical question: “How much business belongs to today?”
+
+This figure is independent from payment reconciliation:
+
+- an Open unpaid order may contribute its full order total to real-time operational turnover;
+- an Open partially paid order may contribute its full order total to real-time operational turnover while only the amount actually received contributes to the received-payment summary;
+- a Closed order contributes its order total in the same way as any other valid non-cancelled order;
+- a Cancelled order does not contribute to real-time operational turnover;
+- Hiboutik emergency-import copies remain excluded from ordinary POS-originated turnover to avoid double counting.
+
+Therefore, order closure and payment entry do **not** control the real-time turnover figure.
+
+The recommended operating-day attribution is the order's **planned fulfilment date** rather than its creation date. Under that recommendation:
+
+- a normal order planned for today contributes its current order total to today's real-time turnover immediately after confirmation, regardless of payment state;
+- a future order created today for tomorrow does not increase today's operational turnover; it belongs to tomorrow's turnover;
+- if that future order is prepaid today, the amount received today still contributes to today's received-payment summary even though the order itself contributes to tomorrow's operational turnover;
+- an older order from yesterday that receives its remaining payment today does not increase today's operational turnover, but today's newly received amount does increase today's received-payment summary.
+
+This separation intentionally allows operational turnover and received money to differ on a given day.
+
+The planned-fulfilment-date attribution above remains the only open detail in this subsection and must be explicitly confirmed before this document becomes final Phase 2 baseline.
+
+### 4.9 Future / due today / overdue
 
 These are operational views derived from planned fulfilment date and settlement status:
 
@@ -200,7 +228,7 @@ These are operational views derived from planned fulfilment date and settlement 
 
 The due-today advance-order reminder remains visible for the rest of that calendar day. A legitimate future order may remain open without affecting today's received-payment summary except for any amount actually received today.
 
-### 4.9 Order modification — approved Phase 2 decision
+### 4.10 Order modification — approved Phase 2 decision
 
 **All non-cancelled orders may be modified regardless of whether they are Open or Closed.**
 
@@ -220,13 +248,13 @@ If the operator later changes any product, quantity, option/price adjustment or 
 
 External refund/additional-charge handling remains outside the POS.
 
-### 4.10 Partial-payment / unsettled orders
+### 4.11 Partial-payment / unsettled orders
 
 If recorded CB + Espèce is greater than zero but less than the current order total, the order remains Open/unsettled and cannot be closed yet.
 
-A partially paid order remains fully editable. Amount already actually received contributes only to the daily summary for the date on which it was received; the unpaid remainder does not.
+A partially paid order remains fully editable. Amount already actually received contributes only to the daily received-payment summary for the date on which it was received; the unpaid remainder does not.
 
-### 4.11 Create a new order from an existing order — approved Phase 2 decision
+### 4.12 Create a new order from an existing order — approved Phase 2 decision
 
 The operator must be able to use any existing order as a source of customer information for a **new order with a new order ID**.
 
@@ -255,7 +283,7 @@ The operator must explicitly choose `Retrait` or `Livraison` for the new order. 
 
 The new order receives its new ID only when confirmed.
 
-### 4.12 Cancellation — approved Phase 2 decision
+### 4.13 Cancellation — approved Phase 2 decision
 
 Cancellation is an explicit operator action and is distinct from ordinary modification.
 
@@ -269,7 +297,7 @@ A Cancelled order:
 
 The POS does not automatically cancel and recreate an order merely because its contents were edited.
 
-### 4.13 Hiboutik emergency-import copies
+### 4.14 Hiboutik emergency-import copies
 
 Emergency-imported Hiboutik orders participate in operational printing, reminders and discrepancy review where applicable, but they are not new POS-originated sales.
 
@@ -291,7 +319,10 @@ The following lifecycle decisions are now approved:
 2. Cancelled orders retain CB/Espèce values for reference but are excluded from normal summaries and exports;
 3. v1 keeps only the latest saved business version of an order and does not provide an order revision-history feature;
 4. creating a new order from an existing order copies customer information but does not inherit `Retrait`/`Livraison`; fulfilment mode is mandatory and must be explicitly selected for every new order;
-5. cross-day and partial payments are attributed by internally dated payment-amount changes while the operator-facing UI remains limited to the current cumulative CB/Espèce fields.
+5. cross-day and partial payments are attributed by internally dated payment-amount changes while the operator-facing UI remains limited to the current cumulative CB/Espèce fields;
+6. real-time operational turnover is separate from daily received-payment totals and is not dependent on order payment/closure state.
+
+The only remaining lifecycle attribution detail to freeze is whether operational turnover belongs to the planned fulfilment date, as recommended in section 4.8, or to another date basis.
 
 The following are not part of the target v1 lifecycle unless explicitly reintroduced later:
 
@@ -304,10 +335,10 @@ The following are not part of the target v1 lifecycle unless explicitly reintrod
 - complex replacement-order financial linking;
 - an operator-facing payment-event ledger;
 - an operator-visible order revision-history feature;
-- blocking the daily summary because one or more orders remain open;
+- blocking the daily received-payment summary because one or more orders remain open;
 - requiring a second visible system-calculated total alongside the editable order total;
 - preserving a manual total override after later price-affecting order changes.
 
 ## 6. Approval rule
 
-The core lifecycle behavior described above is now sufficiently specified for Phase 2 baseline review. Implementation must preserve these decisions and must not reintroduce more complex payment/replacement/audit workflows without explicit product approval.
+The core lifecycle behavior described above is now sufficiently specified for Phase 2 baseline review. Implementation must preserve these decisions and must not reintroduce more complex payment/replacement/audit workflows without explicit product approval. The operating-day attribution rule for real-time turnover remains to be explicitly approved.
