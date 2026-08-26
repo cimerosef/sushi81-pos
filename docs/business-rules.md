@@ -45,21 +45,43 @@ The current Excel/VBA system behaves as follows:
 - current delivery orders are charged at normal price and do not use the pickup 10% discount workflow;
 - address is mandatory.
 
-These current behaviors are inputs to Phase 2, not automatically frozen target rules.
+These current behaviors are inputs to Phase 2, not automatically frozen target rules unless explicitly approved below.
 
-## 4. Rule groups to freeze
+## 4. Approved and pending business rules
 
-### 4.1 Discount rule
+### 4.1 Retrait discount rule — approved Phase 2 decision
 
-Phase 2 must define:
+For `Retrait` orders, the operator may choose whether to apply the normal pickup discount.
 
-- when the 10% discount is available;
-- whether it applies only to `Retrait`;
-- how eligible and ineligible items combine in one order;
-- exact €15 threshold semantics;
-- whether the threshold is calculated before or after discount;
-- whether an order that would fall below the threshold is blocked from receiving the discount rather than merely warned;
-- whether any operator override remains allowed.
+The rule is:
+
+- the default discount rate is **10%**;
+- the discount applies only to catalogue items marked as discount-eligible;
+- items not marked as discount-eligible remain at their normal price;
+- the application first calculates the order using the normal product prices and then applies the configured discount to eligible items;
+- after the discount has been applied, the resulting order total must be at least the configured minimum discounted-order amount;
+- the default minimum discounted-order amount is **€15.00**;
+- if applying the discount would cause the resulting order total to fall below that minimum, the discount must not be applied;
+- this discount rule has no separate force-apply/override action.
+
+Examples using the default 10% discount and €15 minimum:
+
+- €20.00 normal total -> €18.00 after discount: discount allowed;
+- €16.00 normal total -> €14.40 after discount: discount rejected;
+- an order already below €15.00 cannot receive the normal pickup discount if the discounted result would remain below the configured minimum.
+
+Exceptional commercial situations do not require weakening the discount rule. The operator may instead use the already-approved editable order-total field when a deliberately exceptional final amount is needed.
+
+#### Configurability
+
+The following values are **business configuration**, not hard-coded constants:
+
+- pickup discount rate (default: 10%);
+- minimum order total required **after discount** (default: €15.00).
+
+The operator must be able to modify these values through the normal application settings/configuration interface and save the new values without recompiling, reinstalling or editing source code.
+
+For example, if the minimum is later changed from €15 to €20, the application must enforce the same approved rule using €20 as the new post-discount minimum.
 
 ### 4.2 Delivery rule
 
@@ -69,7 +91,8 @@ Phase 2 must define:
 - whether the minimum is based on original or adjusted total;
 - whether delivery remains free;
 - whether discounts are disallowed for delivery;
-- whether any exceptional override is permitted.
+- whether any exceptional override is permitted;
+- which of these values are operator-configurable.
 
 ### 4.3 Required customer/order information — partially approved Phase 2 decision
 
@@ -138,28 +161,41 @@ The exact rounding point for percentage discounts and VAT presentation remains t
 
 The authoritative editable order total is stored to euro-cent precision.
 
-## 5. Configuration principle
+## 5. Configuration principle — approved Phase 2 principle
 
-Values that Sushi 81 may reasonably change during normal operation should be represented as business configuration rather than hard-coded constants when practical. This includes thresholds and discount rates once their semantics are approved.
+Values that Sushi 81 may reasonably change during normal operation must be represented as user-editable business configuration rather than hard-coded constants when practical.
 
-Configuration must not weaken the rule model: changing a value should not require changing application source code, but the application should still validate resulting orders consistently.
+The operator must be able to change such values through the application's normal configuration/settings UI without recompiling the software.
+
+This includes at least the approved pickup-discount parameters:
+
+- discount percentage;
+- post-discount minimum order amount.
+
+Other commercial parameters, such as delivery thresholds, will be added to this configurable set when their business rules are approved.
+
+Configuration must not weaken the rule model: changing a value changes the parameter used by the approved rule, not the underlying meaning of the rule itself.
 
 ## 6. Decisions still to freeze
 
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
-1. final pickup discount eligibility and threshold behavior;
-2. whether the discount can ever be force-applied below the threshold;
-3. final delivery minimum and whether any override exists;
-4. final delivery discount policy;
-5. final telephone-required/optional rules;
-6. custom option-price adjustment validation;
-7. discount interaction with product options;
-8. rounding rules for percentage discounts and order totals;
-9. which commercial values are operator-configurable in v1.
+1. final delivery minimum and whether any override exists;
+2. final delivery discount policy;
+3. final telephone-required/optional rules;
+4. custom option-price adjustment validation;
+5. discount interaction with product options;
+6. rounding rules for percentage discounts and order totals;
+7. the remaining commercial values that must be operator-configurable in v1.
 
 The following are already approved and are no longer open questions:
 
+- Retrait orders may use the configurable pickup discount;
+- the default pickup discount is 10%;
+- only discount-eligible catalogue products receive that discount;
+- the discounted order total must reach the configured post-discount minimum, default €15;
+- there is no force-apply override for the normal discount rule;
+- the discount rate and post-discount minimum are editable by the operator without recompilation;
 - every new order must explicitly select `Retrait` or `Livraison` before confirmation;
 - fulfilment mode is not inherited when creating a new order from an existing order's customer information;
 - the ordinary order-total field is directly editable;
@@ -167,4 +203,4 @@ The following are already approved and are no longer open questions:
 
 ## 7. Approval rule
 
-This file remains a Draft until the remaining target rules above are explicitly approved. Codex must not use current VBA warning/override behavior as the default target rule unless this document later approves it.
+This file remains a Draft until the remaining target rules above are explicitly approved. Codex must implement the approved Retrait discount semantics and must not restore the former VBA warning/override behavior unless the product specification is explicitly changed later.
