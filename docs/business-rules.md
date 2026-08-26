@@ -101,21 +101,25 @@ Normal behavior is:
 - the application calculates the order total from product lines, quantities, product-option adjustments and approved pricing/discount rules;
 - that calculated amount is written directly into the ordinary order-total field;
 - the operator may directly edit that same order-total field when an exceptional real-world situation requires a different amount;
-- after a manual edit, the entered amount itself becomes the authoritative total for that order.
+- after a manual edit, the entered amount itself becomes the authoritative total for the order at that moment.
 
-The application must not require a second visible amount field merely to preserve the automatically calculated value.
+A manual total edit is deliberately a **temporary override of the current calculation**, not a lock on future automatic calculation.
+
+If any price-affecting order input is subsequently changed — including product lines, quantities, product options/price adjustments or discount application — the application must automatically recalculate the order total using the normal approved pricing rules and replace any earlier manually entered total.
+
+After that recalculation, if the operator still wants a different exceptional amount, the operator may simply edit the total again.
+
+The application must not require a second visible amount field merely to preserve the previously calculated or previously overridden value.
 
 Manual editing of the order total:
 
 - does **not** change catalogue product base prices;
-- does **not** require the product lines to mathematically add up to the manually entered total;
+- does **not** require the product lines to mathematically add up to the manually entered total at the time of the override;
 - does **not** require a mandatory reason, refund, surcharge or correction workflow;
-- must not be rejected merely because it differs from what the normal pricing rules would calculate;
-- controls the order amount used for printing, closing/reconciliation, retained turnover and downstream export unless another specification explicitly says otherwise.
+- must not be rejected merely because it differs from what the normal pricing rules calculate;
+- controls the order amount used for printing, closing/reconciliation, retained turnover and downstream export until a later price-affecting order change triggers normal recalculation or the operator manually changes the total again.
 
-If product lines, quantities, options or discount choices are changed after a manual total has been entered, the UI must avoid silently destroying the operator's intentional value. The exact interaction for recalculating/replacing a manually edited total will be decided during UI design, but any automatic recalculation that would overwrite an explicit manual edit must be clear to the operator rather than hidden.
-
-This capability is intentional. Sushi81 POS is a practical operational/turnover-recording tool, and the operator may encounter exceptional situations not anticipated by the normal pricing rules. The software should allow the operator to record the business amount that has actually been decided.
+This capability is intentional. Sushi81 POS is a practical operational/turnover-recording tool, and the operator may encounter exceptional situations not anticipated by the normal pricing rules. The software should allow the operator to record the business amount that has actually been decided while keeping automatic calculation behavior predictable whenever the underlying order changes.
 
 ### 4.6 Rounding and monetary consistency
 
@@ -143,10 +147,9 @@ Before this document becomes baseline, Phase 2 must explicitly approve at least:
 6. custom option-price adjustment validation;
 7. discount interaction with product options;
 8. rounding rules for percentage discounts and order totals;
-9. which commercial values are operator-configurable in v1;
-10. exact UI interaction when product changes occur after the operator has manually edited the order total, including how the operator can deliberately request recalculation.
+9. which commercial values are operator-configurable in v1.
 
-The ability to directly edit the ordinary order-total field itself is already approved and is no longer an open question.
+The ability to directly edit the ordinary order-total field, and the rule that later price-affecting order changes automatically recalculate and replace that manual value, are already approved and are no longer open questions.
 
 ## 7. Approval rule
 
