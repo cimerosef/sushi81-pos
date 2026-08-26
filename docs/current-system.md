@@ -1,6 +1,6 @@
 # Current system
 
-**Status:** Draft — Phase 1, operational baseline reviewed  
+**Status:** Approved — Phase 1 baseline  
 **Last updated:** 2026-08-26  
 **Purpose:** Describe how Sushi 81 currently receives, records, prints, reconciles and archives orders before the standalone Sushi81 POS replaces the Excel/VBA workflow. This document records current behavior and workarounds; it does not define the final target architecture or freeze future business rules.
 
