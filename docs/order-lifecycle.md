@@ -29,7 +29,10 @@ It does not define catalogue structure, discount formulas, physical database tab
 
 The lifecycle design remains based on `current-system.md` and the approved `product-requirements.md` Phase 1 baseline.
 
-Phase 1 intentionally deferred the exact post-confirmation modification semantics. This Phase 2 document now refines that area with a simpler rule: **payment state does not lock an order against modification.**
+Phase 1 intentionally deferred the exact post-confirmation modification and payment-entry semantics. This Phase 2 document now refines those areas with two simpler rules:
+
+- **payment state does not lock an order against modification**;
+- **payment composition is recorded directly as cash and card amounts rather than through a manually selected payment-method category.**
 
 The following principles remain fixed:
 
@@ -42,17 +45,16 @@ The following principles remain fixed:
 7. A future order automatically leaves the future-orders area when its fulfilment date arrives and appears in the due-today advance-order reminder.
 8. Due-today advance-order visibility is operational and does not depend on payment state.
 9. An order becomes overdue-unsettled only when its planned fulfilment date is earlier than today and it is not fully settled.
-10. Payment totals are attributed to the date money is actually received, not to order creation/fulfilment date.
-11. Partial and mixed payments must be representable structurally.
-12. Hiboutik emergency-import records are operational/printing copies, not new POS-originated sales; they remain excluded from ordinary POS turnover/card-entry/export totals.
-13. External card-terminal refund/additional-charge handling remains outside the POS in v1.
+10. Partial and mixed payments must be representable structurally.
+11. Hiboutik emergency-import records are operational/printing copies, not new POS-originated sales; they remain excluded from ordinary POS turnover/card-entry/export totals.
+12. External card-terminal refund/additional-charge handling remains outside the POS in v1.
 
 ## 3. Lifecycle dimensions
 
 The target design must avoid overloading one status field with unrelated meanings. At minimum, an order has independent lifecycle dimensions:
 
 - **business/order state** — active/committed versus cancelled;
-- **payment state** — unpaid/pending, partially paid or fully settled;
+- **payment information** — cumulative cash and card amounts recorded for the order, from which the practical payment state can be derived;
 - **planned fulfilment date/time** — used to derive future, due-today and overdue attention;
 - **source type** — ordinary POS-originated order versus Hiboutik emergency-import copy.
 
@@ -68,15 +70,44 @@ An in-progress cart/edit is not yet a durable business order. Leaving or cancell
 
 Confirmation creates the durable order record before printing is attempted. Print failure must therefore be recoverable by reprint and must not cause order loss.
 
-### 4.3 Payment
+### 4.3 Payment recording — approved Phase 2 decision
 
-Payment state records the operator's current understanding of the payment outcome. The model must support:
+The operator-facing payment model is deliberately minimal.
 
-- no payment received;
-- partial payment received;
-- fully settled.
+Each order provides two amount fields:
 
-Where payment events are retained, they support daily received-payment totals and later correction. They do not create a payment workflow that restricts whether an order may be edited.
+- **Card / CB amount**;
+- **Cash / Espèce amount**.
+
+The operator does not need to choose a separate `CB`, `Espèce` or `Mixte` payment-method value. The practical payment composition is derived automatically from the two amounts.
+
+The entry semantics are:
+
+- if **both fields are empty**, no payment composition has yet been recorded for the order; this represents payment pending / not yet reconciled;
+- if one field contains an amount and the other field is empty, the empty field is treated as zero for calculation;
+- card amount > 0 and cash amount = 0 means card-only payment;
+- cash amount > 0 and card amount = 0 means cash-only payment;
+- both amounts > 0 means mixed payment;
+- card amount + cash amount less than the current order total means the order is partially paid/unsettled;
+- card amount + cash amount equal to the current order total means the order is fully settled.
+
+This removes the ambiguity of the former Excel/VBA `DIV` category, which represented both unknown payment method and genuine mixed payment.
+
+The two amounts are editable during reconciliation. The normal workflow can therefore leave both fields empty when the order is created and fill them later when the actual payment outcome is known.
+
+The POS should calculate and display, where useful:
+
+- order total;
+- recorded card amount;
+- recorded cash amount;
+- total recorded as paid;
+- remaining balance.
+
+If the recorded cash + card amount does not mathematically match the intended final situation—for example because the order total was edited after payment—the application may show a simple non-blocking arithmetic warning. It must not create refund workflow states or prevent the operator from editing the order.
+
+Operational payment instruments are grouped only into these two business buckets. Instruments processed through the card terminal belong to the card bucket; cash-equivalent paper instruments handled as cash belong to the cash bucket according to Sushi 81's operating practice.
+
+The target UI should remain simpler than a payment-event ledger. Any internal technical history retained to support safe editing, daily calculations or diagnostics must not create additional operator steps unless later requirements prove them necessary.
 
 ### 4.4 Future / due today / overdue
 
@@ -84,7 +115,7 @@ These are operational views derived from planned fulfilment date and payment sta
 
 - **future order:** planned fulfilment date is after today;
 - **due-today advance order:** the order was created for a later date and that planned date is today;
-- **overdue unsettled:** planned fulfilment date is before today and payment is not fully settled.
+- **overdue unsettled:** planned fulfilment date is before today and the recorded cash/card amounts do not represent a fully settled order.
 
 The due-today advance-order reminder remains visible for the rest of that calendar day; v1 does not introduce a separate collected/processed state merely to dismiss it early.
 
@@ -118,11 +149,13 @@ The business responsibility of Sushi81 POS is to record the order/turnover infor
 
 ### 4.6 Partial-payment orders
 
-Partial payment is a special payment condition, not a separate order lifecycle.
+Partial payment is a derived payment condition, not a separate order lifecycle and not a separate manually selected payment method.
 
-A partially paid order remains editable under the same rule as every other active order. The application should show the recorded payment amount(s) and the resulting remaining balance based on the latest order total.
+If the sum of the recorded card and cash amounts is greater than zero but less than the current order total, the order is considered partially paid/unsettled for operational attention.
 
-If a modification creates an unusual situation that requires money to be returned or otherwise corrected, the operator resolves the monetary difference outside the POS and then records the final intended order/payment information as needed. v1 does not require automated refund-state management.
+A partially paid order remains editable under the same rule as every other active order. The application shows the recorded card/cash amounts and the resulting remaining balance based on the latest order total.
+
+If a modification creates an unusual situation that requires money to be returned or otherwise corrected, the operator resolves the monetary difference outside the POS and then adjusts the order/payment amounts to reflect the business record that should be retained. v1 does not require automated refund-state management.
 
 ### 4.7 Create a new order from an existing order — approved Phase 2 decision
 
@@ -149,8 +182,7 @@ The following information must **not** be inherited as if it belonged to the new
 
 - source order ID;
 - source order business/cancellation state;
-- payment state or payment events;
-- amounts already received;
+- recorded cash/card payment amounts;
 - source order total;
 - source order creation timestamp;
 - historical revision/audit data.
@@ -183,7 +215,7 @@ Their lifecycle must preserve:
 - source identity as Hiboutik emergency import;
 - original Hiboutik amount;
 - POS operational/actual amount;
-- recorded payment outcome used for reconciliation;
+- recorded cash/card payment outcome used for reconciliation;
 - exclusion from ordinary POS-originated turnover, Hiboutik card-entry totals and `Gestion SUSHI 81.xlsm` export.
 
 They should follow the same general principle of operator-controlled correction: the POS records the final operational information the operator intends to retain, while external monetary settlement remains outside the application.
@@ -193,21 +225,22 @@ They should follow the same general principle of operator-controlled correction:
 The lifecycle has now been simplified substantially. The remaining Phase 2 decisions are limited to:
 
 1. exact user-facing names for the active and cancelled order states;
-2. exact supported payment-method labels and how mixed/partial payment is displayed;
-3. how payment correction is represented internally without creating unnecessary workflow complexity;
-4. whether a cancelled order may retain previously recorded payment information for reference and how that appears in summaries;
-5. how much revision history is visible to the operator versus retained only internally;
-6. whether any additional customer-related fields beyond telephone, address and comment should be copied by the new-order-from-existing action.
+2. whether a cancelled order retains previously recorded cash/card amounts for reference and how those amounts are excluded from summaries;
+3. how much revision history is visible to the operator versus retained only internally;
+4. whether any additional customer-related fields beyond telephone, address and comment should be copied by the new-order-from-existing action;
+5. whether rare cross-day partial-payment cases require any operator-visible date detail, or whether internal timestamps/history are sufficient for daily reporting.
 
 The following earlier possibilities are **not part of the target v1 lifecycle** unless explicitly reintroduced later:
 
+- a manually selected `CB` / `Espèce` / `DIV` / `Mixte` payment-method field;
 - payment-state-based editing locks;
 - supplementary-order chains for already-paid order edits;
 - mandatory cancel-and-replace behavior for ordinary modifications;
 - refund-pending/refund-completed states;
 - POS-managed card-refund workflow;
-- complex replacement-order financial linking.
+- complex replacement-order financial linking;
+- an operator-facing payment-event ledger.
 
 ## 6. Approval rule
 
-This file remains a Draft until the remaining lifecycle presentation/payment-detail decisions are reviewed and explicitly approved. Implementation must preserve the core Phase 2 rules that ordinary order modification is operator-controlled and is not restricted by payment state, and that a new order can be initialized from an existing order's reusable customer information without changing the source order.
+This file remains a Draft until the remaining lifecycle presentation/detail decisions are reviewed and explicitly approved. Implementation must preserve the core Phase 2 rules that ordinary order modification is operator-controlled and is not restricted by payment state, that payment composition is entered through cash/card amounts rather than a separate payment-method selector, and that a new order can be initialized from an existing order's reusable customer information without changing the source order.
