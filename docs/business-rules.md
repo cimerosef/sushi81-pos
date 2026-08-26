@@ -71,15 +71,24 @@ Phase 2 must define:
 - whether discounts are disallowed for delivery;
 - whether any exceptional override is permitted.
 
-### 4.3 Required customer/order information
+### 4.3 Required customer/order information — partially approved Phase 2 decision
 
-Phase 2 must define when telephone is:
+Every new order must explicitly select exactly one fulfilment mode:
+
+- `Retrait`; or
+- `Livraison`.
+
+Fulfilment mode is a **mandatory order field**. If neither option has been selected, the application must reject order confirmation/completion and keep the order in progress.
+
+When a new order is initialized from an existing order's reusable customer information, the prior order's fulfilment mode is **not inherited**. The operator must explicitly choose `Retrait` or `Livraison` again for the new order.
+
+Delivery address remains mandatory for `Livraison`.
+
+Phase 2 must still define when telephone is:
 
 - optional;
 - strongly recommended but not required;
 - required, if any case exists.
-
-Delivery address remains mandatory for `Livraison`.
 
 ### 4.4 Product-option price adjustments
 
@@ -149,7 +158,12 @@ Before this document becomes baseline, Phase 2 must explicitly approve at least:
 8. rounding rules for percentage discounts and order totals;
 9. which commercial values are operator-configurable in v1.
 
-The ability to directly edit the ordinary order-total field, and the rule that later price-affecting order changes automatically recalculate and replace that manual value, are already approved and are no longer open questions.
+The following are already approved and are no longer open questions:
+
+- every new order must explicitly select `Retrait` or `Livraison` before confirmation;
+- fulfilment mode is not inherited when creating a new order from an existing order's customer information;
+- the ordinary order-total field is directly editable;
+- later price-affecting order changes automatically recalculate and replace any manual total override.
 
 ## 7. Approval rule
 
