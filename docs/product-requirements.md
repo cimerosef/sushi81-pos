@@ -56,7 +56,7 @@ The interaction model must be at least as practical as the current UserForm and 
 
 ### G-03 — Maintain durable operational data
 
-The live POS database should retain approximately one natural year's operational data. Completed older data must be manually archivable by year into separate archive databases instead of being deleted merely to keep an Excel workbook small.
+The live POS database should retain the current natural year's operational data together with any older unpaid or partially paid orders that are not yet eligible for archive. Completed data from prior natural years must be manually archivable by year into separate archive databases instead of being deleted merely to keep an Excel workbook small.
 
 ### G-04 — Keep `Gestion SUSHI 81.xlsm` in the workflow
 
@@ -95,8 +95,8 @@ French and Chinese versions of software interface text must be available through
 **FR-001 — Structured product catalogue**  
 The application must use a structured Sushi 81 catalogue containing the approved product identity, category, price, VAT, active/inactive and discount-related attributes.
 
-**FR-002 — Product search and selection**  
-The operator must be able to search by both product code and product name. Products must be addable both by double-click and by an explicit add action.
+**FR-002 — Product browsing, search and selection**  
+The operator must be able to browse/filter products by category and search by both product code and product name. The order-entry workflow must preserve a convenient quantity input before adding a product. Products must be addable both by double-click and by an explicit add action.
 
 **FR-003 — Cart management**  
 The operator must be able to add/remove products and directly change the quantity of an item already in the cart using a practical quantity field and/or `+`/`-` controls without reopening a separate edit dialog.
@@ -135,7 +135,7 @@ The system must enforce information required by the selected fulfilment mode, su
 Approved discount, threshold and delivery rules must be applied consistently. Exact rules will be frozen in `business-rules.md`.
 
 **FR-014 — Telephone usability**  
-Telephone entry must automatically support readable French-style grouping. Telephone must not be assumed mandatory for every walk-in order.
+Telephone entry must automatically support readable French-style grouping. Telephone must not be assumed mandatory for every order; exact situations in which it is required or optional will be defined in the later business rules.
 
 **FR-015 — Free-text operational comment**  
 A flexible order-level comment field must remain available for preparation instructions, special requests and information not covered by structured fields.
@@ -414,6 +414,7 @@ The following are deliberately **out of scope** for v1 unless a later explicit d
 - POS-managed execution of card refunds;
 - full refund-accounting workflow inside the POS;
 - arbitrary order-time overriding of a catalogue product's base price;
+- separate telephone-versus-walk-in source classification when it has no operational value; Hiboutik emergency imports remain the distinct special source case;
 - full accounting system;
 - replacing `Gestion SUSHI 81.xlsm`;
 - heavyweight CRM/customer-profile management.
