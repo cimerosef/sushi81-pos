@@ -18,6 +18,7 @@ It covers:
 - payment-state semantics;
 - future-order and overdue behavior;
 - order modification and cancellation;
+- creation of a new order from an existing order's customer information;
 - payment recording and correction;
 - lifecycle treatment of Hiboutik emergency-import copies;
 - minimal history/audit expectations.
@@ -123,7 +124,44 @@ A partially paid order remains editable under the same rule as every other activ
 
 If a modification creates an unusual situation that requires money to be returned or otherwise corrected, the operator resolves the monetary difference outside the POS and then records the final intended order/payment information as needed. v1 does not require automated refund-state management.
 
-### 4.7 Cancellation
+### 4.7 Create a new order from an existing order — approved Phase 2 decision
+
+The operator must be able to use any existing order as a source of customer information for a **new order with a new order ID**.
+
+This action is independent of modification and cancellation:
+
+- the source order may remain active;
+- the source order may later be cancelled;
+- the source order may already be cancelled if it is still available for consultation;
+- creating the new order does not automatically change the source order in any way.
+
+The purpose is to avoid retyping recurring customer information when a customer places another order or when the operator decides that creating a fresh order is more convenient than modifying the existing one.
+
+The new-order action should copy customer-related information that is useful to reuse, including at least:
+
+- telephone number, when present;
+- delivery address, when present;
+- free-text customer/order comment or notes, when present.
+
+The copied values are only starting values for the new order and remain fully editable before confirmation.
+
+The following information must **not** be inherited as if it belonged to the new transaction:
+
+- source order ID;
+- source order business/cancellation state;
+- payment state or payment events;
+- amounts already received;
+- source order total;
+- source order creation timestamp;
+- historical revision/audit data.
+
+Product lines are not copied by this customer-information action. If a later workflow requires duplicating an entire prior basket, that should be treated as a separate explicitly approved feature rather than being implied here.
+
+Planned fulfilment date/time must be newly set or reconfirmed for the new order rather than silently inherited from the source order, so that an old same-day or future-order date cannot accidentally become the new order's fulfilment instruction.
+
+The new order receives its own new order ID only when it is confirmed under the normal new-order workflow.
+
+### 4.8 Cancellation
 
 Cancellation is an explicit operator action and is distinct from ordinary modification.
 
@@ -136,7 +174,7 @@ A cancelled order:
 
 The POS does not automatically cancel and recreate an order merely because its contents were edited.
 
-### 4.8 Hiboutik emergency-import copies
+### 4.9 Hiboutik emergency-import copies
 
 Emergency-imported Hiboutik orders participate in operational printing, reminders and discrepancy review where applicable, but they are not new POS-originated sales.
 
@@ -158,7 +196,8 @@ The lifecycle has now been simplified substantially. The remaining Phase 2 decis
 2. exact supported payment-method labels and how mixed/partial payment is displayed;
 3. how payment correction is represented internally without creating unnecessary workflow complexity;
 4. whether a cancelled order may retain previously recorded payment information for reference and how that appears in summaries;
-5. how much revision history is visible to the operator versus retained only internally.
+5. how much revision history is visible to the operator versus retained only internally;
+6. whether any additional customer-related fields beyond telephone, address and comment should be copied by the new-order-from-existing action.
 
 The following earlier possibilities are **not part of the target v1 lifecycle** unless explicitly reintroduced later:
 
@@ -171,4 +210,4 @@ The following earlier possibilities are **not part of the target v1 lifecycle** 
 
 ## 6. Approval rule
 
-This file remains a Draft until the remaining lifecycle presentation/payment-detail decisions are reviewed and explicitly approved. Implementation must preserve the core Phase 2 rule that ordinary order modification is operator-controlled and is not restricted by payment state.
+This file remains a Draft until the remaining lifecycle presentation/payment-detail decisions are reviewed and explicitly approved. Implementation must preserve the core Phase 2 rules that ordinary order modification is operator-controlled and is not restricted by payment state, and that a new order can be initialized from an existing order's reusable customer information without changing the source order.
