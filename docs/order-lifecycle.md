@@ -9,25 +9,28 @@
 
 This document defines the target lifecycle semantics for Sushi81 POS. It translates the approved Phase 1 product requirements into implementable rules without choosing the database schema or UI technology.
 
+The lifecycle must remain deliberately simple. Sushi81 POS is primarily an operational order and turnover-recording relay tool. It is not intended to become a payment-control, refund-accounting or financial-workflow system.
+
 It covers:
 
 - when an order becomes a durable business record;
 - order-state semantics;
 - payment-state semantics;
 - future-order and overdue behavior;
-- modification, replacement and supplementary-order behavior;
-- cancellation behavior;
+- order modification and cancellation;
 - payment recording and correction;
 - lifecycle treatment of Hiboutik emergency-import copies;
-- history/audit expectations.
+- minimal history/audit expectations.
 
-It does not define catalogue structure, discount formulas, physical database tables, printing templates or the final export schema.
+It does not define catalogue structure, discount formulas, physical database tables, printing templates, external card-terminal settlement or the final export schema.
 
-## 2. Authoritative Phase 1 baseline
+## 2. Authoritative baseline and Phase 2 refinement
 
-The lifecycle design must remain consistent with `current-system.md` and the approved `product-requirements.md` baseline.
+The lifecycle design remains based on `current-system.md` and the approved `product-requirements.md` Phase 1 baseline.
 
-The following principles are already fixed by Phase 1:
+Phase 1 intentionally deferred the exact post-confirmation modification semantics. This Phase 2 document now refines that area with a simpler rule: **payment state does not lock an order against modification.**
+
+The following principles remain fixed:
 
 1. **Order state and payment state are separate concepts.**
 2. A confirmed order is durably persisted and must survive application restart/failure.
@@ -39,28 +42,26 @@ The following principles are already fixed by Phase 1:
 8. Due-today advance-order visibility is operational and does not depend on payment state.
 9. An order becomes overdue-unsettled only when its planned fulfilment date is earlier than today and it is not fully settled.
 10. Payment totals are attributed to the date money is actually received, not to order creation/fulfilment date.
-11. Partial and mixed payments must be represented structurally.
-12. Actual payment events should be retained with enough history to support correction, reconciliation and year-boundary settlement.
-13. Already-settled orders must not be silently rewritten in a way that destroys financial history.
-14. Actual external card refunds remain outside the POS in v1.
-15. Hiboutik emergency-import records are operational/printing copies, not new POS-originated sales; they remain excluded from ordinary POS turnover/card-entry/export totals.
+11. Partial and mixed payments must be representable structurally.
+12. Hiboutik emergency-import records are operational/printing copies, not new POS-originated sales; they remain excluded from ordinary POS turnover/card-entry/export totals.
+13. External card-terminal refund/additional-charge handling remains outside the POS in v1.
 
 ## 3. Lifecycle dimensions
 
-The target design should avoid overloading one status field with unrelated meanings. At minimum, an order has independent lifecycle dimensions:
+The target design must avoid overloading one status field with unrelated meanings. At minimum, an order has independent lifecycle dimensions:
 
-- **business/order state** — whether the order is an active committed order, cancelled, replaced, etc.;
+- **business/order state** — active/committed versus cancelled;
 - **payment state** — unpaid/pending, partially paid or fully settled;
 - **planned fulfilment date/time** — used to derive future, due-today and overdue attention;
 - **source type** — ordinary POS-originated order versus Hiboutik emergency-import copy.
 
-Future-order, due-today and overdue labels should normally be derived operational views rather than destructive state transitions that rewrite the order's underlying business history.
+Future-order, due-today and overdue labels are operational views derived from the underlying order data rather than separate destructive lifecycle states.
 
-## 4. Draft lifecycle model
+## 4. Target lifecycle model
 
 ### 4.1 Before confirmation
 
-An in-progress cart/edit is not yet a durable business order. Leaving or cancelling the in-progress operation must not create an active order unless the operator has explicitly confirmed it.
+An in-progress cart/edit is not yet a durable business order. Leaving or cancelling the in-progress operation must not create an active order unless the operator explicitly confirms it.
 
 ### 4.2 Confirmation
 
@@ -68,13 +69,13 @@ Confirmation creates the durable order record before printing is attempted. Prin
 
 ### 4.3 Payment
 
-Payment state is derived from valid payment information associated with the order. The model must support:
+Payment state records the operator's current understanding of the payment outcome. The model must support:
 
 - no payment received;
-- part of the order total received;
-- full order total received.
+- partial payment received;
+- fully settled.
 
-Payment events must carry the actual received date/time and method so daily received-payment totals can be calculated correctly.
+Where payment events are retained, they support daily received-payment totals and later correction. They do not create a payment workflow that restricts whether an order may be edited.
 
 ### 4.4 Future / due today / overdue
 
@@ -86,36 +87,56 @@ These are operational views derived from planned fulfilment date and payment sta
 
 The due-today advance-order reminder remains visible for the rest of that calendar day; v1 does not introduce a separate collected/processed state merely to dismiss it early.
 
-### 4.5 Modification of an unsettled order — approved Phase 2 decision
+### 4.5 Order modification — approved Phase 2 decision
 
-A committed order that is still unpaid or partially paid and is otherwise permitted to be modified keeps the **same business order ID** when its contents or operational information are changed.
+**All active orders may be modified regardless of payment state.**
 
-The target application must not reproduce the Excel/VBA workaround of marking the original order `ANNULE` and creating a new order ID merely because an ordinary editable order was revised.
+This includes orders that are:
 
-Instead:
+- unpaid;
+- partially paid;
+- fully settled.
 
-- the operator edits the existing order;
-- the business order ID remains stable;
-- the latest approved version is the version shown by default in normal operational screens and used for current printing;
-- the system preserves enough internal revision/audit history to reconstruct that a prior committed version existed and what materially changed;
-- abandoning an in-progress edit leaves the last persisted version unchanged;
-- reprinting after a committed modification uses the latest persisted order version.
+Payment state must not technically lock the order or force the operator into a supplementary-order/replacement-order workflow.
 
-This rule is particularly important for future orders, which may legitimately be revised multiple times before fulfilment and should not accumulate meaningless cancelled replacement order IDs.
+When an active order is modified:
 
-This decision removes a technical workaround imposed by the former Excel/VBA storage model; it does not change the business meaning of an order modification.
+- the **same business order ID is retained**;
+- the operator edits the existing order directly;
+- the latest committed version is the version shown by default in normal operational screens;
+- current turnover/order reporting uses the latest committed order contents unless another explicit rule says otherwise;
+- reprinting uses the latest committed order version;
+- abandoning an in-progress edit restores the last persisted version unchanged;
+- the system should retain a lightweight internal revision history sufficient to understand that the order was changed, without turning normal operation into an audit workflow.
 
-The exact storage representation of revisions is an architecture/data-model decision to be specified later.
+This rule deliberately replaces the former Excel/VBA workaround in which a modified order was marked `ANNULE` and recreated under a new ID.
 
-### 4.6 Cancellation and settled-order replacement
+It also deliberately rejects a more complex payment-driven modification model. If an already-paid order is changed and money must be refunded or additionally collected, the operator handles that practical settlement outside Sushi81 POS, for example through the card terminal or cash handling. The POS does not need to model `refund pending`, `refund completed`, supplementary-order chains or similar financial states.
 
-Cancellation must preserve history. Phase 1 also requires a safer target rule than silently editing financial history after payment.
+The business responsibility of Sushi81 POS is to record the order/turnover information that the operator has decided should be retained as the correct final record.
 
-The same-ID modification rule above applies to unpaid and partially paid orders while modification remains allowed. It does **not** by itself authorize arbitrary rewriting of an already fully settled order.
+### 4.6 Partial-payment orders
 
-The exact state names and the exact linking semantics for settled-order supplementary/replacement flows remain to be approved in this document.
+Partial payment is a special payment condition, not a separate order lifecycle.
 
-### 4.7 Hiboutik emergency-import copies
+A partially paid order remains editable under the same rule as every other active order. The application should show the recorded payment amount(s) and the resulting remaining balance based on the latest order total.
+
+If a modification creates an unusual situation that requires money to be returned or otherwise corrected, the operator resolves the monetary difference outside the POS and then records the final intended order/payment information as needed. v1 does not require automated refund-state management.
+
+### 4.7 Cancellation
+
+Cancellation is an explicit operator action and is distinct from ordinary modification.
+
+A cancelled order:
+
+- remains retained as historical business data;
+- is clearly marked cancelled;
+- is excluded from active-order turnover/statistical calculations and ordinary export unless a later export specification explicitly requires otherwise;
+- may remain viewable/reprintable for reference where appropriate.
+
+The POS does not automatically cancel and recreate an order merely because its contents were edited.
+
+### 4.8 Hiboutik emergency-import copies
 
 Emergency-imported Hiboutik orders participate in operational printing, reminders and discrepancy review where applicable, but they are not new POS-originated sales.
 
@@ -127,21 +148,27 @@ Their lifecycle must preserve:
 - recorded payment outcome used for reconciliation;
 - exclusion from ordinary POS-originated turnover, Hiboutik card-entry totals and `Gestion SUSHI 81.xlsm` export.
 
+They should follow the same general principle of operator-controlled correction: the POS records the final operational information the operator intends to retain, while external monetary settlement remains outside the application.
+
 ## 5. Decisions still to freeze
 
-The following Phase 2 decisions must be explicitly approved before this document can become baseline:
+The lifecycle has now been simplified substantially. The remaining Phase 2 decisions are limited to:
 
-1. exact business/order-state names and allowed transitions;
-2. whether a normal committed order needs a distinct `CONFIRMED`/`ACTIVE` state name or can use a simpler model;
-3. ~~exact semantics for modifying an unpaid order~~ — **approved: retain the same business order ID and preserve internal revision history**;
-4. detailed limits on modifying a partially paid order beyond the same-ID principle;
-5. exact semantics for increasing an already-settled order, including supplementary-order linking;
-6. exact semantics for reducing/cancelling an already-settled order, including replacement linking and how the POS records that an external refund may be required or has been handled;
-7. whether payment corrections are implemented as reversible/corrective events, immutable events with supersession, or another auditable model;
-8. exact supported payment-method labels and how mixed payments are displayed;
-9. whether a cancelled order can retain valid received-payment history and, if so, how that is shown operationally;
-10. minimal history/audit information shown to the operator versus retained internally.
+1. exact user-facing names for the active and cancelled order states;
+2. exact supported payment-method labels and how mixed/partial payment is displayed;
+3. how payment correction is represented internally without creating unnecessary workflow complexity;
+4. whether a cancelled order may retain previously recorded payment information for reference and how that appears in summaries;
+5. how much revision history is visible to the operator versus retained only internally.
+
+The following earlier possibilities are **not part of the target v1 lifecycle** unless explicitly reintroduced later:
+
+- payment-state-based editing locks;
+- supplementary-order chains for already-paid order edits;
+- mandatory cancel-and-replace behavior for ordinary modifications;
+- refund-pending/refund-completed states;
+- POS-managed card-refund workflow;
+- complex replacement-order financial linking.
 
 ## 6. Approval rule
 
-This file remains a Draft until the unresolved lifecycle decisions above are reviewed and explicitly approved. Production implementation must not infer answers to these questions from the current Excel/VBA behavior.
+This file remains a Draft until the remaining lifecycle presentation/payment-detail decisions are reviewed and explicitly approved. Implementation must preserve the core Phase 2 rule that ordinary order modification is operator-controlled and is not restricted by payment state.
