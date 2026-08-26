@@ -28,7 +28,7 @@ Its core principles are:
 - **maintainable** — UI, business rules, persisted data and integrations should be separable and testable;
 - **evolvable** — later changes to printing, export, storage or Hiboutik support should not require redesigning the whole product;
 - **cost-conscious** — no mandatory recurring paid dependency without explicit approval;
-- **bilingual in operation** — the operator-facing interface should present French and Chinese together so the application remains immediately understandable in the restaurant's working context.
+- **switchable bilingual interface** — the operator-facing UI must be available in French and Chinese through a compact language switch or setting, without displaying both languages simultaneously and consuming unnecessary POS screen space.
 
 ## 3. Primary users and deployment model
 
@@ -80,9 +80,9 @@ The POS must distinguish order state from payment state, support partial/mixed p
 
 Application updates, backup, restore, schema evolution and automated testing must be safer and more explicit than in the workbook-centered design.
 
-### G-10 — Provide a bilingual French/Chinese interface
+### G-10 — Provide switchable French/Chinese interface languages
 
-The operational UI must support French and Chinese together. The detailed visual convention—such as side-by-side labels, primary/secondary text hierarchy or other bilingual presentation—will be decided during UI design, but v1 must not assume a French-only or Chinese-only interface.
+The application must provide French and Chinese versions of the operator-facing interface. The operator must be able to switch the interface language through a compact button or setting so that only one language is displayed at a time. Product names, catalogue content, addresses, comments and other business-entered data do not require translation or bilingual duplication.
 
 ## 5. Functional requirements
 
@@ -289,6 +289,9 @@ Configuration expected to change in normal operation must not require source-cod
 **FR-086 — Diagnostics**  
 The application must provide enough diagnostics to understand operational failures without exposing or committing sensitive production data.
 
+**FR-087 — Interface language switch**  
+The operator must be able to switch the application's interface labels between French and Chinese through a compact button or setting. Only software UI text—such as buttons, menus, headings, statuses, prompts and validation messages—requires localization. Product/catalogue content, customer-entered information, addresses, comments and other business data must remain unchanged when the interface language is switched.
+
 ## 6. Non-functional requirements
 
 **NFR-001 — Windows desktop**  
@@ -333,8 +336,8 @@ No login, employee-account or permission framework is required in v1.
 **NFR-014 — Multi-computer safety**  
 Both supported computers must be able to run the full application, but the storage/synchronization design must prevent unsafe concurrent writes or database conflicts when the same live data is involved.
 
-**NFR-015 — French/Chinese bilingual UI**  
-The operator-facing interface must present French and Chinese together. Both languages should remain readable without making the high-frequency POS workflow visually cluttered. The detailed typography, label order and fallback/localization mechanism will be decided during UI design.
+**NFR-015 — Localizable operator interface**  
+French and Chinese UI strings must be maintained separately from business data and application logic so that the interface can switch cleanly between the two languages without duplicating catalogue or order content. Only one interface language needs to be shown at a time in order to preserve usable POS screen space.
 
 ## 7. Product boundaries for Phase 1
 
@@ -349,7 +352,7 @@ Phase 1 establishes product direction but does not yet freeze:
 - catalogue maintenance workflow;
 - database engine and physical schema;
 - archive database naming/attachment implementation;
-- application framework/UI technology and exact bilingual label presentation;
+- application framework/UI technology and exact placement/style of the French/Chinese language switch;
 - live-data location and multi-computer synchronization mechanics;
 - backup implementation;
 - exact Hiboutik email format/parser;
