@@ -83,10 +83,10 @@ The following requirements define capabilities that v1 must support. Detailed se
 The application must be able to load and use a structured Sushi 81 product catalogue.
 
 **FR-002 — Product search and selection**  
-The operator must be able to find and add products quickly during order entry.
+The operator must be able to find and add products quickly during order entry. Product search must support both product code and product name, and the product-selection workflow must preserve both fast double-click addition and an explicit add action.
 
 **FR-003 — Cart management**  
-The operator must be able to view the current cart, change quantities and remove or add items before finalization.
+The operator must be able to view the current cart, change quantities and remove or add items before finalization. For an item already in the cart, the operator must be able to select the line and adjust its quantity directly through a convenient quantity control and/or `+`/`-` actions without having to reopen the item through a separate edit gesture.
 
 **FR-004 — Prices and commercial attributes**  
 The catalogue must be capable of carrying the information required by approved pricing and discount rules.
@@ -113,6 +113,9 @@ The system must apply the approved minimum-order, discount and other commercial 
 **FR-014 — Preserve item-specific customer choices**  
 When an ordered product has configured options or variants, the chosen values must be stored with that order item and remain available when the order is viewed, modified, reprinted or otherwise processed.
 
+**FR-015 — Telephone entry usability**  
+Where a telephone number is entered, the UI must support readable French-style grouping automatically rather than requiring the operator to type spaces manually. Whether telephone is mandatory for a particular order type will be defined by the later business rules; v1 must not assume that every walk-in order has a telephone number.
+
 The final rules are not frozen here; they will be defined in `business-rules.md`.
 
 ### 5.3 Payments
@@ -131,7 +134,7 @@ The target payment model must support recording the actual monetary split of a m
 **FR-023 — Payment finalization workflow**  
 The application must support retrieving an existing unpaid or payment-unconfirmed order, recording or confirming its final payment composition, and completing the payment-related workflow without requiring direct editing of the underlying data store.
 
-### 5.4 Order lifecycle
+### 5.4 Order lifecycle, retrieval and navigation
 
 **FR-030 — Persist order**  
 An order must be durably stored according to the approved lifecycle.
@@ -147,6 +150,12 @@ The product must support the approved cancellation workflow without silently des
 
 **FR-034 — Abandon in-progress edits**  
 The operator must be able to abandon an uncommitted edit and return to the previously persisted state where applicable.
+
+**FR-035 — Practical order search**  
+The order-search interface must allow the operator to find an order using more than raw visual comparison of telephone numbers. Search/filtering must be able to use practical order information including telephone number and comment/remark text; additional useful fields may be included if approved during UI design.
+
+**FR-036 — Distinguish current and older orders**  
+When the order list contains both today's orders and older retained orders, the UI must make their age/date visually clear. A muted/grey treatment for non-current-day orders is an acceptable design direction, but the exact styling will be decided during UI design.
 
 Exact states, finalization behavior, audit requirements and edit/cancel permissions will be defined in `order-lifecycle.md`.
 
@@ -192,7 +201,7 @@ The exported information must be sufficient to preserve the approved VAT, sales-
 
 The exact export schema, period rules and mappings will be defined in `export.md`.
 
-### 5.8 Administrative capabilities
+### 5.8 Operational overview and administrative capabilities
 
 **FR-070 — Business configuration**  
 Configuration that is expected to change during normal business operation must not require source-code changes.
@@ -200,7 +209,10 @@ Configuration that is expected to change during normal business operation must n
 **FR-071 — Diagnostics**  
 The application must provide enough diagnostics to understand operational failures without exposing or committing sensitive production data.
 
-The exact settings surface and logging design may be refined during architecture and implementation planning.
+**FR-072 — Daily operational summary**  
+The main operational interface must provide an at-a-glance summary of the current day's turnover and approved payment breakdown. The summary should update automatically from committed/payment-updated order data rather than depending on a manual refresh as the normal workflow.
+
+The exact settings surface, reconciliation display and logging design may be refined during architecture and implementation planning.
 
 ## 6. Non-functional requirements
 
@@ -234,9 +246,11 @@ The deployment design must not rely on the executable files and the live busines
 
 The final storage locations and configuration mechanism will be defined in `storage-strategy.md`, but application installation and business-data placement must remain logically separable.
 
-### NFR-007 — Performance
+### NFR-007 — Performance and responsiveness
 
-Common operator actions—opening an order, product search, adding items, changing quantities and moving through normal order-entry steps—should feel immediate on the target workstation and should not require network round trips for local data.
+Common operator actions—opening an order, product search, adding items, changing quantities, finding an order and moving through normal order-entry steps—should feel immediate on the target workstation and should not require network round trips for local data.
+
+Printing must be initiated without unnecessarily blocking the order-entry interface; the target design should avoid the recurring multi-second UI stalls experienced in the current VBA workflow.
 
 ### NFR-008 — Usability
 
@@ -258,6 +272,10 @@ Real customer, order, payment, credential or other sensitive production data mus
 
 UI, business rules, persistence and external integrations should have clear boundaries so that changes in one area do not unnecessarily destabilize the others.
 
+### NFR-013 — Lightweight access model
+
+The internal v1 application does not require a login flow, employee account system or role/permission framework. Such a system must not be introduced unless a later explicit business requirement justifies it.
+
 ## 7. Product boundaries for Phase 1
 
 Phase 1 establishes the product direction but deliberately does not freeze the following:
@@ -266,6 +284,7 @@ Phase 1 establishes the product direction but deliberately does not freeze the f
 - exact discount and minimum-order rules;
 - the final payment data model beyond the requirement to preserve structured mixed-payment amounts;
 - detailed product-option/group configuration rules;
+- exact customer/contact-history behavior;
 - catalogue maintenance workflow;
 - database engine and physical schema;
 - application framework and UI technology;
@@ -273,8 +292,10 @@ Phase 1 establishes the product direction but deliberately does not freeze the f
 - multi-PC synchronization behavior;
 - backup implementation;
 - exact Hiboutik pasted-order format;
+- exact mechanism, if any, for optimizing transfer of POS-originated card revenue into Hiboutik;
 - printer model/protocol and ticket templates;
-- accounting export schema.
+- accounting export schema;
+- exact visual styling of order-age/status cues and the daily dashboard.
 
 Those topics have dedicated documents in Phases 2–4.
 
@@ -283,6 +304,8 @@ Those topics have dedicated documents in Phases 2–4.
 The product should solve the operational POS and order-management problem Sushi 81 actually has today. Features must not be added merely because they are common in generic POS products.
 
 In particular, implementation work must not silently introduce new business behavior, external services, recurring-cost dependencies or major integrations that have not been approved in the relevant design document.
+
+The existing business requirement that POS-originated card revenue ultimately be represented correctly in Hiboutik remains in scope as an operational constraint. The future system may optimize how that requirement is fulfilled, but Phase 1 does not assume that it should be removed.
 
 ## 9. Phase 1 success criteria
 
