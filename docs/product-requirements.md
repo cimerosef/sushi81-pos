@@ -27,7 +27,8 @@ Its core principles are:
 - **business-specific** — implement approved Sushi 81 workflows without unrelated POS complexity;
 - **maintainable** — UI, business rules, persisted data and integrations should be separable and testable;
 - **evolvable** — later changes to printing, export, storage or Hiboutik support should not require redesigning the whole product;
-- **cost-conscious** — no mandatory recurring paid dependency without explicit approval.
+- **cost-conscious** — no mandatory recurring paid dependency without explicit approval;
+- **bilingual in operation** — the operator-facing interface should present French and Chinese together so the application remains immediately understandable in the restaurant's working context.
 
 ## 3. Primary users and deployment model
 
@@ -79,6 +80,10 @@ The POS must distinguish order state from payment state, support partial/mixed p
 
 Application updates, backup, restore, schema evolution and automated testing must be safer and more explicit than in the workbook-centered design.
 
+### G-10 — Provide a bilingual French/Chinese interface
+
+The operational UI must support French and Chinese together. The detailed visual convention—such as side-by-side labels, primary/secondary text hierarchy or other bilingual presentation—will be decided during UI design, but v1 must not assume a French-only or Chinese-only interface.
+
 ## 5. Functional requirements
 
 ### 5.1 Catalogue and product selection
@@ -129,6 +134,9 @@ The product does not require a formal customer-profile/CRM system in v1. However
 **FR-017 — Structured fulfilment date/time**  
 The system must be capable of recording the relevant planned pickup/delivery date and time separately from free-text comments. This is required so that future orders can be distinguished from overdue unpaid orders and from normal same-day unpaid orders.
 
+**FR-018 — Future-order entry**  
+The normal order-entry workflow must provide a simple way to mark an order as a future order and choose its planned future fulfilment date. Same-day ordering should remain the low-friction default so that the future-order control does not add unnecessary work to ordinary orders.
+
 ### 5.3 Order state and payment state
 
 **FR-020 — Separate order and payment state**  
@@ -153,12 +161,14 @@ The operator must be able to record actual cash and non-cash/card amounts for a 
 The operator must be able to retrieve an existing order, add or correct payment information and mark it fully settled without editing the underlying database directly.
 
 **FR-025 — Outstanding-payment attention**  
-The main interface must provide a clearly visible way to surface unpaid or partially paid orders that require follow-up, while avoiding false alerts for normal same-day unpaid orders and legitimate future orders whose pickup/delivery date has not yet arrived.
+The main interface must provide a clearly visible way to surface unpaid or partially paid orders that genuinely require follow-up without treating every normal unpaid order as a problem.
 
-A candidate rule is to treat an order as requiring attention only after its relevant fulfilment date has passed and it remains not fully settled; the exact threshold/timing will be frozen in `order-lifecycle.md`.
+For the Phase 1 product baseline, an order becomes an overdue-payment attention item when its planned fulfilment date is earlier than the current date and its payment state is not fully settled. Same-day unpaid orders and future orders whose planned fulfilment date has not yet arrived must not appear in this overdue-payment area. Exact edge-case transitions will be frozen in `order-lifecycle.md`.
 
 **FR-026 — Hiboutik card amount summary**  
-The application must clearly display a single current total for the POS-originated card amount that must be represented/entered in Hiboutik according to the approved business process. v1 does not require automatic submission to Hiboutik.
+The application must clearly display a single current total for the POS-originated card amount that still needs to be represented/entered in Hiboutik according to the approved business process. v1 does not require automatic submission to Hiboutik.
+
+A Hiboutik emergency-import order must be excluded from this dedicated amount-to-enter total because that order already originates in Hiboutik. This exclusion does not prevent the emergency order from participating in other appropriate POS operational or turnover displays.
 
 Direct electronic control of a bank card terminal is not assumed for v1 unless later explicitly approved.
 
@@ -225,7 +235,7 @@ Emergency-imported Hiboutik orders must be visibly distinguishable from ordinary
 
 The exact Hiboutik email formats, parser behavior and error handling will be specified in `paste-order-import.md` and validated with sanitized samples.
 
-The treatment of emergency-imported orders in the dedicated "amount to enter in Hiboutik" total remains to be explicitly confirmed; Phase 1 must not guess this behavior.
+Emergency-imported Hiboutik orders are already represented in Hiboutik and must therefore be excluded from the dedicated POS-originated "amount to enter in Hiboutik" total, while remaining visibly available for normal emergency printing and appropriate operational displays.
 
 ### 5.7 Printing
 
@@ -261,16 +271,22 @@ The final export schema, period-selection rules and transfer mechanism will be s
 **FR-080 — Daily operational summary**  
 The main interface must show an at-a-glance current-day turnover/payment summary and should update automatically from committed/payment-updated data.
 
-**FR-081 — Outstanding-payment summary**  
-The main interface must provide a clearly visible summary/entry point for payment situations that genuinely require follow-up according to the approved overdue/future-order rule.
+**FR-081 — Today's orders**  
+The main interface must provide an immediately accessible view/summary of today's orders.
 
-**FR-082 — Emergency-order summary**  
+**FR-082 — Future orders**  
+The main interface must provide a clearly visible future-orders area so that orders already received for a later fulfilment date are not forgotten. The operator must be able to open this area and inspect the relevant future orders.
+
+**FR-083 — Overdue unsettled orders**  
+The main interface must provide a clearly visible overdue-unsettled area for orders whose planned fulfilment date has passed and whose payment state remains unpaid or partially paid. This area must be distinct from today's normal unpaid orders and from legitimate future orders.
+
+**FR-084 — Emergency-order summary**  
 The main interface must make today's Hiboutik emergency-import orders visibly identifiable and show their count or equivalent clear indicator.
 
-**FR-083 — Business configuration**  
+**FR-085 — Business configuration**  
 Configuration expected to change in normal operation must not require source-code changes.
 
-**FR-084 — Diagnostics**  
+**FR-086 — Diagnostics**  
 The application must provide enough diagnostics to understand operational failures without exposing or committing sensitive production data.
 
 ## 6. Non-functional requirements
@@ -317,12 +333,15 @@ No login, employee-account or permission framework is required in v1.
 **NFR-014 — Multi-computer safety**  
 Both supported computers must be able to run the full application, but the storage/synchronization design must prevent unsafe concurrent writes or database conflicts when the same live data is involved.
 
+**NFR-015 — French/Chinese bilingual UI**  
+The operator-facing interface must present French and Chinese together. Both languages should remain readable without making the high-frequency POS workflow visually cluttered. The detailed typography, label order and fallback/localization mechanism will be decided during UI design.
+
 ## 7. Product boundaries for Phase 1
 
 Phase 1 establishes product direction but does not yet freeze:
 
 - exact order states, replacement semantics and state labels;
-- exact rules for when an unpaid/partial order becomes an attention item;
+- exact edge-case lifecycle behavior around overdue unpaid/partial orders beyond the approved fulfilment-date rule;
 - exact discount and minimum-order rules;
 - detailed payment-method model beyond support for pending, partial, settled and structured split amounts;
 - detailed product-option/group rules;
@@ -330,11 +349,10 @@ Phase 1 establishes product direction but does not yet freeze:
 - catalogue maintenance workflow;
 - database engine and physical schema;
 - archive database naming/attachment implementation;
-- application framework/UI technology;
+- application framework/UI technology and exact bilingual label presentation;
 - live-data location and multi-computer synchronization mechanics;
 - backup implementation;
 - exact Hiboutik email format/parser;
-- whether Hiboutik emergency imports participate in the dedicated "amount to enter in Hiboutik" total;
 - printer model/protocol and final ticket templates;
 - final `Gestion SUSHI 81.xlsm` export schema.
 
