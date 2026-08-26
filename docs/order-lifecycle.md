@@ -86,13 +86,36 @@ These are operational views derived from planned fulfilment date and payment sta
 
 The due-today advance-order reminder remains visible for the rest of that calendar day; v1 does not introduce a separate collected/processed state merely to dismiss it early.
 
-### 4.5 Cancellation and replacement
+### 4.5 Modification of an unsettled order — approved Phase 2 decision
+
+A committed order that is still unpaid or partially paid and is otherwise permitted to be modified keeps the **same business order ID** when its contents or operational information are changed.
+
+The target application must not reproduce the Excel/VBA workaround of marking the original order `ANNULE` and creating a new order ID merely because an ordinary editable order was revised.
+
+Instead:
+
+- the operator edits the existing order;
+- the business order ID remains stable;
+- the latest approved version is the version shown by default in normal operational screens and used for current printing;
+- the system preserves enough internal revision/audit history to reconstruct that a prior committed version existed and what materially changed;
+- abandoning an in-progress edit leaves the last persisted version unchanged;
+- reprinting after a committed modification uses the latest persisted order version.
+
+This rule is particularly important for future orders, which may legitimately be revised multiple times before fulfilment and should not accumulate meaningless cancelled replacement order IDs.
+
+This decision removes a technical workaround imposed by the former Excel/VBA storage model; it does not change the business meaning of an order modification.
+
+The exact storage representation of revisions is an architecture/data-model decision to be specified later.
+
+### 4.6 Cancellation and settled-order replacement
 
 Cancellation must preserve history. Phase 1 also requires a safer target rule than silently editing financial history after payment.
 
-The exact state names and the exact linking semantics between original, replacement and supplementary orders remain to be approved in this document.
+The same-ID modification rule above applies to unpaid and partially paid orders while modification remains allowed. It does **not** by itself authorize arbitrary rewriting of an already fully settled order.
 
-### 4.6 Hiboutik emergency-import copies
+The exact state names and the exact linking semantics for settled-order supplementary/replacement flows remain to be approved in this document.
+
+### 4.7 Hiboutik emergency-import copies
 
 Emergency-imported Hiboutik orders participate in operational printing, reminders and discrepancy review where applicable, but they are not new POS-originated sales.
 
@@ -110,8 +133,8 @@ The following Phase 2 decisions must be explicitly approved before this document
 
 1. exact business/order-state names and allowed transitions;
 2. whether a normal committed order needs a distinct `CONFIRMED`/`ACTIVE` state name or can use a simpler model;
-3. exact semantics for modifying an unpaid order;
-4. exact semantics for modifying a partially paid order;
+3. ~~exact semantics for modifying an unpaid order~~ — **approved: retain the same business order ID and preserve internal revision history**;
+4. detailed limits on modifying a partially paid order beyond the same-ID principle;
 5. exact semantics for increasing an already-settled order, including supplementary-order linking;
 6. exact semantics for reducing/cancelling an already-settled order, including replacement linking and how the POS records that an external refund may be required or has been handled;
 7. whether payment corrections are implemented as reversible/corrective events, immutable events with supersession, or another auditable model;
