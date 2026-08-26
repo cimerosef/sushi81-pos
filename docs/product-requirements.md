@@ -1,7 +1,7 @@
 # Product requirements
 
 **Status:** Draft — Phase 1  
-**Last updated:** 2026-08-25  
+**Last updated:** 2026-08-26  
 **Product:** Sushi81 POS  
 **Target use:** Internal operational use by Sushi 81
 
@@ -91,7 +91,10 @@ The operator must be able to view the current cart, change quantities and remove
 **FR-004 — Prices and commercial attributes**  
 The catalogue must be capable of carrying the information required by approved pricing and discount rules.
 
-The exact catalogue editing and source-of-truth model will be defined in `catalogue-management.md`.
+**FR-005 — Product options and choices**  
+The catalogue/order-entry model must support products that require one or more operator-selectable customer choices, such as choosing one flavour from several available flavours for an ice cream or choosing an allowed variant within a menu item. These choices must be selectable directly during order entry instead of relying only on free-text comments, and the selected choice must remain attached to the relevant ordered item for operational use and printing.
+
+The exact catalogue editing, option-group model, required/optional choice rules and source-of-truth model will be defined in `catalogue-management.md` and the later business-design documents.
 
 ### 5.2 Order creation
 
@@ -107,6 +110,9 @@ The system must enforce the information required for the selected fulfilment mod
 **FR-013 — Commercial rules**  
 The system must apply the approved minimum-order, discount and other commercial rules automatically and consistently.
 
+**FR-014 — Preserve item-specific customer choices**  
+When an ordered product has configured options or variants, the chosen values must be stored with that order item and remain available when the order is viewed, modified, reprinted or otherwise processed.
+
 The final rules are not frozen here; they will be defined in `business-rules.md`.
 
 ### 5.3 Payments
@@ -118,6 +124,12 @@ The current system includes categories such as `CB`, `Espèces` and `DIV`, but t
 
 **FR-021 — Payment processing boundary**  
 Phase 1 requires recording payment information for POS operations. Direct electronic control of, or settlement through, a bank card terminal is not assumed unless a later approved specification explicitly introduces it.
+
+**FR-022 — Structured split-payment amounts**  
+The target payment model must support recording the actual monetary split of a mixed payment instead of representing the entire order only with a generic `DIV` category or a free-text note. At minimum, the operator must be able to enter the cash amount and non-cash/card amount and verify that their sum equals the order total.
+
+**FR-023 — Payment finalization workflow**  
+The application must support retrieving an existing unpaid or payment-unconfirmed order, recording or confirming its final payment composition, and completing the payment-related workflow without requiring direct editing of the underlying data store.
 
 ### 5.4 Order lifecycle
 
@@ -162,7 +174,13 @@ The POS must support generation and printing of the approved customer ticket.
 **FR-052 — Print failure handling**  
 A printing problem must not silently corrupt or lose the underlying order data.
 
-Printer configuration, templates, retry/reprint behavior and implementation architecture will be defined in `printing.md`.
+**FR-053 — Separate operational and payment printing moments**  
+The target workflow must allow the kitchen ticket to be printed when the order is created while allowing the customer ticket to be printed separately when payment is finalized, so that the customer ticket can reflect the confirmed payment information rather than being forced to print before the payment method is known.
+
+**FR-054 — Selective reprint**  
+The operator must be able to retrieve an existing order and reprint the kitchen ticket or customer ticket independently when needed.
+
+Printer configuration, templates, retry/reprint behavior, statutory receipt content and implementation architecture will be defined in `printing.md`.
 
 ### 5.7 Export
 
@@ -246,7 +264,8 @@ Phase 1 establishes the product direction but deliberately does not freeze the f
 
 - exact order states and finalization semantics;
 - exact discount and minimum-order rules;
-- the final payment data model;
+- the final payment data model beyond the requirement to preserve structured mixed-payment amounts;
+- detailed product-option/group configuration rules;
 - catalogue maintenance workflow;
 - database engine and physical schema;
 - application framework and UI technology;
