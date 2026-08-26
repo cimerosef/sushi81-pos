@@ -83,16 +83,40 @@ The operator must be able to modify these values through the normal application 
 
 For example, if the minimum is later changed from €15 to €20, the application must enforce the same approved rule using €20 as the new post-discount minimum.
 
-### 4.2 Delivery rule
+### 4.2 Livraison rule — approved Phase 2 decision
 
-Phase 2 must define:
+For `Livraison` orders, the default business rule is:
 
-- exact minimum delivery order value;
-- whether the minimum is based on original or adjusted total;
-- whether delivery remains free;
-- whether discounts are disallowed for delivery;
-- whether any exceptional override is permitted;
-- which of these values are operator-configurable.
+- the order does **not** receive the normal `Retrait` discount;
+- the default minimum merchandise/order amount required for delivery is **€30.00**;
+- if the merchandise/order amount used for the minimum check is below the configured delivery minimum, the order cannot be confirmed as `Livraison`;
+- there is no ordinary force-override action for bypassing the delivery minimum;
+- the delivery minimum is a user-editable business parameter and must not be hard-coded.
+
+The minimum-delivery check is based on the order's merchandise/commercial amount **before any delivery fee is added**. A delivery fee must never be allowed to make an otherwise-under-minimum order qualify for delivery.
+
+Examples if the delivery minimum is €30 and a future delivery fee is €5:
+
+- €28 merchandise + €5 delivery fee = €33 final order total -> delivery still rejected because the merchandise amount is below €30;
+- €30 merchandise + €5 delivery fee = €35 final order total -> delivery allowed.
+
+#### Delivery-fee extensibility
+
+V1 keeps delivery free in normal operation, but the product must preserve a simple future delivery-fee entry point.
+
+The approved design direction is:
+
+- `delivery fee enabled` is a user-editable business setting, default **off**;
+- `fixed delivery fee amount` is a user-editable amount, default **€0.00**;
+- when delivery fee is disabled, the fee contributes €0 to the order;
+- when delivery fee is enabled, the configured fee is automatically added at order level after the delivery-minimum check;
+- the resulting amount becomes part of the ordinary authoritative order total and therefore participates in printing, closing/reconciliation, turnover and export in the same way as the rest of the order total;
+- changing a price-affecting order input must recalculate the merchandise amount and then reapply the current delivery-fee rule before writing the order total;
+- the operator may still manually edit the final order total afterwards under section 4.5.
+
+The implementation should keep delivery-fee calculation logically separate from product-price calculation. V1 only needs the simple fixed-fee rule above, but the architecture must not require a rewrite of the order model if Sushi 81 later introduces conditions such as free delivery above a threshold, different fees by area, or other delivery-fee formulas.
+
+The future presence of this extension point does **not** require those advanced fee rules or their UI to be implemented in v1.
 
 ### 4.3 Required customer/order information — partially approved Phase 2 decision
 
@@ -137,7 +161,7 @@ Normal behavior is:
 
 A manual total edit is deliberately a **temporary override of the current calculation**, not a lock on future automatic calculation.
 
-If any price-affecting order input is subsequently changed — including product lines, quantities, product options/price adjustments or discount application — the application must automatically recalculate the order total using the normal approved pricing rules and replace any earlier manually entered total.
+If any price-affecting order input is subsequently changed — including product lines, quantities, product options/price adjustments, discount application or a configured delivery fee — the application must automatically recalculate the order total using the normal approved rules and replace any earlier manually entered total.
 
 After that recalculation, if the operator still wants a different exceptional amount, the operator may simply edit the total again.
 
@@ -167,12 +191,13 @@ Values that Sushi 81 may reasonably change during normal operation must be repre
 
 The operator must be able to change such values through the application's normal configuration/settings UI without recompiling the software.
 
-This includes at least the approved pickup-discount parameters:
+This includes at least:
 
-- discount percentage;
-- post-discount minimum order amount.
-
-Other commercial parameters, such as delivery thresholds, will be added to this configurable set when their business rules are approved.
+- pickup discount percentage (default 10%);
+- post-discount minimum `Retrait` order amount (default €15.00);
+- minimum `Livraison` merchandise/order amount (default €30.00);
+- delivery-fee enabled/disabled setting (default disabled);
+- fixed delivery-fee amount (default €0.00).
 
 Configuration must not weaken the rule model: changing a value changes the parameter used by the approved rule, not the underlying meaning of the rule itself.
 
@@ -180,13 +205,11 @@ Configuration must not weaken the rule model: changing a value changes the param
 
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
-1. final delivery minimum and whether any override exists;
-2. final delivery discount policy;
-3. final telephone-required/optional rules;
-4. custom option-price adjustment validation;
-5. discount interaction with product options;
-6. rounding rules for percentage discounts and order totals;
-7. the remaining commercial values that must be operator-configurable in v1.
+1. final telephone-required/optional rules;
+2. custom option-price adjustment validation;
+3. discount interaction with product options;
+4. rounding rules for percentage discounts and order totals;
+5. any remaining commercial values that must be operator-configurable in v1.
 
 The following are already approved and are no longer open questions:
 
@@ -196,6 +219,12 @@ The following are already approved and are no longer open questions:
 - the discounted order total must reach the configured post-discount minimum, default €15;
 - there is no force-apply override for the normal discount rule;
 - the discount rate and post-discount minimum are editable by the operator without recompilation;
+- Livraison does not use the normal Retrait discount;
+- the default Livraison minimum is €30 and is user-configurable;
+- the Livraison minimum is checked before any delivery fee is added and cannot be satisfied by the delivery fee itself;
+- below-minimum Livraison orders cannot be confirmed through an ordinary override;
+- delivery fee is currently free/default €0 but an application-level enable/amount configuration entry point is preserved;
+- delivery-fee calculation is kept logically extensible so future fee rules do not require rebuilding the order model;
 - every new order must explicitly select `Retrait` or `Livraison` before confirmation;
 - fulfilment mode is not inherited when creating a new order from an existing order's customer information;
 - the ordinary order-total field is directly editable;
@@ -203,4 +232,4 @@ The following are already approved and are no longer open questions:
 
 ## 7. Approval rule
 
-This file remains a Draft until the remaining target rules above are explicitly approved. Codex must implement the approved Retrait discount semantics and must not restore the former VBA warning/override behavior unless the product specification is explicitly changed later.
+This file remains a Draft until the remaining target rules above are explicitly approved. Codex must implement the approved Retrait and Livraison semantics and must not restore former VBA warning/override behavior or hard-code configurable commercial thresholds without explicit product approval.
