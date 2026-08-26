@@ -34,6 +34,7 @@ Phase 1 intentionally deferred the exact post-confirmation modification and paym
 - **payment state does not lock an order against modification**;
 - **payment composition is recorded directly as cash and card amounts rather than through a manually selected payment-method category**;
 - **the order has one authoritative editable total field**;
+- **a manual total edit is temporary and any later price-affecting order change automatically recalculates the total under normal pricing rules**;
 - **an order may be closed only when recorded cash + card exactly equals that current order total.**
 
 The application normally calculates and fills the order-total field from products/options/discount rules, but the operator may directly edit that same field under `business-rules.md`. There is no requirement for a second visible system-total field.
@@ -54,6 +55,7 @@ The following principles remain fixed:
 10. Hiboutik emergency-import records are operational/printing copies, not new POS-originated sales; they remain excluded from ordinary POS turnover/card-entry/export totals.
 11. External card-terminal refund/additional-charge handling remains outside the POS in v1.
 12. The operator may directly edit the order total without changing catalogue product base prices.
+13. A later change to products, quantities, options/price adjustments or discounts automatically recalculates and replaces any prior manual total override.
 
 ## 3. Lifecycle dimensions
 
@@ -114,9 +116,13 @@ The order has one ordinary **total** field.
 
 The application normally calculates that field from product lines, quantities, options and applicable pricing/discount rules. The operator may then directly edit the same field when needed.
 
-Once manually edited, that entered amount is the authoritative total for the order until it is deliberately changed again. The application does not require a separate visible calculated-total field and does not reject the order because product lines no longer mathematically add up to the edited total.
+A manual edit becomes the authoritative order total at that moment. However, the manual value does **not** lock the order total against future system calculation.
 
-If product lines or pricing inputs are changed after a manual total edit, the UI must not silently overwrite the operator's intentional total without a clear recalculation action or equivalent explicit behavior defined during UI design.
+If any price-affecting order input is subsequently changed — including products, quantities, product options/price adjustments or discount application — the application must automatically recalculate the total using the normal approved rules and overwrite the earlier manual value.
+
+If the operator still wants a special total after that recalculation, the operator may simply edit the total again.
+
+The application does not require a second visible calculated-total field and does not reject the order because product lines no longer mathematically add up to a manually edited total between recalculations.
 
 ### 4.5 Closing an order — approved Phase 2 decision
 
@@ -186,7 +192,9 @@ When an order is modified:
 
 The operator may directly change the order total even if it differs from the product-line arithmetic.
 
-If a previously closed order is modified so that its order total no longer equals recorded CB + Espèce, it no longer satisfies the close validation until the operator corrects the relevant values. External refund/additional-charge handling remains outside the POS.
+If the operator later changes any product, quantity, option/price adjustment or discount, the application automatically recalculates the order total according to the approved pricing rules, replacing any prior manual total. The operator can then manually edit the newly calculated total again if needed.
+
+If a previously closed order is modified so that its recalculated or manually edited total no longer equals recorded CB + Espèce, it no longer satisfies the close validation until the operator corrects the relevant values. External refund/additional-charge handling remains outside the POS.
 
 ### 4.9 Partial-payment / unsettled orders
 
@@ -267,8 +275,9 @@ The following are not part of the target v1 lifecycle unless explicitly reintrod
 - complex replacement-order financial linking;
 - an operator-facing payment-event ledger;
 - blocking the daily summary because one or more orders remain open;
-- requiring a second visible system-calculated total alongside the editable order total.
+- requiring a second visible system-calculated total alongside the editable order total;
+- preserving a manual total override after later price-affecting order changes.
 
 ## 6. Approval rule
 
-This file remains a Draft until the remaining lifecycle presentation/detail decisions are reviewed and explicitly approved. Implementation must preserve the core Phase 2 rules that ordinary order modification is operator-controlled and not restricted by payment state, payment composition is entered through CB/Espèce amounts, the order uses one authoritative editable total field, closing requires CB + Espèce to equal that total, daily summaries include only amounts actually received, and a new order can be initialized from an existing order's reusable customer information without changing the source order.
+This file remains a Draft until the remaining lifecycle presentation/detail decisions are reviewed and explicitly approved. Implementation must preserve the core Phase 2 rules that ordinary order modification is operator-controlled and not restricted by payment state, payment composition is entered through CB/Espèce amounts, the order uses one authoritative editable total field, price-affecting order changes automatically recalculate that total even after a manual override, closing requires CB + Espèce to equal that total, daily summaries include only amounts actually received, and a new order can be initialized from an existing order's reusable customer information without changing the source order.
