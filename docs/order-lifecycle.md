@@ -1,6 +1,6 @@
 # Order lifecycle
 
-**Status:** Draft — Phase 2 first batch  
+**Status:** Approved — Phase 2 baseline  
 **Last updated:** 2026-08-26  
 **Product:** Sushi81 POS  
 **Purpose:** Freeze the target order, modification, cancellation and payment lifecycle before implementation.
@@ -37,6 +37,7 @@ Phase 2 freezes these simple principles:
 - **a manual total edit is temporary and any later price-affecting order change automatically recalculates the total under normal pricing rules**;
 - **an order may be closed only when recorded cash + card exactly equals that current order total**;
 - **real-time operational turnover and received-payment summaries are separate metrics**;
+- **real-time operational turnover is attributed to the planned fulfilment date**;
 - **daily received-payment summaries use the amount actually received on each date, not the nominal value of the whole order**;
 - **only the latest saved order version needs to be retained for normal business use; v1 does not require an order revision-history feature.**
 
@@ -51,7 +52,7 @@ The following principles remain fixed:
 7. Due-today advance-order visibility is operational and does not depend on whether payment has already been entered.
 8. Partial and mixed payments are representable structurally through CB and Espèce amounts.
 9. Daily received-payment totals represent money actually received on that date, not unpaid order value.
-10. Real-time operational turnover represents the value of valid orders attributed to the relevant operating day and does not depend on payment state or order closure.
+10. Real-time operational turnover represents the value of valid orders attributed to their planned fulfilment date and does not depend on payment state or order closure.
 11. Hiboutik emergency-import records are operational/printing copies, not new POS-originated sales; they remain excluded from ordinary POS turnover/card-entry/export totals.
 12. External card-terminal refund/additional-charge handling remains outside the POS in v1.
 13. The operator may directly edit the order total without changing catalogue product base prices.
@@ -65,7 +66,7 @@ At minimum, an order has independent lifecycle dimensions:
 - **business/order status** — `Open`, `Closed` or `Cancelled`;
 - **payment information** — cumulative cash and card amounts recorded for the order;
 - **order total** — one authoritative editable amount, normally system-calculated but directly editable by the operator;
-- **planned fulfilment date/time** — used to derive future, due-today and overdue attention and, subject to final Phase 2 confirmation, the operating-day attribution for real-time turnover;
+- **planned fulfilment date/time** — used to derive future, due-today and overdue attention and to attribute operational turnover to the correct business day;
 - **source type** — ordinary POS-originated order versus Hiboutik emergency-import copy.
 
 Future-order, due-today and overdue labels are operational views derived from the underlying order data rather than separate destructive lifecycle states.
@@ -193,30 +194,28 @@ The existence of open orders must not block generation or display of the daily r
 
 The application may separately show open/unsettled orders as an operational reminder.
 
-### 4.8 Real-time operational turnover — approved concept, attribution basis to confirm
+### 4.8 Real-time operational turnover — approved Phase 2 decision
 
-The main screen must also provide a separate **real-time operational turnover** figure, intended to answer the practical question: “How much business belongs to today?”
+The main screen must provide a separate **real-time operational turnover** figure, intended to answer the practical question: “How much business belongs to today?”
 
 This figure is independent from payment reconciliation:
 
-- an Open unpaid order may contribute its full order total to real-time operational turnover;
-- an Open partially paid order may contribute its full order total to real-time operational turnover while only the amount actually received contributes to the received-payment summary;
+- an Open unpaid order contributes its full order total to real-time operational turnover for its planned fulfilment date;
+- an Open partially paid order contributes its full order total to real-time operational turnover while only the amount actually received contributes to the received-payment summary;
 - a Closed order contributes its order total in the same way as any other valid non-cancelled order;
 - a Cancelled order does not contribute to real-time operational turnover;
 - Hiboutik emergency-import copies remain excluded from ordinary POS-originated turnover to avoid double counting.
 
 Therefore, order closure and payment entry do **not** control the real-time turnover figure.
 
-The recommended operating-day attribution is the order's **planned fulfilment date** rather than its creation date. Under that recommendation:
+Operational turnover is attributed to the order's **planned fulfilment date**, not its creation date. Consequently:
 
 - a normal order planned for today contributes its current order total to today's real-time turnover immediately after confirmation, regardless of payment state;
 - a future order created today for tomorrow does not increase today's operational turnover; it belongs to tomorrow's turnover;
 - if that future order is prepaid today, the amount received today still contributes to today's received-payment summary even though the order itself contributes to tomorrow's operational turnover;
 - an older order from yesterday that receives its remaining payment today does not increase today's operational turnover, but today's newly received amount does increase today's received-payment summary.
 
-This separation intentionally allows operational turnover and received money to differ on a given day.
-
-The planned-fulfilment-date attribution above remains the only open detail in this subsection and must be explicitly confirmed before this document becomes final Phase 2 baseline.
+This separation intentionally allows operational turnover and received money to differ on a given day and produces a more accurate basis for analysing which weekdays or calendar dates generate the strongest business activity.
 
 ### 4.9 Future / due today / overdue
 
@@ -313,16 +312,15 @@ External monetary settlement remains outside the application.
 
 ## 5. Phase 2 lifecycle decisions frozen in this document
 
-The following lifecycle decisions are now approved:
+The following lifecycle decisions are approved:
 
 1. user-facing order statuses are limited to `Open`, `Closed` and `Cancelled` (with final FR/ZH wording to be handled by localization/UI design);
 2. Cancelled orders retain CB/Espèce values for reference but are excluded from normal summaries and exports;
 3. v1 keeps only the latest saved business version of an order and does not provide an order revision-history feature;
 4. creating a new order from an existing order copies customer information but does not inherit `Retrait`/`Livraison`; fulfilment mode is mandatory and must be explicitly selected for every new order;
 5. cross-day and partial payments are attributed by internally dated payment-amount changes while the operator-facing UI remains limited to the current cumulative CB/Espèce fields;
-6. real-time operational turnover is separate from daily received-payment totals and is not dependent on order payment/closure state.
-
-The only remaining lifecycle attribution detail to freeze is whether operational turnover belongs to the planned fulfilment date, as recommended in section 4.8, or to another date basis.
+6. real-time operational turnover is separate from daily received-payment totals and is not dependent on order payment/closure state;
+7. operational turnover is attributed to the planned fulfilment date, not the order creation date.
 
 The following are not part of the target v1 lifecycle unless explicitly reintroduced later:
 
@@ -341,4 +339,4 @@ The following are not part of the target v1 lifecycle unless explicitly reintrod
 
 ## 6. Approval rule
 
-The core lifecycle behavior described above is now sufficiently specified for Phase 2 baseline review. Implementation must preserve these decisions and must not reintroduce more complex payment/replacement/audit workflows without explicit product approval. The operating-day attribution rule for real-time turnover remains to be explicitly approved.
+This document is **Approved — Phase 2 baseline**. Implementation must preserve the lifecycle decisions above and must not reintroduce more complex payment/replacement/audit workflows or change the operating-day attribution rule without explicit product approval.
