@@ -118,7 +118,7 @@ The implementation should keep delivery-fee calculation logically separate from 
 
 The future presence of this extension point does **not** require those advanced fee rules or their UI to be implemented in v1.
 
-### 4.3 Required customer/order information — partially approved Phase 2 decision
+### 4.3 Required customer/order information — approved Phase 2 decision
 
 Every new order must explicitly select exactly one fulfilment mode:
 
@@ -131,11 +131,17 @@ When a new order is initialized from an existing order's reusable customer infor
 
 Delivery address remains mandatory for `Livraison`.
 
-Phase 2 must still define when telephone is:
+Telephone number is **optional for both `Retrait` and `Livraison`**. A missing telephone number must never by itself prevent order confirmation.
 
-- optional;
-- strongly recommended but not required;
-- required, if any case exists.
+The normal fast-entry workflow should allow the operator to type a standard French 10-digit telephone number as ten continuous digits without inserting spaces manually, for example:
+
+`0612345678`
+
+After the number is accepted/saved, normal order display and printing should format that 10-digit number for readability as:
+
+`06 12 34 56 78`
+
+This formatting is a presentation/normalization convenience, not a reason to make telephone mandatory or to introduce burdensome phone-number validation. The UI should favor fast entry and readable saved/displayed output.
 
 ### 4.4 Product-option price adjustments
 
@@ -205,11 +211,10 @@ Configuration must not weaken the rule model: changing a value changes the param
 
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
-1. final telephone-required/optional rules;
-2. custom option-price adjustment validation;
-3. discount interaction with product options;
-4. rounding rules for percentage discounts and order totals;
-5. any remaining commercial values that must be operator-configurable in v1.
+1. custom option-price adjustment validation;
+2. discount interaction with product options;
+3. rounding rules for percentage discounts and order totals;
+4. any remaining commercial values that must be operator-configurable in v1.
 
 The following are already approved and are no longer open questions:
 
@@ -227,6 +232,8 @@ The following are already approved and are no longer open questions:
 - delivery-fee calculation is kept logically extensible so future fee rules do not require rebuilding the order model;
 - every new order must explicitly select `Retrait` or `Livraison` before confirmation;
 - fulfilment mode is not inherited when creating a new order from an existing order's customer information;
+- telephone is optional for both Retrait and Livraison;
+- standard 10-digit telephone entry may be typed without spaces and is displayed/printed in grouped form such as `06 12 34 56 78` after save;
 - the ordinary order-total field is directly editable;
 - later price-affecting order changes automatically recalculate and replace any manual total override.
 
