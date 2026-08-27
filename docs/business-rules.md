@@ -210,6 +210,19 @@ Manual editing of the order total:
 
 This capability is intentional. Sushi81 POS is a practical operational/turnover-recording tool, and the operator may encounter exceptional situations not anticipated by the normal pricing rules. The software should allow the operator to record the business amount that has actually been decided while keeping automatic calculation behavior predictable whenever the underlying order changes.
 
+#### VAT after a manual total override — approved Phase 3 amendment
+
+If the operator manually edits the authoritative order total, the VAT treatment of that manually overridden final amount is simplified deliberately:
+
+- the **entire authoritative final TTC amount is treated as subject to 10% VAT**;
+- the normal mixed VAT breakdown derived from the individual products/options is no longer used for the final receipt/tax breakdown while that manual override remains authoritative;
+- the tax snapshot must therefore contain a single 10% VAT bucket whose TTC base equals the manually entered `Order.total_ttc`;
+- the VAT amount is calculated from that TTC total using the approved round-half-up rule;
+- this rule applies whether the manual total is higher or lower than the system-calculated product-line total;
+- no proportional allocation back across the original product VAT rates is required.
+
+If a later price-affecting order change automatically recalculates the order total and thereby replaces the manual override, the application returns to the normal product/option VAT calculation rules. If the operator then manually edits the recalculated total again, the single-rate 10% override VAT rule applies again.
+
 ### 4.6 Rounding and monetary consistency — approved Phase 2 decision
 
 All operator-facing and persisted monetary amounts use **€0.01 precision** unless another explicit rule states otherwise.
@@ -274,8 +287,9 @@ The following are approved and are no longer open questions:
 - positive option adjustments use fixed 5.5% VAT, while negative adjustments inherit the associated product VAT rate;
 - all final monetary results use €0.01 precision with ordinary round-half-up behavior;
 - the ordinary order-total field is directly editable;
-- later price-affecting order changes automatically recalculate and replace any manual total override.
+- while a manual order-total override is authoritative, the entire final TTC amount uses a single 10% VAT bucket for receipt/tax purposes;
+- later price-affecting order changes automatically recalculate and replace any manual total override and restore normal product/option VAT calculation until another manual total edit occurs.
 
 ## 7. Approval rule
 
-This file is the approved Phase 2 business-rules baseline. Codex must implement these semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, hard-code configurable commercial thresholds, apply pickup discount to positive option surcharges, assign option-adjustment VAT contrary to the rules above, use inconsistent monetary rounding, or introduce additional commercial constraints without explicit product approval.
+This file is the approved Phase 2 business-rules baseline, including the approved Phase 3 amendment defining VAT treatment for a manual order-total override. Codex must implement these semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, hard-code configurable commercial thresholds, apply pickup discount to positive option surcharges, assign option-adjustment VAT contrary to the rules above, allocate a manually overridden order total across the original mixed VAT rates, use inconsistent monetary rounding, or introduce additional commercial constraints without explicit product approval.
