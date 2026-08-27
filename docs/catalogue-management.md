@@ -177,6 +177,32 @@ The operator must be able to maintain this behavior directly in the application 
 
 The target structure should not prevent a product from having more than one logical option group if later operational needs require it. The exact UI for creating/managing multiple groups can be finalized during detailed interaction design, but the data/behavior design must not assume that all choices for a product forever belong to one single flat list.
 
+### Required/optional selection and multi-select limits — approved Phase 2 decision
+
+Each option group independently defines whether selection is:
+
+- **required**; or
+- **optional**.
+
+The rule is configured per option group rather than globally for all products or all option groups.
+
+For a required single-select group, exactly one option must be selected before the product can be added/confirmed on the order line.
+
+For an optional single-select group, the operator may choose one option or leave the group unselected.
+
+For a multi-select group, the operator may configure selection limits appropriate to that group:
+
+- a **minimum number of selections**;
+- a **maximum number of selections**.
+
+Those limits determine whether the operator may leave the group empty and how many choices may be selected. A required multi-select group must have a minimum of at least one. An optional multi-select group may use a minimum of zero.
+
+The configuration must be practical rather than artificially restrictive. For example:
+
+- flavour: required, single-select;
+- optional extras: optional, multi-select;
+- included choices in a menu: required, multi-select with configured minimum/maximum counts.
+
 ### Order-entry prompting — approved Phase 2 decision
 
 When the operator selects/adds a product during order entry:
@@ -185,14 +211,14 @@ When the operator selects/adds a product during order entry:
 - if that product has enabled structured options, the application must automatically present an option-selection dialog/prompt immediately as part of adding that product;
 - the operator should not have to remember to open a separate option editor manually after adding the product;
 - the prompt must present the choices according to the configured single-select or multi-select behavior;
+- required groups and configured minimum/maximum limits must be enforced before the option-selection step is accepted;
+- optional groups may be left unselected when their configured minimum permits zero selections;
 - the selected option labels and any price adjustments are attached to that specific order line and copied into the order snapshot.
 
 The exact visual form of the prompt — modal dialog, popover, side panel or another interaction pattern — is a UI-design choice. The required behavior is that selection is surfaced automatically and clearly at product-add time.
 
 The following option details still need to be frozen:
 
-- whether an enabled option group is always required to have a selection or may be optional;
-- for multi-select groups, whether configurable minimum/maximum selection counts are needed;
 - display order of option groups and option labels;
 - predefined option-price-adjustment catalogue maintenance, consistent with `business-rules.md`;
 - whether individual options can be temporarily deactivated independently from the parent product.
@@ -248,13 +274,12 @@ No import should partially apply a logically invalid catalogue update without cl
 
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
-1. required/optional option-selection behavior and any multi-select selection limits;
-2. predefined option-price-adjustment catalogue behavior consistent with `business-rules.md`;
-3. whether individual options can be independently activated/deactivated;
-4. in-application catalogue editing workflow;
-5. final batch import/export format and columns;
-6. update/conflict/deactivation/delete behavior during import;
-7. validation and preview requirements.
+1. predefined option-price-adjustment catalogue behavior consistent with `business-rules.md`;
+2. whether individual options can be independently activated/deactivated;
+3. in-application catalogue editing workflow;
+4. final batch import/export format and columns;
+5. update/conflict/deactivation/delete behavior during import;
+6. validation and preview requirements.
 
 The following product-field/identity/lifecycle/history/category/option principles are already approved and are no longer open questions:
 
@@ -263,6 +288,8 @@ The following product-field/identity/lifecycle/history/category/option principle
 - product options are managed separately from the base product fields and are enabled/configured only for products that need them;
 - the operator may enable and maintain product options directly in the application;
 - both single-select and multi-select option behavior are supported;
+- each option group independently defines whether selection is required or optional;
+- multi-select groups support configurable minimum and maximum selection counts;
 - when a product has enabled structured options, order entry automatically presents an option-selection prompt when that product is selected/added;
 - option selections are attached to the specific order line and retained in the order snapshot;
 - confirmed historical orders are independent snapshots and do not depend on the live catalogue;
