@@ -59,23 +59,28 @@ The most important consequences for the data model are:
 10. catalogue Excel import uses opaque internal identifiers for safe updates, but those identifiers must remain transparent/non-editable in normal operator workflows;
 11. no customer/CRM subsystem is required in v1;
 12. successful catalogue import does not require a permanent operator-facing import-history table;
-13. while a manual order-total override is authoritative, the complete final TTC amount uses a single 10% VAT bucket rather than the normal mixed product/option VAT breakdown.
+13. while a manual order-total override is authoritative, the complete final TTC amount uses a single 10% VAT bucket rather than the normal mixed product/option VAT breakdown;
+14. an enabled non-zero Sushi81 delivery fee uses fixed 10% VAT under normal calculated pricing;
+15. once an order has ever been saved as a future fulfilment order, its `advance_order_marker` remains true permanently for that order;
+16. every current catalogue category has a unique operator-facing name, independently of its opaque internal `category_id`.
 
 ## 3. Design principles
 
 ### 3.1 Logical IDs are not business labels
 
-Current catalogue entities use stable opaque internal identifiers such as `product_id`, `option_group_id` and `option_id`.
+Current catalogue entities use stable opaque internal identifiers such as `category_id`, `product_id`, `option_group_id` and `option_id`.
 
 These identifiers:
 
 - are generated and managed by the application;
-- are not the operator-facing product code;
+- are not operator-facing business labels;
 - do not carry business meaning;
 - are not normally editable by the operator;
 - may appear in protected/hidden Excel technical columns only when required for safe update matching.
 
 The exact physical identifier type is deferred to the storage/architecture decision.
+
+Business-visible uniqueness rules may exist in addition to technical IDs. In particular, current product codes and current category names are unique business-facing values even though they are not technical primary keys.
 
 ### 3.2 Historical orders are snapshots, not catalogue views
 
@@ -163,15 +168,23 @@ Logical fields:
 | Field | Required | Meaning |
 |---|---:|---|
 | `category_id` | yes | Opaque technical identity |
-| `name` | yes | Current editable category name |
+| `name` | yes | Current editable and business-unique category name |
 | `created_at` | yes | Technical creation timestamp |
 | `updated_at` | yes | Technical last-update timestamp |
 
 Every current product references one category.
 
+Approved constraints:
+
+- each current category has a unique operator-facing `name`;
+- two current categories may not have the same visible name even if their `category_id` values differ;
+- editing or importing a category name must be rejected if the result would create a duplicate current category name;
+- uniqueness is a business/operational constraint in addition to the opaque technical ID and does not turn the category name into the technical primary key;
+- implementation must not permit visually equivalent duplicates merely because of technical differences such as surrounding whitespace or letter case.
+
 Historical orders do not depend on the current category name because the sale-time category name is copied into the order-line snapshot.
 
-The exact duplicate-name policy and any category display-order field are not frozen here because Phase 2 intentionally deferred category ordering/shortcut behavior to later UI design.
+Category display order remains deferred because Phase 2 intentionally deferred category ordering/shortcut behavior to later UI design.
 
 ### 5.2 `Product`
 
@@ -224,7 +237,7 @@ Approved validation is represented logically as follows:
 - optional multi-select may have minimum zero;
 - multi-select minimum may not exceed maximum.
 
-Phase 2 approved independent activation for individual options and product-level option enable/disable. It did not explicitly require a separate active/inactive flag for option groups, so this draft does not invent one.
+Phase 2 approved independent activation for individual options and product-level option enable/disable. It did not explicitly require a separate active/inactive flag for option groups, so this model does not invent one.
 
 ### 5.4 `Option`
 
@@ -269,7 +282,7 @@ Logical fields:
 | `fulfilment_mode` | yes | `RETRAIT` or `LIVRAISON` |
 | `planned_fulfilment_date` | yes | Business date to which operational turnover/reminders are attributed |
 | `planned_fulfilment_time` | no | Structured pickup/delivery time when known |
-| `advance_order_marker` | yes | Technical/business marker used to preserve advance-order reminder semantics |
+| `advance_order_marker` | yes | Sticky marker showing that the order has ever been saved as a future fulfilment order |
 | `telephone` | no | Order-level telephone text; no Customer entity required |
 | `delivery_address` | no | Latest saved delivery address; may be empty even for initial Livraison confirmation |
 | `comment` | no | Flexible operational free text |
@@ -314,15 +327,19 @@ Recommended lifecycle semantics:
 
 Only the latest current business state is retained, consistent with the Phase 2 decision not to retain business revision history.
 
-### 6.4 `advance_order_marker`
+### 6.4 `advance_order_marker` — approved Phase 3 rule
 
 The approved UI distinguishes ordinary same-day orders from advance orders that later become due today.
 
-A pure comparison of the **current** planned date with `created_at` is insufficient in every edit scenario because the planned date itself may later change.
+The persisted `advance_order_marker` uses the following sticky semantics:
 
-This draft therefore preserves a minimal marker indicating that the order has participated in the advance-order workflow. It is not a separate lifecycle status; future/due-today behavior remains derived from the current planned date plus this marker.
+- a new order starts with `advance_order_marker = false`;
+- if a non-cancelled order is saved at any time with `planned_fulfilment_date` later than the then-current business date, set `advance_order_marker = true`;
+- once set to `true`, the marker remains `true` permanently for that order;
+- later changes to planned date, planned time, products, payment, customer information or other editable order values do not reset it;
+- cancellation does not need to clear the marker because Cancelled status independently excludes the order from operational reminder views.
 
-Exact set/reset semantics should be confirmed during Phase 3 review, but the model should preserve enough information that editing a future date does not destroy the ability to identify an advance order when it becomes due today.
+This marker is not a separate order status. It only preserves the fact that the order has participated in the advance-order workflow so a future order that becomes due today can still be distinguished from an ordinary same-day order after later edits.
 
 ## 7. Historical order-line snapshots
 
@@ -346,7 +363,7 @@ Logical fields:
 | `discount_eligible_snapshot` | yes | Sale-time discount eligibility |
 | `quantity` | yes | Ordered quantity |
 | `base_line_total_ttc_snapshot` | yes | Sale-time base price × quantity result under approved rounding |
-| `calculated_line_total_ttc_snapshot` | yes | System-calculated line result including saved adjustments/discount logic before any unallocated order-level manual total override |
+| `calculated_line_total_ttc_snapshot` | yes | System-calculated line result including saved adjustments/discount logic before any order-level manual total override |
 
 Important semantics:
 
@@ -395,6 +412,7 @@ At minimum:
 - `Order.pickup_discount_applied` records whether the normal discount is active;
 - `Order.pickup_discount_rate_snapshot` records the actual rate used;
 - `Order.delivery_fee_ttc_snapshot` records the fee actually applied;
+- any non-zero normal calculated `Order.delivery_fee_ttc_snapshot` uses fixed 10% VAT;
 - `Order.manual_total_override_active` records whether the current authoritative total is a manual override and therefore whether the single 10% VAT override rule applies;
 - `OrderItem.discount_eligible_snapshot` records sale-time eligibility;
 - option adjustment amount/VAT snapshots preserve their sale-time result;
@@ -582,6 +600,8 @@ A logical singleton/current-settings entity contains at least:
 | `delivery_fee_amount_ttc` | yes | €0.00 |
 | `updated_at` | yes | — |
 
+No delivery-fee VAT-rate setting is required in v1: the approved Sushi81 delivery-fee VAT rule is fixed at 10%.
+
 V1 does not require a history table for settings changes.
 
 Historical reproducibility is achieved by storing the relevant **applied pricing snapshots** on the order/order lines rather than by reconstructing old orders from the current settings row.
@@ -610,6 +630,13 @@ The rows are replaced whenever a price-affecting modification causes the order t
 
 When `Order.manual_total_override_active = false`, the tax breakdown is generated from the actual sale-time product/option/fee VAT rules and may therefore contain multiple VAT buckets.
 
+Under normal calculated pricing:
+
+- products use their sale-time product VAT snapshots;
+- positive option adjustments use 5.5%;
+- negative option adjustments inherit the associated product VAT;
+- any non-zero Sushi81 delivery fee uses 10% and is included in the 10% bucket.
+
 The persisted `OrderTaxBreakdown` rows are authoritative for historical receipt reprinting; later catalogue changes do not alter them.
 
 ### 13.3 Manual total override — approved rule
@@ -630,7 +657,7 @@ with the final stored/displayed VAT rounded consistently to €0.01 under the ap
 
 This applies to the **entire final manual amount**, regardless of the original products' VAT rates and regardless of whether the override increases or decreases the system-calculated total.
 
-A later price-affecting change resets `manual_total_override_active = false`, recalculates `total_ttc` and regenerates the normal product/option VAT breakdown. A later manual edit sets the marker to `true` again and regenerates the single 10% bucket.
+A later price-affecting change resets `manual_total_override_active = false`, recalculates `total_ttc` and regenerates the normal product/option/fee VAT breakdown. A later manual edit sets the marker to `true` again and regenerates the single 10% bucket.
 
 ## 14. Telephone-history assistance without CRM
 
@@ -679,32 +706,32 @@ Unless a later approved document adds a concrete requirement, the core data mode
 - full Hiboutik web-order synchronization;
 - current-catalogue dependency for historical order interpretation.
 
-## 17. Phase 3 decisions still required before approval
+## 17. Phase 3 design decisions resolved
 
-The logical structure above can already support the approved lifecycle, catalogue, payment and manual-total VAT behavior. The following points remain unresolved and should be decided before this document becomes an approved Phase 3 baseline.
+The Phase 3 questions originally identified while drafting this model have now been resolved:
 
-### 17.1 Delivery-fee VAT treatment — blocking if the setting can be enabled in v1
+### 17.1 Manual total override VAT
 
-Phase 2 approved a configurable fixed delivery-fee entry point but did not freeze the VAT rate/treatment of that fee.
+Resolved: while an operator-entered manual total is authoritative, the complete final TTC amount uses one 10% VAT bucket. See section 13.3 and `business-rules.md`.
 
-Because a non-zero enabled fee becomes part of the order total, receipt, turnover and export, its VAT treatment must be defined before production use of the feature.
+### 17.2 Delivery-fee VAT
 
-### 17.2 Advance-order marker semantics — confirm
+Resolved: the Sushi81 fixed delivery fee uses 10% VAT whenever enabled and non-zero under normal calculated pricing. No configurable delivery-fee VAT field is required in v1. See `docs/decisions/delivery-fee-vat.md`.
 
-This draft recommends one minimal persisted marker so the application can distinguish an advance order that has become due today from an ordinary same-day order even after planned-date edits.
+### 17.3 Advance-order marker semantics
 
-The project should confirm when that marker becomes true and whether it is ever reset.
+Resolved: once an order has ever been saved with a future planned fulfilment date, `advance_order_marker` becomes true and remains true permanently for that order. See section 6.4 and the approved Phase 3 decision record.
 
-Recommended rule: once a non-cancelled order has been saved with a planned fulfilment date later than the then-current business date, `advance_order_marker` becomes true and remains true for that order.
+### 17.4 Category duplicate-name policy
 
-### 17.3 Category duplicate-name policy — confirm or defer
+Resolved: every current catalogue category must have a unique operator-facing name. Duplicate current category names are rejected by normal catalogue editing and batch import. See section 5.1, `catalogue-management.md` and `docs/decisions/category-name-uniqueness.md`.
 
-The model gives categories their own internal IDs, but Phase 2 did not explicitly state whether two current categories may share the same visible name.
-
-For practical UI/import behavior, unique current category names are recommended, but this should be confirmed rather than silently introduced as a business constraint.
+There are no remaining unresolved logical-data-model questions from the original Phase 3 review list.
 
 ## 18. Approval rule
 
-This file remains **Draft — Phase 3 working design** until the open decisions in section 17 are reviewed and the logical entity structure is explicitly approved.
+This file remains **Draft — Phase 3 working design** only because the complete logical model has not yet received explicit final approval as a whole.
 
-Implementation must not turn the draft into a physical schema before the remaining delivery-fee/advance-order/category questions are resolved and the related architecture/storage documents are aligned.
+The previously open Phase 3 decisions are now resolved. Before this document is marked Approved, the project should perform one final consistency review of the complete entity/relationship structure against the approved Phase 1 and Phase 2 baselines.
+
+Implementation must not turn this draft into a physical schema until that explicit data-model approval is recorded and the related architecture/storage documents are aligned.
