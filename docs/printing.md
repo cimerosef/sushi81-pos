@@ -165,7 +165,7 @@ A reprint uses the latest committed business state of the selected order.
 
 If the operator currently has unsaved edits open, the application must not silently print those uncommitted values as though they were authoritative. The operator must first save/confirm the modification or explicitly cancel it and print the persisted version.
 
-## 10. Saved modifications and cancellation boundary
+## 10. Saved modifications and cancelled orders
 
 All non-cancelled orders remain modifiable under `order-lifecycle.md`.
 
@@ -191,11 +191,21 @@ This rule is frozen in `docs/decisions/order-modification-printing.md`.
 
 V1 does not preserve prior business revisions merely for printing.
 
-### 10.2 Cancelled orders — decision still open
+### 10.2 Cancelled orders — approved Phase 4 rule
 
-A cancelled order remains retained and may be viewed.
+A cancelled order remains retained, viewable and printable/reprintable.
 
-Whether ordinary reprinting of cancelled orders should remain available and, if so, whether the printed document must carry a visible `CANCELLED/ANNULÉ` indication remains a business-printing decision to freeze below.
+For any kitchen or customer document generated from an order whose current status is `CANCELLED`:
+
+- printing/reprinting remains available;
+- the document must carry a very prominent `ANNULÉ` indication;
+- the marking must be visually difficult to miss so the ticket cannot reasonably be mistaken for an active order;
+- both kitchen and customer documents follow the same cancellation-marking rule;
+- printing does not reactivate, duplicate or otherwise change the cancelled order.
+
+The exact typography, size, border and placement of `ANNULÉ` are layout implementation choices, provided that the cancellation state is operationally obvious.
+
+This rule is frozen in `docs/decisions/cancelled-order-reprinting.md`.
 
 ## 11. Archived-order reprinting
 
@@ -258,6 +268,7 @@ Automated tests should cover at least:
 - manual-total 10% VAT override;
 - payment information before/after correction;
 - saved modifications without automatic printing;
+- cancelled orders with mandatory prominent `ANNULÉ` marking;
 - archived order snapshots;
 - long comments and long product/option text;
 - printer submission failure without order loss.
@@ -285,11 +296,10 @@ This rule is frozen in `docs/decisions/non-authoritative-device-printing.md`.
 
 ## 16. Remaining operator-facing printing decisions
 
-The remaining business-printing details to check sequentially are limited to matters that materially change output or live operational behavior:
+The remaining business-printing details to check sequentially are now limited to:
 
-1. **Cancelled-order reprinting:** whether cancelled orders may still be printed/reprinted and, if permitted, whether the document must visibly say `ANNULÉ / CANCELLED`.
-2. **Reprint marking:** whether an ordinary reprinted kitchen/customer document should visibly say `DUPLICATA / REPRINT`.
-3. **Final statutory/customer receipt wording:** only those wording/layout details that cannot be safely derived from the existing approved/current receipt baseline.
+1. **Reprint marking:** whether an ordinary reprinted kitchen/customer document should visibly say `DUPLICATA / REPRINT`.
+2. **Final statutory/customer receipt wording:** only those wording/layout details that cannot be safely derived from the existing approved/current receipt baseline.
 
 Pure layout, pagination, font sizing, wrapping and Windows print implementation choices are technical design decisions unless they alter the business information communicated.
 
