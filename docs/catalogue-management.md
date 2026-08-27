@@ -248,7 +248,7 @@ When an order is committed, its order-item snapshot contains enough sale-time in
 
 Historical reporting reads values stored on the order/order line rather than reconstructing old sales from the current catalogue.
 
-## 9. Batch import/export — approved safety model; create/update identity still under final review
+## 9. Batch import/export — approved Phase 2 model except final technical-column/report details
 
 ### Primary format — approved
 
@@ -273,15 +273,37 @@ The complete workbook uses separate logical sheets for at least:
 
 Exact user-facing sheet names may be localized later, but the exported/imported workbook must have a stable documented structure.
 
-### Internal identifiers in exported workbooks — direction under final review
+### Internal identifiers and create/update behavior — approved
 
-Existing catalogue records exported for re-import may carry opaque internal identifiers so the application can distinguish an edit to an existing record from creation of a new one even when an operator-facing code or label has changed.
+Internal identifiers are technical keys used to tell the application which existing catalogue record is being edited. They are not operator-facing product codes and do not prevent codes from being changed or reused.
 
-The intended business meaning is simple: the internal ID identifies **which existing catalogue record is being edited**, while the product code remains an editable menu/catalogue label. This lets a business code be reorganized without forcing the application to interpret every code change as delete-and-create.
+For a normal workbook exported by Sushi81 POS:
 
-These identifiers are technical keys, not business product codes. They may be hidden or visually deemphasized in the workbook and must not prevent the operator from changing/reusing product codes.
+- an existing product/group/option is exported with its internal ID;
+- a row with a valid existing internal ID means **update that existing record**;
+- changing a product code while keeping the same internal ID is therefore an edit/re-numbering of the same current catalogue record;
+- a newly added row with a blank internal ID means **create a new record**;
+- the application assigns the new internal ID only when the import is successfully committed.
 
-The exact create/update rule based on these identifiers remains the final import-identity decision to confirm.
+The operator normally does not need to read or manage these identifiers manually.
+
+### Add-only import mode — approved
+
+Sushi81 POS must also support importing a workbook that does **not** contain existing internal IDs in an explicit **add-only mode**.
+
+This is required in particular for first-time catalogue initialization, when the application's catalogue may be empty and no internal IDs exist yet.
+
+In add-only mode:
+
+- rows without existing internal IDs are treated only as candidates for **new catalogue records**;
+- the application must **not** try to match those rows to existing products by product code, name or other business fields in order to perform updates;
+- no existing product, option group or option may be modified merely because a no-ID row happens to resemble it;
+- current-catalogue uniqueness and all other validation rules still apply;
+- if an add-only import would create a product code that already exists in the current catalogue, that conflict is a blocking Error rather than an implicit update;
+- successful creation assigns new internal IDs to the imported records;
+- the same mode may also be used later to add a batch of entirely new catalogue records, not only during first installation.
+
+The workbook/template must provide enough import-time relationship information for newly created option groups and options to be linked to their newly created parent product/group during the same atomic import. The final technical reference-column names can be defined in the implementation template without exposing database IDs as business identifiers.
 
 ### Deletion and activation behavior — approved
 
@@ -304,6 +326,8 @@ The preview should report at least useful counts such as:
 
 Where practical, the operator must be able to inspect which rows/records are affected before giving final confirmation.
 
+For a workbook without existing internal IDs, the preview must make it clear that the import is operating in **add-only mode** and that no existing catalogue records will be updated.
+
 ### Atomic import — approved
 
 A logically invalid import must not be partially applied.
@@ -322,7 +346,8 @@ Blocking validation includes at least situations such as:
 - references to nonexistent or inconsistent parent records;
 - invalid single/multi-select configuration;
 - a multi-select minimum greater than its maximum;
-- malformed or otherwise unusable technical identifiers where those identifiers are required for an update.
+- malformed or unusable technical identifiers when an update mode relies on them;
+- add-only rows that conflict with an already existing current product code.
 
 Blocking problems must be reported with enough detail to find and correct the relevant worksheet/row.
 
@@ -337,11 +362,10 @@ For example, a resulting duplicate current product code is an Error. A large but
 
 ## 10. Decisions still to freeze
 
-Before this document becomes baseline, Phase 2 still needs to approve:
+Before this document becomes baseline, Phase 2 still needs to approve only the remaining small Excel-handling details:
 
-1. the final create/update identity rule for existing versus new products, option groups and options, including the use of internal IDs in Excel;
-2. any final details for protecting/deemphasizing technical-ID columns in the workbook;
-3. whether an import result/report needs to be retained after a successful import or whether the preview/result shown at import time is sufficient.
+1. how technical internal-ID/reference columns are visually protected, hidden or deemphasized in exported workbooks;
+2. whether a successful import result/report needs to be retained after import or whether the preview/final result shown at import time is sufficient.
 
 The following are already approved and no longer open questions:
 
@@ -359,6 +383,9 @@ The following are already approved and no longer open questions:
 - Excel `.xlsx` is the official complete V1 batch import/export format;
 - CSV is not a required complete-catalogue format in V1;
 - complete Excel export/import is organized into product, option-group and option sheets;
+- existing internal IDs identify updates while blank IDs identify new records in normal exported workbooks;
+- explicit add-only import supports workbooks without existing internal IDs, including first-time catalogue initialization;
+- add-only mode never silently updates existing records by guessing from business fields;
 - removing rows from Excel does not delete live catalogue records;
 - activation/deactivation may be performed explicitly through Excel import;
 - import is validated and previewed before commit;
@@ -368,4 +395,4 @@ The following are already approved and no longer open questions:
 
 ## 11. Approval rule
 
-This file remains a Draft until the remaining Excel import/export identity and technical-column handling rules are explicitly approved. Implementation must preserve historical snapshot independence, mutable but unique current product codes, safe catalogue maintenance, structured option behavior, and the approved Excel-first batch-maintenance model.
+This file remains a Draft until the remaining Excel technical-column and import-report handling details are explicitly approved. Implementation must preserve historical snapshot independence, mutable but unique current product codes, safe catalogue maintenance, structured option behavior, the approved Excel-first batch-maintenance model, and explicit add-only initialization/import behavior.
