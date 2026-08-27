@@ -45,15 +45,17 @@ These are code-organization boundaries, not separate processes or network servic
 
 ## 4. Local-first execution
 
-Each authorized Windows computer runs the full application locally and uses its own local working SQLite database.
+Each paired Windows computer runs the full application locally and uses its own local working SQLite database.
 
-The application must remain usable on the current working computer even if Internet/OneDrive connectivity is temporarily unavailable, subject to the handoff ownership rules defined in `storage-strategy.md`.
+The application must remain usable on the current authoritative/writable computer even if Internet/OneDrive connectivity is temporarily unavailable, subject to the handoff ownership rules defined in `storage-strategy.md`.
 
-The active SQLite working database must **not** be opened directly from a OneDrive-synchronized folder and must not be concurrently written by two computers.
+The active SQLite working database must **not** be opened directly from a OneDrive-synchronized folder and must not be concurrently written by more than one paired device.
 
 The local working database and local recovery snapshots are application-managed technical data. Normal users are not asked to choose, move, rename or directly manipulate those files.
 
-Cross-computer handoff is configured separately through a user-selected OneDrive handoff folder. Selecting that folder does not move or expose the local working database.
+Cross-device handoff is configured separately through a user-selected OneDrive root folder. Selecting that folder does not move or expose the local working database.
+
+The architecture must not hard-code assumptions such as exactly two devices, `SHOP-PC` plus `HOME-PC`, or two fixed synchronization slots.
 
 ## 5. Monetary representation — approved Phase 3 direction
 
@@ -81,17 +83,28 @@ Requirements:
 - foreign-key behavior and delete rules must preserve the approved historical snapshot model;
 - the physical schema must implement the approved `data-model.md` semantics rather than inventing new business entities during coding.
 
-## 7. Multi-computer principle
+## 7. Multi-device principle — approved Phase 3 direction
 
 Sushi81 POS does **not** implement simultaneous multi-writer database access in v1.
 
-The two-computer workflow uses controlled handoff of complete, validated SQLite snapshots through a user-configured OneDrive handoff folder.
+The architecture supports **an arbitrary number of paired Windows devices by default**. The normal initial deployment may use two computers, but adding a third or later computer must not require redesigning the database, handoff protocol or application architecture.
 
-OneDrive is therefore a **handoff transport and backup medium**, not the live database engine and not a real-time database synchronization service.
+All paired devices participate in the same authoritative database lineage through controlled handoff of complete, validated SQLite snapshots via a user-configured OneDrive root folder.
 
-Each participating computer keeps its own local working database outside OneDrive and reconstructs/updates that local database only from a formally completed and validated handoff snapshot.
+At any moment:
 
-Exact handoff, integrity, release/acquisition, pairing and failure behavior is defined in `storage-strategy.md`.
+- at most one paired device may hold authoritative write access;
+- the current authoritative device may work locally and later publish a formal handoff;
+- every other paired device is non-authoritative and may only use the approved read-only mode until it safely acquires a released formal handoff;
+- no automatic row-level database merge is performed.
+
+OneDrive is therefore a **handoff transport, recovery and archive medium**, not the live database engine and not a real-time database synchronization service.
+
+Each participating device keeps its own local working database outside OneDrive and reconstructs/updates that local database only from a formally completed and validated handoff snapshot or an explicit approved disaster-recovery action.
+
+Each installation has its own opaque `device_id`; all devices in the same business data family share a stable `lineage_id`. The exact identity and generation rules are defined in `storage-strategy.md`.
+
+Exact handoff, integrity, release/acquisition, pairing, multi-device authority and failure behavior is defined in `storage-strategy.md`.
 
 ## 8. Maintainability principle
 
@@ -109,21 +122,38 @@ Do not introduce:
 
 The codebase should remain understandable enough that Codex or a future maintainer can trace an order from UI action through business rule to SQLite persistence without crossing unnecessary infrastructure layers.
 
-## 9. Decisions still to freeze
+## 9. Deployment and local-data boundary — approved Phase 3 direction
+
+Application binaries are installer-managed and separate from business data.
+
+Application-managed local business/technical data uses a fixed per-user application-data root under `%LOCALAPPDATA%\Sushi81 POS\` with logical subareas for:
+
+- `Data\` — active `live.db`;
+- `Recovery\` — local rolling recovery snapshots;
+- `Cache\` — disposable local caches, including archive read-only hydration where needed;
+- `Logs\` — technical logs;
+- `Config\` — local machine/application configuration including device identity;
+- `Temp\` — staging files used for safe snapshot/archive operations.
+
+The working `live.db` and local Recovery path are not ordinary user-configurable locations.
+
+The operator configures only the shared OneDrive root used for handoff/recovery/archive functions; the application creates and manages its required subfolders beneath that root.
+
+Application update/reinstall logic must not treat local business data as disposable program files.
+
+## 10. Decisions still to freeze
 
 Before this document becomes the final approved architecture baseline, Phase 3 should still decide at least:
 
-- Windows packaging/install model and exact application/data folder layout;
-- exact local configuration/log locations;
+- Windows packaging/install technology and update/distribution approach;
 - dependency choice for Excel `.xlsx` import/export;
 - physical SQLite settings needed for durability/performance;
-- printing integration details that materially affect architecture;
-- update/distribution approach for future application versions.
+- printing integration details that materially affect architecture.
 
-The storage location policy itself is already constrained: `live.db` and local recovery snapshots remain application managed, while the OneDrive handoff root is user configurable.
+The storage/data-location and multi-device principles are already constrained by the approved Phase 3 direction above and `storage-strategy.md`.
 
-## 10. Approval rule
+## 11. Approval rule
 
-This document remains **Draft — Phase 3 working design** until the remaining deployment/storage integration choices are reviewed.
+This document remains **Draft — Phase 3 working design** until the remaining deployment/integration choices are reviewed.
 
-Implementation may use the approved platform direction for planning, but Codex must not silently replace the local-first WPF/SQLite architecture with a server, web application, live OneDrive database or other distributed design.
+Implementation may use the approved platform direction for planning, but Codex must not silently replace the local-first WPF/SQLite architecture with a server, web application, live OneDrive database or other distributed design, and it must not implement device participation as a fixed two-computer model.
