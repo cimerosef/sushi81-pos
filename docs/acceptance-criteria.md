@@ -226,6 +226,20 @@ While a manual total override is authoritative, the final persisted tax snapshot
 
 **Evidence:** tax snapshot tests.
 
+### AC-ORD-011 — Business settings are editable without code changes
+
+The application settings UI allows the operator to edit and persist at least:
+
+- Retrait discount rate (default 10%);
+- minimum total after Retrait discount (default €15.00);
+- Livraison merchandise minimum (default €30.00);
+- delivery-fee enabled/disabled (default disabled);
+- fixed delivery-fee amount (default €0.00).
+
+Changing those values changes the parameters used by the already-approved rules without recompilation/reinstallation. Delivery-fee VAT remains fixed at 10% and is not exposed as an ordinary configurable VAT setting.
+
+**Evidence:** settings UI + persistence + pricing integration tests.
+
 ## 5. Lifecycle, payment and operational summaries
 
 ### AC-LIFE-001 — Commit creates durable order before printing
@@ -276,29 +290,31 @@ Changing the effective date must not create a duplicate payment or alter externa
 
 **Evidence:** multi-day/back-dated payment integration tests + UI test.
 
-### AC-LIFE-006 — Daily received-payment summary
+### AC-LIFE-006 — Main-screen received-payment summary
 
-For ordinary POS-originated non-cancelled orders, the selected/current-day summary shows at least total received, CB received and Espèce received from payment deltas effective that day. Unpaid value is not counted merely because an order exists or is due that day, and a later `recorded_at` timestamp does not move a legitimately back-dated effective payment into the later day's business summary.
+The main interface shows at least today's total received, today's CB received and today's Espèce received for ordinary POS-originated non-cancelled orders, based on payment deltas effective today.
 
-**Evidence:** reporting tests including same-day, cross-day and back-dated entry.
+Unpaid value is not counted merely because an order exists or is due today. A later `recorded_at` timestamp does not move a legitimately back-dated effective payment into the later day's business summary.
 
-### AC-LIFE-007 — Operational turnover
+**Evidence:** reporting/UI tests including same-day, cross-day and back-dated entry.
 
-For date D, ordinary non-cancelled POS-originated orders contribute their full current authoritative total to operational turnover when their planned fulfilment date is D, independent of payment/closure state.
+### AC-LIFE-007 — Main-screen operational turnover
 
-**Evidence:** reporting tests covering unpaid/partial/closed/future/cancelled orders.
+The main interface provides the current business date's operational turnover. For date D, ordinary non-cancelled POS-originated orders contribute their full current authoritative total when their planned fulfilment date is D, independent of payment/closure state.
+
+**Evidence:** reporting/UI tests covering unpaid/partial/closed/future/cancelled orders.
 
 ### AC-LIFE-008 — Future and due-today advance orders
 
 A non-cancelled order saved with a planned fulfilment date later than the then-current business date permanently sets its persisted advance-order marker.
 
-A due-today advance-order reminder is derived when planned fulfilment date = today, the marker is true and status is not Cancelled. Payment or Closed state does not remove that reminder.
+The main interface surfaces a due-today advance-order reminder when planned fulfilment date = today, the marker is true and status is not Cancelled. Payment or Closed state does not remove that reminder, and no extra processed/collected state is required merely to hide it early.
 
-**Evidence:** date-transition tests.
+**Evidence:** date-transition + main-screen UI tests.
 
 ### AC-LIFE-009 — Overdue unsettled
 
-An order is shown as overdue unsettled only when planned fulfilment date is before today, it is not Cancelled and it is not fully closed/reconciled under the approved lifecycle.
+The main interface clearly surfaces an order as overdue unsettled only when planned fulfilment date is before today, it is not Cancelled and it is not fully closed/reconciled under the approved lifecycle.
 
 **Evidence:** reporting/UI tests.
 
@@ -327,6 +343,22 @@ Cancelling an order retains the order and its recorded CB/Espèce facts, sets Ca
 The operator can start a new order from reusable telephone/address/comment information from an existing order. The new order receives a new ID only when confirmed and does not inherit source products, payment amounts, total, status, planned fulfilment date/time or fulfilment mode.
 
 **Evidence:** UI/domain test.
+
+### AC-LIFE-014 — Future-order count and entry point
+
+The main interface provides a compact count/entry point for non-cancelled orders whose planned fulfilment date is after today. Opening that entry point allows the operator to inspect the actual future orders and dates.
+
+**Evidence:** reporting/main-screen UI test.
+
+### AC-LIFE-015 — Live order search, telephone/comment lookup and explicit archive access
+
+Normal order lookup searches the live/current database without automatically opening every archive and supports practical lookup by at least telephone and comment text.
+
+Historical order information can be used to consult/reuse prior telephone/address/comment values without introducing a Customer master.
+
+The operator can explicitly select/open an annual archive and search/inspect its read-only historical orders.
+
+**Evidence:** live-search + telephone/comment + archive-selection UI/integration tests.
 
 ## 6. Hiboutik paste-order fallback
 
@@ -583,11 +615,13 @@ If the latest authoritative device did not release a valid handoff, another devi
 
 **Evidence:** protocol/UI test.
 
-### AC-STO-006 — Local recovery retention
+### AC-STO-006 — Local recovery generation and retention
 
-Application-managed local recovery retains the latest five successfully generated/validated snapshots. Older cleanup occurs only after a newer valid replacement exists.
+Important durable business changes trigger local recovery protection, including at least new-order confirmation, saved order modification, payment changes, Close/Cancel, catalogue changes/import and business-setting saves. A short debounce/coalescing delay may combine nearby saves without weakening protection.
 
-**Evidence:** recovery retention test.
+The application retains the latest five successfully generated/validated local recovery snapshots. Older cleanup occurs only after a newer valid replacement exists.
+
+**Evidence:** save-trigger + debounce + recovery-retention tests.
 
 ### AC-STO-007 — Handoff retention
 
@@ -595,11 +629,13 @@ OneDrive Handoff retains the latest five complete validated snapshot+ready-marke
 
 **Evidence:** retention/integrity test.
 
-### AC-STO-008 — Disaster-recovery checkpoints
+### AC-STO-008 — Change-triggered disaster-recovery checkpoints
 
-When authoritative durable data has changed, recovery-only cloud checkpoints may be published no more frequently than once every 15 minutes in normal operation and the latest five validated checkpoints are retained. These checkpoints do not themselves release authority.
+While the authoritative device is in normal use, if durable business data has changed since the previous cloud checkpoint, the application publishes a validated recovery-only checkpoint, subject to a maximum normal publication frequency of one checkpoint every 15 minutes. If no durable data changed, a redundant checkpoint is not required.
 
-**Evidence:** scheduler/protocol test.
+The latest five validated disaster-recovery checkpoints are retained. Recovery-only checkpoints do not themselves release write authority and cannot be consumed automatically as a normal handoff.
+
+**Evidence:** changed/unchanged scheduler + frequency + retention + authority tests.
 
 ### AC-STO-009 — Explicit disaster recovery creates new generation
 
