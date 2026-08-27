@@ -253,7 +253,38 @@ During prolonged OneDrive unavailability, cloud disaster-recovery checkpoints ma
 
 A second computer that cannot verify/acquire the latest completed handoff may not enter normal write mode merely because it has an older local copy.
 
-## 11. Local database versus OneDrive location
+## 11. Non-authoritative read-only mode — approved Phase 3 decision
+
+A paired computer that has **not** acquired the latest completed formal handoff may still open Sushi81 POS in a non-authoritative read-only mode.
+
+This mode exists only for consultation. It does not transfer write authority and does not relax the single-writer rule.
+
+The read-only computer may use the most recent formally acquired local business database already present on that machine to search and view data. It may also access completed annual archive databases in their normal read-only manner.
+
+The application must clearly and persistently indicate that:
+
+- this computer is **read-only / not current**;
+- the displayed live data may be stale;
+- the version and/or effective time of the most recent formally acquired data should be visible to the operator.
+
+The read-only computer must not use a newer Disaster Recovery checkpoint as if it were an updated normal database. Recovery-only checkpoints remain unavailable for ordinary consultation/acquisition unless the explicit disaster-recovery process in section 8 is invoked.
+
+While in non-authoritative read-only mode, the application must block every operation that would change authoritative business state, including at least:
+
+- creating or modifying orders;
+- changing payment amounts;
+- closing or cancelling orders;
+- editing catalogue/categories/options;
+- importing catalogue changes;
+- modifying business settings;
+- running annual archive operations;
+- publishing a formal handoff from the stale local copy.
+
+Whether printing/reprinting from a non-authoritative current-data copy is allowed is deferred to `printing.md`, because printing does not change the database but stale operational output can still create business risk.
+
+Read-only access must never be presented as evidence that the data shown is the current authoritative state.
+
+## 12. Local database versus OneDrive location
 
 The active working SQLite database must reside in a normal application-managed local data location outside OneDrive synchronization.
 
@@ -265,13 +296,13 @@ The application must never interpret the configured OneDrive folder itself as th
 
 Exact Windows local paths and exact subfolder names beyond the approved logical separation are still to be frozen.
 
-## 12. Annual archive — approved Phase 3 decision
+## 13. Annual archive — approved Phase 3 decision
 
 Annual order archives are separate historical database files stored in OneDrive and kept independent from the installed application and from the active local `live.db`.
 
 They are not working databases and are not part of the normal handoff lineage.
 
-### 12.1 Automatic schedule and strict natural-year boundary
+### 13.1 Automatic schedule and strict natural-year boundary
 
 The application automatically performs the previous **complete calendar year's** archive on **February 1** each year.
 
@@ -283,7 +314,7 @@ If Sushi81 POS is not run on February 1, the archive is performed automatically 
 
 Only the current authoritative/writable computer may create an annual archive. A non-authoritative computer must never independently create a competing archive from an older local database.
 
-### 12.2 Archive-year rules
+### 13.2 Archive-year rules
 
 An order is archived according to the natural year in which it is actually completed/ended, not merely the year in which it was created.
 
@@ -299,7 +330,7 @@ Therefore an unresolved order from an older year remains live until it is eventu
 
 Example: an order created in December 2026 but closed on January 10, 2027 belongs to archive year 2027 and remains in `live.db` during the February 1, 2027 archive of year 2026. It becomes eligible during the February 2028 archive of year 2027.
 
-### 12.3 Archive file location and independence
+### 13.3 Archive file location and independence
 
 Annual archive databases are stored in an operator-visible OneDrive archive folder outside the application installation/data directories.
 
@@ -322,7 +353,7 @@ The exact folder/file names may be refined during implementation, but these sema
 - OneDrive provides the shared durable location visible from both computers;
 - the application may offer an "Open archive folder" action, but the user does not need to move files manually for normal archive operation.
 
-### 12.4 Safe archive creation
+### 13.4 Safe archive creation
 
 Archiving must be failure-safe.
 
@@ -338,7 +369,7 @@ The application must:
 
 If archive generation, validation or OneDrive publication fails, eligible records remain in `live.db` and the application retries later rather than risking data loss.
 
-### 12.5 Archive immutability and access
+### 13.5 Archive immutability and access
 
 A completed annual archive is historical business data and should normally be treated as read-only/immutable.
 
@@ -348,7 +379,7 @@ The application should therefore discover registered annual archive files from t
 
 Annual archives are not subject to automatic rolling deletion. They are retained permanently unless the operator deliberately manages them outside the normal application workflow.
 
-## 13. Rolling retention — approved Phase 3 decision
+## 14. Rolling retention — approved Phase 3 decision
 
 The rolling technical protection sets use one simple retention rule:
 
@@ -361,17 +392,16 @@ Retention cleanup must always occur after, never before, a newer replacement has
 
 These counts are fixed application defaults for v1 rather than ordinary operator-configurable settings.
 
-## 14. Decisions still to freeze
+## 15. Decisions still to freeze
 
 Before this document becomes an approved Phase 3 baseline, the project should still decide:
 
 - exact Windows local data folder structure;
 - exact OneDrive handoff/recovery/archive subfolder naming beyond the approved logical separation;
-- exact device-identity metadata created during first installation/pairing;
-- whether the application supports read-only access on a non-authoritative computer before handoff.
+- exact device-identity metadata created during first installation/pairing.
 
-## 15. Approval rule
+## 16. Approval rule
 
-The handoff mechanism in sections 1-7 and 9-11, disaster-recovery behavior in section 8, annual archive behavior in section 12, and rolling-retention behavior in section 13 are approved Phase 3 directions: local working SQLite, application-managed local recovery snapshots, normal-exit formal handoff, immutable versioned OneDrive publication, completion marker, verified receiver acquisition, user-selected OneDrive handoff-folder pairing, no stale force takeover, recovery-only OneDrive checkpoints at a maximum frequency of once every 15 minutes when data has changed, explicit disaster recovery with lineage-generation renewal, strict previous-natural-year February archiving, end-date-based archive-year assignment, independent OneDrive archive databases, and five-version rolling retention for Recovery/Handoff/Disaster Recovery.
+The handoff mechanism in sections 1-7 and 9-12, disaster-recovery behavior in section 8, annual archive behavior in section 13, rolling-retention behavior in section 14 and non-authoritative read-only behavior in section 11 are approved Phase 3 directions: local working SQLite, application-managed local recovery snapshots, normal-exit formal handoff, immutable versioned OneDrive publication, completion marker, verified receiver acquisition, user-selected OneDrive handoff-folder pairing, no stale force takeover, recovery-only OneDrive checkpoints at a maximum frequency of once every 15 minutes when data has changed, explicit disaster recovery with lineage-generation renewal, non-authoritative stale-data read-only access, strict previous-natural-year February archiving, end-date-based archive-year assignment, independent OneDrive archive databases, and five-version rolling retention for Recovery/Handoff/Disaster Recovery.
 
-The document remains **Draft — Phase 3 working design** until the remaining folder/access details are reviewed.
+The document remains **Draft — Phase 3 working design** until the remaining folder/device-identity details are reviewed.
