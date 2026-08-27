@@ -1,6 +1,6 @@
 # Data model
 
-**Status:** Draft — Phase 3 working design  
+**Status:** Approved — Phase 3 baseline  
 **Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
 **Purpose:** Define the logical business-data model required to implement the approved Sushi81 POS lifecycle, catalogue, payment, historical-snapshot and emergency-import behavior before physical storage details are frozen.
@@ -318,7 +318,7 @@ The exact visible order-ID format is intentionally deferred. The model only requ
 
 `closed_at` supports the approved settlement-year/archive rule without creating an order-history subsystem.
 
-Recommended lifecycle semantics:
+Approved logical semantics:
 
 - when an order is successfully closed, set `status = CLOSED` and `closed_at` to the effective close timestamp;
 - if a later edit makes CB + Espèce differ from `total_ttc`, the order becomes `OPEN` again and `closed_at` is cleared;
@@ -716,11 +716,11 @@ Resolved: while an operator-entered manual total is authoritative, the complete 
 
 ### 17.2 Delivery-fee VAT
 
-Resolved: the Sushi81 fixed delivery fee uses 10% VAT whenever enabled and non-zero under normal calculated pricing. No configurable delivery-fee VAT field is required in v1. See `docs/decisions/delivery-fee-vat.md`.
+Resolved: the Sushi81 fixed delivery fee uses 10% VAT whenever enabled and non-zero under normal calculated pricing. No configurable delivery-fee VAT field is required in v1. See `business-rules.md` and `docs/decisions/delivery-fee-vat.md`.
 
 ### 17.3 Advance-order marker semantics
 
-Resolved: once an order has ever been saved with a future planned fulfilment date, `advance_order_marker` becomes true and remains true permanently for that order. See section 6.4 and the approved Phase 3 decision record.
+Resolved: once an order has ever been saved with a future planned fulfilment date, `advance_order_marker` becomes true and remains true permanently for that order. See sections 6.4 and 10.3 and `order-lifecycle.md`.
 
 ### 17.4 Category duplicate-name policy
 
@@ -730,8 +730,8 @@ There are no remaining unresolved logical-data-model questions from the original
 
 ## 18. Approval rule
 
-This file remains **Draft — Phase 3 working design** only because the complete logical model has not yet received explicit final approval as a whole.
+This document is the **Approved — Phase 3 baseline** for the Sushi81 POS logical data model.
 
-The previously open Phase 3 decisions are now resolved. Before this document is marked Approved, the project should perform one final consistency review of the complete entity/relationship structure against the approved Phase 1 and Phase 2 baselines.
+The final consistency review confirmed that the entity structure, lifecycle facts, payment adjustments, historical snapshots, emergency-import boundaries, VAT snapshots, advance-order semantics and catalogue identity/uniqueness rules are aligned with the approved Phase 1 and Phase 2 baselines plus the approved Phase 3 amendments.
 
-Implementation must not turn this draft into a physical schema until that explicit data-model approval is recorded and the related architecture/storage documents are aligned.
+Architecture and storage design may choose physical technologies, column types, file locations, archive files, migration mechanics and implementation patterns, but they must preserve the logical semantics frozen in this document. Any later change to these business-data semantics requires an explicit specification amendment rather than being invented during implementation.
