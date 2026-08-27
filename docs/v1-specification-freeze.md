@@ -14,14 +14,15 @@ The Phase 1–5 document set has completed a repo-wide consistency review coveri
 - product scope;
 - order lifecycle and payment semantics;
 - commercial/business rules;
-- catalogue management;
+- catalogue management and `.xlsx` batch semantics;
 - architecture;
 - logical data model;
 - local storage, OneDrive handoff, recovery and annual archive behavior;
 - Hiboutik paste-order fallback;
 - kitchen/customer printing and reprinting;
 - export to the downstream `Gestion SUSHI 81` workflow;
-- V1 acceptance criteria.
+- V1 acceptance criteria;
+- repository/agent phase-state instructions used by the later implementation phase.
 
 No unresolved V1 business decision or known cross-document technical contradiction remains at this freeze point.
 
@@ -82,6 +83,8 @@ The following approved records under `docs/decisions/` materially constrain V1 a
 
 The baseline documents have been aligned so implementation should not need to resolve normal V1 behavior merely by comparing decision chronology.
 
+Decision records that originally contained future-tense instructions such as “incorporate this before approval/final review” have also been updated where necessary to state that Phase 5 incorporation is complete.
+
 ## 4. Hiboutik model cleanup — final V1 state
 
 The earlier complex Hiboutik emergency-order model is **superseded and removed from the target V1 model**.
@@ -102,7 +105,7 @@ V1 does not contain a dedicated emergency-order UI, dashboard count, original Hi
 
 ## 5. Final payment-date decision
 
-Phase 5 also froze the last identified business-attribution ambiguity:
+Phase 5 froze the last identified business-attribution ambiguity:
 
 - normal payment entry defaults the effective payment date to the current business date;
 - when a payment is entered/corrected later, the operator may select the date the money was actually received;
@@ -113,19 +116,32 @@ This is recorded in `docs/decisions/payment-effective-date.md` and incorporated 
 
 ## 6. Consistency-review result
 
-The Phase 5 review found and corrected the following classes of stale/inconsistent material:
+The Phase 5 review found and corrected the following classes of stale, conflicting or incomplete specification material:
 
 - `product-requirements.md` was still marked Draft and contained superseded Hiboutik emergency-order requirements;
 - `order-lifecycle.md` still described the former special emergency-import lifecycle;
 - `data-model.md` still contained `EmergencyImportDetail`, original-Hiboutik-total/discrepancy concepts and an obsolete `sync-and-backup.md` reference;
+- `business-rules.md` still contained early drafting language implying that already-approved target rules were awaiting later confirmation;
+- `catalogue-management.md` still contained early “deferred to later UI design” wording that could be read as an unresolved V1 decision and did not explicitly freeze how category names are represented/resolved in the three-sheet catalogue workbook;
 - `storage-strategy.md` needed alignment with the later approved non-authoritative-device printing and simplified Hiboutik source semantics;
 - `docs/decisions/README.md` described a numeric filename convention not used by the repository;
+- several decision records still described their already-completed baseline incorporation as a future documentation action;
+- `export-intermediate-file.md` still described workbook-contract details as generally implementation-defined even though the later Approved `export.md` freezes the concrete V1 four-sheet contract;
 - the final payment effective-date/back-entry behavior had not yet been frozen;
-- repository-level phase/status files still described the project as pre-freeze design work.
+- the initial acceptance draft needed stronger direct coverage of business-setting edits, main-screen summaries/reminders, telephone/comment search, explicit archive access, local-recovery triggers and change-triggered disaster-recovery checkpoints;
+- repository-level `README.md`, `AGENTS.md`, `src/README.md` and `tests/README.md` still described the project as pre-freeze design work.
 
-After correction, no target V1 baseline document remains intentionally in Draft status.
+All of those items have been corrected in GitHub.
 
-Intentional implementation-level choices may remain where they do not alter frozen behavior, for example exact UI layout, typography, physical SQL table/index naming, minor coordination serialization details and similar low-level representation choices expressly delegated by the approved specifications.
+After correction:
+
+- no target V1 baseline document remains intentionally in Draft status;
+- no known V1 business question remains open;
+- no known baseline contradiction requires Codex to choose between competing semantics;
+- the legacy/current-system document remains contextual and is explicitly prevented from overriding later V1 target behavior;
+- implementation-level freedom remains only where the approved specifications deliberately delegate low-level choices.
+
+Examples of intentionally delegated implementation details include exact UI layout/typography, physical SQL table/index naming, minor coordination serialization/file-name mechanics and similar representation choices that do not alter frozen behavior or acceptance criteria.
 
 ## 7. Authority and conflict rule for implementation
 
