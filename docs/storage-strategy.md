@@ -37,7 +37,7 @@ These snapshots remain local and exist primarily for crash/corruption/accidental
 
 They are application-managed technical recovery data. The normal operator workflow does not require browsing, copying, renaming or selecting these files.
 
-The exact local snapshot retention count/time window is still to be frozen.
+The application retains the **latest five successfully generated and validated local recovery snapshots** and automatically removes older local recovery snapshots after a newer valid snapshot has been secured.
 
 ### 2.2 Formal handoff snapshots
 
@@ -85,7 +85,9 @@ Exact filenames are implementation details, but the semantics are fixed:
 
 - a handoff database without its matching completed ready marker is **not** an accepted released version;
 - the ready marker references the exact expected version/checksum;
-- older complete versions can remain available according to a retention policy rather than being destroyed immediately by the next handoff.
+- the application retains the **latest five complete formal handoff versions**;
+- the database snapshot and matching ready marker are treated as one retained/deleted unit;
+- cleanup of an older complete handoff occurs only after a newer handoff has been fully generated, validated and confirmed synchronized.
 
 ## 5. Receiving computer startup
 
@@ -172,7 +174,8 @@ While the authoritative computer is in normal use:
 - if business data has changed since the previous cloud disaster-recovery checkpoint, the application publishes a validated disaster-recovery checkpoint to a dedicated OneDrive recovery area;
 - the maximum normal publication frequency is **one checkpoint every 15 minutes**;
 - if no durable business data changed during the interval, no redundant checkpoint is required;
-- checkpoint generation/publication must not block normal order-entry work merely to act like a formal handoff.
+- checkpoint generation/publication must not block normal order-entry work merely to act like a formal handoff;
+- the application retains the **latest five successfully published and validated OneDrive disaster-recovery checkpoints** and removes older checkpoints only after a newer valid checkpoint is safely available.
 
 These cloud recovery checkpoints are marked technically and logically as **recovery-only**. They do not release the current computer's authority and cannot be consumed automatically as a normal handoff snapshot.
 
@@ -227,8 +230,6 @@ Merely forgetting to close Sushi81 POS is not enough to trigger automatic disast
 If the authoritative computer remains available, the normal remedy remains to return to that computer and complete the normal close/handoff.
 
 Disaster recovery is therefore explicit, exceptional and operator-confirmed rather than automatic.
-
-The exact retention count/time window for OneDrive disaster-recovery checkpoints is still to be frozen.
 
 ## 9. Single-writer / anti-fork invariant
 
@@ -347,20 +348,30 @@ The application should therefore discover registered annual archive files from t
 
 Annual archives are not subject to automatic rolling deletion. They are retained permanently unless the operator deliberately manages them outside the normal application workflow.
 
-## 13. Decisions still to freeze
+## 13. Rolling retention — approved Phase 3 decision
+
+The rolling technical protection sets use one simple retention rule:
+
+- local Recovery snapshots: retain latest **5** validated snapshots;
+- formal OneDrive Handoff versions: retain latest **5** complete validated versions;
+- OneDrive Disaster Recovery checkpoints: retain latest **5** validated checkpoints;
+- Annual Archive databases: **not subject to rolling retention** and retained permanently unless deliberately removed by the operator outside the normal workflow.
+
+Retention cleanup must always occur after, never before, a newer replacement has been successfully generated and validated. For OneDrive-published artifacts, cleanup must also wait until the newer replacement has been confirmed synchronized where synchronization confirmation is part of that artifact's safety contract.
+
+These counts are fixed application defaults for v1 rather than ordinary operator-configurable settings.
+
+## 14. Decisions still to freeze
 
 Before this document becomes an approved Phase 3 baseline, the project should still decide:
 
 - exact Windows local data folder structure;
 - exact OneDrive handoff/recovery/archive subfolder naming beyond the approved logical separation;
-- local recovery snapshot retention policy;
-- formal handoff snapshot retention policy;
-- disaster-recovery checkpoint retention policy;
 - exact device-identity metadata created during first installation/pairing;
 - whether the application supports read-only access on a non-authoritative computer before handoff.
 
-## 14. Approval rule
+## 15. Approval rule
 
-The handoff mechanism in sections 1-7 and 9-11, disaster-recovery behavior in section 8, and annual archive behavior in section 12 are approved Phase 3 directions: local working SQLite, application-managed local recovery snapshots, normal-exit formal handoff, immutable versioned OneDrive publication, completion marker, verified receiver acquisition, user-selected OneDrive handoff-folder pairing, no stale force takeover, recovery-only OneDrive checkpoints at a maximum frequency of once every 15 minutes when data has changed, explicit disaster recovery with lineage-generation renewal, strict previous-natural-year February archiving, end-date-based archive-year assignment, and independent OneDrive archive databases.
+The handoff mechanism in sections 1-7 and 9-11, disaster-recovery behavior in section 8, annual archive behavior in section 12, and rolling-retention behavior in section 13 are approved Phase 3 directions: local working SQLite, application-managed local recovery snapshots, normal-exit formal handoff, immutable versioned OneDrive publication, completion marker, verified receiver acquisition, user-selected OneDrive handoff-folder pairing, no stale force takeover, recovery-only OneDrive checkpoints at a maximum frequency of once every 15 minutes when data has changed, explicit disaster recovery with lineage-generation renewal, strict previous-natural-year February archiving, end-date-based archive-year assignment, independent OneDrive archive databases, and five-version rolling retention for Recovery/Handoff/Disaster Recovery.
 
-The document remains **Draft — Phase 3 working design** until the remaining folder/retention/access details are reviewed.
+The document remains **Draft — Phase 3 working design** until the remaining folder/access details are reviewed.
