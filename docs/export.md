@@ -52,15 +52,30 @@ The standalone Sushi81 POS must **not** copy that deletion behavior. SQLite rete
 
 Therefore V1 export is a transfer/reporting operation, not a data-retention operation.
 
-## 4. Export source boundary
+## 4. Export source and eligibility boundary
 
 Export reads only committed business records from the authoritative local database.
 
-### 4.1 Included source family
+### 4.1 Eligible ordinary POS orders — approved Phase 4 rule
 
-The normal management export is for **POS-originated orders**.
+An order is eligible for the normal management export only when **all** of the following are true:
 
-The export layer must use the persisted source discriminator rather than UI appearance or operator memory.
+- it is an ordinary POS-originated order;
+- it is not `Cancelled`;
+- it is fully settled under the approved payment rules;
+- its lifecycle status is `Closed`.
+
+Accordingly:
+
+- `Open` + unpaid -> not exported;
+- `Open` + partially paid -> not exported;
+- `Closed` + fully settled -> eligible;
+- `Cancelled` -> not exported as a positive sale;
+- Hiboutik paste-created -> never exported.
+
+The exporter must derive eligibility from persisted source/lifecycle/payment state rather than from UI appearance or operator memory.
+
+This rule is frozen in `docs/decisions/export-eligibility.md`.
 
 ### 4.2 Hiboutik paste-created orders
 
@@ -70,9 +85,9 @@ The hidden source marker is sufficient for this exclusion. No special operator a
 
 ### 4.3 Cancelled orders
 
-Cancelled records remain in the POS database for history, but whether they are omitted entirely from normal management export or represented through an explicit cancellation/correction mechanism depends on the final eligibility/correction rules below.
+Cancelled records remain in the POS database for history but are not exported as ordinary positive sales under the normal export path.
 
-The exporter must never silently treat a currently Cancelled order as an ordinary positive sale.
+How to represent a cancellation that occurs **after** an order has already been exported is a separate correction question still to be frozen below.
 
 ## 5. Logical export datasets
 
@@ -196,8 +211,10 @@ Automated/integration tests should cover at least:
 - structured option adjustments;
 - mixed VAT data;
 - manual-total override;
-- CB-only, Espèce-only and mixed/partial-payment histories as applicable to final eligibility;
-- cancelled order handling under the final rule;
+- `Open` unpaid order excluded;
+- `Open` partially paid order excluded;
+- `Closed` fully settled ordinary POS order included;
+- cancelled order excluded from ordinary positive-sale export;
 - automatic exclusion of Hiboutik paste-created orders;
 - retry after failed file generation;
 - repeated export without duplicate insertion;
@@ -207,17 +224,18 @@ Automated/integration tests should cover at least:
 
 ## 12. Business/workflow decisions still requiring confirmation
 
-The approved documents do not yet freeze several choices that materially change management data or the operator's export workflow. They must be resolved sequentially:
+Export eligibility is now frozen: only fully settled `Closed`, non-cancelled, ordinary POS-originated orders are eligible.
 
-1. **Export eligibility by payment/lifecycle state** — for example, whether only fully settled (`Closed`) non-cancelled POS orders are exported, or whether unpaid/partially paid orders may also enter the management workbook.
-2. **Date/cutoff rule** — whether to preserve a fixed delay such as the legacy J-2 rule, use another fixed cutoff, or let the operator choose an eligible period.
-3. **Physical transfer workflow** — whether Sushi81 POS writes directly into `Gestion SUSHI 81.xlsm` or generates a controlled intermediate workbook/file for the management workflow.
-4. **Post-export modification/correction** — how an order that was already exported and is later modified/cancelled is represented without silently creating duplicate or inconsistent management history.
+Three operator/business choices still materially change management data or the export workflow and must be resolved sequentially:
+
+1. **Date/cutoff rule** — whether to preserve a fixed delay such as the legacy J-2 rule, use another fixed cutoff, or export eligible orders without that legacy delay.
+2. **Physical transfer workflow** — whether Sushi81 POS writes directly into `Gestion SUSHI 81.xlsm` or generates a controlled intermediate workbook/file for the management workflow.
+3. **Post-export modification/correction** — how an order that was already exported and is later modified/cancelled is represented without silently creating duplicate or inconsistent management history.
 
 These are business/operational decisions because they change what data appears in the management workbook and how daily reconciliation is performed.
 
 ## 13. Approval rule
 
-This document remains **Draft — Phase 4 working design** until the business/workflow decisions in section 12 are frozen and the physical target mapping is validated against a representative `Gestion SUSHI 81.xlsm` template/copy.
+This document remains **Draft — Phase 4 working design** until the remaining business/workflow decisions in section 12 are frozen and the physical target mapping is validated against a representative `Gestion SUSHI 81.xlsm` template/copy.
 
 Pure file-format, ClosedXML, temporary-file, hashing and export-ledger implementation details may be selected directly according to the project priority order: reliability > simplicity > maintainability > operational clarity > novelty.
