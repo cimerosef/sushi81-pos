@@ -3,340 +3,250 @@
 **Status:** Draft — Phase 4 working design  
 **Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
-**Purpose:** Specify the safe emergency workflow for pasting a Hiboutik automatic order-summary email into Sushi81 POS when Hiboutik server-side printing is unavailable.
+**Purpose:** Specify the simple fallback workflow that converts pasted Hiboutik order-summary text into an ordinary Sushi81 POS order when Hiboutik server-side printing is unavailable.
 
 ## 1. Scope
 
-This document specifies the V1 **Hiboutik emergency paste import** workflow.
+V1 provides a **Hiboutik paste-order import** as a fast order-creation aid.
 
-It covers:
+Its purpose is deliberately narrow:
 
-- accepted input boundary;
-- deterministic parsing and normalization;
-- operator review before commit;
-- preservation of Hiboutik source amount and fulfilment information;
-- conversion into the approved Sushi81 POS emergency-order data model;
-- validation and failure handling;
-- duplicate-risk detection boundary;
-- persistence and handoff to printing;
-- diagnostics and sensitive-data handling.
+**paste Hiboutik order text -> pre-populate a normal Sushi81 POS order -> operator reviews/edits the normal order -> confirm -> print normally.**
 
-It does **not** define:
+This function is not a Hiboutik synchronization, reconciliation or duplicate-order-management subsystem.
 
-- general email synchronization;
-- automatic reading of the operator's mailbox;
-- Hiboutik API integration;
-- automatic modification of the original Hiboutik order;
-- ordinary POS order entry;
-- final kitchen/customer ticket content or printer behavior (`printing.md`);
-- export to `Gestion SUSHI 81.xlsm` (`export.md`).
+It does not define the final ticket layout or printer behavior; those belong to `printing.md`.
 
-## 2. Authoritative baseline
+## 2. Authoritative simplification decision
 
-This specification must preserve the already-approved semantics in:
+The approved Phase 4 decision in `docs/decisions/hiboutik-paste-simplification.md` supersedes the earlier, more complex emergency-order design.
 
-- `product-requirements.md`, especially FR-050 through FR-056;
-- `order-lifecycle.md`, especially the Hiboutik emergency-copy lifecycle boundary;
-- `business-rules.md` for any POS-side pricing or manual-total behavior eventually approved for this workflow;
-- `data-model.md`, especially `Order.source_type = HIBOUTIK_EMERGENCY` and the one-to-one `EmergencyImportDetail` extension;
-- `storage-strategy.md` for durability, recovery and multi-device authority.
+The imported order must have **no special operator-facing order type or interface**.
 
-The following rules are already frozen and are not reopened here:
+After parsing:
 
-1. The emergency record is a **local operational/printing copy** of an order that already exists in Hiboutik.
-2. It is not a new ordinary POS-originated sale.
-3. It must preserve the **original Hiboutik total** separately from the POS operational/actual total.
-4. It may retain payment information for reconciliation/reference.
-5. It is excluded from ordinary POS-originated turnover totals, ordinary received-payment totals, the POS card amount to newly enter into Hiboutik, and export to `Gestion SUSHI 81.xlsm`.
-6. Future/due-today reminder behavior still applies according to structured planned fulfilment date and the approved `advance_order_marker` semantics.
-7. Parsed content must be reviewed before it becomes a committed/printed emergency order.
-8. A committed order is persisted before printing is attempted.
+- the same ordinary order-entry screen is used;
+- the same product/cart editing controls are used;
+- the same fulfilment, telephone, address, comment, total and payment fields are used;
+- the same confirmation, modification, cancellation and printing behavior applies;
+- there is no dedicated emergency-order screen;
+- there is no special colour/style, dashboard counter or discrepancy warning;
+- there is no dedicated Hiboutik order-number field;
+- there is no dedicated Hiboutik reconciliation panel;
+- there is no separate immutable Hiboutik-original-total field in V1.
 
-## 3. Entry point and source boundary
+If the operator wants to retain the Hiboutik order number/reference, it is entered manually in the normal order **comment** field.
 
-V1 provides a dedicated action for **Hiboutik emergency paste import**.
+## 3. Entry point
 
-The operator pastes the textual content of the automatic Hiboutik order-summary email into a dedicated input area.
+The application provides a simple action such as **Paste Hiboutik order** from an appropriate normal order-creation entry point.
+
+The operator:
+
+1. opens the paste action;
+2. pastes the textual content of the Hiboutik automatic order-summary email;
+3. asks the application to parse it;
+4. is returned to the ordinary order-entry screen with recognized values pre-populated;
+5. reviews/edits the order exactly as a manually created order;
+6. confirms the order through the normal confirmation action.
+
+No order is committed merely by pasting or parsing text.
+
+## 4. Source boundary
 
 V1 does not:
 
-- connect to Gmail/Outlook to retrieve the message automatically;
-- monitor the clipboard in the background;
+- connect to Gmail/Outlook automatically;
+- monitor the mailbox;
 - scrape the Hiboutik website;
 - call the Hiboutik API;
-- execute HTML, scripts or embedded content from the pasted material.
+- monitor the clipboard in the background;
+- execute HTML, scripts or embedded content from pasted text.
 
-The input is treated as untrusted plain text.
+The pasted source is treated as untrusted plain text.
 
-## 4. High-level workflow
+## 5. Parsing architecture — technical decision
 
-The workflow is deliberately two-stage:
+The parser is deterministic and independently testable.
 
-### Stage A — Parse and review
+It should use tolerant label/structure recognition rather than fixed character positions.
 
-1. Operator opens the emergency-import action.
-2. Operator pastes the Hiboutik email text.
-3. The application normalizes the text without changing business meaning.
-4. The parser extracts recognized order information.
-5. The application validates the extracted result.
-6. A structured review screen shows the values that would become the emergency order.
-7. No business record is created yet.
+Safe normalization may include:
 
-### Stage B — Confirm and persist
+- CRLF/LF normalization;
+- repeated blank-line cleanup;
+- non-breaking-space normalization;
+- trimming surrounding whitespace;
+- harmless Unicode punctuation/spacing normalization;
+- removal of copy/paste formatting artifacts that do not carry business meaning.
 
-1. Operator confirms the reviewed result.
-2. The application performs final validation against the current reviewed values.
-3. The complete emergency order is written transactionally to the local authoritative SQLite database.
-4. Only after the database commit succeeds may the application invoke the printing workflow.
-5. Print failure leaves the committed emergency order available for selective reprint.
+Normalization must not silently alter business values such as:
 
-Closing/cancelling the import before Stage B must leave the business database unchanged.
-
-## 5. Input normalization — technical decision
-
-Before field extraction, the parser may safely normalize presentation-only differences such as:
-
-- CRLF/LF line endings;
-- repeated blank lines;
-- non-breaking spaces and ordinary Unicode spacing variants;
-- surrounding whitespace;
-- common Unicode punctuation variants where normalization is unambiguous;
-- copied mail-client quoting/formatting artifacts that do not carry business meaning.
-
-Normalization must not silently rewrite:
-
-- digits inside prices, dates, times, telephone numbers or product codes;
-- product names;
-- addresses;
-- comments/instructions;
+- product codes or names;
 - quantities;
-- fulfilment mode;
-- monetary signs.
+- prices;
+- dates/times;
+- telephone digits;
+- addresses;
+- comments/instructions.
 
-The parser should prefer label/structure recognition over fragile fixed character positions.
+A parser exception or unsupported format performs no business write.
 
-## 6. Parsing architecture — technical decision
+## 6. Ordinary order fields that may be pre-populated
 
-The parser is deterministic and testable independently from the WPF UI.
+When reliably present in the pasted Hiboutik text, the parser may populate ordinary Sushi81 POS fields including:
 
-Recommended internal stages:
-
-1. **source recognition** — determine whether the text plausibly matches a supported Hiboutik order-summary format;
-2. **header/order metadata extraction**;
-3. **customer/fulfilment extraction**;
-4. **order-line extraction**;
-5. **total extraction**;
-6. **cross-field validation**;
-7. **structured parse result** with values, confidence/ambiguity flags and field-level errors.
-
-The parser must not commit directly to SQLite.
-
-A parsing exception or unsupported format returns a structured failure result and performs no business write.
-
-## 7. Business information to extract when present
-
-The parser/review model must be able to represent at least the following information where the Hiboutik source provides it:
-
-### 7.1 Source identification
-
-- Hiboutik order/reference number or other source reference, when present;
-- source/order timestamp when present.
-
-A Hiboutik source reference is not used as the Sushi81 POS `order_id`.
-
-### 7.2 Fulfilment
-
-- `Retrait` or `Livraison`;
-- requested/planned fulfilment date;
-- requested/planned fulfilment time.
-
-The parser must not lose a future fulfilment date. A future Hiboutik order must never be silently converted into a same-day order merely because the import occurs today.
-
-### 7.3 Customer/operational information
-
-Where present:
-
+- ordered products;
+- quantities;
+- product-option/variant information when it can be represented by the normal order model;
+- fulfilment mode (`Retrait` / `Livraison`);
+- planned fulfilment date;
+- planned fulfilment time;
 - telephone;
 - delivery address;
-- free-text customer/preparation instructions or comments.
+- customer/preparation comments;
+- source order total, subject to the final total rule still to be frozen below.
 
-Telephone formatting follows the normal Sushi81 POS display/normalization behavior after extraction; source digits must not be invented.
+These are **not locked source fields**. Once parsing finishes, they are ordinary editable order values.
 
-### 7.4 Ordered items
+The parser must preserve a future fulfilment date when the source provides one. A future Hiboutik order must not silently become a same-day order merely because it is pasted today.
 
-For each recognizable item line, the structured review result should preserve as much source information as is available, including:
+## 7. Product-line conversion
 
-- quantity;
-- source product code when present;
-- product name/description;
-- source line/unit price information when present;
-- option/variant/add-on text when present.
+The importer exists primarily to create usable normal product lines quickly.
 
-Exact rules for matching imported lines to the current Sushi81 catalogue remain a business/workflow decision to freeze below.
+Where the pasted Hiboutik item can be mapped safely to the current Sushi81 catalogue, the importer should create the same normal `OrderItem` structure that manual product selection would create.
 
-### 7.5 Hiboutik original total
+After import, the operator may use all normal cart controls, including:
 
-The parser must extract and preserve the order total supplied by Hiboutik.
+- change quantity;
+- add products;
+- remove products;
+- change/select options;
+- add ordinary custom option adjustments where allowed by the approved business rules.
 
-On commit this value becomes:
+The exact matching rule and unmatched-item behavior remain a business decision to freeze before this document is Approved.
 
-`EmergencyImportDetail.hiboutik_original_total_ttc`
+## 8. Normal order lifecycle after parsing
 
-It must never be overwritten merely because the POS operational/actual total is later changed.
+After the parser populates the order-entry screen, the order is treated like an ordinary in-progress order.
 
-## 8. Emergency-order data mapping — already approved baseline
+Therefore:
 
-A confirmed emergency import uses the normal order structures with:
+- leaving/cancelling before confirmation creates no durable order;
+- confirmation allocates the normal Sushi81 POS order ID;
+- the confirmed order starts under the normal lifecycle rules;
+- future-order behavior follows the normal planned-fulfilment-date and `advance_order_marker` rules;
+- modification/cancellation uses the normal order workflow;
+- the operator does not manage a separate emergency-order lifecycle.
 
-`Order.source_type = HIBOUTIK_EMERGENCY`
+The operator may manually type the Hiboutik order number into the normal comment field before or after confirmation, subject to ordinary order editing rules.
 
-It uses normal `Order` / `OrderItem` / adjustment snapshot structures so the record can be viewed, modified where permitted, printed/reprinted, archived and included in future/due-today operational reminders.
+## 9. Minimal hidden source marker
 
-The imported record also owns one `EmergencyImportDetail` row containing at least the immutable original Hiboutik total.
+Although the interface and workflow are ordinary, implementation may persist one small non-user-facing source discriminator for an order created through the Hiboutik paste-import entry point.
 
-The order receives its own normal Sushi81 POS `order_id` only when the operator confirms the reviewed import.
+The operator does not see, edit or manage this marker.
 
-A newly committed emergency order follows the normal lifecycle starting point and is **Open** until the operator later completes the approved payment/reconciliation close action.
+Its sole business purpose is to preserve the already-established anti-double-counting boundary: the underlying order already exists in Hiboutik, so a pasted Hiboutik order must not be treated as a new POS-originated sale in downstream POS-only totals/export.
 
-Recorded CB/Espèce information is not invented from the Hiboutik source unless an explicit later rule says that the source text reliably represents actual payment received. The emergency record exists even when no payment has yet been recorded in Sushi81 POS.
+Accordingly it remains automatically excluded from:
 
-## 9. Parser/source metadata — technical decision
-
-`paste-order-import.md` authorizes small Hiboutik-specific technical metadata in `EmergencyImportDetail` when useful for diagnostics and duplicate-risk control, for example:
-
-- `hiboutik_source_reference` when present in the source;
-- `imported_at`;
-- `parser_version`;
-- a one-way fingerprint/hash of normalized source content.
-
-These values do not change the business meaning of the order.
-
-The application should **not retain the full raw pasted email text by default** after a successful commit. The structured business fields are authoritative. Avoiding raw-text retention reduces unnecessary duplication of customer/address information.
-
-Technical logs must not record the full pasted email or other unnecessary customer/payment content.
-
-## 10. Validation principles
-
-### 10.1 Never guess material business facts
-
-If a parser ambiguity could change an actual business fact, the application must surface it rather than silently choosing a value.
-
-Material facts include at least:
-
-- order total;
-- fulfilment mode;
-- planned fulfilment date;
-- product/quantity interpretation;
-- any mapped product identity that affects printed preparation information or POS-side pricing.
-
-### 10.2 Blocking parser failures
-
-The import cannot be committed while a required business fact remains unusable under the final approved rules.
-
-Examples of parser-level blocking conditions include:
-
-- text is not recognized as a supported Hiboutik order summary;
-- no usable Hiboutik original total can be established;
-- item structure is too malformed to create the required order lines;
-- a required material field remains ambiguous after the approved review/correction workflow.
-
-The exact required-field set for fulfilment and item resolution depends on the business decisions still open below.
-
-### 10.3 No partial commit
-
-Emergency import is atomic.
-
-If final validation or persistence fails:
-
-- no partial order/header/items/payment/source detail may remain committed;
-- no print job may be treated as the authoritative creation event;
-- the operator remains able to correct/retry the import.
-
-## 11. Future-order behavior
-
-The emergency order participates in the same future-order derivation as ordinary orders.
-
-When a confirmed emergency import has a planned fulfilment date later than the current business date:
-
-- it is treated as a future order for operational reminders;
-- `advance_order_marker` is set according to the already-approved sticky rule;
-- when its planned date arrives it appears in the due-today advance-order reminder unless Cancelled.
-
-The emergency source type does not exempt the order from this reminder behavior.
-
-## 12. Financial/statistical boundary
-
-For all emergency imports:
-
-- `hiboutik_original_total_ttc` remains available for comparison;
-- `Order.total_ttc` represents the current POS operational/actual amount under the final approved emergency-import workflow;
-- current CB/Espèce amounts may be recorded for reconciliation/reference;
-- discrepancy is derived by comparing the original Hiboutik amount, POS operational/actual amount and recorded payment outcome.
-
-However emergency imports are always excluded from:
-
-- ordinary POS-originated real-time turnover;
+- ordinary POS-originated turnover totals;
 - ordinary POS-originated received-payment totals;
-- the ordinary POS card amount that must newly be represented in Hiboutik;
-- `Gestion SUSHI 81.xlsm` export.
+- the ordinary POS card amount that must newly be entered/represented in Hiboutik;
+- export to `Gestion SUSHI 81.xlsm`.
 
-This exclusion is based on `source_type`, not on UI filtering or operator memory.
+No additional Hiboutik-specific business entity is required solely for this marker.
 
-## 13. Duplicate-risk control — technical detection boundary
+## 10. No dedicated Hiboutik metadata model
 
-Creating the same Hiboutik emergency order twice can create operational risk, especially duplicate kitchen preparation.
+V1 does **not** require:
 
-V1 should therefore detect likely repeat imports using, in descending strength when available:
+- `EmergencyImportDetail`;
+- `hiboutik_original_total_ttc`;
+- a dedicated Hiboutik reference-number field;
+- raw pasted-email retention after successful conversion;
+- parser fingerprints for operator-facing duplicate management;
+- a Hiboutik-specific reconciliation status;
+- a dedicated imported-order discrepancy state.
 
-1. exact Hiboutik source/reference identifier;
-2. normalized-source fingerprint;
-3. secondary comparison of relevant source facts when needed for warning diagnostics.
+If a source order number is useful operationally, the operator records it manually in the normal comment field.
 
-The detection mechanism is technical. The exact operator behavior after a likely duplicate is detected — hard block, open existing record, or allow an explicit override — is a business/operational decision still to freeze.
+Technical logs must not retain full pasted customer/order text unnecessarily.
 
-## 14. Printing handoff
+## 11. Validation and failure behavior
 
-This document freezes only the boundary:
+### 11.1 Parser failure
 
-- persistence succeeds before printing starts;
-- print-data generation uses the committed emergency order snapshot;
-- a print failure does not roll back or delete the committed order;
-- the emergency record remains reprintable under the final `printing.md` rules.
+If the source cannot be parsed reliably enough to create useful order lines, the application must report the problem and leave the business database unchanged.
 
-Which documents print automatically and the handling of non-authoritative read-only devices are deferred to `printing.md`.
+The operator may correct the pasted text, retry, or abandon the import and create the order manually.
 
-## 15. Testing and sanitized fixtures — technical requirement
+### 11.2 Ambiguous fields
 
-The parser must have automated tests using synthetic or sanitized examples.
+The parser must not invent material business facts.
 
-Before Phase 4 is frozen, the repository should contain sanitized representative Hiboutik source fixtures covering at least:
+If a field is ambiguous, it should be left empty or clearly flagged for operator review rather than silently guessed when the guess could affect preparation, fulfilment or price.
 
-- ordinary same-day Retrait;
-- ordinary same-day Livraison;
+### 11.3 Final validation
+
+The final confirmation uses the **normal order validation rules** from `business-rules.md` and `order-lifecycle.md`.
+
+The paste importer does not create a second, parallel validation system.
+
+## 12. Persistence and printing boundary
+
+The confirmed order must be committed successfully before printing is attempted.
+
+Therefore:
+
+1. operator confirms the normal order;
+2. order is durably committed to SQLite;
+3. normal printing workflow is invoked;
+4. print failure does not roll back or delete the order;
+5. the order remains retrievable and reprintable under `printing.md`.
+
+The pasted-source workflow must not make printing itself the event that creates the business record.
+
+## 13. Duplicate handling
+
+V1 does not require a dedicated Hiboutik duplicate-detection subsystem.
+
+Because the operator may record the Hiboutik order number manually in the ordinary comment field and the paste tool is intended as a lightweight fallback, duplicate prevention should not introduce a special order workflow unless later real-world use demonstrates a concrete need.
+
+This intentionally removes the earlier planned source-reference/fingerprint duplicate-control mechanism.
+
+## 14. Testing and sanitized fixtures
+
+The parser must be covered by automated tests using synthetic or sanitized Hiboutik source examples.
+
+Representative fixtures should cover, where the real Hiboutik format supports them:
+
+- same-day Retrait;
+- same-day Livraison;
 - future fulfilment date/time;
-- optional customer information absent/present;
-- multiple order lines;
-- option/variant text if Hiboutik emits it;
-- decimal/spacing variants actually observed in the source format;
-- malformed/unsupported input;
-- duplicate-source/reference scenario.
+- multiple products and quantities;
+- product option/variant text;
+- optional telephone/address/comment information;
+- ordinary formatting/spacing variations;
+- malformed/unsupported text.
 
-No real customer name, telephone, address, email, payment credential or other sensitive production information may be committed to Git.
+No real customer telephone, address, name or other sensitive production information may be committed to Git.
 
-## 16. Business/workflow decisions still requiring confirmation
+## 15. Remaining business decisions
 
-The existing approved documents do not yet freeze the following operator-facing choices. These must be resolved sequentially before this document can become Approved:
+The Phase 4 simplification resolves the previous questions about special review fields, original-Hiboutik amount preservation, dedicated reference fields, discrepancy handling and duplicate controls.
 
-1. **Review-screen editability:** which parsed business fields the operator may correct before committing the emergency order.
-2. **Catalogue matching:** whether/how imported Hiboutik item lines must be matched to current Sushi81 catalogue products and what happens to an unmatched line.
-3. **Initial POS operational total:** whether the emergency order initially takes the Hiboutik original total or is recalculated immediately under Sushi81 POS pricing rules before any operator adjustment.
-4. **Missing/ambiguous fulfilment date:** whether commit is blocked until the operator explicitly supplies/confirms the date rather than defaulting to today.
-5. **Duplicate detection response:** whether a detected existing Hiboutik emergency order is blocked/opened/reprinted or may be duplicated through an explicit override.
+Two business choices still materially affect the resulting normal order and therefore still require confirmation:
 
-These are not technical implementation details because they change what the operator can do and may create real preparation/reconciliation risk.
+1. **Catalogue matching and unmatched items** — how a Hiboutik product line is matched to the current Sushi81 catalogue and what happens if no safe match exists.
+2. **Initial order total** — whether the parsed Hiboutik total should become the initial authoritative total, or whether the order should initially use the normal Sushi81 POS catalogue calculation after the imported product lines are created.
 
-## 17. Approval rule
+All lower-level parser choices that do not change these business semantics are technical implementation decisions and may be selected directly under the project priority order.
 
-This document remains **Draft — Phase 4 working design** until the business/workflow decisions in section 16 are confirmed and representative sanitized Hiboutik source samples have been validated against the parser specification.
+## 16. Approval rule
 
-Pure parser implementation details that do not alter the business meaning or operator permissions may be selected directly according to the project priority order: reliability > simplicity > maintainability > operational clarity > novelty.
+This document remains **Draft — Phase 4 working design** until the two remaining business choices in section 15 are frozen and the parser has been checked against representative sanitized Hiboutik source examples.
+
+The final design must remain a lightweight order-creation convenience rather than growing back into a separate Hiboutik-order subsystem.
