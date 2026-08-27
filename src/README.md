@@ -1,7 +1,14 @@
 # Source code
 
-Production source code will live under this directory.
+Production source code lives under this directory.
 
-**Current status:** intentionally empty during product and architecture design.
+**Current status:** V1 Specification frozen; implementation not yet started by the freeze work itself.
 
-Do not begin production implementation here until the v1 architecture freeze has been reached or an explicitly approved engineering-bootstrap task authorizes it.
+The source tree is ready for explicit Codex implementation milestones against:
+
+- `../docs/v1-specification-freeze.md`;
+- the approved baseline documents under `../docs/`;
+- `../docs/acceptance-criteria.md`;
+- repository instructions in `../AGENTS.md`.
+
+Do not implement speculative features or alter frozen business/architecture semantics merely to simplify coding. If a genuine material specification ambiguity appears, surface it and resolve the specification before continuing that affected path.
