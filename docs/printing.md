@@ -165,15 +165,37 @@ A reprint uses the latest committed business state of the selected order.
 
 If the operator currently has unsaved edits open, the application must not silently print those uncommitted values as though they were authoritative. The operator must first save/confirm the modification or explicitly cancel it and print the persisted version.
 
-## 10. Modification and cancellation boundary
+## 10. Saved modifications and cancellation boundary
 
 All non-cancelled orders remain modifiable under `order-lifecycle.md`.
 
-After a saved modification, later prints/reprints use the latest committed order version and the same order ID.
+### 10.1 Saved modification — approved Phase 4 rule
+
+Saving a modification to an existing order does **not** automatically print either document.
+
+After the modification is successfully committed, the operator may independently choose to:
+
+- reprint the kitchen ticket;
+- reprint the customer ticket;
+- reprint neither.
+
+This applies regardless of whether the saved change affects products, quantities, options, fulfilment information, customer information, comments, total or payment information.
+
+The application must make the reprint actions readily available after save, but it must not infer that a second kitchen/customer printout is required.
+
+This avoids accidental duplicate kitchen preparation and keeps the risk judgment with the operator.
+
+Any subsequent reprint uses the latest committed order state and the same order ID.
+
+This rule is frozen in `docs/decisions/order-modification-printing.md`.
 
 V1 does not preserve prior business revisions merely for printing.
 
-A cancelled order remains retained and may be viewed. Whether ordinary reprinting of cancelled orders should remain available and, if so, whether the printed document must carry a visible `CANCELLED/ANNULÉ` indication is a business-printing decision to freeze later in this document.
+### 10.2 Cancelled orders — decision still open
+
+A cancelled order remains retained and may be viewed.
+
+Whether ordinary reprinting of cancelled orders should remain available and, if so, whether the printed document must carry a visible `CANCELLED/ANNULÉ` indication remains a business-printing decision to freeze below.
 
 ## 11. Archived-order reprinting
 
@@ -235,6 +257,7 @@ Automated tests should cover at least:
 - normal mixed VAT breakdown;
 - manual-total 10% VAT override;
 - payment information before/after correction;
+- saved modifications without automatic printing;
 - archived order snapshots;
 - long comments and long product/option text;
 - printer submission failure without order loss.
@@ -262,12 +285,11 @@ This rule is frozen in `docs/decisions/non-authoritative-device-printing.md`.
 
 ## 16. Remaining operator-facing printing decisions
 
-The remaining business-printing details to check sequentially are limited to matters that materially change output or live operational behavior, including:
+The remaining business-printing details to check sequentially are limited to matters that materially change output or live operational behavior:
 
-- whether saving a modification should automatically print one/both tickets or only make reprint actions available;
-- cancelled-order reprint availability and visible cancellation marking;
-- whether a reprinted customer/kitchen document should visibly say `DUPLICATA` / `REPRINT`;
-- final statutory/customer receipt wording and layout details that cannot be derived safely from the existing approved/current receipt baseline.
+1. **Cancelled-order reprinting:** whether cancelled orders may still be printed/reprinted and, if permitted, whether the document must visibly say `ANNULÉ / CANCELLED`.
+2. **Reprint marking:** whether an ordinary reprinted kitchen/customer document should visibly say `DUPLICATA / REPRINT`.
+3. **Final statutory/customer receipt wording:** only those wording/layout details that cannot be safely derived from the existing approved/current receipt baseline.
 
 Pure layout, pagination, font sizing, wrapping and Windows print implementation choices are technical design decisions unless they alter the business information communicated.
 
