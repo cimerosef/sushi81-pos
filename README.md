@@ -15,6 +15,14 @@ No production implementation should begin until the v1 product requirements, bus
 - Codex is used primarily for implementation, testing, refactoring, build and other execution work after specifications are approved.
 - Core business or architecture decisions must not be invented during implementation.
 
+## Final delivery requirement
+
+The completed project must include a concise **user manual / operating guide** as part of the final deliverables.
+
+The manual must summarize the application's main user-facing functions and normal operating workflows in practical language. It should be written for day-to-day Sushi 81 use rather than as developer documentation and should cover at least the major areas implemented in the final product, such as order entry and modification, payment entry/reconciliation, printing/reprinting, future orders and reminders, catalogue maintenance, Excel catalogue import/export, Hiboutik emergency import, archive/restore operations, settings and other essential operator actions.
+
+The exact table of contents should reflect the final implemented application. The project is not considered fully handed over until this operating guide has been delivered together with the application and the other approved project artifacts.
+
 ## Planned repository structure
 
 ```text
