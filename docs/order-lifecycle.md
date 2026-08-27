@@ -48,6 +48,7 @@ The following principles are authoritative for V1:
 17. Every new order must explicitly select `Retrait` or `Livraison`; confirmation is rejected if neither is selected.
 18. External card-terminal refund/additional-charge execution remains outside Sushi81 POS V1.
 19. A Hiboutik paste-created order follows the same ordinary order lifecycle and UI as any other order; only a hidden source discriminator remains to enforce anti-double-counting exclusions.
+20. Payment adjustments distinguish the effective business date/time from the technical recording timestamp; the effective date defaults to the current business date but may be changed by the operator for a genuine later-entered/back-dated payment correction.
 
 ## 3. Lifecycle dimensions
 
@@ -118,17 +119,29 @@ The two amounts remain editable during later reconciliation/correction.
 
 ### 4.4 Internally dated payment changes
 
-The operator-facing UI remains cumulative, but the application internally persists enough signed dated changes to calculate received-payment totals correctly across days.
+The operator-facing UI remains cumulative, but the application internally persists signed dated changes so received-payment totals remain correct across business dates.
 
-When a current cumulative amount changes, the application records the difference for the affected CB/Espèce bucket with an effective date/time.
+When a current cumulative amount changes, the application records the difference for the affected CB/Espèce bucket with both:
+
+- an **effective date/time** — the business date/time to which the received/corrected money belongs;
+- a **recorded timestamp** — when the application actually persisted the adjustment.
+
+For normal same-day entry, the effective date defaults to the current business date and therefore adds no routine extra step.
+
+When a payment is entered or corrected later than the date on which the money was actually received, the operator may change the effective payment date to the real receipt date. Daily received-payment summaries use that effective date. The application-generated recorded timestamp remains the later persistence time and is not rewritten merely because the effective date is back-dated.
 
 Example:
 
 - day 1: CB changes €0 -> €20 => day 1 receives `+€20` CB;
 - day 2: CB changes €20 -> €50 => day 2 receives only `+€30` CB;
-- a later reduction records a negative delta on its effective date.
+- if a €20 CB payment actually received on day 1 is only entered on day 2, the operator may set the effective date to day 1, so day 1 receives the `+€20` contribution while the technical recorded timestamp remains day 2;
+- a later reduction records a negative delta on the selected effective date.
 
-The application does not need to expose a payment-event ledger as a normal V1 operator feature.
+Changing the effective date changes reporting attribution only. It does not create a second payment, change the stable order ID or imply any operation on the external card terminal.
+
+The application does not need to expose the internal payment-adjustment ledger as a normal V1 operator feature.
+
+This rule is frozen by `docs/decisions/payment-effective-date.md`.
 
 ### 4.5 Editable order total
 
@@ -177,13 +190,14 @@ It shows at least:
 - actual CB received on D;
 - actual Espèce received on D.
 
-It is based on dated payment deltas, not nominal order totals.
+It is based on dated payment deltas and their effective business date, not nominal order totals or the later technical recording timestamp.
 
 Examples:
 
 - €50 order with €20 received today contributes €20 today;
 - unpaid €30 remainder contributes €0 today;
 - €20 yesterday + €30 today appears as €20 yesterday and €30 today;
+- a payment actually received yesterday but entered today can be attributed to yesterday by selecting yesterday as its effective payment date;
 - an Open order does not block the summary.
 
 Ordinary summaries exclude Cancelled orders and Hiboutik paste-created orders according to the approved source/status boundaries.
@@ -247,7 +261,7 @@ External refund/additional-charge handling remains outside the POS.
 
 If CB + Espèce is greater than zero but below the current total, the order remains Open/unsettled and cannot be Closed.
 
-The order remains editable. Only amounts actually received on each date contribute to that date's received-payment summary.
+The order remains editable. Only amounts actually received on each effective date contribute to that date's received-payment summary.
 
 ### 4.12 Create a new order from existing customer information
 
@@ -347,6 +361,6 @@ Unless a later approved specification amendment reintroduces them, V1 does not i
 
 ## 6. Approval
 
-This document is the **Approved — Phase 2 baseline**, including the approved Phase 3 advance-order-marker refinement and the Phase 5 alignment to the later approved Phase 4 Hiboutik paste-import simplification.
+This document is the **Approved — Phase 2 baseline**, including the approved Phase 3 advance-order-marker refinement, the Phase 4 Hiboutik paste-import simplification and the Phase 5 payment-effective-date decision.
 
 Implementation must preserve these lifecycle semantics and must not reintroduce the older emergency-order, payment/replacement or revision-history models without explicit product approval.
