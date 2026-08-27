@@ -133,6 +133,21 @@ Approved direction:
 - the target UI may use filtering, grouping, tabs, buttons, ordering or another better navigation mechanism;
 - `RaccourciCat` is retained only if later UI/interaction design shows a real operational need.
 
+### Current-category name uniqueness — approved Phase 3 amendment
+
+Every current catalogue category must have a **unique operator-facing name**.
+
+Therefore:
+
+- two current `Category` records may not have the same visible category name, even if their internal `category_id` values are different;
+- a category name may be edited, but an edit that would create a duplicate current category name must be rejected;
+- in-application category creation/editing must enforce this rule;
+- catalogue import must reject any result that would leave duplicate current category names;
+- category identity remains based on the opaque internal `category_id`; name uniqueness is an additional business/operational constraint rather than the technical primary key;
+- historical order snapshots are unaffected by later category renaming because saved order lines retain their sale-time category-name snapshot.
+
+The implementation must enforce **business-visible uniqueness** and must not permit categories that appear identical to the operator merely because of technical differences such as surrounding whitespace or letter case.
+
 Category visual order, shortcuts and any UI-dependent unused-category handling are deferred to later UI design.
 
 ## 6. Product options / choices — approved Phase 2 model
@@ -353,6 +368,7 @@ The catalogue update is atomic:
 Blocking validation includes at least situations such as:
 
 - duplicate current product codes;
+- duplicate current category names;
 - required product fields missing;
 - invalid prices or VAT values;
 - references to nonexistent or inconsistent parent records;
@@ -370,7 +386,7 @@ Import feedback has at least two practical levels:
 - **Error** — the workbook cannot be committed until the issue is corrected;
 - **Warning** — the condition deserves operator attention but does not prevent import.
 
-For example, a resulting duplicate current product code is an Error. A large but structurally valid set of price changes may be shown as a Warning rather than being blocked automatically.
+For example, a resulting duplicate current product code or duplicate current category name is an Error. A large but structurally valid set of price changes may be shown as a Warning rather than being blocked automatically.
 
 ### Import-result retention — approved
 
@@ -388,7 +404,8 @@ The following decisions are approved:
 - historical order/catalogue separation;
 - editable/reusable product codes with current-catalogue uniqueness;
 - product deactivation and confirmed permanent deletion;
-- category required, with legacy `RaccourciCat` deferred to UI design;
+- category required, and every current category has a unique operator-facing name;
+- legacy `RaccourciCat` deferred to UI design;
 - structured per-product options with single-select and multi-select support;
 - required/optional option groups and multi-select min/max;
 - individual option activation, positive/negative/zero price adjustments and operator-defined display order;
@@ -405,6 +422,7 @@ The following decisions are approved:
 - removing rows from Excel does not delete live catalogue records;
 - activation/deactivation may be performed explicitly through Excel import;
 - import is validated and previewed before commit;
+- duplicate current category names are blocking validation errors;
 - any blocking error prevents the entire import from being applied;
 - accepted imports are atomic rather than partially committed;
 - validation distinguishes blocking Errors from non-blocking Warnings;
@@ -412,6 +430,6 @@ The following decisions are approved:
 
 ## 11. Approval rule
 
-This document is the **Approved — Phase 2 baseline** for catalogue management. Implementation must preserve historical snapshot independence, mutable but unique current product codes, safe in-application maintenance, structured option behavior, the approved Excel-first batch-maintenance model, transparent/non-editable technical relationships, explicit add-only initialization/import behavior and atomic validated updates.
+This document is the **Approved — Phase 2 baseline**, including the approved Phase 3 amendment requiring unique current category names. Implementation must preserve historical snapshot independence, mutable but unique current product codes, unique operator-facing current category names, safe in-application maintenance, structured option behavior, the approved Excel-first batch-maintenance model, transparent/non-editable technical relationships, explicit add-only initialization/import behavior and atomic validated updates.
 
 Later UI work may refine presentation and interaction details that were intentionally deferred here, but implementation must not change the approved catalogue/business semantics without an explicit specification update.
