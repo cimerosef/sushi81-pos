@@ -1,6 +1,6 @@
 # Catalogue management
 
-**Status:** Draft — Phase 2 first batch  
+**Status:** Approved — Phase 2 baseline  
 **Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
 **Purpose:** Freeze the target product catalogue, product-option and batch-maintenance behavior before implementation.
@@ -248,7 +248,7 @@ When an order is committed, its order-item snapshot contains enough sale-time in
 
 Historical reporting reads values stored on the order/order line rather than reconstructing old sales from the current catalogue.
 
-## 9. Batch import/export — approved Phase 2 model except final technical-column/report details
+## 9. Batch import/export — approved Phase 2 model
 
 ### Primary format — approved
 
@@ -263,7 +263,7 @@ This decision reflects the actual operational need:
 - a workbook is easier for the operator to review and edit than several related CSV files;
 - Excel can serve both as an export and as the standard bulk-maintenance/import template.
 
-### Workbook structure — approved direction
+### Workbook structure — approved
 
 The complete workbook uses separate logical sheets for at least:
 
@@ -271,7 +271,7 @@ The complete workbook uses separate logical sheets for at least:
 2. **OptionGroups** — groups attached to products and their selection rules/order;
 3. **Options** — individual choices, adjustments, active state and order.
 
-Exact user-facing sheet names may be localized later, but the exported/imported workbook must have a stable documented structure.
+The business-visible workbook structure must cover the approved catalogue attributes. Exact localized header wording and purely technical helper-column names may be finalized during implementation, but the operator-facing meaning of the workbook is fixed by this document.
 
 ### Internal identifiers and create/update behavior — approved
 
@@ -285,7 +285,19 @@ For a normal workbook exported by Sushi81 POS:
 - a newly added row with a blank internal ID means **create a new record**;
 - the application assigns the new internal ID only when the import is successfully committed.
 
-The operator normally does not need to read or manage these identifiers manually.
+### Technical identifiers and relationships must be transparent to the operator — approved
+
+The operator must **not** be expected to understand, maintain or manually edit database identifiers or technical relationship keys.
+
+Therefore, in an exported workbook used for normal update/re-import:
+
+- internal IDs and other purely technical relationship/reference values may be present because the application needs them for safe matching;
+- those technical cells/columns must be hidden, protected/locked, or otherwise made non-editable in the normal user workflow;
+- ordinary catalogue editing is performed through the visible business fields, not by changing technical IDs;
+- the application must not document internal IDs as business identifiers that the operator is expected to manage;
+- if a technical ID/reference is nevertheless corrupted or altered outside the intended workflow, validation must reject an unsafe update rather than guessing which record was meant.
+
+For add-only workbooks, the operator must likewise work with understandable business-facing fields. Any temporary or technical relationship mechanism needed to connect newly imported products, groups and options must remain an implementation detail and should not require the operator to manage database IDs manually.
 
 ### Add-only import mode — approved
 
@@ -303,7 +315,7 @@ In add-only mode:
 - successful creation assigns new internal IDs to the imported records;
 - the same mode may also be used later to add a batch of entirely new catalogue records, not only during first installation.
 
-The workbook/template must provide enough import-time relationship information for newly created option groups and options to be linked to their newly created parent product/group during the same atomic import. The final technical reference-column names can be defined in the implementation template without exposing database IDs as business identifiers.
+The workbook/template must provide enough import-time relationship information for newly created option groups and options to be linked to their newly created parent product/group during the same atomic import without requiring the operator to understand or edit database IDs.
 
 ### Deletion and activation behavior — approved
 
@@ -360,14 +372,17 @@ Import feedback has at least two practical levels:
 
 For example, a resulting duplicate current product code is an Error. A large but structurally valid set of price changes may be shown as a Warning rather than being blocked automatically.
 
-## 10. Decisions still to freeze
+### Import-result retention — approved
 
-Before this document becomes baseline, Phase 2 still needs to approve only the remaining small Excel-handling details:
+A successful catalogue import does **not** require a permanently retained import report or separate import-history feature in v1.
 
-1. how technical internal-ID/reference columns are visually protected, hidden or deemphasized in exported workbooks;
-2. whether a successful import result/report needs to be retained after import or whether the preview/final result shown at import time is sufficient.
+The operator must receive a clear preview before commit and a clear success/result message for the current import operation. After the import is complete, the authoritative source for the current catalogue state is the database itself.
 
-The following are already approved and no longer open questions:
+This does not prevent normal technical application logging for diagnostics, but such logging is not an operator-facing business audit trail and is not a required catalogue feature.
+
+## 10. Phase 2 catalogue decisions frozen in this document
+
+The following decisions are approved:
 
 - required base product fields and state flags;
 - historical order/catalogue separation;
@@ -384,6 +399,7 @@ The following are already approved and no longer open questions:
 - CSV is not a required complete-catalogue format in V1;
 - complete Excel export/import is organized into product, option-group and option sheets;
 - existing internal IDs identify updates while blank IDs identify new records in normal exported workbooks;
+- technical IDs/relationships are transparent to the operator and are not normal editable business fields;
 - explicit add-only import supports workbooks without existing internal IDs, including first-time catalogue initialization;
 - add-only mode never silently updates existing records by guessing from business fields;
 - removing rows from Excel does not delete live catalogue records;
@@ -391,8 +407,11 @@ The following are already approved and no longer open questions:
 - import is validated and previewed before commit;
 - any blocking error prevents the entire import from being applied;
 - accepted imports are atomic rather than partially committed;
-- validation distinguishes blocking Errors from non-blocking Warnings.
+- validation distinguishes blocking Errors from non-blocking Warnings;
+- no permanent operator-facing import report/history is required after a successful import.
 
 ## 11. Approval rule
 
-This file remains a Draft until the remaining Excel technical-column and import-report handling details are explicitly approved. Implementation must preserve historical snapshot independence, mutable but unique current product codes, safe catalogue maintenance, structured option behavior, the approved Excel-first batch-maintenance model, and explicit add-only initialization/import behavior.
+This document is the **Approved — Phase 2 baseline** for catalogue management. Implementation must preserve historical snapshot independence, mutable but unique current product codes, safe in-application maintenance, structured option behavior, the approved Excel-first batch-maintenance model, transparent/non-editable technical relationships, explicit add-only initialization/import behavior and atomic validated updates.
+
+Later UI work may refine presentation and interaction details that were intentionally deferred here, but implementation must not change the approved catalogue/business semantics without an explicit specification update.
