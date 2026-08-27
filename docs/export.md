@@ -13,7 +13,7 @@ The approved boundary is:
 
 **Sushi81 POS -> controlled intermediate export file -> separate/manual import into Gestion SUSHI 81**
 
-This document defines POS-side eligibility, export content, duplicate protection, file-generation safety and the contract exposed to the downstream import process.
+This document defines POS-side eligibility, export content, duplicate protection, file-generation safety, post-export correction behavior and the contract exposed to the downstream import process.
 
 It does not redefine catalogue import/export, order/payment lifecycle, printing, annual SQLite archive behavior or the internal logic of the downstream management workbook/import process.
 
@@ -85,6 +85,7 @@ The intermediate export package must expose deterministic order-level and sales-
 
 The export model must be able to provide the fields required by the management workflow, including where applicable:
 
+- export action type (`CREATE`, `UPDATE`, `CANCEL` or equivalent controlled value);
 - Sushi81 POS order ID;
 - relevant order/business date and time;
 - fulfilment mode and planned fulfilment date/time;
@@ -98,6 +99,7 @@ The export model must be able to provide the fields required by the management w
 Sales-detail export must preserve the historical values required for product analysis, including where required:
 
 - parent order ID;
+- relevant export action/context;
 - relevant business date;
 - product code snapshot;
 - product name snapshot;
@@ -118,20 +120,48 @@ A successful export does not:
 - change the order ID;
 - rewrite historical snapshots.
 
-Separate technical export metadata may track successful batches and exported order IDs.
+Separate technical export metadata may track successful batches, exported order IDs and pending/exported correction actions.
 
-## 7. Duplicate protection and retry — technical requirement
+## 7. Duplicate protection, retry and post-export correction — approved Phase 4 rule
 
-Export must be idempotent enough that retrying after a failure does not casually duplicate the same order in generated export packages.
+Export must distinguish accidental duplicate export from a legitimate later correction to an already-exported order.
 
 The implementation should maintain export-batch/ledger metadata so that:
 
-- an order is marked successfully exported only after the intermediate file is generated and validated successfully;
+- an ordinary order is marked successfully exported only after the intermediate file is generated and validated successfully;
 - failed generation remains safely retryable;
-- already-successfully-exported orders are not included again by an ordinary repeated export;
+- an already-successfully-exported unchanged order is not included again by an ordinary repeated export;
 - diagnostics can identify failed batches without altering business state.
 
-Because downstream import is a separate manual step, stable Sushi81 POS order IDs must be present in the intermediate data so the downstream importer can also detect duplicates independently.
+### 7.1 Modification before first successful export
+
+If an order is modified before it has ever been successfully exported, the later ordinary export simply contains the latest committed state. No correction action is required.
+
+### 7.2 Modification after successful export
+
+If an already-exported order is later modified, the POS records a pending correction for the same stable order ID.
+
+The next applicable export package carries an explicit `UPDATE` action for that order.
+
+`UPDATE` means that the downstream import workflow must replace/update the previously imported business state for that same order ID rather than create a second sale.
+
+### 7.3 Cancellation after successful export
+
+If an already-exported order is later cancelled, the POS records a pending correction for the same stable order ID.
+
+The next applicable export package carries an explicit `CANCEL` action for that order.
+
+`CANCEL` means that the downstream import workflow must reverse/remove the previously imported sale for that same order ID rather than create another positive record.
+
+### 7.4 Correction export tracking
+
+A legitimate pending `UPDATE` or `CANCEL` may be exported even though the order ID appeared in a previous successful export batch.
+
+Once the correction intermediate file has itself been generated and validated successfully, that correction action may be marked successfully exported in the technical export ledger.
+
+The downstream importer must apply `UPDATE`/`CANCEL` idempotently using the stable Sushi81 POS order ID.
+
+This rule is frozen in `docs/decisions/export-post-export-correction.md`.
 
 ## 8. Intermediate-file workflow — approved Phase 4 rule
 
@@ -140,10 +170,10 @@ V1 does **not** write directly into `Gestion SUSHI 81.xlsm`.
 Instead:
 
 1. the operator launches export in Sushi81 POS;
-2. POS determines the eligible not-yet-exported set, optionally narrowed by the selected date range;
+2. POS determines the eligible not-yet-exported set, optionally narrowed by the selected date range, together with any applicable pending correction actions;
 3. POS generates a controlled intermediate export file;
 4. POS validates the generated file;
-5. only after successful validation is the export batch marked successful;
+5. only after successful validation is the export batch/correction batch marked successful;
 6. the operator later imports that file into the current Gestion workflow through a separate process.
 
 The POS export transaction ends at successful generation of the intermediate file. It does not claim or track that the later Gestion import was actually performed.
@@ -159,6 +189,7 @@ The V1 intermediate format should be a controlled, versionable tabular Excel-com
 The exact sheet/column design is a technical mapping task, but it must:
 
 - carry a schema/version marker;
+- carry a controlled export action type so downstream logic can distinguish initial creation from `UPDATE` and `CANCEL` corrections;
 - preserve stable Sushi81 POS order IDs;
 - separate or clearly distinguish order-level and sales-detail data;
 - contain all fields required for the downstream Gestion import and analysis workflow;
@@ -174,33 +205,36 @@ Tests must cover at least:
 
 - eligible `Closed` ordinary POS order included;
 - unpaid and partially paid `Open` orders excluded;
-- Cancelled order excluded;
+- Cancelled order excluded from initial positive-sale export;
 - Hiboutik paste-created order excluded;
 - default export with no date restriction includes all eligible not-yet-exported orders;
 - optional inclusive custom date range narrows the eligible set;
 - historical prices/options/VAT preserved;
 - intermediate file generated and validated without access to `Gestion SUSHI 81.xlsm`;
 - failed file generation safely retryable;
-- repeated ordinary export does not duplicate already-exported records;
+- repeated ordinary export does not duplicate already-exported unchanged records;
 - stable order IDs present for downstream duplicate protection;
-- post-export modification/cancellation under the final correction rule.
+- pre-export modification exported only as latest normal state;
+- post-export modification produces `UPDATE` for the same order ID;
+- post-export cancellation produces `CANCEL` for the same order ID;
+- repeated correction handling remains idempotent downstream.
 
-## 11. Remaining business/workflow decision
+## 11. Frozen Phase 4 business/workflow decisions
 
-The following are frozen:
+The following export business/workflow rules are now frozen:
 
-- only fully settled `Closed`, non-cancelled ordinary POS orders are eligible;
+- only fully settled `Closed`, non-cancelled ordinary POS orders are eligible for initial positive-sale export;
 - default export has no mandatory date restriction and exports all eligible not-yet-exported orders;
 - the operator may optionally narrow export with a custom inclusive date range;
 - no mandatory J-2 cutoff remains;
-- POS generates a controlled intermediate export file instead of writing directly into `Gestion SUSHI 81.xlsm`.
-
-One business/workflow decision remains:
-
-**Post-export correction — treatment of an order that has already been exported and is later modified or cancelled.**
+- POS generates a controlled intermediate export file instead of writing directly into `Gestion SUSHI 81.xlsm`;
+- post-export modifications are exported as `UPDATE` against the same stable order ID;
+- post-export cancellations are exported as `CANCEL` against the same stable order ID.
 
 ## 12. Approval rule
 
-This document remains **Draft — Phase 4 working design** until the remaining post-export correction decision is frozen and the intermediate-file field mapping is validated against the current downstream management needs.
+All material Phase 4 export business/workflow choices are frozen.
+
+This document remains **Draft — Phase 4 working design** only until the intermediate-file field mapping is validated against the current downstream management needs and any resulting purely technical mapping details are incorporated.
 
 Pure file naming, workbook layout, ClosedXML handling, temporary-file mechanics, schema-version encoding and export-ledger implementation details may be selected directly according to the project priority order: reliability > simplicity > maintainability > operational clarity > novelty.
