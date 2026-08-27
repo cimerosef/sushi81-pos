@@ -227,6 +227,19 @@ Predefined option-price adjustments use the already-approved calculation rules f
 
 Custom operator-entered option adjustments for exceptional cases also remain governed by `business-rules.md`, including the requirement for a non-empty description.
 
+### Display order — approved Phase 2 decision
+
+The operator must be able to control the display order of both:
+
+- option groups attached to a product; and
+- individual option labels within each group.
+
+The configured order must be persisted and used by the order-entry option-selection prompt so the most useful or frequently selected choices can be placed first.
+
+The detailed editing interaction may use drag-and-drop, up/down controls or another simple UI mechanism. The exact control is a later UI-design choice; the required behavior is that the operator can deliberately reorder the groups and choices and that the saved order is respected during normal ordering.
+
+Automatic alphabetical sorting must not override the operator-defined option order.
+
 ### Order-entry prompting — approved Phase 2 decision
 
 When the operator selects/adds a product during order entry:
@@ -234,6 +247,7 @@ When the operator selects/adds a product during order entry:
 - if that product has no enabled option group/choice requirement, it is added through the normal fast-ordering workflow without an unnecessary option dialog;
 - if that product has enabled structured options, the application must automatically present an option-selection dialog/prompt immediately as part of adding that product;
 - the operator should not have to remember to open a separate option editor manually after adding the product;
+- the prompt must present the option groups and choices in the operator-defined display order;
 - the prompt must present the choices according to the configured single-select or multi-select behavior;
 - required groups and configured minimum/maximum limits must be enforced before the option-selection step is accepted;
 - optional groups may be left unselected when their configured minimum permits zero selections;
@@ -241,8 +255,6 @@ When the operator selects/adds a product during order entry:
 - the selected option labels and any price adjustments are attached to that specific order line and copied into the order snapshot.
 
 The exact visual form of the prompt — modal dialog, popover, side panel or another interaction pattern — is a UI-design choice. The required behavior is that selection is surfaced automatically and clearly at product-add time.
-
-The remaining option detail to freeze is the **display/order behavior for option groups and option labels**. The exact visual form remains a UI-design decision, but Phase 2 still needs to decide whether the operator must be able to control their ordering explicitly.
 
 ## 7. Historical stability — approved Phase 2 principle
 
@@ -296,11 +308,10 @@ No import should partially apply a logically invalid catalogue update without cl
 
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
-1. display/order behavior for option groups and individual option labels;
-2. in-application catalogue editing workflow;
-3. final batch import/export format and columns;
-4. update/conflict/deactivation/delete behavior during import;
-5. validation and preview requirements.
+1. in-application catalogue editing workflow;
+2. final batch import/export format and columns;
+3. update/conflict/deactivation/delete behavior during import;
+4. validation and preview requirements.
 
 The following product-field/identity/lifecycle/history/category/option principles are already approved and are no longer open questions:
 
@@ -314,6 +325,7 @@ The following product-field/identity/lifecycle/history/category/option principle
 - each individual option has a label, a predefined positive/negative/zero price adjustment and its own active/inactive state;
 - individual options may be temporarily deactivated without disabling the parent product or option group;
 - predefined option-price adjustments follow the approved discount, VAT, precision and rounding rules in `business-rules.md`;
+- option groups and individual options have an operator-defined persistent display order used during order entry;
 - when a product has enabled structured options, order entry automatically presents an option-selection prompt when that product is selected/added;
 - option selections are attached to the specific order line and retained in the order snapshot;
 - confirmed historical orders are independent snapshots and do not depend on the live catalogue;
