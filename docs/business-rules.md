@@ -210,19 +210,27 @@ Manual editing of the order total:
 
 This capability is intentional. Sushi81 POS is a practical operational/turnover-recording tool, and the operator may encounter exceptional situations not anticipated by the normal pricing rules. The software should allow the operator to record the business amount that has actually been decided while keeping automatic calculation behavior predictable whenever the underlying order changes.
 
-### 4.6 Rounding and monetary consistency
+### 4.6 Rounding and monetary consistency — approved Phase 2 decision
 
-All monetary entry and displayed order amounts use euro-cent precision unless another explicit rule states otherwise.
+All operator-facing and persisted monetary amounts use **€0.01 precision** unless another explicit rule states otherwise.
 
-Custom option-price adjustments are entered/stored to **€0.01 precision**.
+The application uses ordinary decimal **round-half-up** behavior to the nearest cent for final monetary results. For example, `€13.635` becomes `€13.64`.
 
-All target pricing rules must define deterministic euro-cent rounding so that cart totals, receipts, payment totals, exports and reconciliation agree.
+This same cent-precision rule applies consistently to:
 
-The exact rounding point for percentage discounts and VAT presentation remains to be frozen.
+- percentage-discount results;
+- VAT amounts shown or persisted by the application;
+- product/option monetary results where rounding is required;
+- authoritative order totals;
+- CB and Espèce amounts;
+- turnover and received-payment summaries;
+- printed/exported monetary values.
 
-The authoritative editable order total is stored to euro-cent precision.
+The implementation may retain additional internal precision during intermediate calculations when useful, but it must use one deterministic calculation/rounding sequence so that the values shown on screen, printed on receipts, used for closing validation, included in summaries and exported downstream never disagree because different modules rounded the same business amount differently.
 
-## 5. Configuration principle — approved Phase 2 principle
+Banker's rounding or module-specific rounding conventions must not be introduced.
+
+### 5. Configuration principle — approved Phase 2 principle
 
 Values that Sushi 81 may reasonably change during normal operation must be represented as user-editable business configuration rather than hard-coded constants when practical.
 
@@ -240,10 +248,7 @@ Configuration must not weaken the rule model: changing a value changes the param
 
 ## 6. Decisions still to freeze
 
-Before this document becomes baseline, Phase 2 must explicitly approve at least:
-
-1. rounding rules for percentage discounts and VAT/order totals;
-2. any remaining commercial values that must be operator-configurable in v1.
+Before this document becomes baseline, Phase 2 only needs to confirm whether any **additional** commercial values beyond those already listed in section 5 must be operator-configurable in v1.
 
 The following are already approved and are no longer open questions:
 
@@ -267,9 +272,10 @@ The following are already approved and are no longer open questions:
 - custom option adjustments may be positive or negative, have no amount cap, require a text description and use €0.01 precision;
 - positive option adjustments do not receive pickup discount, while negative adjustments reduce the discountable product amount before discount calculation;
 - positive option adjustments use fixed 5.5% VAT, while negative adjustments inherit the associated product VAT rate;
+- all final monetary results use €0.01 precision with ordinary round-half-up behavior;
 - the ordinary order-total field is directly editable;
 - later price-affecting order changes automatically recalculate and replace any manual total override.
 
 ## 7. Approval rule
 
-This file remains a Draft until the remaining target rules above are explicitly approved. Codex must implement the approved Retrait and Livraison semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, hard-code configurable commercial thresholds, apply pickup discount to positive option surcharges, or assign option-adjustment VAT contrary to the rules above without explicit product approval.
+This file remains a Draft only until the remaining configuration-scope question in section 6 is reviewed. Codex must implement the approved Retrait and Livraison semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, hard-code configurable commercial thresholds, apply pickup discount to positive option surcharges, assign option-adjustment VAT contrary to the rules above, or use inconsistent monetary rounding without explicit product approval.
