@@ -1,7 +1,7 @@
 # Catalogue management
 
 **Status:** Draft — Phase 2 first batch  
-**Last updated:** 2026-08-26  
+**Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
 **Purpose:** Freeze the target product catalogue, product-option and batch-maintenance behavior before implementation.
 
@@ -23,11 +23,11 @@ It covers:
 
 It does not define the physical database schema, order lifecycle or final screen layout.
 
-## 2. Authoritative Phase 1 baseline
+## 2. Authoritative Phase 1 baseline and Phase 2 refinement
 
 The target catalogue must support at least the product information already required by the approved Phase 1 documents:
 
-- permanent product code/identity;
+- product code used by the operator;
 - product name;
 - category;
 - TTC selling price;
@@ -37,28 +37,36 @@ The target catalogue must support at least the product information already requi
 - category shortcut/display support where retained;
 - one or more product options/choices where applicable.
 
-The following requirements are already fixed:
+The following requirements remain fixed:
 
 1. product browsing/search must work by code and name;
-2. inactive products must remain available for history but disappear from normal order selection;
-3. catalogue changes must not rewrite historical order-item data;
-4. confirmed orders must retain a sale-time snapshot sufficient to reproduce historical name, base price, VAT and selected option/adjustment information;
+2. inactive products disappear from normal order selection but may remain in the current catalogue for later reactivation;
+3. catalogue changes must never rewrite historical order-item data;
+4. confirmed orders must retain a complete sale-time snapshot sufficient to reproduce historical product code, name, base price, VAT and selected option/adjustment information;
 5. catalogue maintenance must be possible inside the application without editing Excel;
 6. batch import/export must be supported through an approved tabular format such as Excel or CSV;
 7. ordinary order entry may not overwrite the catalogue product's base unit price;
 8. a product option can have a predefined price adjustment and the operator may need a custom option adjustment for exceptional real-world cases.
 
-## 3. Product identity
+Phase 2 explicitly refines the earlier idea that the operator-facing product code should act as a permanent historical identity. Historical orders and the live catalogue are intentionally separated. The catalogue describes what is available for current/future ordering; a confirmed order stores its own sale-time product data and does not depend on the later state of the catalogue.
 
-The current system uses `Code` as the permanent unique product identifier and does not intend codes to be reused for a different product.
+## 3. Product identity — approved Phase 2 principle
 
-The Phase 2 target should preserve that historical-safety principle unless explicitly changed:
+The operator-facing product `Code` is an **editable operational/catalogue code**, not the permanent business identity of historical sales.
 
-- a code identifies one logical product across time;
-- deactivation is preferred over deleting a product that has historical sales;
-- a code previously used for one product should not later identify an unrelated product.
+Approved principles:
 
-Exact rules for code editing and code reuse remain to be approved.
+- historical order lines are self-contained sale records and do not obtain their current meaning by looking up the live catalogue;
+- once an order is confirmed, its stored product code, product name, price, VAT, options and adjustments remain fixed unless the order itself is explicitly edited under the order-lifecycle rules;
+- later catalogue edits do not alter any existing order;
+- the operator may change a catalogue product's code;
+- a code may later be reassigned to substantially different catalogue content when this is operationally useful;
+- prior historical use of a code does not permanently reserve that code;
+- catalogue code sequences such as letter-plus-number series may therefore be reorganized without creating permanent gaps solely for historical reasons.
+
+At the database level, implementation should use a separate opaque/internal product identifier (for example an internal `product_id`) so the application can safely identify catalogue records without forcing the operator-facing `Code` to be immutable. That internal identifier is an implementation concern and is not intended to become part of the normal ordering workflow or visible business code.
+
+Within the **current live catalogue**, codes should still be unambiguous for fast search/selection. The exact duplicate-code validation rule for simultaneously existing catalogue entries remains to be frozen, but historical use of a code must not block future reuse.
 
 ## 4. Product maintenance
 
@@ -67,13 +75,16 @@ The application must support practical maintenance of the catalogue without Exce
 Target actions include:
 
 - add product;
+- edit product code;
 - edit approved product/commercial attributes;
 - activate/deactivate product;
 - manage category assignment;
 - manage discount eligibility;
 - manage product options and their price adjustments.
 
-Phase 2 must distinguish attributes that are safe to edit from identity/history-sensitive attributes that should be immutable or tightly controlled.
+Because historical orders are snapshot-based and independent from the live catalogue, editing current catalogue attributes — including the product code, name, price, VAT or category — must not rewrite historical orders.
+
+Whether the application should also allow permanent deletion of current catalogue records, and under what safeguards, remains to be approved. Historical-order preservation by itself is not a reason to prohibit deletion, because historical orders do not depend on the live catalogue record.
 
 ## 5. Categories
 
@@ -90,7 +101,7 @@ The target application must preserve fast category-based product selection. Phas
 
 The target catalogue must replace the current practice of typing flavour/menu choices into the order-level comment when the choice belongs to a specific product.
 
-A product may need one or more structured option groups, for example a flavour or menu variant. The selected option must remain attached to the corresponding historical order item.
+A product may need one or more structured option groups, for example a flavour or menu variant. The selected option must be copied into the corresponding historical order item at confirmation time so later catalogue-option changes do not alter that order.
 
 Phase 2 must define:
 
@@ -102,21 +113,28 @@ Phase 2 must define:
 - custom option-adjustment behavior;
 - whether option availability can be activated/deactivated independently from the parent product.
 
-## 7. Historical stability
+## 7. Historical stability — approved Phase 2 principle
 
 Catalogue maintenance must never silently rewrite historical orders.
 
+Historical order lines and the current catalogue are deliberately **decoupled after order confirmation**.
+
 When an order is committed, the order-item snapshot must contain enough sale-time information that later changes to:
 
+- product code;
 - product name;
 - current price;
 - VAT;
 - discount eligibility;
+- category;
 - option name;
 - option price adjustment;
-- active/inactive status
+- active/inactive status;
+- or even later reuse of the same operator-facing product code for different catalogue content
 
 do not alter the historical order's financial or printed meaning.
+
+Historical reporting therefore reads the values stored on the order/order line rather than reconstructing old sales from the current catalogue.
 
 ## 8. Batch import/export
 
@@ -126,9 +144,10 @@ The exact target format remains to be approved. Phase 2 must define:
 
 - Excel, CSV or both;
 - mandatory and optional columns;
-- stable identifiers for products, categories and options;
+- stable internal handling for products, categories and options without exposing an immutable business-code requirement;
 - how new products are distinguished from updates;
-- duplicate-code handling;
+- duplicate current-code handling;
+- code changes/reassignments during import;
 - invalid VAT/price/category handling;
 - preview/validation before applying changes;
 - whether import may deactivate products;
@@ -143,17 +162,24 @@ No import should partially apply a logically invalid catalogue update without cl
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
 1. final product fields and which are mandatory;
-2. product-code immutability/reuse rules;
+2. current-catalogue duplicate-code rules and deletion behavior;
 3. category and category-shortcut model;
 4. final option-group model;
 5. required/optional option-selection behavior;
-6. predefined and custom option-price adjustment rules;
-7. how discount eligibility applies to option adjustments;
-8. in-application catalogue editing workflow;
-9. final batch import/export format and columns;
-10. update/conflict/deactivation/delete behavior during import;
-11. validation and preview requirements.
+6. predefined option-price-adjustment catalogue behavior consistent with `business-rules.md`;
+7. in-application catalogue editing workflow;
+8. final batch import/export format and columns;
+9. update/conflict/deactivation/delete behavior during import;
+10. validation and preview requirements.
+
+The following identity/history principles are already approved and are no longer open questions:
+
+- confirmed historical orders are independent snapshots and do not depend on the live catalogue;
+- operator-facing product codes are editable and may be reused/reassigned over time;
+- prior historical use does not permanently reserve a product code;
+- later catalogue edits, including code changes, never alter existing confirmed orders;
+- implementation may use a hidden immutable internal identifier for safe database handling without exposing that identifier as the business product code.
 
 ## 10. Approval rule
 
-This file remains a Draft until the catalogue and option rules above are explicitly approved. Implementation must preserve historical order stability and must not infer destructive catalogue behavior from generic CRUD conventions.
+This file remains a Draft until the catalogue and option rules above are explicitly approved. Implementation must preserve the strict separation between historical order snapshots and the mutable live catalogue, and must not treat the operator-facing product code as an immutable historical identity.
