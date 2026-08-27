@@ -146,29 +146,32 @@ This formatting is a presentation/normalization convenience, not a reason to mak
 
 ### 4.4 Product-option price adjustments — partially approved Phase 2 decision
 
-Product options may carry predefined or operator-entered price adjustments attached to the relevant order line rather than changing the catalogue product's base price.
+Product options may carry either preset or operator-entered price adjustments associated with a specific order line.
 
-The interaction between product options and the `Retrait` discount is approved as follows for a discount-eligible product:
+Approved rules:
 
-- a **positive option adjustment / surcharge does not receive the pickup discount**;
-- a **negative option adjustment / reduction participates in the pickup discount together with the product's discountable base amount**;
-- therefore the discount is calculated on the product base price after subtracting eligible negative option adjustments, while positive option adjustments are added afterwards at full value.
+- option-price adjustments may be **positive or negative**;
+- no business maximum or minimum adjustment amount is required;
+- a custom operator-entered adjustment must have a **non-empty text label/description**;
+- that description is the commercial name of the adjustment and must be retained with the order line and shown on the customer-facing receipt/printout where the adjustment is displayed;
+- an adjustment changes only that order line; it does not change the catalogue product's base price;
+- changing the order line, its options or its adjustments is a price-affecting change and therefore triggers normal order-total recalculation under section 4.5.
 
-Using a 10% discount as an example:
+#### Discount interaction — approved Phase 2 decision
 
-- product €10.00 with a `+€2.00` option -> discounted product €9.00 + full €2.00 surcharge = **€11.00**;
-- product €10.00 with a `-€2.00` option -> (€10.00 - €2.00) × 90% = **€7.20**.
+For a discount-eligible product in a discounted `Retrait` order:
 
-This rule means a surcharge is never reduced by the pickup discount, while a reduction proportionally reduces the amount on which the pickup discount is calculated.
+- a **positive option adjustment does not receive the pickup discount**;
+- a **negative option adjustment reduces the discountable product amount before the discount is calculated**.
 
-Phase 2 must still define:
+With a 10% discount on a €10 discount-eligible product:
 
-- whether custom option adjustments may be zero, positive and/or negative;
-- allowed decimal precision;
-- whether a maximum/minimum adjustment is needed;
-- whether the operator must choose an option label before entering a custom adjustment;
-- whether a custom adjustment requires a comment/reason;
-- VAT treatment for option adjustments where relevant.
+- product €10 + positive option €2 -> `€10 × 90% + €2 = €11.00`;
+- product €10 + negative option €2 -> `(€10 - €2) × 90% = €7.20`.
+
+This asymmetry is intentional: extra-charge options keep their full added price, while negative adjustments reduce the amount that is subject to the product's discount.
+
+The remaining product-option detail to freeze is monetary input precision/rounding for custom adjustments and how VAT presentation should inherit from the associated product line.
 
 ### 4.5 Editable order total — approved Phase 2 decision
 
@@ -227,8 +230,8 @@ Configuration must not weaken the rule model: changing a value changes the param
 
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
-1. remaining custom option-price adjustment validation;
-2. VAT treatment for product-option adjustments where relevant;
+1. monetary input precision/rounding for custom option-price adjustments;
+2. VAT presentation/inheritance for product-option adjustments;
 3. rounding rules for percentage discounts and order totals;
 4. any remaining commercial values that must be operator-configurable in v1.
 
@@ -251,11 +254,11 @@ The following are already approved and are no longer open questions:
 - telephone is optional for both Retrait and Livraison;
 - delivery address is optional at initial Livraison confirmation and may be added or corrected later on the same order;
 - standard 10-digit telephone entry may be typed without spaces and is displayed/printed in grouped form such as `06 12 34 56 78` after save;
-- positive product-option surcharges do not receive the Retrait discount;
-- negative product-option adjustments reduce the discountable product amount and therefore participate proportionally in the Retrait discount;
+- custom option adjustments may be positive or negative, have no amount cap, and require a text description;
+- positive option adjustments do not receive pickup discount, while negative adjustments reduce the discountable product amount before discount calculation;
 - the ordinary order-total field is directly editable;
 - later price-affecting order changes automatically recalculate and replace any manual total override.
 
 ## 7. Approval rule
 
-This file remains a Draft until the remaining target rules above are explicitly approved. Codex must implement the approved Retrait and Livraison semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, or hard-code configurable commercial thresholds without explicit product approval.
+This file remains a Draft until the remaining target rules above are explicitly approved. Codex must implement the approved Retrait and Livraison semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, hard-code configurable commercial thresholds, or apply pickup discount to positive option surcharges without explicit product approval.
