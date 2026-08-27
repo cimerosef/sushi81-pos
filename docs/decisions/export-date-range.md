@@ -8,27 +8,35 @@
 
 V1 does not impose the legacy fixed J-2 export cutoff.
 
-Instead, the operator chooses the export period explicitly by providing a start date and an end date.
+The normal/default export action has **no mandatory date restriction**. It considers every order that:
 
-The exporter then considers only orders that:
+- is an ordinary POS-originated order;
+- is not `Cancelled`;
+- is fully settled;
+- is `Closed`;
+- has not already been successfully exported under the applicable idempotency/correction rules.
 
-- fall within the selected date period under the final approved export-date basis;
-- are ordinary POS-originated orders;
-- are not Cancelled;
-- are fully settled;
-- are `Closed`;
-- have not already been successfully exported under the applicable idempotency/correction rules.
+In other words, the default operation is: **export all eligible settled orders that still need export**.
 
-The date range is inclusive at both ends.
+The operator may optionally narrow this set by selecting an inclusive start date and end date.
 
-The UI may provide convenience presets such as today, yesterday, this week or a previous period, but such presets are shortcuts only. The operator remains able to choose a custom period.
+The date range is therefore an optional convenience filter, not a required export period and not a replacement for the eligibility rules.
+
+For V1, when the optional date filter is used, it applies to the order's business/fulfilment date used for sales-period reporting. The UI must make the selected range visible before execution.
+
+The UI may provide convenience presets such as today, yesterday, this week or another practical period, but custom date selection must remain available.
 
 ## Superseded legacy behavior
 
 The old J-2 rule is not carried forward as a mandatory cutoff.
 
-That rule existed mainly as an operational buffer in the workbook-centered system. SQLite retention and the new `Closed`-only eligibility rule remove the need for a fixed delay.
+The earlier Phase 4 draft that required the operator to choose a date range before every export is also superseded by this decision. Date selection is optional.
 
-## Remaining point
+## Rationale
 
-A separate business decision must still define which business date controls inclusion in the selected period (for example order/fulfilment date versus settlement date). This decision record freezes only that the **operator controls the export period** rather than the application imposing a fixed J-2 delay.
+The combination of two rules is sufficient for V1:
+
+1. business eligibility determines what can be exported;
+2. an optional user-selected date range can narrow that eligible set when the operator wants a specific period.
+
+No additional automatic cutoff policy is required.
