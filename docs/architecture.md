@@ -51,6 +51,10 @@ The application must remain usable on the current working computer even if Inter
 
 The active SQLite working database must **not** be opened directly from a OneDrive-synchronized folder and must not be concurrently written by two computers.
 
+The local working database and local recovery snapshots are application-managed technical data. Normal users are not asked to choose, move, rename or directly manipulate those files.
+
+Cross-computer handoff is configured separately through a user-selected OneDrive handoff folder. Selecting that folder does not move or expose the local working database.
+
 ## 5. Monetary representation — approved Phase 3 direction
 
 Persisted business money uses **integer euro cents** rather than binary floating point.
@@ -81,11 +85,13 @@ Requirements:
 
 Sushi81 POS does **not** implement simultaneous multi-writer database access in v1.
 
-The two-computer workflow uses controlled handoff of complete, validated SQLite snapshots through OneDrive.
+The two-computer workflow uses controlled handoff of complete, validated SQLite snapshots through a user-configured OneDrive handoff folder.
 
 OneDrive is therefore a **handoff transport and backup medium**, not the live database engine and not a real-time database synchronization service.
 
-Exact handoff, integrity, release/acquisition and failure behavior is defined in `storage-strategy.md`.
+Each participating computer keeps its own local working database outside OneDrive and reconstructs/updates that local database only from a formally completed and validated handoff snapshot.
+
+Exact handoff, integrity, release/acquisition, pairing and failure behavior is defined in `storage-strategy.md`.
 
 ## 8. Maintainability principle
 
@@ -107,12 +113,14 @@ The codebase should remain understandable enough that Codex or a future maintain
 
 Before this document becomes the final approved architecture baseline, Phase 3 should still decide at least:
 
-- Windows packaging/install model and application/data folder layout;
+- Windows packaging/install model and exact application/data folder layout;
 - exact local configuration/log locations;
 - dependency choice for Excel `.xlsx` import/export;
 - physical SQLite settings needed for durability/performance;
 - printing integration details that materially affect architecture;
 - update/distribution approach for future application versions.
+
+The storage location policy itself is already constrained: `live.db` and local recovery snapshots remain application managed, while the OneDrive handoff root is user configurable.
 
 ## 10. Approval rule
 
