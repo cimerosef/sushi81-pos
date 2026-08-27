@@ -241,23 +241,28 @@ Automated tests should cover at least:
 
 The same committed order state must generate the same business print content regardless of which paired authoritative device renders it, except for local printer/page-driver mechanics.
 
-## 15. Non-authoritative read-only device — business decision still open
+## 15. Non-authoritative read-only device — approved Phase 4 rule
 
-`storage-strategy.md` deliberately deferred one printing question because a non-authoritative device may hold stale live data.
+A paired device that is currently non-authoritative/read-only may still print and reprint both kitchen and customer tickets from the live-data copy available on that device.
 
-A non-authoritative device can clearly show/read its last formally acquired copy, but printing from that stale live copy can create operational risk, especially a duplicate or outdated kitchen ticket.
+The application must not hard-block printing merely because the device may hold stale data.
 
-This document must therefore freeze whether a non-authoritative read-only device may:
+Instead:
 
-- print/reprint kitchen tickets from its stale live database;
-- print/reprint customer tickets from its stale live database;
-- print completed annual archive orders, whose data is immutable/read-only and not stale in the same sense.
+- the UI must clearly indicate that the device is non-authoritative and that the displayed order may not be the latest version;
+- the operator remains free to continue with the print/reprint action after seeing that state;
+- the final risk judgment belongs to the operator;
+- printing from the non-authoritative device does not create or imply an authority transfer, synchronization success or database write;
+- the printed document is generated strictly from the committed order state actually available on that device;
+- the application must not claim that freshness has been verified when it has not.
 
-This is an operator/business-safety decision rather than a purely technical choice.
+Completed annual archive orders remain printable as immutable historical records.
 
-## 16. Later printing details to review after section 15
+This rule is frozen in `docs/decisions/non-authoritative-device-printing.md`.
 
-After the read-only-device rule is frozen, the remaining operator-facing printing details to check sequentially include only matters that materially change business output or behavior, such as:
+## 16. Remaining operator-facing printing decisions
+
+The remaining business-printing details to check sequentially are limited to matters that materially change output or live operational behavior, including:
 
 - whether saving a modification should automatically print one/both tickets or only make reprint actions available;
 - cancelled-order reprint availability and visible cancellation marking;
