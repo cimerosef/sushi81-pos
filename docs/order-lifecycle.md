@@ -1,7 +1,7 @@
 # Order lifecycle
 
 **Status:** Approved — Phase 2 baseline  
-**Last updated:** 2026-08-26  
+**Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
 **Purpose:** Freeze the target order, modification, cancellation and payment lifecycle before implementation.
 
@@ -56,7 +56,7 @@ The following principles remain fixed:
 11. Hiboutik emergency-import records are operational/printing copies, not new POS-originated sales; they remain excluded from ordinary POS turnover/card-entry/export totals.
 12. External card-terminal refund/additional-charge handling remains outside the POS in v1.
 13. The operator may directly edit the order total without changing catalogue product base prices.
-14. A later change to products, quantities, options/price adjustments or discounts automatically recalculates and replaces any prior manual total override.
+14. A later change to products, quantities, options/price adjustments, discounts or an applicable configured delivery fee automatically recalculates and replaces any prior manual total override.
 15. Every new order must explicitly select a fulfilment mode: `Retrait` or `Livraison`. No order may be confirmed without that selection.
 
 ## 3. Lifecycle dimensions
@@ -144,7 +144,7 @@ The application normally calculates that field from product lines, quantities, o
 
 A manual edit becomes the authoritative order total at that moment. However, the manual value does **not** lock the order total against future system calculation.
 
-If any price-affecting order input is subsequently changed — including products, quantities, product options/price adjustments or discount application — the application must automatically recalculate the total using the normal approved rules and overwrite the earlier manual value.
+If any price-affecting order input is subsequently changed — including products, quantities, product options/price adjustments, discount application or an applicable configured delivery fee — the application must automatically recalculate the total using the normal approved rules and overwrite the earlier manual value.
 
 If the operator still wants a special total after that recalculation, the operator may simply edit the total again.
 
@@ -217,13 +217,15 @@ Operational turnover is attributed to the order's **planned fulfilment date**, n
 
 This separation intentionally allows operational turnover and received money to differ on a given day and produces a more accurate basis for analysing which weekdays or calendar dates generate the strongest business activity.
 
-### 4.9 Future / due today / overdue
+### 4.9 Future / due today / overdue — Phase 3 refinement incorporated
 
-These are operational views derived from planned fulfilment date and settlement status:
+These are operational views derived from planned fulfilment date, the persisted advance-order marker and settlement status:
 
-- **future order:** planned fulfilment date is after today;
-- **due-today advance order:** the order was created for a later date and that planned date is today;
-- **overdue unsettled:** planned fulfilment date is before today and the order is not closed/fully reconciled.
+- **future order:** current planned fulfilment date is after today;
+- **due-today advance order:** current planned fulfilment date is today, the order's persisted `advance_order_marker` is true, and the order is not Cancelled;
+- **overdue unsettled:** current planned fulfilment date is before today and the order is not Cancelled and is not closed/fully reconciled.
+
+The `advance_order_marker` uses the approved sticky semantics defined in `data-model.md`: a new order starts false; once a non-cancelled order is saved with a planned fulfilment date later than the then-current business date, the marker becomes true and remains true permanently for that order. Later changes to date, time, products, payment or customer information do not reset it. Cancellation does not need to clear it because Cancelled status independently excludes the order from reminder views.
 
 The due-today advance-order reminder remains visible for the rest of that calendar day. A legitimate future order may remain open without affecting today's received-payment summary except for any amount actually received today.
 
@@ -243,7 +245,7 @@ V1 does **not** require an operator-visible or business-retained order revision-
 
 The operator may directly change the order total even if it differs from the product-line arithmetic.
 
-If the operator later changes any product, quantity, option/price adjustment or discount, the application automatically recalculates the order total according to the approved pricing rules, replacing any prior manual total. The operator can then manually edit the newly calculated total again if needed.
+If the operator later changes any product, quantity, option/price adjustment, discount or applicable configured delivery fee, the application automatically recalculates the order total according to the approved pricing rules, replacing any prior manual total. The operator can then manually edit the newly calculated total again if needed.
 
 External refund/additional-charge handling remains outside the POS.
 
@@ -322,6 +324,8 @@ The following lifecycle decisions are approved:
 6. real-time operational turnover is separate from daily received-payment totals and is not dependent on order payment/closure state;
 7. operational turnover is attributed to the planned fulfilment date, not the order creation date.
 
+The Phase 3 refinement in section 4.9 additionally freezes the sticky `advance_order_marker` semantics used to distinguish due-today advance orders after later date edits.
+
 The following are not part of the target v1 lifecycle unless explicitly reintroduced later:
 
 - a manually selected `CB` / `Espèce` / `DIV` / `Mixte` payment-method field;
@@ -339,4 +343,4 @@ The following are not part of the target v1 lifecycle unless explicitly reintrod
 
 ## 6. Approval rule
 
-This document is **Approved — Phase 2 baseline**. Implementation must preserve the lifecycle decisions above and must not reintroduce more complex payment/replacement/audit workflows or change the operating-day attribution rule without explicit product approval.
+This document is **Approved — Phase 2 baseline**, including the approved Phase 3 advance-order-marker refinement recorded above. Implementation must preserve the lifecycle decisions above and must not reintroduce more complex payment/replacement/audit workflows or change the operating-day attribution or advance-order reminder semantics without explicit product approval.
