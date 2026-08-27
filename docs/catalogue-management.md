@@ -162,21 +162,40 @@ The following details are therefore intentionally deferred to the later UI/inter
 
 This deferral is intentional and is not a missing business decision: the required business concept is the category itself; shortcut and display-order mechanics are presentation/interaction concerns unless a later design proves otherwise.
 
-## 6. Product options / choices
+## 6. Product options / choices — partially approved Phase 2 decision
 
-The target catalogue must replace the current practice of typing flavour/menu choices into the order-level comment when the choice belongs to a specific product.
+Not every catalogue product needs structured options. Product-option capability is therefore **enabled and configured per product**, rather than being mandatory for every product.
 
-A product may need one or more structured option groups, for example a flavour or menu variant. The selected option must be copied into the corresponding historical order item at confirmation time so later catalogue-option changes do not alter that order.
+The operator must be able to maintain this behavior directly in the application at any time:
 
-Phase 2 must define:
+- a product with no options can remain a normal product with no option-selection step;
+- the operator may later enable structured options for that product;
+- the operator may add, edit, remove, activate or otherwise maintain the available option labels/choices without changing source code;
+- the operator may configure an option set/group as **single-select** or **multi-select**;
+- both single-select and multi-select behavior must be supported by the target design, even though Sushi 81's current options are single-select;
+- product options are catalogue data and later catalogue-option edits do not rewrite the option selections already stored on historical orders.
 
-- whether option groups are single-select, multi-select or both;
-- whether an option selection is required or optional;
-- minimum/maximum selections where relevant;
-- option labels and display order;
-- predefined price adjustments;
-- custom option-adjustment behavior;
-- whether option availability can be activated/deactivated independently from the parent product.
+The target structure should not prevent a product from having more than one logical option group if later operational needs require it. The exact UI for creating/managing multiple groups can be finalized during detailed interaction design, but the data/behavior design must not assume that all choices for a product forever belong to one single flat list.
+
+### Order-entry prompting — approved Phase 2 decision
+
+When the operator selects/adds a product during order entry:
+
+- if that product has no enabled option group/choice requirement, it is added through the normal fast-ordering workflow without an unnecessary option dialog;
+- if that product has enabled structured options, the application must automatically present an option-selection dialog/prompt immediately as part of adding that product;
+- the operator should not have to remember to open a separate option editor manually after adding the product;
+- the prompt must present the choices according to the configured single-select or multi-select behavior;
+- the selected option labels and any price adjustments are attached to that specific order line and copied into the order snapshot.
+
+The exact visual form of the prompt — modal dialog, popover, side panel or another interaction pattern — is a UI-design choice. The required behavior is that selection is surfaced automatically and clearly at product-add time.
+
+The following option details still need to be frozen:
+
+- whether an enabled option group is always required to have a selection or may be optional;
+- for multi-select groups, whether configurable minimum/maximum selection counts are needed;
+- display order of option groups and option labels;
+- predefined option-price-adjustment catalogue maintenance, consistent with `business-rules.md`;
+- whether individual options can be temporarily deactivated independently from the parent product.
 
 ## 7. Historical stability — approved Phase 2 principle
 
@@ -229,19 +248,23 @@ No import should partially apply a logically invalid catalogue update without cl
 
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
-1. final option-group model;
-2. required/optional option-selection behavior;
-3. predefined option-price-adjustment catalogue behavior consistent with `business-rules.md`;
+1. required/optional option-selection behavior and any multi-select selection limits;
+2. predefined option-price-adjustment catalogue behavior consistent with `business-rules.md`;
+3. whether individual options can be independently activated/deactivated;
 4. in-application catalogue editing workflow;
 5. final batch import/export format and columns;
 6. update/conflict/deactivation/delete behavior during import;
 7. validation and preview requirements.
 
-The following product-field/identity/lifecycle/history/category principles are already approved and are no longer open questions:
+The following product-field/identity/lifecycle/history/category/option principles are already approved and are no longer open questions:
 
 - the required base product fields are code, name, category, TTC selling price and VAT rate/category;
 - every product also stores active/inactive and Retrait-discount-eligibility settings;
-- product options are managed separately from the base product fields;
+- product options are managed separately from the base product fields and are enabled/configured only for products that need them;
+- the operator may enable and maintain product options directly in the application;
+- both single-select and multi-select option behavior are supported;
+- when a product has enabled structured options, order entry automatically presents an option-selection prompt when that product is selected/added;
+- option selections are attached to the specific order line and retained in the order snapshot;
 - confirmed historical orders are independent snapshots and do not depend on the live catalogue;
 - operator-facing product codes are editable and may be reused/reassigned over time;
 - prior historical use does not permanently reserve a product code;
