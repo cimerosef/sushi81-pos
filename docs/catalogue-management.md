@@ -13,7 +13,7 @@ It covers:
 
 - product identity and lifecycle;
 - editable catalogue attributes;
-- activation/deactivation;
+- activation/deactivation and deletion;
 - categories and category shortcuts;
 - discount eligibility;
 - structured product options/choices;
@@ -80,7 +80,7 @@ Therefore:
 
 This preserves unambiguous search and ordering while keeping the code system fully reorganizable over time.
 
-## 4. Product maintenance
+## 4. Product maintenance — partially approved Phase 2 decision
 
 The application must support practical maintenance of the catalogue without Excel.
 
@@ -90,13 +90,27 @@ Target actions include:
 - edit product code;
 - edit approved product/commercial attributes;
 - activate/deactivate product;
+- permanently delete a catalogue product;
 - manage category assignment;
 - manage discount eligibility;
 - manage product options and their price adjustments.
 
-Because historical orders are snapshot-based and independent from the live catalogue, editing current catalogue attributes — including the product code, name, price, VAT or category — must not rewrite historical orders.
+Because historical orders are snapshot-based and independent from the live catalogue, editing or deleting current catalogue attributes — including the product code, name, price, VAT or category — must not rewrite historical orders.
 
-Whether the application should also allow permanent deletion of current catalogue records, and under what safeguards, remains to be approved. Historical-order preservation by itself is not a reason to prohibit deletion, because historical orders do not depend on the live catalogue record.
+### Deactivation and permanent deletion — approved Phase 2 decision
+
+The current catalogue supports both **deactivation** and **permanent deletion**, with deliberately different meanings:
+
+- **deactivation** is used when a product is temporarily unavailable or may be sold again later;
+- a deactivated product remains in the catalogue and can be reactivated;
+- deactivated products do not appear in normal order selection;
+- **permanent deletion** removes the product from the current catalogue entirely;
+- permanent deletion is allowed even when the product has appeared in historical orders, because those orders retain independent sale-time snapshots;
+- deleting a catalogue product must never delete, rewrite or damage any historical order data;
+- deleting a product releases its operator-facing code immediately so that code may be reused by another current catalogue product;
+- the application must require a simple explicit confirmation before permanent deletion to reduce accidental deletion.
+
+Historical sales are therefore not a reason to block deletion. The operator chooses between deactivation and deletion according to whether the current catalogue entry is expected to be reused.
 
 ## 5. Categories
 
@@ -142,6 +156,7 @@ When an order is committed, the order-item snapshot must contain enough sale-tim
 - option name;
 - option price adjustment;
 - active/inactive status;
+- deletion from the current catalogue;
 - or even later reuse of the same operator-facing product code for different catalogue content
 
 do not alter the historical order's financial or printed meaning.
@@ -163,7 +178,7 @@ The exact target format remains to be approved. Phase 2 must define:
 - invalid VAT/price/category handling;
 - preview/validation before applying changes;
 - whether import may deactivate products;
-- whether import may delete anything;
+- whether import may permanently delete products;
 - rollback/recovery behavior after a failed import;
 - export encoding and column order.
 
@@ -176,25 +191,27 @@ No import should partially apply a logically invalid catalogue update without cl
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
 1. final product fields and which are mandatory;
-2. permanent deletion behavior for current catalogue products;
-3. category and category-shortcut model;
-4. final option-group model;
-5. required/optional option-selection behavior;
-6. predefined option-price-adjustment catalogue behavior consistent with `business-rules.md`;
-7. in-application catalogue editing workflow;
-8. final batch import/export format and columns;
-9. update/conflict/deactivation/delete behavior during import;
-10. validation and preview requirements.
+2. category and category-shortcut model;
+3. final option-group model;
+4. required/optional option-selection behavior;
+5. predefined option-price-adjustment catalogue behavior consistent with `business-rules.md`;
+6. in-application catalogue editing workflow;
+7. final batch import/export format and columns;
+8. update/conflict/deactivation/delete behavior during import;
+9. validation and preview requirements.
 
-The following identity/history principles are already approved and are no longer open questions:
+The following identity/lifecycle/history principles are already approved and are no longer open questions:
 
 - confirmed historical orders are independent snapshots and do not depend on the live catalogue;
 - operator-facing product codes are editable and may be reused/reassigned over time;
 - prior historical use does not permanently reserve a product code;
 - within the current catalogue, one product code may belong to only one product at a time;
 - later catalogue edits, including code changes, never alter existing confirmed orders;
+- current catalogue products may be deactivated for later reactivation;
+- current catalogue products may also be permanently deleted, even if previously sold, without affecting historical orders;
+- permanent deletion releases the product code for immediate reuse;
 - implementation may use a hidden immutable internal identifier for safe database handling without exposing that identifier as the business product code.
 
 ## 10. Approval rule
 
-This file remains a Draft until the catalogue and option rules above are explicitly approved. Implementation must preserve the strict separation between historical order snapshots and the mutable live catalogue, must keep current catalogue product codes unique, and must not treat the operator-facing product code as an immutable historical identity.
+This file remains a Draft until the catalogue and option rules above are explicitly approved. Implementation must preserve the strict separation between historical order snapshots and the mutable live catalogue, must keep current catalogue product codes unique, must support both deactivation and confirmed permanent deletion, and must not treat the operator-facing product code as an immutable historical identity.
