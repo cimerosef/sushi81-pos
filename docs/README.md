@@ -23,16 +23,21 @@ Documents are written progressively by design phase. A document should not be tr
 - `data-model.md`
 - `storage-strategy.md`
 
-### Phase 4 — Peripheral and integration design
+Phase 3 is complete when all three documents are approved baselines and their remaining purely technical choices are frozen consistently.
+
+### Phase 4 — Input, printing and export specifications
 
 - `paste-order-import.md`
 - `printing.md`
 - `export.md`
-- `sync-and-backup.md`
 
-### Phase 5 — Architecture freeze
+A separate `sync-and-backup.md` is not planned for V1 because live storage, local recovery, OneDrive handoff, disaster recovery and annual archive behavior are already specified comprehensively in the approved `storage-strategy.md`. A separate document should be added only if a future requirement cannot be represented cleanly there.
 
-- approved decisions under `decisions/`
-- v1 scope and acceptance criteria
+### Phase 5 — V1 specification freeze
 
-Production implementation should begin only after the required v1 design documents have been reviewed and the architecture freeze milestone has been reached.
+- `acceptance-criteria.md`
+- final cross-document consistency review;
+- approved decisions under `decisions/` where a materially constraining decision merits a separate record;
+- V1 Specification freeze.
+
+Production implementation must not begin until the required V1 design documents have been reviewed, the acceptance criteria are approved and the V1 Specification freeze has been completed.
