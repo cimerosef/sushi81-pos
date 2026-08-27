@@ -1,7 +1,7 @@
 # Business rules
 
 **Status:** Draft — Phase 2 first batch  
-**Last updated:** 2026-08-26  
+**Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
 **Purpose:** Freeze Sushi 81 commercial and operational rules that must be implemented consistently by the application.
 
@@ -144,16 +144,31 @@ After the number is accepted/saved, normal order display and printing should for
 
 This formatting is a presentation/normalization convenience, not a reason to make telephone mandatory or to introduce burdensome phone-number validation. The UI should favor fast entry and readable saved/displayed output.
 
-### 4.4 Product-option price adjustments
+### 4.4 Product-option price adjustments — partially approved Phase 2 decision
 
-Phase 2 must define:
+Product options may carry predefined or operator-entered price adjustments attached to the relevant order line rather than changing the catalogue product's base price.
+
+The interaction between product options and the `Retrait` discount is approved as follows for a discount-eligible product:
+
+- a **positive option adjustment / surcharge does not receive the pickup discount**;
+- a **negative option adjustment / reduction participates in the pickup discount together with the product's discountable base amount**;
+- therefore the discount is calculated on the product base price after subtracting eligible negative option adjustments, while positive option adjustments are added afterwards at full value.
+
+Using a 10% discount as an example:
+
+- product €10.00 with a `+€2.00` option -> discounted product €9.00 + full €2.00 surcharge = **€11.00**;
+- product €10.00 with a `-€2.00` option -> (€10.00 - €2.00) × 90% = **€7.20**.
+
+This rule means a surcharge is never reduced by the pickup discount, while a reduction proportionally reduces the amount on which the pickup discount is calculated.
+
+Phase 2 must still define:
 
 - whether custom option adjustments may be zero, positive and/or negative;
 - allowed decimal precision;
 - whether a maximum/minimum adjustment is needed;
 - whether the operator must choose an option label before entering a custom adjustment;
 - whether a custom adjustment requires a comment/reason;
-- how adjustments interact with discount eligibility and VAT.
+- VAT treatment for option adjustments where relevant.
 
 ### 4.5 Editable order total — approved Phase 2 decision
 
@@ -212,8 +227,8 @@ Configuration must not weaken the rule model: changing a value changes the param
 
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
-1. custom option-price adjustment validation;
-2. discount interaction with product options;
+1. remaining custom option-price adjustment validation;
+2. VAT treatment for product-option adjustments where relevant;
 3. rounding rules for percentage discounts and order totals;
 4. any remaining commercial values that must be operator-configurable in v1.
 
@@ -236,6 +251,8 @@ The following are already approved and are no longer open questions:
 - telephone is optional for both Retrait and Livraison;
 - delivery address is optional at initial Livraison confirmation and may be added or corrected later on the same order;
 - standard 10-digit telephone entry may be typed without spaces and is displayed/printed in grouped form such as `06 12 34 56 78` after save;
+- positive product-option surcharges do not receive the Retrait discount;
+- negative product-option adjustments reduce the discountable product amount and therefore participate proportionally in the Retrait discount;
 - the ordinary order-total field is directly editable;
 - later price-affecting order changes automatically recalculate and replace any manual total override.
 
