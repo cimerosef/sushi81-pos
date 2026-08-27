@@ -1,6 +1,6 @@
 # Printing
 
-**Status:** Draft — Phase 4 working design  
+**Status:** Approved — Phase 4 baseline  
 **Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
 **Purpose:** Specify reliable kitchen/customer printing, reprinting and print-failure behavior without changing the approved order lifecycle or storage model.
@@ -28,6 +28,8 @@ It does not redefine:
 - data retention/archive mechanics (`storage-strategy.md`);
 - Hiboutik paste parsing (`paste-order-import.md`);
 - downstream Excel export (`export.md`).
+
+Formal B2B invoicing (`facture`) is outside V1. The customer document defined here is the ordinary Sushi 81 customer ticket / restaurant note, not a separate B2B invoice subsystem.
 
 ## 2. Authoritative baseline
 
@@ -117,11 +119,11 @@ When the same order is later reprinted on its fulfilment day, the printed date r
 
 ## 7. Customer ticket / receipt — approved baseline content
 
-The customer ticket is the customer-facing order/receipt document.
+The customer ticket is the customer-facing order/receipt document used in normal Sushi 81 restaurant operations.
 
 It must include at least:
 
-- Sushi 81 business identity/details required by the approved receipt format;
+- Sushi 81 business identity/details required by the approved receipt/note format;
 - Sushi81 POS order ID;
 - order date/time;
 - fulfilment mode;
@@ -131,12 +133,28 @@ It must include at least:
 - applicable item/adjustment price information;
 - authoritative final TTC total;
 - VAT breakdown from the persisted `OrderTaxBreakdown` snapshot;
-- Sushi 81 VAT identification information required by the receipt format;
+- Sushi 81 VAT identification information required by the approved receipt/note format;
 - current payment information where the approved ticket version requires it.
 
 Historical and archived reprinting must use the saved order/item/tax snapshots rather than current catalogue prices or current VAT settings.
 
 If `manual_total_override_active = true`, the printed VAT breakdown uses the already-approved single 10% VAT snapshot rather than reconstructing VAT from current product lines.
+
+### 7.1 No formal B2B invoice subsystem — approved Phase 4 rule
+
+The customer ticket does not double as a formal B2B invoice subsystem in V1.
+
+V1 therefore does not add invoice-only workflow or data such as:
+
+- customer company/legal-entity master data solely for invoicing;
+- customer SIREN/SIRET/VAT-number capture solely for invoicing;
+- a separate legal invoice-number sequence;
+- invoice issue/correction/credit-note lifecycle;
+- B2B invoice templates or accounting-document management.
+
+If a formal business invoice is exceptionally required, it remains outside Sushi81 POS V1 and is handled through the existing separate process.
+
+This rule is frozen in `docs/decisions/customer-ticket-no-b2b-invoice.md`.
 
 ## 8. Payment-updated customer reprint
 
@@ -319,15 +337,17 @@ Completed annual archive orders remain printable as immutable historical records
 
 This rule is frozen in `docs/decisions/non-authoritative-device-printing.md`.
 
-## 16. Remaining operator-facing printing decision
+## 16. Compliance and layout boundary
 
-The only remaining business-printing topic to close is the **final statutory/customer receipt wording/content**, limited to those details that cannot be safely derived from the existing approved/current receipt baseline and current French requirements.
+The ordinary customer ticket / restaurant note must preserve the business identity, date/order information, item/price information, total and tax information required by the approved Sushi 81 format and applicable requirements.
 
-Pure compliance interpretation, layout, pagination, font sizing, wrapping and Windows print implementation choices are technical/legal implementation work unless they change an actual Sushi 81 business choice.
+Compliance wording and exact layout should be verified against the applicable rules/current production format during implementation and acceptance testing. Pure compliance interpretation, pagination, font sizing, wrapping and Windows print mechanics are implementation concerns unless they change an actual Sushi 81 business choice.
 
-## 17. Approval rule
+The absence of a B2B invoice subsystem does not remove any information required on the ordinary customer ticket.
 
-This document remains **Draft — Phase 4 working design** until the remaining customer-receipt content review is closed.
+## 17. Approval
+
+This document is **Approved — Phase 4 baseline**.
 
 Implementation must preserve the central invariant:
 
