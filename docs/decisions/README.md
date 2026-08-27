@@ -1,16 +1,36 @@
 # Architecture and product decisions
 
-This directory records decisions that materially constrain implementation.
+This directory records approved decisions that materially constrain Sushi81 POS implementation, product behavior, business rules, architecture, data or operations.
 
-Use one Markdown file per approved decision, with a stable numeric prefix, for example:
+## File naming
+
+Use a **stable descriptive Markdown filename**, for example:
 
 ```text
-001-tech-stack.md
-002-database-strategy.md
-003-order-lifecycle.md
-004-sync-strategy.md
+advance-order-marker.md
+export-eligibility.md
+hiboutik-paste-simplification.md
+order-modification-printing.md
 ```
 
-Each decision should state the context, decision, rationale, consequences, and status.
+Existing decision filenames are stable references and should not be renamed merely to introduce numeric prefixes.
 
-Do not create a decision record merely to document an implementation detail. Reserve this directory for choices whose reversal would materially affect product behavior, business rules, architecture, data, or operations.
+## When to create a decision record
+
+Create a separate record when a choice materially constrains later implementation or supersedes an earlier specification assumption and keeping the rationale/consequence visible is useful.
+
+Do not create a decision record merely for a low-level implementation detail that can be chosen without changing approved business behavior or architecture.
+
+## Recommended content
+
+A decision record should state, as appropriate:
+
+- status;
+- date;
+- scope / documents affected;
+- context;
+- decision;
+- rationale;
+- consequences or superseded behavior.
+
+Approved decision records supplement the baseline documents. During a specification-freeze consistency pass, superseded behavior should also be folded into the affected baseline documents so implementation does not need to resolve contradictions by document chronology alone.
