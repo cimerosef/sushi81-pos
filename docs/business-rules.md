@@ -144,13 +144,14 @@ After the number is accepted/saved, normal order display and printing should for
 
 This formatting is a presentation/normalization convenience, not a reason to make telephone mandatory or to introduce burdensome phone-number validation. The UI should favor fast entry and readable saved/displayed output.
 
-### 4.4 Product-option price adjustments — partially approved Phase 2 decision
+### 4.4 Product-option price adjustments — approved Phase 2 decision
 
 Product options may carry either preset or operator-entered price adjustments associated with a specific order line.
 
 Approved rules:
 
 - option-price adjustments may be **positive or negative**;
+- custom adjustment amounts are entered/stored to **€0.01 precision**;
 - no business maximum or minimum adjustment amount is required;
 - a custom operator-entered adjustment must have a **non-empty text label/description**;
 - that description is the commercial name of the adjustment and must be retained with the order line and shown on the customer-facing receipt/printout where the adjustment is displayed;
@@ -171,7 +172,14 @@ With a 10% discount on a €10 discount-eligible product:
 
 This asymmetry is intentional: extra-charge options keep their full added price, while negative adjustments reduce the amount that is subject to the product's discount.
 
-The remaining product-option detail to freeze is monetary input precision/rounding for custom adjustments and how VAT presentation should inherit from the associated product line.
+#### VAT treatment — approved Phase 2 decision
+
+Option-price adjustments use the following VAT rules automatically; the operator does not choose a VAT rate during order entry:
+
+- every **positive option adjustment** uses a fixed VAT rate of **5.5%**;
+- every **negative option adjustment** inherits the VAT rate of the product/order line to which it belongs.
+
+This rule applies to the adjustment amount itself. The underlying product continues to retain its own catalogue/product VAT rate.
 
 ### 4.5 Editable order total — approved Phase 2 decision
 
@@ -204,6 +212,10 @@ This capability is intentional. Sushi81 POS is a practical operational/turnover-
 
 ### 4.6 Rounding and monetary consistency
 
+All monetary entry and displayed order amounts use euro-cent precision unless another explicit rule states otherwise.
+
+Custom option-price adjustments are entered/stored to **€0.01 precision**.
+
 All target pricing rules must define deterministic euro-cent rounding so that cart totals, receipts, payment totals, exports and reconciliation agree.
 
 The exact rounding point for percentage discounts and VAT presentation remains to be frozen.
@@ -230,10 +242,8 @@ Configuration must not weaken the rule model: changing a value changes the param
 
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
-1. monetary input precision/rounding for custom option-price adjustments;
-2. VAT presentation/inheritance for product-option adjustments;
-3. rounding rules for percentage discounts and order totals;
-4. any remaining commercial values that must be operator-configurable in v1.
+1. rounding rules for percentage discounts and VAT/order totals;
+2. any remaining commercial values that must be operator-configurable in v1.
 
 The following are already approved and are no longer open questions:
 
@@ -254,11 +264,12 @@ The following are already approved and are no longer open questions:
 - telephone is optional for both Retrait and Livraison;
 - delivery address is optional at initial Livraison confirmation and may be added or corrected later on the same order;
 - standard 10-digit telephone entry may be typed without spaces and is displayed/printed in grouped form such as `06 12 34 56 78` after save;
-- custom option adjustments may be positive or negative, have no amount cap, and require a text description;
+- custom option adjustments may be positive or negative, have no amount cap, require a text description and use €0.01 precision;
 - positive option adjustments do not receive pickup discount, while negative adjustments reduce the discountable product amount before discount calculation;
+- positive option adjustments use fixed 5.5% VAT, while negative adjustments inherit the associated product VAT rate;
 - the ordinary order-total field is directly editable;
 - later price-affecting order changes automatically recalculate and replace any manual total override.
 
 ## 7. Approval rule
 
-This file remains a Draft until the remaining target rules above are explicitly approved. Codex must implement the approved Retrait and Livraison semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, hard-code configurable commercial thresholds, or apply pickup discount to positive option surcharges without explicit product approval.
+This file remains a Draft until the remaining target rules above are explicitly approved. Codex must implement the approved Retrait and Livraison semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, hard-code configurable commercial thresholds, apply pickup discount to positive option surcharges, or assign option-adjustment VAT contrary to the rules above without explicit product approval.
