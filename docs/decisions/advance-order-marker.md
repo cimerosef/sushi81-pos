@@ -39,8 +39,16 @@ Payment state and `OPEN` / `CLOSED` status do not remove the due-today operation
 
 ## Data-model consequence
 
-`advance_order_marker` remains a required persisted field on `Order`.
+`advance_order_marker` is a required persisted field on `Order`.
 
-No separate future-order history table, reminder-state table or date-change audit trail is required in v1 solely to support this behavior.
+No separate future-order history table, reminder-state table or date-change audit trail is required in V1 solely to support this behavior.
 
-This decision resolves the Phase 3 open question on advance-order marker set/reset semantics and must be incorporated into `data-model.md` before that document is marked Approved.
+## Phase 5 incorporation
+
+This decision is incorporated into the frozen V1 baselines in:
+
+- `docs/order-lifecycle.md`;
+- `docs/data-model.md`;
+- `docs/acceptance-criteria.md`.
+
+It no longer represents an open Phase 3 question or pending documentation action.
