@@ -80,7 +80,7 @@ Therefore:
 
 This preserves unambiguous search and ordering while keeping the code system fully reorganizable over time.
 
-## 4. Product maintenance — partially approved Phase 2 decision
+## 4. Product maintenance — approved Phase 2 decisions
 
 The application must support practical maintenance of the catalogue without Excel.
 
@@ -96,6 +96,29 @@ Target actions include:
 - manage product options and their price adjustments.
 
 Because historical orders are snapshot-based and independent from the live catalogue, editing or deleting current catalogue attributes — including the product code, name, price, VAT or category — must not rewrite historical orders.
+
+### Base product fields — approved Phase 2 decision
+
+The normal current-catalogue product record uses the same practical commercial structure as the existing Sushi 81 catalogue.
+
+Required product fields are:
+
+- **product code**;
+- **product name**;
+- **category**;
+- **TTC selling price**;
+- **VAT rate/category**.
+
+In addition, every product has the following catalogue state/settings fields:
+
+- **active/inactive** status;
+- **eligible/not eligible for the normal Retrait discount**.
+
+The active/inactive and discount-eligibility values are represented as ordinary boolean/toggle settings rather than text that the operator must type manually. Their exact default values for a newly created product may be chosen during detailed UI/implementation design, but both values must always be explicitly stored for the product.
+
+Product options are not embedded as ad-hoc text inside these base fields. They are managed separately as structured option data under section 6.
+
+No additional mandatory commercial product field is introduced at this stage beyond the fields above.
 
 ### Deactivation and permanent deletion — approved Phase 2 decision
 
@@ -190,18 +213,20 @@ No import should partially apply a logically invalid catalogue update without cl
 
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
-1. final product fields and which are mandatory;
-2. category and category-shortcut model;
-3. final option-group model;
-4. required/optional option-selection behavior;
-5. predefined option-price-adjustment catalogue behavior consistent with `business-rules.md`;
-6. in-application catalogue editing workflow;
-7. final batch import/export format and columns;
-8. update/conflict/deactivation/delete behavior during import;
-9. validation and preview requirements.
+1. category and category-shortcut model;
+2. final option-group model;
+3. required/optional option-selection behavior;
+4. predefined option-price-adjustment catalogue behavior consistent with `business-rules.md`;
+5. in-application catalogue editing workflow;
+6. final batch import/export format and columns;
+7. update/conflict/deactivation/delete behavior during import;
+8. validation and preview requirements.
 
-The following identity/lifecycle/history principles are already approved and are no longer open questions:
+The following product-field/identity/lifecycle/history principles are already approved and are no longer open questions:
 
+- the required base product fields are code, name, category, TTC selling price and VAT rate/category;
+- every product also stores active/inactive and Retrait-discount-eligibility settings;
+- product options are managed separately from the base product fields;
 - confirmed historical orders are independent snapshots and do not depend on the live catalogue;
 - operator-facing product codes are editable and may be reused/reassigned over time;
 - prior historical use does not permanently reserve a product code;
