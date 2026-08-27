@@ -11,7 +11,7 @@ Each Sushi81 POS computer uses its own **local working SQLite database**.
 
 The live database is never directly opened from a OneDrive-synchronized folder and is never intentionally written by two computers at the same time.
 
-OneDrive is used only for controlled transfer of validated complete snapshots and for retained recovery/backup copies.
+OneDrive is used only for controlled transfer of validated complete snapshots and for retained recovery/backup/archive copies.
 
 The operator does not manually manage the active `live.db` file or local recovery snapshot files.
 
@@ -200,34 +200,103 @@ The OneDrive handoff area is operator-configurable and contains only validated/r
 
 The application must never interpret the configured OneDrive handoff folder itself as the location of the working `live.db`.
 
-Exact Windows local paths and whether operator-visible export/archive folders live elsewhere are still to be frozen.
+Exact Windows local paths and whether operator-visible export folders live elsewhere are still to be frozen.
 
-## 12. Annual archive relationship
+## 12. Annual archive — approved Phase 3 decision
 
-The logical archive model remains governed by `data-model.md` and `product-requirements.md`:
+Annual order archives are separate historical database files stored in OneDrive and kept independent from the installed application and from the active local `live.db`.
 
-- the live database retains the current natural year plus older unresolved records that still need to remain live;
-- eligible older completed data may be manually archived by natural year into separate archive databases;
-- archived orders remain queryable and reprintable;
-- live/archive databases use compatible logical schemas.
+They are not working databases and are not part of the normal handoff lineage.
 
-This document has not yet frozen archive filenames, exact archive folder location, archive transfer between computers or retention rules for Cancelled/emergency records; those are still part of Phase 3 storage review.
+### 12.1 Automatic schedule
+
+The application automatically performs the previous calendar year's archive on **February 1** each year.
+
+If Sushi81 POS is not run on February 1, the archive is performed automatically on the first later startup on which the computer currently holding the authoritative write lineage can safely perform it.
+
+Only the current authoritative/writable computer may create an annual archive. A non-authoritative computer must never independently create a competing archive from an older local database.
+
+Example:
+
+- on February 1, 2027, the application archives all records whose approved archive year is 2026;
+- if the application is first opened on February 3, 2027, the same 2026 archive is performed then.
+
+### 12.2 Archive-year rules
+
+An order is archived according to the natural year in which it is actually completed/ended, not merely the year in which it was created.
+
+The rules are:
+
+- ordinary `CLOSED` POS order => archive year = year of `closed_at`;
+- ordinary `CANCELLED` POS order => archive year = year of `cancelled_at`;
+- Hiboutik emergency order ending as `CLOSED` => archive year = year of `closed_at`;
+- Hiboutik emergency order ending as `CANCELLED` => archive year = year of `cancelled_at`;
+- any order still `OPEN` at archive time remains in `live.db`, regardless of creation date or planned fulfilment date.
+
+Therefore an unresolved order from an older year remains live until it is eventually closed or cancelled. It is then archived under the year of that actual closing/cancellation and will be moved during the following year's February archive cycle.
+
+### 12.3 Archive file location and independence
+
+Annual archive databases are stored in an operator-visible OneDrive archive folder outside the application installation/data directories.
+
+A recommended conceptual organization is:
+
+```text
+OneDrive\Sushi81 POS\
+    Handoff\
+    Archive\
+        sushi81-archive-2026.db
+        sushi81-archive-2027.db
+```
+
+The exact folder/file names may be refined during implementation, but these semantics are fixed:
+
+- archive files are ordinary independent files that survive application uninstall/reinstall;
+- they are not hidden inside the program installation directory;
+- they are not stored inside either computer's local application-data area as the authoritative archive copy;
+- OneDrive provides the shared durable location visible from both computers;
+- the application may offer an "Open archive folder" action, but the user does not need to move files manually for normal archive operation.
+
+### 12.4 Safe archive creation
+
+Archiving must be failure-safe.
+
+The application must:
+
+1. identify all records eligible for the target archive year;
+2. build the annual archive database in a safe temporary/local staging location;
+3. validate the archive database and verify that the intended records are present;
+4. publish the completed archive database to the configured OneDrive Archive area;
+5. confirm successful OneDrive synchronization/publication;
+6. only after successful archive publication remove the archived records from the active `live.db`;
+7. generate a new local recovery point and, when the application later closes, include the post-archive live state in the next normal handoff snapshot.
+
+If archive generation, validation or OneDrive publication fails, eligible records remain in `live.db` and the application retries later rather than risking data loss.
+
+### 12.5 Archive immutability and access
+
+A completed annual archive is historical business data and should normally be treated as read-only/immutable.
+
+Archived orders must remain queryable and reprintable from Sushi81 POS as required by `product-requirements.md`.
+
+The application should therefore discover registered annual archive files from the configured OneDrive Archive location and access them in read-only mode. If direct access to a OneDrive-backed file is not sufficiently reliable on a particular machine, the implementation may transparently hydrate/copy the archive to a local read-only cache before querying it; this must not turn the archive into a second writable business database.
+
+Annual archives are not subject to automatic rolling deletion. They are retained permanently unless the operator deliberately manages them outside the normal application workflow.
 
 ## 13. Decisions still to freeze
 
 Before this document becomes an approved Phase 3 baseline, the project should still decide:
 
 - exact Windows local data folder structure;
-- exact OneDrive handoff subfolder/file organization beyond the approved user-selected root folder;
+- exact OneDrive handoff/archive subfolder naming beyond the approved user-selected root concept;
 - local recovery snapshot retention policy;
 - formal handoff snapshot retention policy;
 - disaster-recovery procedure;
-- archive database filenames/location and archive-year treatment for Cancelled/Hiboutik emergency records;
 - exact device-identity metadata created during first installation/pairing;
 - whether the application supports read-only access on a non-authoritative computer before handoff.
 
 ## 14. Approval rule
 
-The handoff mechanism in sections 1-11 is an approved Phase 3 direction: local working SQLite, application-managed local recovery snapshots, normal-exit formal handoff, immutable versioned OneDrive publication, completion marker, verified receiver acquisition, user-selected OneDrive handoff-folder pairing and no stale force takeover.
+The handoff mechanism in sections 1-11 and annual archive behavior in section 12 are approved Phase 3 directions: local working SQLite, application-managed local recovery snapshots, normal-exit formal handoff, immutable versioned OneDrive publication, completion marker, verified receiver acquisition, user-selected OneDrive handoff-folder pairing, no stale force takeover, automatic February 1 annual archiving, end-date-based archive-year assignment, and independent OneDrive archive databases.
 
-The document remains **Draft — Phase 3 working design** until the remaining folder/retention/recovery/archive details are reviewed.
+The document remains **Draft — Phase 3 working design** until the remaining folder/retention/recovery/access details are reviewed.
