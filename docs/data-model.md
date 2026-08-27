@@ -3,129 +3,114 @@
 **Status:** Approved — Phase 3 baseline  
 **Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
-**Purpose:** Define the logical business-data model required to implement the approved Sushi81 POS lifecycle, catalogue, payment, historical-snapshot and emergency-import behavior before physical storage details are frozen.
+**Purpose:** Define the logical business-data model required to implement the approved Sushi81 POS lifecycle, catalogue, payment, historical-snapshot and source-boundary behavior.
 
 ## 1. Scope
 
-This document defines the **logical data model** for Sushi81 POS.
+This document defines the **logical V1 data model** for Sushi81 POS.
 
 It covers:
 
-- catalogue entities and technical identity;
+- catalogue entities and opaque technical identity;
 - order identity and current lifecycle state;
-- order-line historical snapshots;
-- structured product-option snapshots;
-- current cash/card payment totals and internally dated payment adjustments;
-- future-order / due-today / overdue derivation;
-- Hiboutik emergency-import data boundaries;
-- business configuration needed by approved pricing rules;
-- data needed for annual archive eligibility and historical reprinting;
-- relationships that must remain stable even when current catalogue data is edited or deleted.
+- historical order-line and option snapshots;
+- current CB/Espèce totals derived from internally dated payment adjustments;
+- future / due-today / overdue derivation;
+- the minimal hidden source discriminator required for Hiboutik paste-created orders;
+- business configuration required by approved pricing rules;
+- tax snapshots;
+- annual archive eligibility facts;
+- relationships that must remain stable when current catalogue data changes or is deleted.
 
-It deliberately does **not** yet choose:
+Physical storage choices are frozen primarily in `architecture.md` and `storage-strategy.md`. Export-specific technical history belongs to `export.md`; parser behavior belongs to `paste-order-import.md`; print behavior belongs to `printing.md`.
 
-- the physical database engine or exact SQLite/SQL column types;
-- integer-cents versus another physical monetary encoding;
-- file locations, live/archive database filenames or OneDrive synchronization behavior;
-- backup/restore mechanics;
-- final order-ID display format;
-- final export-tracking schema;
-- final printing layout;
-- parser-specific Hiboutik email fields beyond the approved business data that must be retained.
+V1 does not require a separate `sync-and-backup.md`: live storage, recovery, OneDrive handoff, disaster recovery and annual archives are already authoritative in `storage-strategy.md`.
 
-Those decisions belong primarily to `architecture.md`, `storage-strategy.md`, `export.md`, `paste-order-import.md`, `printing.md` and `sync-and-backup.md`.
+## 2. Authoritative consequences
 
-## 2. Authoritative baseline
-
-This model must preserve the approved Phase 1/Phase 2 semantics already frozen in:
-
-- `current-system.md`;
-- `product-requirements.md`;
-- `order-lifecycle.md`;
-- `business-rules.md`;
-- `catalogue-management.md`.
-
-The most important consequences for the data model are:
+The logical model must preserve these approved semantics:
 
 1. current catalogue records and historical order data are independent after order confirmation;
-2. product codes are editable and reusable, therefore they are not technical primary keys;
-3. all non-cancelled orders may be modified in place using the same business order ID;
-4. v1 retains only the latest saved business version of an order and does not require order revision history;
-5. order status and payment information are separate concerns;
-6. the operator works with current cumulative CB and Espèce amounts, while the application internally retains dated amount changes so cross-day received-payment summaries remain correct;
-7. the authoritative order total may be manually changed and may temporarily differ from line arithmetic;
-8. future, due-today and overdue are derived operational views rather than separate destructive order states;
-9. Hiboutik emergency-import orders are operational copies and must remain excluded from ordinary POS-originated turnover, received-payment, Hiboutik-card-entry and export totals;
-10. catalogue Excel import uses opaque internal identifiers for safe updates, but those identifiers must remain transparent/non-editable in normal operator workflows;
-11. no customer/CRM subsystem is required in v1;
-12. successful catalogue import does not require a permanent operator-facing import-history table;
-13. while a manual order-total override is authoritative, the complete final TTC amount uses a single 10% VAT bucket rather than the normal mixed product/option VAT breakdown;
-14. an enabled non-zero Sushi81 delivery fee uses fixed 10% VAT under normal calculated pricing;
-15. once an order has ever been saved as a future fulfilment order, its `advance_order_marker` remains true permanently for that order;
-16. every current catalogue category has a unique operator-facing name, independently of its opaque internal `category_id`.
+2. product codes are editable/reusable and therefore are not technical primary keys;
+3. all non-cancelled orders may be modified in place using the same stable order ID;
+4. V1 retains only the latest saved business version of an order and does not require operator-visible revision history;
+5. order status and payment information are separate;
+6. the operator works with cumulative CB/Espèce amounts while the application internally retains dated signed amount changes;
+7. the authoritative order total may be manually changed and may temporarily differ from product-line arithmetic;
+8. future, due-today and overdue are derived views rather than separate destructive order statuses;
+9. a Hiboutik paste-created order uses the ordinary order model and is distinguished only by a hidden source discriminator required to prevent double counting/export;
+10. catalogue `.xlsx` update import uses opaque internal identifiers while keeping them transparent/non-editable to the normal operator;
+11. no Customer/CRM master entity is required in V1;
+12. successful catalogue import does not require a permanent operator-facing import-history entity;
+13. while a manual total override is active, the complete authoritative TTC amount uses one 10% VAT bucket;
+14. a non-zero enabled delivery fee uses fixed 10% VAT under normal calculated pricing;
+15. once an order has been saved as a future order, `advance_order_marker` remains true permanently for that order;
+16. every current category has a unique operator-facing name independently of its opaque internal identity.
 
 ## 3. Design principles
 
-### 3.1 Logical IDs are not business labels
+### 3.1 Opaque IDs are not business labels
 
-Current catalogue entities use stable opaque internal identifiers such as `category_id`, `product_id`, `option_group_id` and `option_id`.
+Current catalogue entities use stable opaque identifiers such as:
 
-These identifiers:
+- `category_id`;
+- `product_id`;
+- `option_group_id`;
+- `option_id`.
 
-- are generated and managed by the application;
-- are not operator-facing business labels;
-- do not carry business meaning;
+These IDs:
+
+- are generated/managed by the application;
+- do not carry operator-facing business meaning;
 - are not normally editable by the operator;
-- may appear in protected/hidden Excel technical columns only when required for safe update matching.
+- may appear only in protected/hidden technical workbook columns when required for safe update matching.
 
-The exact physical identifier type is deferred to the storage/architecture decision.
+Business-visible uniqueness rules exist in addition to technical IDs. Current product codes and current category names are unique business-facing values but are not technical primary keys.
 
-Business-visible uniqueness rules may exist in addition to technical IDs. In particular, current product codes and current category names are unique business-facing values even though they are not technical primary keys.
+### 3.2 Historical orders are snapshots
 
-### 3.2 Historical orders are snapshots, not catalogue views
+A confirmed order must remain interpretable after current catalogue data is renamed, repriced, deactivated, deleted or reused.
 
-Once an order is confirmed, later catalogue edits, deactivation, deletion, code reuse, option changes or price changes must not alter that order.
+Historical correctness therefore depends on persisted order snapshots, not successful joins back to the current catalogue.
 
-Therefore an order line stores the sale-time business values needed for historical viewing, reporting and reprinting. A historical order must never require a successful join to the current `Product` table in order to know what was sold.
+Optional source links may remain for diagnostics/convenience but are non-authoritative.
 
-Optional technical links back to current catalogue entities may be retained for diagnostics/convenience, but historical correctness must not depend on them.
+### 3.3 Store durable facts once; derive views
 
-### 3.3 Current state is stored once; reporting views are derived
-
-The model stores the durable facts needed to derive:
+The model stores authoritative facts and derives:
 
 - Open / Closed / Cancelled;
-- payment composition;
-- unpaid / partial / fully reconciled state;
+- payment composition/state;
 - future order;
 - due-today advance order;
 - overdue unsettled;
 - daily received-payment totals;
-- real-time operational turnover;
-- Hiboutik emergency discrepancies.
+- operational turnover;
+- source-based financial/export inclusion.
 
-These should not be duplicated as multiple independently editable status fields when they can be derived safely from authoritative data.
+Derived conditions are not independently editable duplicate states.
 
-### 3.4 Business money is decimal money
+### 3.4 Business money
 
-All business amounts obey the approved €0.01 precision and round-half-up rules.
+Persisted euro money uses the physical integer-cent representation frozen in `architecture.md`. Business calculations use decimal arithmetic and approved round-half-up behavior.
 
-The physical representation is not frozen here, but implementation must not use binary floating-point semantics for persisted business money.
+Binary floating-point semantics must not determine persisted business-money results.
 
-### 3.5 No unnecessary audit subsystems
+### 3.5 No speculative audit/business subsystems
 
-The model must preserve the history that the approved workflow actually needs, but v1 must not introduce speculative history features.
+V1 does not introduce:
 
-In particular:
+- operator-visible order revision history;
+- permanent catalogue-import history;
+- Customer/CRM master solely for order reuse;
+- a separate payment-method category;
+- a dedicated Hiboutik emergency-order entity/reconciliation model.
 
-- no operator-visible order revision-history table is required;
-- no permanent catalogue-import history/report table is required;
-- no CRM/customer master table is required;
-- no separate payment-method category is required because composition is derived from CB/Espèce amounts.
+Technical logs, migration metadata and export-ledger metadata may exist where required for reliability but do not create new user-facing business workflows.
 
 ## 4. Logical entity overview
 
-The core logical entities are:
+Core V1 logical business entities are:
 
 - `Category`
 - `Product`
@@ -135,11 +120,10 @@ The core logical entities are:
 - `OrderItem`
 - `OrderItemAdjustmentSnapshot`
 - `PaymentAdjustment`
-- `EmergencyImportDetail`
 - `BusinessSettings`
 - `OrderTaxBreakdown`
 
-A future export specification may add export-batch/export-state entities without changing the core order model.
+Export uses separate technical integration metadata as specified by `export.md`; no export entity changes the core order lifecycle.
 
 ```mermaid
 erDiagram
@@ -150,14 +134,13 @@ erDiagram
     ORDER ||--|{ ORDER_ITEM : contains
     ORDER_ITEM ||--o{ ORDER_ITEM_ADJUSTMENT_SNAPSHOT : contains
     ORDER ||--o{ PAYMENT_ADJUSTMENT : receives
-    ORDER ||--o| EMERGENCY_IMPORT_DETAIL : extends
     ORDER ||--o{ ORDER_TAX_BREAKDOWN : snapshots
 
     PRODUCT o|--o{ ORDER_ITEM : optional_source
     OPTION o|--o{ ORDER_ITEM_ADJUSTMENT_SNAPSHOT : optional_source
 ```
 
-The two `optional_source` relationships above are deliberately non-authoritative. Historical order rows remain valid even if the current catalogue source record is later edited or deleted.
+The `optional_source` relationships are non-authoritative. Historical rows remain valid even when their former current catalogue source is later changed or deleted.
 
 ## 5. Catalogue model
 
@@ -168,23 +151,18 @@ Logical fields:
 | Field | Required | Meaning |
 |---|---:|---|
 | `category_id` | yes | Opaque technical identity |
-| `name` | yes | Current editable and business-unique category name |
+| `name` | yes | Current editable business-unique category name |
 | `created_at` | yes | Technical creation timestamp |
 | `updated_at` | yes | Technical last-update timestamp |
 
-Every current product references one category.
+Constraints:
 
-Approved constraints:
+- each current product references one category;
+- current category names are business-visible unique;
+- edits/imports creating visually equivalent duplicates are rejected, including surrounding-whitespace/case-only differences;
+- historical order lines store their own category-name snapshot.
 
-- each current category has a unique operator-facing `name`;
-- two current categories may not have the same visible name even if their `category_id` values differ;
-- editing or importing a category name must be rejected if the result would create a duplicate current category name;
-- uniqueness is a business/operational constraint in addition to the opaque technical ID and does not turn the category name into the technical primary key;
-- implementation must not permit visually equivalent duplicates merely because of technical differences such as surrounding whitespace or letter case.
-
-Historical orders do not depend on the current category name because the sale-time category name is copied into the order-line snapshot.
-
-Category display order remains deferred because Phase 2 intentionally deferred category ordering/shortcut behavior to later UI design.
+Category display-order/shortcut mechanics remain a UI implementation choice and do not require a new V1 business entity.
 
 ### 5.2 `Product`
 
@@ -192,25 +170,25 @@ Logical fields:
 
 | Field | Required | Meaning |
 |---|---:|---|
-| `product_id` | yes | Opaque internal product identity |
-| `code` | yes | Editable operator-facing current product code |
+| `product_id` | yes | Opaque current product identity |
+| `code` | yes | Editable operator-facing product code |
 | `name` | yes | Current product name |
 | `category_id` | yes | Current category relationship |
 | `price_ttc` | yes | Current TTC base selling price |
 | `vat_rate` | yes | Current product VAT rate/category |
-| `is_active` | yes | Whether product appears in normal order selection |
+| `is_active` | yes | Offered in normal new-order selection when true |
 | `discount_eligible` | yes | Eligibility for normal Retrait discount |
-| `options_enabled` | yes | Whether structured options are enabled for this product |
+| `options_enabled` | yes | Whether structured option prompting is enabled |
 | `created_at` | yes | Technical creation timestamp |
 | `updated_at` | yes | Technical last-update timestamp |
 
-Constraints required by approved behavior:
+Constraints:
 
-- `code` is unique among **current** products;
-- `code` is editable;
-- deleting a current product releases its code for reuse;
-- historical use of a code does not reserve it;
-- product deletion must never cascade into historical order data.
+- current `code` is unique;
+- code is editable;
+- permanent deletion releases the code for reuse;
+- historical code use does not reserve it;
+- deletion does not cascade to historical order data.
 
 ### 5.3 `OptionGroup`
 
@@ -218,26 +196,26 @@ Logical fields:
 
 | Field | Required | Meaning |
 |---|---:|---|
-| `option_group_id` | yes | Opaque internal identity |
+| `option_group_id` | yes | Opaque technical identity |
 | `product_id` | yes | Parent current product |
 | `name` | yes | Operator-facing group/prompt label |
 | `selection_mode` | yes | `SINGLE` or `MULTI` |
-| `is_required` | yes | Required/optional semantic |
+| `is_required` | yes | Required/optional semantics |
 | `min_selections` | conditional | Multi-select minimum |
 | `max_selections` | conditional | Multi-select maximum |
-| `display_order` | yes | Persisted product-specific group order |
+| `display_order` | yes | Product-specific prompt order |
 | `created_at` | yes | Technical creation timestamp |
 | `updated_at` | yes | Technical last-update timestamp |
 
-Approved validation is represented logically as follows:
+Validation:
 
-- required single-select => exactly one selection;
+- required single-select => exactly one;
 - optional single-select => zero or one;
-- required multi-select => minimum at least one;
-- optional multi-select may have minimum zero;
-- multi-select minimum may not exceed maximum.
+- required multi-select => minimum >= 1;
+- optional multi-select may use minimum 0;
+- multi-select minimum cannot exceed maximum.
 
-Phase 2 approved independent activation for individual options and product-level option enable/disable. It did not explicitly require a separate active/inactive flag for option groups, so this model does not invent one.
+A separate group active/inactive flag is not required because V1 already has product-level options enablement and individual option activation.
 
 ### 5.4 `Option`
 
@@ -245,116 +223,116 @@ Logical fields:
 
 | Field | Required | Meaning |
 |---|---:|---|
-| `option_id` | yes | Opaque internal identity |
+| `option_id` | yes | Opaque technical identity |
 | `option_group_id` | yes | Parent option group |
 | `name` | yes | Choice label |
-| `price_adjustment_ttc` | yes | Preset positive, negative or zero adjustment |
-| `is_active` | yes | Offered for new orders when active |
-| `display_order` | yes | Persisted order inside the group |
+| `price_adjustment_ttc` | yes | Preset positive/negative/zero adjustment |
+| `is_active` | yes | Offered for new orders when true |
+| `display_order` | yes | Persisted order inside group |
 | `created_at` | yes | Technical creation timestamp |
 | `updated_at` | yes | Technical last-update timestamp |
 
-The VAT rule for the option adjustment is not an operator-editable catalogue field:
+Option adjustment VAT is automatic:
 
-- positive adjustment => 5.5% VAT;
-- negative adjustment => inherit the associated product VAT;
-- zero adjustment => no monetary tax effect.
+- positive adjustment => 5.5%;
+- negative adjustment => associated product VAT;
+- zero => no monetary tax effect.
 
-The order snapshot stores the actual sale-time VAT treatment so historical reprinting never depends on a later rule/catalogue change.
+The actual sale-time amount/VAT is snapshotted on the order line.
 
 ## 6. Order model
 
 ### 6.1 `Order`
 
-`Order` is the durable current/latest business representation of one POS order or one Hiboutik emergency-import copy.
+`Order` is the durable latest business representation of one Sushi81 POS order, regardless of whether the entry was manual or created through Hiboutik paste import.
 
 Logical fields:
 
 | Field | Required | Meaning |
 |---|---:|---|
 | `order_id` | yes | Stable unique business order identity allocated at confirmation |
-| `source_type` | yes | `POS` or `HIBOUTIK_EMERGENCY` |
+| `source_type` | yes | Hidden discriminator: `POS` or `HIBOUTIK_PASTE` |
 | `status` | yes | `OPEN`, `CLOSED` or `CANCELLED` |
-| `created_at` | yes | Original durable order creation timestamp |
+| `created_at` | yes | Original durable creation timestamp |
 | `updated_at` | yes | Latest saved modification timestamp |
 | `closed_at` | no | Timestamp of current/latest successful close |
-| `cancelled_at` | no | Cancellation timestamp when cancelled |
+| `cancelled_at` | no | Cancellation timestamp |
 | `fulfilment_mode` | yes | `RETRAIT` or `LIVRAISON` |
-| `planned_fulfilment_date` | yes | Business date to which operational turnover/reminders are attributed |
-| `planned_fulfilment_time` | no | Structured pickup/delivery time when known |
-| `advance_order_marker` | yes | Sticky marker showing that the order has ever been saved as a future fulfilment order |
-| `telephone` | no | Order-level telephone text; no Customer entity required |
-| `delivery_address` | no | Latest saved delivery address; may be empty even for initial Livraison confirmation |
-| `comment` | no | Flexible operational free text |
-| `total_ttc` | yes | Single authoritative current order total |
-| `manual_total_override_active` | yes | Whether `total_ttc` currently comes from an operator manual override rather than the latest normal price calculation |
-| `pickup_discount_applied` | yes | Whether the normal Retrait discount is currently applied |
-| `pickup_discount_rate_snapshot` | no | Applied rate snapshot when the discount is active |
-| `delivery_fee_ttc_snapshot` | yes | Current applied order-level delivery fee, normally €0 in v1 |
+| `planned_fulfilment_date` | yes | Business date for reminders/turnover |
+| `planned_fulfilment_time` | no | Structured planned time |
+| `advance_order_marker` | yes | Sticky marker that order has ever been saved for a future date |
+| `telephone` | no | Order telephone text |
+| `delivery_address` | no | Latest saved delivery address |
+| `comment` | no | Flexible operational text |
+| `total_ttc` | yes | Current authoritative order total |
+| `manual_total_override_active` | yes | Whether current total is a manual override |
+| `pickup_discount_applied` | yes | Whether normal Retrait discount is active |
+| `pickup_discount_rate_snapshot` | no | Applied rate when discount is active |
+| `delivery_fee_ttc_snapshot` | yes | Current applied order-level delivery fee |
 
-`manual_total_override_active` is required because the final numeric total alone cannot tell the application which VAT rule is authoritative. Its lifecycle is simple:
+`source_type` is non-user-facing. `HIBOUTIK_PASTE` does not create a special order subtype or different UI; it exists only for automatic source inclusion/exclusion rules.
 
-- normal system price calculation writes `total_ttc` and sets the marker to `false`;
-- direct operator editing of `total_ttc` sets the marker to `true`;
-- any later price-affecting change triggers normal recalculation and resets it to `false`;
-- another direct manual edit sets it to `true` again.
+### 6.2 Manual-total marker
 
-### 6.2 Order identity
+`manual_total_override_active` is required because the numeric total alone cannot identify which VAT rule is authoritative.
 
-`order_id` is created only when the order is first confirmed.
+Semantics:
+
+- normal pricing writes `total_ttc` and sets marker `false`;
+- operator directly edits `total_ttc` -> marker `true`;
+- later price-affecting change recalculates total -> marker `false`;
+- another direct manual edit -> marker `true` again.
+
+### 6.3 Order identity and modification
+
+`order_id` is allocated only on first confirmation.
 
 Ordinary modification:
 
-- edits the same `Order` record;
-- retains the same `order_id`;
-- replaces the latest business values;
-- does not create a revision-history chain.
+- updates the same Order;
+- retains the same ID;
+- replaces latest saved business values;
+- does not create a user-facing revision chain.
 
-Creating a **new order from existing customer information** creates a new `Order` with a new `order_id`; it is not a child revision of the source order.
+Creating a new order from previous reusable customer information creates a new Order/new ID and does not establish a master-customer relation.
 
-The exact visible order-ID format is intentionally deferred. The model only requires uniqueness, stability and allocation at confirmation.
+The exact visible order-ID rendering is a technical/UI choice, but uniqueness and stability are mandatory.
 
-### 6.3 Status timestamps
+### 6.4 Status timestamps
 
-`closed_at` supports the approved settlement-year/archive rule without creating an order-history subsystem.
+Approved semantics:
 
-Approved logical semantics:
+- successful Close => `status = CLOSED`, set `closed_at`;
+- later saved edit causing CB + Espèce != total => `status = OPEN`, clear `closed_at`;
+- later Close again => set a new current `closed_at`;
+- cancellation => `status = CANCELLED`, set `cancelled_at`.
 
-- when an order is successfully closed, set `status = CLOSED` and `closed_at` to the effective close timestamp;
-- if a later edit makes CB + Espèce differ from `total_ttc`, the order becomes `OPEN` again and `closed_at` is cleared;
-- when it is closed again, `closed_at` receives the new close timestamp;
-- cancellation sets `status = CANCELLED` and `cancelled_at`.
+Only latest business state is required.
 
-Only the latest current business state is retained, consistent with the Phase 2 decision not to retain business revision history.
+### 6.5 `advance_order_marker`
 
-### 6.4 `advance_order_marker` — approved Phase 3 rule
+Semantics:
 
-The approved UI distinguishes ordinary same-day orders from advance orders that later become due today.
+- starts `false`;
+- if a non-cancelled order is saved while planned fulfilment date > current business date, set `true`;
+- once `true`, never reset for that order;
+- later date/time/product/payment/customer changes do not reset it;
+- cancellation need not clear it because Cancelled state independently excludes active reminders.
 
-The persisted `advance_order_marker` uses the following sticky semantics:
-
-- a new order starts with `advance_order_marker = false`;
-- if a non-cancelled order is saved at any time with `planned_fulfilment_date` later than the then-current business date, set `advance_order_marker = true`;
-- once set to `true`, the marker remains `true` permanently for that order;
-- later changes to planned date, planned time, products, payment, customer information or other editable order values do not reset it;
-- cancellation does not need to clear the marker because Cancelled status independently excludes the order from operational reminder views.
-
-This marker is not a separate order status. It only preserves the fact that the order has participated in the advance-order workflow so a future order that becomes due today can still be distinguished from an ordinary same-day order after later edits.
+The marker is not a status. It remembers participation in the advance-order workflow so a previously future order can be distinguished when it becomes due today.
 
 ## 7. Historical order-line snapshots
 
 ### 7.1 `OrderItem`
 
-Each confirmed order contains one or more `OrderItem` rows.
-
 Logical fields:
 
 | Field | Required | Meaning |
 |---|---:|---|
-| `order_item_id` | yes | Stable line identity inside persisted order |
+| `order_item_id` | yes | Stable persisted line identity |
 | `order_id` | yes | Parent order |
 | `line_position` | yes | Saved display/print order |
-| `source_product_id` | no | Optional non-authoritative link to current catalogue product |
+| `source_product_id` | no | Optional non-authoritative current product link |
 | `product_code_snapshot` | yes | Sale-time product code |
 | `product_name_snapshot` | yes | Sale-time product name |
 | `category_name_snapshot` | yes | Sale-time category name |
@@ -362,86 +340,70 @@ Logical fields:
 | `product_vat_rate_snapshot` | yes | Sale-time product VAT |
 | `discount_eligible_snapshot` | yes | Sale-time discount eligibility |
 | `quantity` | yes | Ordered quantity |
-| `base_line_total_ttc_snapshot` | yes | Sale-time base price × quantity result under approved rounding |
-| `calculated_line_total_ttc_snapshot` | yes | System-calculated line result including saved adjustments/discount logic before any order-level manual total override |
+| `base_line_total_ttc_snapshot` | yes | Base price × quantity result under approved rounding |
+| `calculated_line_total_ttc_snapshot` | yes | System-calculated line result before any order-level manual total override |
 
-Important semantics:
+The snapshot is refreshed only when the operator intentionally modifies/saves that order, not merely because the live catalogue changes.
 
-- the snapshot is refreshed when the operator intentionally modifies and saves the order;
-- it is not refreshed merely because the current catalogue changes;
-- deleting the source product must not delete or invalidate the order item;
-- historical reporting/reprinting uses snapshot values.
-
-`calculated_line_total_ttc_snapshot` intentionally preserves the system-calculated commercial line result even when `Order.total_ttc` is later manually overridden. The approved lifecycle allows the authoritative order total to differ from item arithmetic.
+Historical viewing/reporting/printing/export use these snapshots.
 
 ### 7.2 `OrderItemAdjustmentSnapshot`
 
-Selected predefined options and operator-entered custom option adjustments are stored as sale-time snapshots attached to the relevant order line.
+Selected predefined options and custom line adjustments are stored as sale-time snapshots.
 
 Logical fields:
 
 | Field | Required | Meaning |
 |---|---:|---|
 | `order_item_adjustment_id` | yes | Snapshot row identity |
-| `order_item_id` | yes | Parent order line |
+| `order_item_id` | yes | Parent line |
 | `display_order` | yes | Saved display/print order |
 | `kind` | yes | `PREDEFINED_OPTION` or `CUSTOM_ADJUSTMENT` |
-| `source_option_id` | no | Optional non-authoritative catalogue link |
-| `option_group_name_snapshot` | no | Group label when applicable |
-| `label_snapshot` | yes | Selected option/custom adjustment label |
-| `adjustment_ttc_snapshot` | yes | Positive, negative or zero amount |
-| `vat_rate_snapshot` | conditional | Sale-time VAT treatment for monetary adjustments |
+| `source_option_id` | no | Optional non-authoritative current option link |
+| `option_group_name_snapshot` | no | Group label where applicable |
+| `label_snapshot` | yes | Choice/custom adjustment label |
+| `adjustment_ttc_snapshot` | yes | Positive/negative/zero amount |
+| `vat_rate_snapshot` | conditional | Sale-time VAT for monetary adjustment |
 
-This unified snapshot entity supports:
+This supports historical preservation after option rename/deactivation/deletion.
 
-- zero-price descriptive choices;
-- positive preset surcharges;
-- negative preset adjustments;
-- custom positive/negative adjustments with required labels;
-- multiple selections within one group;
-- historical preservation after current options are renamed, deactivated or removed.
+## 8. Pricing snapshots
 
-The historical row does not depend on the current `Option` record remaining present.
-
-## 8. Discount and pricing snapshots
-
-The current business configuration may change after an order is created. Historical orders therefore must retain the pricing facts actually used at the time of their latest saved business state.
+Historical orders retain the current saved business result independently of later settings changes.
 
 At minimum:
 
-- `Order.pickup_discount_applied` records whether the normal discount is active;
-- `Order.pickup_discount_rate_snapshot` records the actual rate used;
-- `Order.delivery_fee_ttc_snapshot` records the fee actually applied;
-- any non-zero normal calculated `Order.delivery_fee_ttc_snapshot` uses fixed 10% VAT;
-- `Order.manual_total_override_active` records whether the current authoritative total is a manual override and therefore whether the single 10% VAT override rule applies;
-- `OrderItem.discount_eligible_snapshot` records sale-time eligibility;
-- option adjustment amount/VAT snapshots preserve their sale-time result;
-- system-calculated line results are persisted as snapshots rather than depending on current catalogue values.
+- `pickup_discount_applied` records current normal-discount application;
+- `pickup_discount_rate_snapshot` records actual applied rate;
+- `delivery_fee_ttc_snapshot` records actual applied fee;
+- enabled non-zero normal delivery fee uses fixed 10% VAT;
+- `manual_total_override_active` records whether the single-10%-bucket rule is authoritative;
+- `discount_eligible_snapshot` records line sale-time eligibility;
+- option adjustments retain sale-time amount/VAT snapshots;
+- calculated line totals remain persisted even when the final Order total is manually overridden.
 
-The current configured Retrait minimum and Livraison minimum are **validation parameters**, not historical financial values that must be copied to each order.
+Current configured minimum thresholds are validation parameters and do not need to be copied to every order.
 
-A later price-affecting order change recalculates the relevant pricing snapshots under the then-current approved business settings, replaces the prior latest saved values and resets `manual_total_override_active = false`, consistent with the approved same-order modification model.
+A later price-affecting saved change recalculates relevant snapshots under then-current approved settings and resets manual override state.
 
 ## 9. Payment model
 
-### 9.1 No separate payment-method field
+### 9.1 No separate order-level payment-method field
 
-V1 does not store an independently selected `CB`, `Espèce` or `Mixte` order-level method.
+Current composition is derived from cumulative amounts:
 
-The current composition is derived from cumulative amounts:
+- CB = 0, Espèce = 0 -> unpaid/not recorded;
+- CB > 0, Espèce = 0 -> card only;
+- CB = 0, Espèce > 0 -> cash only;
+- both > 0 -> mixed.
 
-- CB = 0 and Espèce = 0 => not recorded/unpaid;
-- CB > 0 and Espèce = 0 => card-only;
-- CB = 0 and Espèce > 0 => cash-only;
-- CB > 0 and Espèce > 0 => mixed.
-
-The close rule remains:
+The Close rule remains:
 
 `current CB + current Espèce = Order.total_ttc`
 
 ### 9.2 `PaymentAdjustment`
 
-The application internally persists signed dated changes rather than only overwriting one total amount.
+The application persists signed dated changes.
 
 Logical fields:
 
@@ -450,144 +412,125 @@ Logical fields:
 | `payment_adjustment_id` | yes | Technical event identity |
 | `order_id` | yes | Parent order |
 | `bucket` | yes | `CB` or `ESPECE` |
-| `delta_amount` | yes | Signed change to cumulative amount |
-| `effective_at` | yes | Business date/time to which this received/corrected amount is attributed |
-| `recorded_at` | yes | Timestamp at which the application recorded the change |
+| `delta_amount` | yes | Signed cumulative-value change |
+| `effective_at` | yes | Business date/time to which change is attributed |
+| `recorded_at` | yes | Technical persistence timestamp |
 
-Current cumulative values are derived as:
+Current cumulative values are sums of deltas by bucket.
 
-- current CB = sum of CB deltas for the order;
-- current Espèce = sum of Espèce deltas for the order.
+The normal UI edits cumulative values; it does not need to expose this ledger.
 
-Example:
+### 9.3 Effective versus recorded time
 
-- day 1 target CB changes from €0 to €20 => `+20` CB adjustment on day 1;
-- day 2 target CB changes from €20 to €50 => `+30` CB adjustment on day 2;
-- later correction from €50 to €45 => `-5` CB adjustment at the correction's effective date/time.
+`effective_at` represents the business time/date used for received-payment attribution; `recorded_at` preserves when the application persisted the adjustment.
 
-This directly implements the approved Phase 2 requirement that daily received-payment summaries count only the amount newly attributed to each date rather than recounting the full cumulative payment.
+The exact UI allowed for back-dating may be selected during implementation provided it preserves the approved business meaning and does not silently misattribute received-payment summaries.
 
-The UI does not need to expose this event ledger. It continues to show/edit current cumulative CB and Espèce amounts.
+### 9.4 Cancellation retains payment facts
 
-### 9.3 Why both `effective_at` and `recorded_at` exist
+Cancellation does not delete PaymentAdjustment rows. Ordinary summaries exclude Cancelled orders by query rules rather than erasing underlying facts.
 
-The business summary is based on when money is actually received/effectively attributed, while technical persistence may happen later during correction/reconciliation.
+## 10. Derived views/reporting
 
-Keeping both timestamps avoids forcing the physical model to lose that distinction. The later UI/workflow design may decide whether operators can back-date a correction or whether `effective_at` normally equals `recorded_at`.
+### 10.1 Payment state
 
-### 9.4 Cancellation does not destroy payment facts
+Derived from current CB + Espèce relative to `Order.total_ttc`:
 
-Cancelling an order does not delete its `PaymentAdjustment` rows.
+- zero => unpaid/not recorded;
+- below total => partial/unsettled;
+- equal => arithmetically reconciled/eligible for explicit Close;
+- above => close validation error.
 
-Its current CB/Espèce values therefore remain available for reference as required by the lifecycle specification.
-
-Ordinary received-payment and turnover queries exclude Cancelled orders according to the approved reporting rules rather than erasing the underlying retained amounts.
-
-## 10. Derived lifecycle/reporting views
-
-The following are logical queries/views, not separately editable business fields.
-
-### 10.1 Current payment state
-
-Derived from current CB + current Espèce relative to `Order.total_ttc`:
-
-- zero recorded => unpaid/payment not recorded;
-- recorded total below order total => partial/unsettled;
-- recorded total equals order total => arithmetically reconciled/eligible to close;
-- overpayment => close validation error until corrected.
-
-`Order.status = CLOSED` still requires the explicit close action; equality alone does not silently replace the saved lifecycle status.
+Equality alone does not silently change saved status to Closed; Close remains explicit.
 
 ### 10.2 Future order
 
-Derived primarily from:
+Derived when:
 
-`planned_fulfilment_date > current_business_date`
+- planned fulfilment date > current business date;
+- status != Cancelled.
 
 ### 10.3 Due-today advance order
 
-Derived from:
+Derived when:
 
-- `planned_fulfilment_date = current_business_date`;
+- planned fulfilment date = current business date;
 - `advance_order_marker = true`;
-- order not Cancelled.
+- status != Cancelled.
 
-Payment/Closed state does not remove the operational reminder.
+Payment/Open/Closed state does not remove the reminder.
 
 ### 10.4 Overdue unsettled
 
-Derived from:
+Derived when:
 
-- `planned_fulfilment_date < current_business_date`;
-- order not Cancelled;
-- order not fully closed/reconciled under the approved lifecycle.
+- planned fulfilment date < current business date;
+- status != Cancelled;
+- order is not fully Closed/reconciled under the approved lifecycle.
 
-### 10.5 Real-time operational turnover
+### 10.5 Operational turnover
 
-For a date D:
+For date D:
 
-- include ordinary `source_type = POS` orders;
-- exclude Cancelled orders;
-- sum current authoritative `total_ttc` where `planned_fulfilment_date = D`;
-- ignore payment state/closure for turnover attribution.
+- include `source_type = POS`;
+- exclude Cancelled;
+- include orders with planned fulfilment date = D;
+- sum current authoritative `total_ttc`;
+- ignore payment/closure for turnover attribution.
 
-Hiboutik emergency copies are excluded to prevent double counting.
+`source_type = HIBOUTIK_PASTE` is excluded automatically to prevent double counting.
 
 ### 10.6 Daily received-payment totals
 
 For date D:
 
-- use `PaymentAdjustment.effective_at` on date D;
-- group by CB/Espèce bucket;
-- include ordinary POS-originated orders under approved status/source filters;
-- count deltas rather than whole cumulative order payment;
-- exclude Hiboutik emergency copies from ordinary POS received-payment totals;
-- exclude Cancelled orders from ordinary summaries according to Phase 2 rules.
+- use PaymentAdjustment rows whose `effective_at` belongs to D;
+- group by CB/Espèce;
+- apply ordinary source/status filters;
+- count deltas rather than whole cumulative order payments;
+- exclude Cancelled orders from ordinary summaries;
+- exclude `HIBOUTIK_PASTE` from ordinary POS-originated received-payment totals.
 
-## 11. Hiboutik emergency-import extension
+## 11. Hiboutik paste source boundary — minimal V1 model
 
-### 11.1 Shared `Order` model
+A Hiboutik paste-created order uses the same Order/OrderItem/PaymentAdjustment/Tax structures as an ordinary order.
 
-A Hiboutik emergency-import copy uses the normal `Order`/`OrderItem` structures so that it can:
+The only Hiboutik-specific persisted business distinction required in V1 is:
 
-- be viewed;
-- be printed/reprinted;
-- participate in future/due-today reminders;
-- store the POS operational/actual total;
-- store payment outcome for discrepancy review.
+`Order.source_type = HIBOUTIK_PASTE`
 
-It is distinguished by:
+This discriminator:
 
-`Order.source_type = HIBOUTIK_EMERGENCY`
+- is hidden/non-editable in the ordinary operator workflow;
+- does not create a special UI/style/order type;
+- does not change ordinary lifecycle/editing/printing behavior;
+- exists solely to implement anti-double-counting source filters.
 
-This source discriminator is mandatory because emergency copies must be systematically excluded from ordinary POS-originated financial/statistical/export calculations.
+It automatically excludes the pasted order from:
 
-### 11.2 `EmergencyImportDetail`
+- ordinary POS-originated operational turnover;
+- ordinary POS-originated received-payment summaries;
+- the ordinary POS CB amount that must newly be represented in Hiboutik;
+- export to `Gestion SUSHI 81`.
 
-Source-specific approved fields belong in a one-to-one extension rather than cluttering every normal POS order with Hiboutik-only columns.
+No dedicated Hiboutik entity is required.
 
-Logical fields:
+Specifically V1 does **not** model:
 
-| Field | Required | Meaning |
-|---|---:|---|
-| `order_id` | yes | One-to-one link to emergency `Order` |
-| `hiboutik_original_total_ttc` | yes | Original total preserved from Hiboutik email |
-
-Additional parser/source metadata such as an external Hiboutik reference or sanitized source text may be added later by `paste-order-import.md` if a concrete requirement is approved.
-
-The emergency discrepancy can be derived from:
-
+- `EmergencyImportDetail`;
 - `hiboutik_original_total_ttc`;
-- `Order.total_ttc` as POS operational/actual amount;
-- current derived CB/Espèce payment amounts.
+- dedicated Hiboutik order/reference number;
+- dedicated discrepancy/reconciliation status;
+- retained raw pasted-email payload as business data;
+- parser fingerprint/duplicate-management entity.
 
-No duplicated Hiboutik-specific amount is required for ordinary `source_type = POS` orders.
+If the operator wants to retain a source reference, it can be entered in the ordinary `Order.comment` field.
+
+The ordinary authoritative total is calculated under `paste-order-import.md` and may then be manually overridden under the same rule as any other order.
 
 ## 12. Business configuration
 
 ### 12.1 `BusinessSettings`
-
-The approved commercial settings belong in durable application business data rather than source-code constants.
 
 A logical singleton/current-settings entity contains at least:
 
@@ -600,17 +543,11 @@ A logical singleton/current-settings entity contains at least:
 | `delivery_fee_amount_ttc` | yes | €0.00 |
 | `updated_at` | yes | — |
 
-No delivery-fee VAT-rate setting is required in v1: the approved Sushi81 delivery-fee VAT rule is fixed at 10%.
+No configurable delivery-fee VAT-rate field is required; the approved rate is fixed 10%.
 
-V1 does not require a history table for settings changes.
-
-Historical reproducibility is achieved by storing the relevant **applied pricing snapshots** on the order/order lines rather than by reconstructing old orders from the current settings row.
+V1 does not require settings-history reconstruction. Historical reproducibility comes from applied order/line/tax snapshots.
 
 ## 13. VAT/tax breakdown snapshot
-
-Customer receipts must preserve VAT information and archived orders must remain reprintable.
-
-For that reason the logical model provides a durable order-level tax breakdown rather than relying on current catalogue/settings at reprint time.
 
 ### 13.1 `OrderTaxBreakdown`
 
@@ -620,118 +557,121 @@ Logical fields:
 |---|---:|---|
 | `order_tax_breakdown_id` | yes | Technical identity |
 | `order_id` | yes | Parent order |
-| `vat_rate` | yes | VAT rate represented by this row |
-| `taxable_ttc_amount` | yes | TTC amount allocated to this VAT rate |
-| `vat_amount` | yes | VAT amount under approved round-half-up rules |
+| `vat_rate` | yes | VAT rate represented by row |
+| `taxable_ttc_amount` | yes | TTC amount allocated to rate |
+| `vat_amount` | yes | VAT included under approved cent rounding |
 
-The rows are replaced whenever a price-affecting modification causes the order to be recalculated and saved, and they are also replaced when the operator manually changes the authoritative total.
+Rows are regenerated/replaced when a price-affecting saved change recalculates the order and when a manual total edit changes the authoritative tax rule.
 
 ### 13.2 Normal calculated total
 
-When `Order.manual_total_override_active = false`, the tax breakdown is generated from the actual sale-time product/option/fee VAT rules and may therefore contain multiple VAT buckets.
+When `manual_total_override_active = false`, tax breakdown comes from sale-time product/option/fee rules:
 
-Under normal calculated pricing:
-
-- products use their sale-time product VAT snapshots;
+- products use sale-time product VAT snapshots;
 - positive option adjustments use 5.5%;
-- negative option adjustments inherit the associated product VAT;
-- any non-zero Sushi81 delivery fee uses 10% and is included in the 10% bucket.
+- negative option adjustments inherit product VAT;
+- non-zero enabled delivery fee uses 10%.
 
-The persisted `OrderTaxBreakdown` rows are authoritative for historical receipt reprinting; later catalogue changes do not alter them.
+Persisted rows are authoritative for later receipt reprinting/export.
 
-### 13.3 Manual total override — approved rule
+### 13.3 Manual total override
 
-When `Order.manual_total_override_active = true`:
+When `manual_total_override_active = true`:
 
-- discard the normal mixed VAT allocation for the current final tax snapshot;
-- create exactly one `OrderTaxBreakdown` row;
-- set `vat_rate = 10%`;
-- set `taxable_ttc_amount = Order.total_ttc`;
-- calculate the VAT included in that TTC amount at 10% and round the final VAT amount using the approved round-half-up cent rule.
+- discard the normal mixed final VAT allocation;
+- create exactly one current tax row;
+- `vat_rate = 10%`;
+- `taxable_ttc_amount = Order.total_ttc`;
+- compute VAT included in TTC at 10% under approved round-half-up behavior.
 
-For a TTC amount `T`, the VAT included at 10% is conceptually:
+Conceptually:
 
 `VAT = T - (T / 1.10)`
 
-with the final stored/displayed VAT rounded consistently to €0.01 under the approved rounding rule.
+where `T` is authoritative final TTC.
 
-This applies to the **entire final manual amount**, regardless of the original products' VAT rates and regardless of whether the override increases or decreases the system-calculated total.
-
-A later price-affecting change resets `manual_total_override_active = false`, recalculates `total_ttc` and regenerates the normal product/option/fee VAT breakdown. A later manual edit sets the marker to `true` again and regenerates the single 10% bucket.
+A later price-affecting recalculation restores normal tax breakdown; another manual edit re-applies the single 10% bucket.
 
 ## 14. Telephone-history assistance without CRM
 
-V1 should not introduce a Customer table merely to support telephone-history lookup.
+Historical assistance queries existing Order telephone values and may show reusable prior address/comment information.
 
-Historical assistance can query existing orders using the optional order-level telephone value and display reusable information such as prior delivery addresses/comments.
+Implementation may keep a normalized/searchable telephone representation/index for performance, but this is not a separate Customer business entity.
 
-Implementation may maintain a normalized/searchable representation or index of the telephone value for efficient matching, but that is a technical optimization rather than a separate customer business entity.
-
-Creating a new order from an existing order copies reusable text values only; it does not establish a durable customer master relationship.
+Creating a new order from previous information copies text only and creates no durable customer-master relationship.
 
 ## 15. Archive-related data requirements
 
-The physical archive strategy belongs to `storage-strategy.md`, but the data model must preserve fields needed to decide archive eligibility and retain historical behavior.
+The archive mechanics are authoritative in `storage-strategy.md`.
 
-At minimum:
+The data model preserves the fields required for them:
 
-- original `created_at` remains unchanged;
-- original/current planned fulfilment date remains explicit;
+- `created_at` remains original;
+- planned fulfilment date remains explicit;
 - `status` remains explicit;
-- `closed_at` identifies the current/latest settlement/close year for ordinary reconciled orders;
-- unresolved Open orders can remain in the live database across a natural-year boundary;
-- order-line/product/option/tax snapshots make archived orders independent of future catalogue changes.
+- `closed_at` identifies the current/latest Close year;
+- `cancelled_at` identifies the cancellation year;
+- any Open order can remain live across calendar-year boundaries;
+- order/item/option/tax snapshots make archives independent of future catalogue changes.
 
-The archive rule for ordinary Closed orders can therefore use the natural year of `closed_at`, consistent with the approved settlement-year principle.
+Approved archive-year rule:
 
-The precise archive-year treatment of Cancelled orders and Hiboutik emergency copies should be frozen in `storage-strategy.md` because Phase 2 does not explicitly assign those records a settlement year.
+- Closed order -> natural year of `closed_at`;
+- Cancelled order -> natural year of `cancelled_at`;
+- Open order -> remains live regardless of age.
 
-Live and archive databases should use the same logical order schema so archived orders remain queryable/reprintable without lossy transformation.
+The same end-year rule applies to both `POS` and `HIBOUTIK_PASTE` sources; source controls financial/export inclusion, not archive-year semantics.
 
-## 16. Data explicitly not modeled in v1 core
+Live and archive databases preserve compatible logical order schema so archived records remain queryable/reprintable without lossy transformation.
 
-Unless a later approved document adds a concrete requirement, the core data model does not include:
+## 16. Data explicitly not modeled in V1 core
+
+Unless a later approved specification amendment adds a concrete requirement, V1 does not include:
 
 - employee/user accounts;
 - permissions/roles;
-- customer master/CRM profiles;
-- inventory/stock entities;
-- supplier/purchasing entities;
+- Customer/CRM master profiles;
+- inventory/stock;
+- supplier/purchasing;
 - accounting journal entities;
-- card-terminal transaction IDs or refund execution;
-- telephone-versus-walk-in order-source classification;
+- card-terminal transaction IDs/refund execution;
+- telephone-versus-walk-in classification;
 - ordinary order revision history;
 - permanent catalogue-import report/history;
-- automatic Hiboutik submission records;
+- automatic Hiboutik submission/synchronization records;
 - full Hiboutik web-order synchronization;
+- dedicated Hiboutik emergency/import detail entity;
+- original-Hiboutik-total/discrepancy/reconciliation model;
 - current-catalogue dependency for historical order interpretation.
 
-## 17. Phase 3 design decisions resolved
+## 17. Phase 3 decisions resolved
 
-The Phase 3 questions originally identified while drafting this model have now been resolved:
+The Phase 3 questions originally identified during model design are resolved:
 
-### 17.1 Manual total override VAT
+### 17.1 Manual-total VAT
 
-Resolved: while an operator-entered manual total is authoritative, the complete final TTC amount uses one 10% VAT bucket. See section 13.3 and `business-rules.md`.
+Resolved: one 10% VAT bucket while the manual authoritative total is active.
 
 ### 17.2 Delivery-fee VAT
 
-Resolved: the Sushi81 fixed delivery fee uses 10% VAT whenever enabled and non-zero under normal calculated pricing. No configurable delivery-fee VAT field is required in v1. See `business-rules.md` and `docs/decisions/delivery-fee-vat.md`.
+Resolved: non-zero enabled Sushi81 delivery fee uses fixed 10% VAT; no configurable fee-VAT field.
 
-### 17.3 Advance-order marker semantics
+### 17.3 Advance-order marker
 
-Resolved: once an order has ever been saved with a future planned fulfilment date, `advance_order_marker` becomes true and remains true permanently for that order. See sections 6.4 and 10.3 and `order-lifecycle.md`.
+Resolved: once set by a saved future order, marker remains true permanently for that order.
 
-### 17.4 Category duplicate-name policy
+### 17.4 Category-name uniqueness
 
-Resolved: every current catalogue category must have a unique operator-facing name. Duplicate current category names are rejected by normal catalogue editing and batch import. See section 5.1, `catalogue-management.md` and `docs/decisions/category-name-uniqueness.md`.
+Resolved: every current category has a unique operator-facing name with business-visible normalization.
 
-There are no remaining unresolved logical-data-model questions from the original Phase 3 review list.
+### 17.5 Hiboutik paste source model — Phase 5 alignment
 
-## 18. Approval rule
+Resolved by the later Phase 4 simplification: only the hidden `source_type` discriminator remains. The earlier `EmergencyImportDetail`, immutable original Hiboutik amount and discrepancy model are superseded and removed from the V1 logical model.
 
-This document is the **Approved — Phase 3 baseline** for the Sushi81 POS logical data model.
+There are no remaining unresolved logical-data-model business questions for V1.
 
-The final consistency review confirmed that the entity structure, lifecycle facts, payment adjustments, historical snapshots, emergency-import boundaries, VAT snapshots, advance-order semantics and catalogue identity/uniqueness rules are aligned with the approved Phase 1 and Phase 2 baselines plus the approved Phase 3 amendments.
+## 18. Approval
 
-Architecture and storage design may choose physical technologies, column types, file locations, archive files, migration mechanics and implementation patterns, but they must preserve the logical semantics frozen in this document. Any later change to these business-data semantics requires an explicit specification amendment rather than being invented during implementation.
+This document is the **Approved — Phase 3 baseline**, aligned during Phase 5 with all later Approved decisions.
+
+The V1 logical model now contains only the business entities and persisted facts required by the approved workflow. Architecture/storage/export implementation may choose physical tables, indexes, serialization and technical metadata where not already frozen, but may not reintroduce the superseded Hiboutik emergency model or change approved business semantics without an explicit specification amendment.
