@@ -203,6 +203,30 @@ The configuration must be practical rather than artificially restrictive. For ex
 - optional extras: optional, multi-select;
 - included choices in a menu: required, multi-select with configured minimum/maximum counts.
 
+### Individual option maintenance and predefined price adjustment — approved Phase 2 decision
+
+Each concrete option/choice within an option group is user-maintained catalogue data.
+
+At minimum, an individual option supports:
+
+- a **text label/name** shown to the operator and retained on the order-line snapshot when selected;
+- a predefined **fixed price adjustment** expressed to euro-cent precision;
+- an adjustment that may be **positive, negative or exactly €0.00**;
+- an independent **active/inactive** state.
+
+The operator may therefore temporarily deactivate one unavailable choice without disabling the parent product or the entire option group. An inactive option is not offered for new order selection, but historical orders that previously used that option remain unchanged. Reactivating the option makes it available for new orders again.
+
+Editing an option's label, predefined price adjustment or active state affects only the current catalogue and future order entry. Existing confirmed order-line snapshots are not rewritten.
+
+Predefined option-price adjustments use the already-approved calculation rules from `business-rules.md`; this catalogue document does not create a second pricing model. In particular:
+
+- positive option adjustments do **not** receive the normal Retrait discount and use **5.5% VAT**;
+- negative option adjustments reduce the discountable product amount before the Retrait discount is calculated and inherit the associated product's VAT rate;
+- €0.00 adjustments change only the selected commercial option description and do not change the monetary total;
+- all option adjustments use the approved euro-cent precision and monetary rounding rules.
+
+Custom operator-entered option adjustments for exceptional cases also remain governed by `business-rules.md`, including the requirement for a non-empty description.
+
 ### Order-entry prompting — approved Phase 2 decision
 
 When the operator selects/adds a product during order entry:
@@ -213,15 +237,12 @@ When the operator selects/adds a product during order entry:
 - the prompt must present the choices according to the configured single-select or multi-select behavior;
 - required groups and configured minimum/maximum limits must be enforced before the option-selection step is accepted;
 - optional groups may be left unselected when their configured minimum permits zero selections;
+- inactive individual options are not offered for new selection;
 - the selected option labels and any price adjustments are attached to that specific order line and copied into the order snapshot.
 
 The exact visual form of the prompt — modal dialog, popover, side panel or another interaction pattern — is a UI-design choice. The required behavior is that selection is surfaced automatically and clearly at product-add time.
 
-The following option details still need to be frozen:
-
-- display order of option groups and option labels;
-- predefined option-price-adjustment catalogue maintenance, consistent with `business-rules.md`;
-- whether individual options can be temporarily deactivated independently from the parent product.
+The remaining option detail to freeze is the **display/order behavior for option groups and option labels**. The exact visual form remains a UI-design decision, but Phase 2 still needs to decide whether the operator must be able to control their ordering explicitly.
 
 ## 7. Historical stability — approved Phase 2 principle
 
@@ -239,6 +260,7 @@ When an order is committed, the order-item snapshot must contain enough sale-tim
 - category;
 - option name;
 - option price adjustment;
+- option active/inactive state;
 - active/inactive status;
 - deletion from the current catalogue;
 - or even later reuse of the same operator-facing product code for different catalogue content
@@ -274,12 +296,11 @@ No import should partially apply a logically invalid catalogue update without cl
 
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
-1. predefined option-price-adjustment catalogue behavior consistent with `business-rules.md`;
-2. whether individual options can be independently activated/deactivated;
-3. in-application catalogue editing workflow;
-4. final batch import/export format and columns;
-5. update/conflict/deactivation/delete behavior during import;
-6. validation and preview requirements.
+1. display/order behavior for option groups and individual option labels;
+2. in-application catalogue editing workflow;
+3. final batch import/export format and columns;
+4. update/conflict/deactivation/delete behavior during import;
+5. validation and preview requirements.
 
 The following product-field/identity/lifecycle/history/category/option principles are already approved and are no longer open questions:
 
@@ -290,6 +311,9 @@ The following product-field/identity/lifecycle/history/category/option principle
 - both single-select and multi-select option behavior are supported;
 - each option group independently defines whether selection is required or optional;
 - multi-select groups support configurable minimum and maximum selection counts;
+- each individual option has a label, a predefined positive/negative/zero price adjustment and its own active/inactive state;
+- individual options may be temporarily deactivated without disabling the parent product or option group;
+- predefined option-price adjustments follow the approved discount, VAT, precision and rounding rules in `business-rules.md`;
 - when a product has enabled structured options, order entry automatically presents an option-selection prompt when that product is selected/added;
 - option selections are attached to the specific order line and retained in the order snapshot;
 - confirmed historical orders are independent snapshots and do not depend on the live catalogue;
