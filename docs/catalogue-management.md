@@ -14,10 +14,11 @@ It covers:
 - product identity and lifecycle;
 - editable catalogue attributes;
 - activation/deactivation and deletion;
-- categories and category shortcuts;
+- categories;
 - discount eligibility;
 - structured product options/choices;
 - option-price adjustments;
+- in-application catalogue maintenance;
 - catalogue import/export and validation;
 - historical-order stability after catalogue changes.
 
@@ -25,83 +26,73 @@ It does not define the physical database schema, order lifecycle or final screen
 
 ## 2. Authoritative Phase 1 baseline and Phase 2 refinement
 
-The target catalogue must support at least the product information already required by the approved Phase 1 documents:
+The target catalogue supports at least:
 
-- product code used by the operator;
+- operator-facing product code;
 - product name;
 - category;
 - TTC selling price;
 - VAT rate/category;
 - active/inactive status;
-- discount eligibility;
-- category shortcut/display support where retained;
-- one or more product options/choices where applicable.
+- Retrait-discount eligibility;
+- structured product options where applicable.
 
 The following requirements remain fixed:
 
-1. product browsing/search must work by code and name;
-2. inactive products disappear from normal order selection but may remain in the current catalogue for later reactivation;
-3. catalogue changes must never rewrite historical order-item data;
-4. confirmed orders must retain a complete sale-time snapshot sufficient to reproduce historical product code, name, base price, VAT and selected option/adjustment information;
-5. catalogue maintenance must be possible inside the application without editing Excel;
-6. batch import/export must be supported through an approved tabular format such as Excel or CSV;
+1. product browsing/search works by code and name;
+2. inactive products disappear from normal order selection but may remain for later reactivation;
+3. catalogue changes never rewrite historical order-item data;
+4. confirmed orders retain a sale-time snapshot sufficient to reproduce historical product code, name, price, VAT and selected option/adjustment information;
+5. catalogue maintenance is possible inside the application without editing Excel;
+6. batch import/export is supported through the approved Excel format defined below;
 7. ordinary order entry may not overwrite the catalogue product's base unit price;
-8. a product option can have a predefined price adjustment and the operator may need a custom option adjustment for exceptional real-world cases.
+8. product options may carry predefined price adjustments and operator-entered custom adjustments under `business-rules.md`.
 
-Phase 2 explicitly refines the earlier idea that the operator-facing product code should act as a permanent historical identity. Historical orders and the live catalogue are intentionally separated. The catalogue describes what is available for current/future ordering; a confirmed order stores its own sale-time product data and does not depend on the later state of the catalogue.
+Historical orders and the live catalogue are intentionally separate. The catalogue describes current/future ordering; a confirmed order stores its own sale-time data and does not depend on the later catalogue state.
 
 ## 3. Product identity — approved Phase 2 principle
 
-The operator-facing product `Code` is an **editable operational/catalogue code**, not the permanent business identity of historical sales.
+The operator-facing product `Code` is an **editable operational/catalogue code**, not the permanent identity of historical sales.
 
 Approved principles:
 
-- historical order lines are self-contained sale records and do not obtain their current meaning by looking up the live catalogue;
-- once an order is confirmed, its stored product code, product name, price, VAT, options and adjustments remain fixed unless the order itself is explicitly edited under the order-lifecycle rules;
-- later catalogue edits do not alter any existing order;
+- historical order lines are self-contained sale records;
+- later catalogue edits do not alter existing confirmed orders;
 - the operator may change a catalogue product's code;
-- a code may later be reassigned to substantially different catalogue content when this is operationally useful;
-- prior historical use of a code does not permanently reserve that code;
-- catalogue code sequences such as letter-plus-number series may therefore be reorganized without creating permanent gaps solely for historical reasons.
+- a code may later be reassigned to different catalogue content;
+- historical use of a code does not permanently reserve it;
+- letter-plus-number code sequences may therefore be reorganized without permanent historical gaps.
 
-At the database level, implementation should use a separate opaque/internal product identifier (for example an internal `product_id`) so the application can safely identify catalogue records without forcing the operator-facing `Code` to be immutable. That internal identifier is an implementation concern and is not intended to become part of the normal ordering workflow or visible business code.
+Implementation should use a separate opaque internal product identifier, such as an internal `product_id`, so catalogue records can be handled safely without making the operator-facing code immutable. This identifier is not part of normal order entry.
 
 ### Current-catalogue code uniqueness — approved Phase 2 decision
 
-Within the current catalogue, a product code must identify **exactly one catalogue product at a time**.
+Within the current catalogue, a product code identifies **exactly one product at a time**.
 
 Therefore:
 
-- two simultaneously existing catalogue product records may not have the same operator-facing code;
-- this uniqueness rule applies to the current catalogue state, not to historical orders;
-- a code may be edited, released and later reused for another product, provided no second current catalogue record uses that same code at the same time;
-- historical orders containing a previously used code do not conflict with or block reuse of that code in the current catalogue;
-- the application must reject or clearly prevent an edit/import that would leave duplicate product codes in the current catalogue.
-
-This preserves unambiguous search and ordering while keeping the code system fully reorganizable over time.
+- two current catalogue products may not have the same code;
+- a code may be edited, released and later reused;
+- historical orders containing an old use of the code do not block reuse;
+- edits/imports that would leave duplicate current codes must be rejected.
 
 ## 4. Product maintenance — approved Phase 2 decisions
 
-The application must support practical maintenance of the catalogue without Excel.
-
-Target actions include:
+The application supports:
 
 - add product;
-- edit product code;
-- edit approved product/commercial attributes;
+- edit product code and commercial attributes;
 - activate/deactivate product;
-- permanently delete a catalogue product;
+- permanently delete product;
 - manage category assignment;
 - manage discount eligibility;
-- manage product options and their price adjustments.
+- manage product options and price adjustments.
 
-Because historical orders are snapshot-based and independent from the live catalogue, editing or deleting current catalogue attributes — including the product code, name, price, VAT or category — must not rewrite historical orders.
+Editing or deleting current catalogue data must never rewrite historical orders.
 
 ### Base product fields — approved Phase 2 decision
 
-The normal current-catalogue product record uses the same practical commercial structure as the existing Sushi 81 catalogue.
-
-Required product fields are:
+Required fields:
 
 - **product code**;
 - **product name**;
@@ -109,237 +100,229 @@ Required product fields are:
 - **TTC selling price**;
 - **VAT rate/category**.
 
-In addition, every product has the following catalogue state/settings fields:
+Each product also stores:
 
-- **active/inactive** status;
+- **active/inactive**;
 - **eligible/not eligible for the normal Retrait discount**.
 
-The active/inactive and discount-eligibility values are represented as ordinary boolean/toggle settings rather than text that the operator must type manually. Their exact default values for a newly created product may be chosen during detailed UI/implementation design, but both values must always be explicitly stored for the product.
+These two values are boolean/toggle settings. Product options are structured separately and are not embedded as ad-hoc text in the base fields.
 
-Product options are not embedded as ad-hoc text inside these base fields. They are managed separately as structured option data under section 6.
-
-No additional mandatory commercial product field is introduced at this stage beyond the fields above.
+No additional mandatory commercial product field is introduced at this stage.
 
 ### Deactivation and permanent deletion — approved Phase 2 decision
 
-The current catalogue supports both **deactivation** and **permanent deletion**, with deliberately different meanings:
+- **Deactivation** is for a temporarily unavailable product that may return later.
+- A deactivated product remains in the catalogue, may be reactivated, and is hidden from normal order selection.
+- **Permanent deletion** removes the product from the current catalogue.
+- Permanent deletion is allowed even if the product appeared in historical orders because those orders contain independent snapshots.
+- Deletion must never delete or alter historical orders.
+- Deletion immediately releases the operator-facing code for reuse.
+- Permanent deletion requires a simple explicit confirmation.
 
-- **deactivation** is used when a product is temporarily unavailable or may be sold again later;
-- a deactivated product remains in the catalogue and can be reactivated;
-- deactivated products do not appear in normal order selection;
-- **permanent deletion** removes the product from the current catalogue entirely;
-- permanent deletion is allowed even when the product has appeared in historical orders, because those orders retain independent sale-time snapshots;
-- deleting a catalogue product must never delete, rewrite or damage any historical order data;
-- deleting a product releases its operator-facing code immediately so that code may be reused by another current catalogue product;
-- the application must require a simple explicit confirmation before permanent deletion to reduce accidental deletion.
+## 5. Categories — business concept approved; shortcut/display model deferred
 
-Historical sales are therefore not a reason to block deletion. The operator chooses between deactivation and deletion according to whether the current catalogue entry is expected to be reused.
+Every current catalogue product must have a **category**.
 
-## 5. Categories — partially approved; shortcut/display model deferred to UI design
-
-Every current catalogue product must have a **category**. Category itself is therefore part of the approved product model and is not optional.
-
-The current Excel/VBA workbook also uses `RaccourciCat` values such as `[BR]`, `[ML]` and `[RP]`. Those shortcuts exist primarily because the current VBA interface needs compact labels and a specific filtering/order mechanism.
-
-Phase 2 does **not** treat that legacy shortcut field as an automatically required target field.
+The legacy Excel/VBA field `RaccourciCat` is **not** automatically carried into the target model. It existed mainly to support the constraints of the old VBA filtering/display mechanism.
 
 Approved direction:
 
-- the target application must preserve fast and practical category-based product selection;
-- category names must remain editable catalogue data;
-- changing a category name or product-category assignment affects only the live catalogue and never rewrites historical orders;
-- the target UI may use a better filtering, grouping, ordering or navigation mechanism than the legacy VBA shortcut system;
-- `RaccourciCat` should be retained only if later UI/interaction design demonstrates a real operational benefit;
-- no permanent business rule should be invented solely to reproduce an old Excel/VBA UI constraint.
+- category names are editable catalogue data;
+- changing a category or a product's category affects only the live catalogue;
+- fast category-based product selection must be preserved;
+- the target UI may use filtering, grouping, tabs, buttons, ordering or another better navigation mechanism;
+- `RaccourciCat` is retained only if later UI/interaction design shows a real operational need.
 
-The following details are therefore intentionally deferred to the later UI/interaction design stage:
+Category visual order, shortcuts and any UI-dependent unused-category handling are deferred to later UI design.
 
-- whether a separate category shortcut field exists at all;
-- how categories are visually ordered or grouped on the order-entry screen;
-- whether the operator manually controls category display order;
-- what compact labels, buttons, tabs or other navigation mechanism are used;
-- category deletion/unused-category behavior if it depends on the chosen category-management UI.
+## 6. Product options / choices — approved Phase 2 model
 
-This deferral is intentional and is not a missing business decision: the required business concept is the category itself; shortcut and display-order mechanics are presentation/interaction concerns unless a later design proves otherwise.
+Not every product has options. Option capability is configured **per product**.
 
-## 6. Product options / choices — partially approved Phase 2 decision
+The operator may at any time:
 
-Not every catalogue product needs structured options. Product-option capability is therefore **enabled and configured per product**, rather than being mandatory for every product.
+- enable options for a product;
+- add/edit/remove option groups and choices;
+- configure a group as **single-select** or **multi-select**;
+- activate/deactivate individual choices;
+- change option display order.
 
-The operator must be able to maintain this behavior directly in the application at any time:
+The data design must allow one product to have more than one option group even though current Sushi 81 options are primarily single-select.
 
-- a product with no options can remain a normal product with no option-selection step;
-- the operator may later enable structured options for that product;
-- the operator may add, edit, remove, activate or otherwise maintain the available option labels/choices without changing source code;
-- the operator may configure an option set/group as **single-select** or **multi-select**;
-- both single-select and multi-select behavior must be supported by the target design, even though Sushi 81's current options are single-select;
-- product options are catalogue data and later catalogue-option edits do not rewrite the option selections already stored on historical orders.
+### Required/optional selection and multi-select limits
 
-The target structure should not prevent a product from having more than one logical option group if later operational needs require it. The exact UI for creating/managing multiple groups can be finalized during detailed interaction design, but the data/behavior design must not assume that all choices for a product forever belong to one single flat list.
-
-### Required/optional selection and multi-select limits — approved Phase 2 decision
-
-Each option group independently defines whether selection is:
+Each option group independently defines whether it is:
 
 - **required**; or
 - **optional**.
 
-The rule is configured per option group rather than globally for all products or all option groups.
+For single-select:
 
-For a required single-select group, exactly one option must be selected before the product can be added/confirmed on the order line.
+- required = exactly one choice;
+- optional = zero or one choice.
 
-For an optional single-select group, the operator may choose one option or leave the group unselected.
+For multi-select, the operator can configure:
 
-For a multi-select group, the operator may configure selection limits appropriate to that group:
+- minimum number of selections;
+- maximum number of selections.
 
-- a **minimum number of selections**;
-- a **maximum number of selections**.
+A required multi-select group has a minimum of at least one. An optional group may use a minimum of zero.
 
-Those limits determine whether the operator may leave the group empty and how many choices may be selected. A required multi-select group must have a minimum of at least one. An optional multi-select group may use a minimum of zero.
+### Individual option maintenance and predefined price adjustment
 
-The configuration must be practical rather than artificially restrictive. For example:
+Each individual option supports at least:
 
-- flavour: required, single-select;
-- optional extras: optional, multi-select;
-- included choices in a menu: required, multi-select with configured minimum/maximum counts.
+- text label/name;
+- fixed price adjustment to euro-cent precision;
+- positive, negative or exactly €0.00 adjustment;
+- independent active/inactive state.
 
-### Individual option maintenance and predefined price adjustment — approved Phase 2 decision
+An inactive option is not offered for new orders but remains unchanged in historical order snapshots.
 
-Each concrete option/choice within an option group is user-maintained catalogue data.
+Predefined adjustments follow `business-rules.md`:
 
-At minimum, an individual option supports:
+- positive adjustments do not receive the normal Retrait discount and use 5.5% VAT;
+- negative adjustments reduce the discountable product amount before discount and inherit the product VAT rate;
+- €0.00 adjustments affect description only;
+- approved precision and rounding rules apply.
 
-- a **text label/name** shown to the operator and retained on the order-line snapshot when selected;
-- a predefined **fixed price adjustment** expressed to euro-cent precision;
-- an adjustment that may be **positive, negative or exactly €0.00**;
-- an independent **active/inactive** state.
+Custom operator-entered adjustments remain governed by `business-rules.md`, including the required non-empty description.
 
-The operator may therefore temporarily deactivate one unavailable choice without disabling the parent product or the entire option group. An inactive option is not offered for new order selection, but historical orders that previously used that option remain unchanged. Reactivating the option makes it available for new orders again.
+### Display order
 
-Editing an option's label, predefined price adjustment or active state affects only the current catalogue and future order entry. Existing confirmed order-line snapshots are not rewritten.
+The operator controls and persists the display order of:
 
-Predefined option-price adjustments use the already-approved calculation rules from `business-rules.md`; this catalogue document does not create a second pricing model. In particular:
+- option groups on a product;
+- individual options within each group.
 
-- positive option adjustments do **not** receive the normal Retrait discount and use **5.5% VAT**;
-- negative option adjustments reduce the discountable product amount before the Retrait discount is calculated and inherit the associated product's VAT rate;
-- €0.00 adjustments change only the selected commercial option description and do not change the monetary total;
-- all option adjustments use the approved euro-cent precision and monetary rounding rules.
+The order-entry prompt must use that saved order. Automatic alphabetical sorting must not override it. The UI may implement reordering through drag-and-drop, up/down controls or another simple mechanism.
 
-Custom operator-entered option adjustments for exceptional cases also remain governed by `business-rules.md`, including the requirement for a non-empty description.
+### Order-entry prompting
 
-### Display order — approved Phase 2 decision
+When a product is selected during order entry:
 
-The operator must be able to control the display order of both:
+- no enabled options => normal direct add-to-cart workflow;
+- enabled structured options => automatically present an option-selection prompt;
+- the operator does not have to remember to open a separate editor;
+- configured single/multi-select rules and min/max validation are enforced;
+- inactive choices are hidden;
+- selected labels and price adjustments are attached to that specific order line and copied into the order snapshot.
 
-- option groups attached to a product; and
-- individual option labels within each group.
+The exact visual form of the prompt remains a UI-design choice.
 
-The configured order must be persisted and used by the order-entry option-selection prompt so the most useful or frequently selected choices can be placed first.
+## 7. In-application catalogue editing workflow — approved Phase 2 direction
 
-The detailed editing interaction may use drag-and-drop, up/down controls or another simple UI mechanism. The exact control is a later UI-design choice; the required behavior is that the operator can deliberately reorder the groups and choices and that the saved order is respected during normal ordering.
+Catalogue maintenance is separated from the normal order-entry screen so routine ordering is not mixed with accidental catalogue edits.
 
-Automatic alphabetical sorting must not override the operator-defined option order.
+The target application provides a dedicated catalogue-management area with:
 
-### Order-entry prompting — approved Phase 2 decision
+- searchable/filterable product list;
+- selection of a product for editing;
+- editing of code, name, category, TTC price, VAT, active state and Retrait-discount eligibility;
+- access from the same product editor to its structured option configuration;
+- explicit actions for **new product**, **save**, **cancel**, **deactivate/reactivate** and **delete**;
+- changes become effective when explicitly saved rather than being persisted character-by-character while typing;
+- deletion follows the approved confirmation rule.
 
-When the operator selects/adds a product during order entry:
+The exact layout and controls are deferred to UI design. The approved workflow goal is fast maintenance without Excel for ordinary changes, while reducing accidental changes during live ordering.
 
-- if that product has no enabled option group/choice requirement, it is added through the normal fast-ordering workflow without an unnecessary option dialog;
-- if that product has enabled structured options, the application must automatically present an option-selection dialog/prompt immediately as part of adding that product;
-- the operator should not have to remember to open a separate option editor manually after adding the product;
-- the prompt must present the option groups and choices in the operator-defined display order;
-- the prompt must present the choices according to the configured single-select or multi-select behavior;
-- required groups and configured minimum/maximum limits must be enforced before the option-selection step is accepted;
-- optional groups may be left unselected when their configured minimum permits zero selections;
-- inactive individual options are not offered for new selection;
-- the selected option labels and any price adjustments are attached to that specific order line and copied into the order snapshot.
-
-The exact visual form of the prompt — modal dialog, popover, side panel or another interaction pattern — is a UI-design choice. The required behavior is that selection is surfaced automatically and clearly at product-add time.
-
-## 7. Historical stability — approved Phase 2 principle
-
-Catalogue maintenance must never silently rewrite historical orders.
+## 8. Historical stability — approved Phase 2 principle
 
 Historical order lines and the current catalogue are deliberately **decoupled after order confirmation**.
 
-When an order is committed, the order-item snapshot must contain enough sale-time information that later changes to:
+When an order is committed, its order-item snapshot contains enough sale-time information that later changes to any of the following do not change the historical order:
 
 - product code;
-- product name;
-- current price;
+- name;
+- price;
 - VAT;
 - discount eligibility;
 - category;
-- option name;
-- option price adjustment;
-- option active/inactive state;
-- active/inactive status;
-- deletion from the current catalogue;
-- or even later reuse of the same operator-facing product code for different catalogue content
+- option label;
+- option adjustment;
+- option/product active state;
+- deletion from catalogue;
+- later reuse of the same product code for different content.
 
-do not alter the historical order's financial or printed meaning.
+Historical reporting reads values stored on the order/order line rather than reconstructing old sales from the current catalogue.
 
-Historical reporting therefore reads the values stored on the order/order line rather than reconstructing old sales from the current catalogue.
+## 9. Batch import/export — partially approved Phase 2 decision
 
-## 8. Batch import/export
+### Primary format — approved
 
-The application must provide a practical way to export and re-import catalogue data for bulk maintenance.
+V1 uses **Excel `.xlsx` as the official complete catalogue batch import/export format**.
 
-The exact target format remains to be approved. Phase 2 must define:
+CSV is not a core V1 requirement. It may be added later as an auxiliary interchange format if a concrete need appears, but the product must not complicate the catalogue model merely to make the complete hierarchical catalogue fit into one CSV file.
 
-- Excel, CSV or both;
-- mandatory and optional columns;
-- stable internal handling for products, categories and options without exposing an immutable business-code requirement;
-- how new products are distinguished from updates;
-- duplicate current-code handling;
-- code changes/reassignments during import;
-- invalid VAT/price/category handling;
-- preview/validation before applying changes;
-- whether import may deactivate products;
-- whether import may permanently delete products;
-- rollback/recovery behavior after a failed import;
-- export encoding and column order.
+This decision reflects the actual operational need:
 
-Any import result that would leave two current catalogue products with the same code must be rejected or returned for correction before the catalogue update is committed.
+- Sushi 81 already works naturally with Excel;
+- one workbook can represent products, option groups and individual options cleanly in separate worksheets;
+- a workbook is easier for the operator to review and edit than several related CSV files;
+- Excel can serve both as an export and as the standard bulk-maintenance/import template.
 
-No import should partially apply a logically invalid catalogue update without clearly reporting the result.
+### Workbook structure — approved direction
 
-## 9. Decisions still to freeze
+The complete workbook uses separate logical sheets for at least:
 
-Before this document becomes baseline, Phase 2 must explicitly approve at least:
+1. **Products** — product base fields and catalogue state;
+2. **OptionGroups** — groups attached to products and their selection rules/order;
+3. **Options** — individual choices, adjustments, active state and order.
 
-1. in-application catalogue editing workflow;
-2. final batch import/export format and columns;
-3. update/conflict/deactivation/delete behavior during import;
-4. validation and preview requirements.
+Exact user-facing sheet names may be localized later, but the exported/imported workbook must have a stable documented structure.
 
-The following product-field/identity/lifecycle/history/category/option principles are already approved and are no longer open questions:
+### Internal identifiers in exported workbooks — approved direction
 
-- the required base product fields are code, name, category, TTC selling price and VAT rate/category;
-- every product also stores active/inactive and Retrait-discount-eligibility settings;
-- product options are managed separately from the base product fields and are enabled/configured only for products that need them;
-- the operator may enable and maintain product options directly in the application;
-- both single-select and multi-select option behavior are supported;
-- each option group independently defines whether selection is required or optional;
-- multi-select groups support configurable minimum and maximum selection counts;
-- each individual option has a label, a predefined positive/negative/zero price adjustment and its own active/inactive state;
-- individual options may be temporarily deactivated without disabling the parent product or option group;
-- predefined option-price adjustments follow the approved discount, VAT, precision and rounding rules in `business-rules.md`;
-- option groups and individual options have an operator-defined persistent display order used during order entry;
-- when a product has enabled structured options, order entry automatically presents an option-selection prompt when that product is selected/added;
-- option selections are attached to the specific order line and retained in the order snapshot;
-- confirmed historical orders are independent snapshots and do not depend on the live catalogue;
-- operator-facing product codes are editable and may be reused/reassigned over time;
-- prior historical use does not permanently reserve a product code;
-- within the current catalogue, one product code may belong to only one product at a time;
-- later catalogue edits, including code changes, never alter existing confirmed orders;
-- current catalogue products may be deactivated for later reactivation;
-- current catalogue products may also be permanently deleted, even if previously sold, without affecting historical orders;
-- permanent deletion releases the product code for immediate reuse;
-- every product has a category;
-- the legacy `RaccourciCat` field is not frozen as a required target field and will be retained only if later UI design demonstrates a real need;
-- implementation may use a hidden immutable internal identifier for safe database handling without exposing that identifier as the business product code.
+Existing catalogue records exported for re-import may carry opaque internal identifiers so the application can distinguish:
 
-## 10. Approval rule
+- an edit to an existing product/group/option;
+- a newly created record in Excel.
 
-This file remains a Draft until the catalogue and option rules above are explicitly approved. Implementation must preserve the strict separation between historical order snapshots and the mutable live catalogue, must keep current catalogue product codes unique, must support both deactivation and confirmed permanent deletion, and must not treat the operator-facing product code as an immutable historical identity. UI-specific category shortcut/display mechanics must not be hard-coded before the later interaction design is approved.
+These identifiers are technical keys, not business product codes. They may be hidden or visually deemphasized in the workbook and must not prevent the operator from changing/reusing product codes.
+
+For a new record created in Excel, the relevant internal-ID cell is left blank and the application assigns a new internal identifier on successful import.
+
+### Safety principles — approved direction
+
+- Removing a row from the workbook must **not automatically mean permanent deletion** from the POS catalogue.
+- Permanent deletion remains an explicit catalogue-management operation unless a later import rule is deliberately approved.
+- Batch import may support creation, modification and activation/deactivation.
+- An import must be validated before it changes the live catalogue.
+- The system must present a preview/summary of intended changes before final application.
+- A logically invalid import must not be partially applied; the catalogue update should be atomic: all accepted changes commit together or none do.
+- Duplicate current product codes, broken option relationships, invalid required values or other blocking validation errors prevent commit.
+
+The exact workbook columns and exact rules for update/deactivation/conflict handling remain to be frozen next.
+
+## 10. Decisions still to freeze
+
+Before this document becomes baseline, Phase 2 still needs to approve:
+
+1. exact `Products`, `OptionGroups` and `Options` workbook columns;
+2. exact rules for distinguishing create/update during import;
+3. activation/deactivation behavior during import;
+4. conflict and validation behavior, including how errors are presented;
+5. import preview contents and final confirmation behavior.
+
+The following are already approved and no longer open questions:
+
+- required base product fields and state flags;
+- historical order/catalogue separation;
+- editable/reusable product codes with current-catalogue uniqueness;
+- product deactivation and confirmed permanent deletion;
+- category required, with legacy `RaccourciCat` deferred to UI design;
+- structured per-product options with single-select and multi-select support;
+- required/optional option groups and multi-select min/max;
+- individual option activation, positive/negative/zero price adjustments and operator-defined display order;
+- automatic option prompting during order entry;
+- dedicated in-application catalogue maintenance separated from normal ordering;
+- Excel `.xlsx` is the official complete V1 batch import/export format;
+- CSV is not a required complete-catalogue format in V1;
+- complete Excel export/import is organized into product, option-group and option sheets;
+- exported technical internal IDs may be used to identify existing records without making product codes immutable;
+- removing rows from Excel does not itself delete live catalogue records;
+- import is validated/previewed and must not partially apply an invalid catalogue update.
+
+## 11. Approval rule
+
+This file remains a Draft until the remaining Excel import/export rules are explicitly approved. Implementation must preserve historical snapshot independence, mutable but unique current product codes, safe catalogue maintenance, structured option behavior, and the approved Excel-first batch-maintenance model.
