@@ -117,6 +117,19 @@ The implementation should keep delivery-fee calculation logically separate from 
 
 The future presence of this extension point does **not** require those advanced fee rules or their UI to be implemented in v1.
 
+#### Delivery-fee VAT — approved Phase 3 amendment
+
+When a non-zero delivery fee is enabled and applied to a `Livraison` order under normal calculated pricing:
+
+- the delivery fee uses a fixed **10% VAT rate**;
+- the operator does not select or override the VAT rate for the delivery fee during order entry;
+- the delivery fee contributes to the 10% bucket in the normal order VAT/tax breakdown;
+- no configurable delivery-fee VAT-rate setting is required in v1.
+
+This rule is scoped to the Sushi81 POS delivery workflow. It must not be generalized in project documentation as a claim that every transport or delivery charge in France is always taxed at 10%.
+
+If the operator subsequently manually edits the authoritative order total, the manual-total VAT rule in section 4.5 supersedes the normal mixed tax breakdown: the entire final authoritative TTC amount is then represented as one 10% VAT bucket.
+
 ### 4.3 Required customer/order information — approved Phase 2 decision
 
 Every new order must explicitly select exactly one fulfilment mode:
@@ -221,7 +234,7 @@ If the operator manually edits the authoritative order total, the VAT treatment 
 - this rule applies whether the manual total is higher or lower than the system-calculated product-line total;
 - no proportional allocation back across the original product VAT rates is required.
 
-If a later price-affecting order change automatically recalculates the order total and thereby replaces the manual override, the application returns to the normal product/option VAT calculation rules. If the operator then manually edits the recalculated total again, the single-rate 10% override VAT rule applies again.
+If a later price-affecting order change automatically recalculates the order total and thereby replaces the manual override, the application returns to the normal product/option/delivery-fee VAT calculation rules. If the operator then manually edits the recalculated total again, the single-rate 10% override VAT rule applies again.
 
 ### 4.6 Rounding and monetary consistency — approved Phase 2 decision
 
@@ -257,6 +270,8 @@ The v1 business-configuration scope includes:
 - delivery-fee enabled/disabled setting (default disabled);
 - fixed delivery-fee amount (default €0.00).
 
+The delivery-fee VAT rate is not a configurable business setting in v1; it is fixed at 10% by the approved Sushi81 delivery-fee rule.
+
 No additional commercial configuration values are required for the Phase 2 baseline. New parameters may be added later without changing the approved semantics above.
 
 Configuration must not weaken the rule model: changing a value changes the parameter used by the approved rule, not the underlying meaning of the rule itself.
@@ -277,6 +292,7 @@ The following are approved and are no longer open questions:
 - below-minimum Livraison orders cannot be confirmed through an ordinary override;
 - delivery fee is currently free/default €0 but an application-level enable/amount configuration entry point is preserved;
 - delivery-fee calculation is kept logically extensible so future fee rules do not require rebuilding the order model;
+- whenever a non-zero delivery fee is enabled under normal calculated pricing, that fee uses fixed 10% VAT and contributes to the 10% tax bucket;
 - every new order must explicitly select `Retrait` or `Livraison` before confirmation;
 - fulfilment mode is not inherited when creating a new order from an existing order's customer information;
 - telephone is optional for both Retrait and Livraison;
@@ -288,8 +304,8 @@ The following are approved and are no longer open questions:
 - all final monetary results use €0.01 precision with ordinary round-half-up behavior;
 - the ordinary order-total field is directly editable;
 - while a manual order-total override is authoritative, the entire final TTC amount uses a single 10% VAT bucket for receipt/tax purposes;
-- later price-affecting order changes automatically recalculate and replace any manual total override and restore normal product/option VAT calculation until another manual total edit occurs.
+- later price-affecting order changes automatically recalculate and replace any manual total override and restore normal product/option/delivery-fee VAT calculation until another manual total edit occurs.
 
 ## 7. Approval rule
 
-This file is the approved Phase 2 business-rules baseline, including the approved Phase 3 amendment defining VAT treatment for a manual order-total override. Codex must implement these semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, hard-code configurable commercial thresholds, apply pickup discount to positive option surcharges, assign option-adjustment VAT contrary to the rules above, allocate a manually overridden order total across the original mixed VAT rates, use inconsistent monetary rounding, or introduce additional commercial constraints without explicit product approval.
+This file is the approved Phase 2 business-rules baseline, including the approved Phase 3 amendments defining VAT treatment for a manual order-total override and for the Sushi81 delivery fee. Codex must implement these semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, hard-code configurable commercial thresholds, apply pickup discount to positive option surcharges, assign option-adjustment or delivery-fee VAT contrary to the rules above, allocate a manually overridden order total across the original mixed VAT rates, use inconsistent monetary rounding, or introduce additional commercial constraints without explicit product approval.
