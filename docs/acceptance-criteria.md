@@ -1,6 +1,6 @@
 # V1 acceptance criteria
 
-**Status:** Draft — Phase 5 consistency review  
+**Status:** Approved — Phase 5 baseline (V1 Specification)  
 **Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
 **Purpose:** Convert the approved V1 product, business, lifecycle, catalogue, data, storage, architecture, paste-import, printing and export specifications into verifiable implementation acceptance criteria.
@@ -256,19 +256,31 @@ An order may be closed only when current CB + current Espèce equals the authori
 
 **Evidence:** boundary validation tests.
 
-### AC-LIFE-005 — Dated payment adjustments
+### AC-LIFE-005 — Dated payment adjustments and effective-date correction
 
-Changing a cumulative CB/Espèce amount persists the signed delta with an effective date/time sufficient to attribute money to the date actually received/corrected.
+Changing a cumulative CB/Espèce amount persists the signed delta with both:
 
-Example: CB €20 on day 1 then changed to €50 on day 2 contributes €20 to day 1 and only €30 to day 2.
+- an effective business date/time used for received-payment attribution;
+- an application-generated recorded timestamp showing when the adjustment was actually persisted.
 
-**Evidence:** multi-day integration tests.
+Normal payment entry defaults the effective date to the current business date so same-day work requires no extra step.
+
+When a payment is entered/corrected after the fact, the operator can change the effective payment date to the date on which the money was actually received. The recorded timestamp remains the actual later persistence time.
+
+Examples:
+
+- CB €20 on day 1 then changed to €50 on day 2 contributes €20 to day 1 and only €30 to day 2;
+- €20 CB actually received on day 1 but first entered on day 2 can be assigned effective date day 1, contributing €20 to day 1 while remaining technically recorded on day 2.
+
+Changing the effective date must not create a duplicate payment or alter external card-terminal state.
+
+**Evidence:** multi-day/back-dated payment integration tests + UI test.
 
 ### AC-LIFE-006 — Daily received-payment summary
 
-For ordinary POS-originated non-cancelled orders, the current-day summary shows at least total received, CB received and Espèce received from payment deltas effective that day. Unpaid value is not counted merely because an order exists or is due that day.
+For ordinary POS-originated non-cancelled orders, the selected/current-day summary shows at least total received, CB received and Espèce received from payment deltas effective that day. Unpaid value is not counted merely because an order exists or is due that day, and a later `recorded_at` timestamp does not move a legitimately back-dated effective payment into the later day's business summary.
 
-**Evidence:** reporting tests.
+**Evidence:** reporting tests including same-day, cross-day and back-dated entry.
 
 ### AC-LIFE-007 — Operational turnover
 
@@ -733,7 +745,8 @@ V1 may be accepted for production preparation only when:
 2. all required automated tests pass on the production-target build;
 3. installer/update/recovery/export/printing critical paths have controlled acceptance evidence;
 4. no unresolved contradiction exists between implementation and the frozen V1 specification;
-5. no test fixture or repository artifact contains unsanitized production customer/business secrets;
-6. the final Phase 5 specification status remains frozen in GitHub before Codex implementation is treated as complete.
+5. no test fixture or repository artifact contains unsanitized production customer/business secrets.
 
-A failed criterion is an implementation/specification defect to resolve; it must not be silently waived by reproducing legacy VBA behavior that the approved V1 specification intentionally replaced.
+This document is the **Approved — Phase 5 acceptance baseline for the frozen V1 Specification**.
+
+Codex implementation must treat these criteria as the acceptance contract. Any future behavior change that conflicts with them requires an explicit approved specification amendment; implementation must not silently waive a criterion by reproducing legacy VBA behavior that the approved V1 specification intentionally replaced.
