@@ -1,0 +1,147 @@
+# V1 implementation status and acceptance traceability
+
+**Status:** Active implementation control document  
+**Initialized:** 2026-08-27  
+**Current state:** Phase 6 plan Approved; production implementation not started
+
+## 1. Status vocabulary
+
+- `Not started` — no conforming implementation evidence yet.
+- `In progress` — the explicitly authorized milestone is being implemented.
+- `Partial` — some evidence exists, but the complete acceptance criterion is not yet satisfied.
+- `Passed` — automated/manual evidence required by the criterion is recorded and passes on the applicable build.
+- `Blocked — amendment required` — a genuine material specification conflict prevents conforming implementation.
+- `Not applicable — amended` — allowed only when an approved specification amendment explicitly makes the criterion inapplicable.
+
+Only `Passed` and properly approved `Not applicable — amended` satisfy the final V1 acceptance gate.
+
+## 2. Milestone status
+
+| Milestone | Status | Authorization / result |
+|---|---|---|
+| M01 — Foundation and safe persistence spine | Not started | Detailed task prepared; execution requires an explicit Codex implementation instruction |
+| M02 — OneDrive feasibility gate | Not started | Pending M01 |
+| M03 — Catalogue and settings | Not started | Pending M02 |
+| M04 — Order-entry vertical slice | Not started | Pending M03 |
+| M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
+| M06 — Local recovery/read-only enforcement | Not started | Pending M05 |
+| M07 — Handoff and disaster recovery | Not started | Pending M06 |
+| M08 — Printing and reprinting | Not started | Pending M07 |
+| M09 — Hiboutik paste fallback | Not started | Pending M08 |
+| M10 — Catalogue `.xlsx` | Not started | Pending M09 |
+| M11 — Gestion export | Not started | Pending M10 |
+| M12 — Annual archive/historical access | Not started | Pending M11 |
+| M13 — Installer and final acceptance | Not started | Pending M12 |
+
+## 3. Acceptance ownership matrix
+
+The owner milestone is responsible for closing the criterion. Earlier milestones may provide foundations and later M13 performs the final production-target regression.
+
+### Product
+
+| Criterion | Owner | Status | Evidence |
+|---|---:|---|---|
+| AC-PROD-001 | M13 | Not started | — |
+| AC-PROD-002 | M07 | Not started | — |
+| AC-PROD-003 | M13 | Not started | — |
+| AC-PROD-004 | M13 | Not started | — |
+
+### Catalogue
+
+| Criterion | Owner | Status | Evidence |
+|---|---:|---|---|
+| AC-CAT-001 | M03 | Not started | — |
+| AC-CAT-002 | M03 | Not started | — |
+| AC-CAT-003 | M03 | Not started | Historical-snapshot regression closes in M04 |
+| AC-CAT-004 | M03 | Not started | — |
+| AC-CAT-005 | M03 | Not started | — |
+| AC-CAT-006 | M04 | Not started | — |
+| AC-CAT-007 | M04 | Not started | — |
+| AC-CAT-008 | M10 | Not started | — |
+| AC-CAT-009 | M10 | Not started | — |
+| AC-CAT-010 | M10 | Not started | — |
+| AC-CAT-011 | M10 | Not started | — |
+| AC-CAT-012 | M04 | Not started | — |
+
+### Order creation and business rules
+
+| Criterion | Owner | Status | Evidence |
+|---|---:|---|---|
+| AC-ORD-001 through AC-ORD-010 | M04 | Not started | Record individual tests before marking Passed |
+| AC-ORD-011 | M03 | Not started | Pricing integration also exercised in M04 |
+
+### Lifecycle, payments and operational views
+
+| Criterion | Owner | Status | Evidence |
+|---|---:|---|---|
+| AC-LIFE-001 | M04 | Not started | Windows printing cross-check in M08 |
+| AC-LIFE-002 | M04 | Not started | — |
+| AC-LIFE-003 through AC-LIFE-014 | M05 | Not started | Record individual tests before marking Passed |
+| AC-LIFE-015 | M12 | Not started | Live-search portion implemented in M05; archive portion closes in M12 |
+
+### Hiboutik paste fallback
+
+| Criterion | Owner | Status | Evidence |
+|---|---:|---|---|
+| AC-HIB-001 through AC-HIB-009 | M09 | Not started | AC-HIB-008 export cross-check in M11 |
+
+### Printing
+
+| Criterion | Owner | Status | Evidence |
+|---|---:|---|---|
+| AC-PRINT-001 through AC-PRINT-008 | M08 | Not started | Record individual model/integration/manual evidence |
+| AC-PRINT-009 | M12 | Not started | — |
+| AC-PRINT-010 | M08 | Not started | — |
+| AC-PRINT-011 | M08 | Not started | — |
+
+### Export
+
+| Criterion | Owner | Status | Evidence |
+|---|---:|---|---|
+| AC-EXP-001 through AC-EXP-011 | M11 | Not started | Record individual workbook/ledger tests |
+
+### Storage, handoff, recovery and archive
+
+| Criterion | Owner | Status | Evidence |
+|---|---:|---|---|
+| AC-STO-001 | M01 | Not started | — |
+| AC-STO-002 through AC-STO-005 | M07 | Not started | Feasibility proof in M02 |
+| AC-STO-006 | M06 | Not started | Snapshot primitive begins in M01 |
+| AC-STO-007 through AC-STO-009 | M07 | Not started | Feasibility proof in M02 |
+| AC-STO-010 | M06 | Not started | Printing exception cross-check in M08 |
+| AC-STO-011 through AC-STO-014 | M12 | Not started | — |
+
+### Architecture and deployment
+
+| Criterion | Owner | Status | Evidence |
+|---|---:|---|---|
+| AC-ARCH-001 through AC-ARCH-004 | M01 | Not started | Record individual tests/inspection |
+| AC-ARCH-005 | M11 | Not started | Catalogue half implemented in M10; export half closes in M11 |
+| AC-ARCH-006 | M08 | Not started | — |
+| AC-ARCH-007 | M13 | Not started | — |
+
+### Reliability, security and performance
+
+| Criterion | Owner | Status | Evidence |
+|---|---:|---|---|
+| AC-NFR-001 | M13 | Not started | Enforced continuously from M01 |
+| AC-NFR-002 | M13 | Not started | Test suite grows each milestone |
+| AC-NFR-003 | M13 | Not started | Targeted checks begin in M04/M08 |
+| AC-NFR-004 | M13 | Not started | Failure paths added each milestone |
+
+## 4. Milestone evidence template
+
+For each completed milestone append a short record containing:
+
+- milestone and completion commit SHA;
+- production-target framework/runtime and Windows build environment;
+- Release build command/result;
+- test command/result and total passed/failed/skipped;
+- acceptance criteria closed or left Partial;
+- manual checks performed and environment;
+- migration/data-safety/failure-injection evidence where applicable;
+- known non-blocking limitations belonging to later milestones;
+- confirmation that no real customer/order/payment/credential data was added.
+
+Do not mark an AC Passed using only a planned test name or an unexecuted checklist.
+
