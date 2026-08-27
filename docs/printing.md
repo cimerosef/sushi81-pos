@@ -152,7 +152,7 @@ When the operator requests a customer-ticket reprint after payment information h
 
 Payment entry itself does not automatically require a second kitchen ticket.
 
-## 9. Selective reprint
+## 9. Selective reprint and reprint marking
 
 From an existing order, the operator must have separate actions equivalent to:
 
@@ -164,6 +164,29 @@ The operator is not forced to reprint both when only one is needed.
 A reprint uses the latest committed business state of the selected order.
 
 If the operator currently has unsaved edits open, the application must not silently print those uncommitted values as though they were authoritative. The operator must first save/confirm the modification or explicitly cancel it and print the persisted version.
+
+### 9.1 Reprint marking — approved Phase 4 rule
+
+A document generated through an explicit reprint action must be visibly distinguishable from the first automatic print generated when the order was initially confirmed.
+
+Approved markings:
+
+- reprinted kitchen ticket: `RÉIMPRESSION`;
+- reprinted customer ticket: `DUPLICATA`.
+
+The marking indicates only that the physical/document output is a reprint. It does not:
+
+- allocate a new order ID;
+- create a new order;
+- change order status;
+- change payment state;
+- change the underlying business content.
+
+If the order is Cancelled, the mandatory prominent `ANNULÉ` marking from section 10.2 appears in addition to the reprint marking.
+
+Exact typography, placement, border and sizing are implementation/layout choices provided the marking is easy to see.
+
+This rule is frozen in `docs/decisions/reprint-marking.md`.
 
 ## 10. Saved modifications and cancelled orders
 
@@ -269,6 +292,8 @@ Automated tests should cover at least:
 - payment information before/after correction;
 - saved modifications without automatic printing;
 - cancelled orders with mandatory prominent `ANNULÉ` marking;
+- reprinted kitchen tickets with `RÉIMPRESSION`;
+- reprinted customer tickets with `DUPLICATA`;
 - archived order snapshots;
 - long comments and long product/option text;
 - printer submission failure without order loss.
@@ -294,18 +319,15 @@ Completed annual archive orders remain printable as immutable historical records
 
 This rule is frozen in `docs/decisions/non-authoritative-device-printing.md`.
 
-## 16. Remaining operator-facing printing decisions
+## 16. Remaining operator-facing printing decision
 
-The remaining business-printing details to check sequentially are now limited to:
+The only remaining business-printing topic to close is the **final statutory/customer receipt wording/content**, limited to those details that cannot be safely derived from the existing approved/current receipt baseline and current French requirements.
 
-1. **Reprint marking:** whether an ordinary reprinted kitchen/customer document should visibly say `DUPLICATA / REPRINT`.
-2. **Final statutory/customer receipt wording:** only those wording/layout details that cannot be safely derived from the existing approved/current receipt baseline.
-
-Pure layout, pagination, font sizing, wrapping and Windows print implementation choices are technical design decisions unless they alter the business information communicated.
+Pure compliance interpretation, layout, pagination, font sizing, wrapping and Windows print implementation choices are technical/legal implementation work unless they change an actual Sushi 81 business choice.
 
 ## 17. Approval rule
 
-This document remains **Draft — Phase 4 working design** until the remaining operator/business printing decisions are frozen.
+This document remains **Draft — Phase 4 working design** until the remaining customer-receipt content review is closed.
 
 Implementation must preserve the central invariant:
 
