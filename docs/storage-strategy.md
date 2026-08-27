@@ -3,7 +3,7 @@
 **Status:** Draft — Phase 3 working design  
 **Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
-**Purpose:** Define how live data, local recovery snapshots, OneDrive handoff snapshots and archive databases are stored and transferred without allowing two computers to diverge silently.
+**Purpose:** Define how live data, local recovery snapshots, OneDrive handoff snapshots, disaster-recovery checkpoints and archive databases are stored and transferred without allowing two computers to diverge silently.
 
 ## 1. Core storage principle
 
@@ -15,7 +15,7 @@ OneDrive is used only for controlled transfer of validated complete snapshots an
 
 The operator does not manually manage the active `live.db` file or local recovery snapshot files.
 
-## 2. Two distinct snapshot purposes
+## 2. Two distinct normal snapshot purposes
 
 ### 2.1 Local recovery snapshots
 
@@ -158,17 +158,77 @@ If the shop computer was left running or was closed without completing handoff, 
 
 This inconvenience is deliberate: preventing silent data loss or database divergence has priority over allowing a second computer to continue from uncertain/stale data.
 
-## 8. Forgotten close and abnormal termination
+## 8. Disaster recovery — approved Phase 3 decision
 
-If the operator forgets to close Sushi81 POS normally, formal handoff may not have occurred.
+Disaster recovery exists only for genuine abnormal loss of the current authoritative computer, such as unrecoverable hardware failure, disk failure, operating-system failure or another condition that prevents the normal close/handoff process.
 
-The project explicitly accepts this operational consequence rather than attempting to guess or merge uncertain states automatically.
+It is separate from normal handoff and must never silently substitute for it.
 
-Unexpected power loss, operating-system termination, application crash or hardware failure are treated separately as **recovery events**, not as normal handoff.
+### 8.1 OneDrive disaster-recovery checkpoints
 
-Local recovery snapshots and any future disaster-recovery copies may be used to recover as much data as possible, but recovery must clearly disclose the recovery point/time and must not be presented as a guaranteed current handoff.
+While the authoritative computer is in normal use:
 
-Exact disaster-recovery workflow is still to be specified.
+- local recovery protection continues as described in section 2.1;
+- if business data has changed since the previous cloud disaster-recovery checkpoint, the application publishes a validated disaster-recovery checkpoint to a dedicated OneDrive recovery area;
+- the maximum normal publication frequency is **one checkpoint every 15 minutes**;
+- if no durable business data changed during the interval, no redundant checkpoint is required;
+- checkpoint generation/publication must not block normal order-entry work merely to act like a formal handoff.
+
+These cloud recovery checkpoints are marked technically and logically as **recovery-only**. They do not release the current computer's authority and cannot be consumed automatically as a normal handoff snapshot.
+
+Conceptually the shared OneDrive structure may include:
+
+```text
+OneDrive\Sushi81 POS\
+    Handoff\
+    DisasterRecovery\
+    Archive\
+```
+
+Exact file names remain implementation details.
+
+### 8.2 Recovery user flow
+
+If another computer starts and the latest formal handoff was not completed, normal write acquisition remains blocked.
+
+A separate **Disaster recovery** action may be used only when the operator knows that the authoritative computer genuinely cannot complete its handoff.
+
+Before confirmation, the application must show at least:
+
+- the timestamp/version of the latest completed formal handoff;
+- the timestamp of the newest validated disaster-recovery checkpoint;
+- the source device of that checkpoint;
+- a clear warning that changes after the checkpoint time may be lost.
+
+The application must not claim that a disaster-recovery checkpoint is guaranteed to contain every latest change.
+
+After explicit operator confirmation, the application:
+
+1. validates the selected newest appropriate disaster-recovery checkpoint;
+2. restores it into the new computer's application-managed local `live.db` location;
+3. creates a new authoritative lineage generation/epoch so the prior device lineage can no longer silently continue as current;
+4. records that the recovery event established the new authoritative generation;
+5. allows normal writable operation only after the recovery activation succeeds.
+
+### 8.3 Old-device invalidation after recovery
+
+A device that later returns after a disaster recovery must not resume writing from its old local database even if that database appears newer in ordinary timestamps.
+
+Its old lineage generation is stale.
+
+On startup/reconnection, the application must detect the generation mismatch and require the returned device to be reinitialized from the current authoritative released data before it can write again.
+
+This prevents the recovered lineage and the old device from becoming two valid-looking divergent successors.
+
+### 8.4 Forgotten close is not a disaster by itself
+
+Merely forgetting to close Sushi81 POS is not enough to trigger automatic disaster recovery.
+
+If the authoritative computer remains available, the normal remedy remains to return to that computer and complete the normal close/handoff.
+
+Disaster recovery is therefore explicit, exceptional and operator-confirmed rather than automatic.
+
+The exact retention count/time window for OneDrive disaster-recovery checkpoints is still to be frozen.
 
 ## 9. Single-writer / anti-fork invariant
 
@@ -176,7 +236,7 @@ The central safety invariant is:
 
 > At most one computer is permitted to advance the authoritative business database lineage at a time.
 
-Normal acquisition must always descend from the latest completed handoff lineage.
+Normal acquisition must always descend from the latest completed handoff lineage, except when an explicit approved disaster recovery creates a new authoritative generation from a validated recovery checkpoint.
 
 The system must never silently create two valid-looking successors from the same earlier authoritative version.
 
@@ -188,6 +248,8 @@ The computer currently holding the active local working lineage may continue nor
 
 However, it cannot complete a successful formal handoff until the required OneDrive synchronization is confirmed.
 
+During prolonged OneDrive unavailability, cloud disaster-recovery checkpoints may also remain pending/unavailable; local work remains authoritative on the current computer until a valid handoff or explicit disaster recovery occurs.
+
 A second computer that cannot verify/acquire the latest completed handoff may not enter normal write mode merely because it has an older local copy.
 
 ## 11. Local database versus OneDrive location
@@ -196,11 +258,11 @@ The active working SQLite database must reside in a normal application-managed l
 
 The local recovery-snapshot area is also application managed and is not part of ordinary operator file handling.
 
-The OneDrive handoff area is operator-configurable and contains only validated/released handoff snapshots, ready markers and any retained recovery/backup artifacts explicitly approved by this strategy.
+The operator-configurable OneDrive root may contain controlled subareas for validated/released handoff snapshots, disaster-recovery checkpoints, ready markers and annual archives approved by this strategy.
 
-The application must never interpret the configured OneDrive handoff folder itself as the location of the working `live.db`.
+The application must never interpret the configured OneDrive folder itself as the location of the working `live.db`.
 
-Exact Windows local paths and whether operator-visible export folders live elsewhere are still to be frozen.
+Exact Windows local paths and exact subfolder names beyond the approved logical separation are still to be frozen.
 
 ## 12. Annual archive — approved Phase 3 decision
 
@@ -208,18 +270,17 @@ Annual order archives are separate historical database files stored in OneDrive 
 
 They are not working databases and are not part of the normal handoff lineage.
 
-### 12.1 Automatic schedule
+### 12.1 Automatic schedule and strict natural-year boundary
 
-The application automatically performs the previous calendar year's archive on **February 1** each year.
+The application automatically performs the previous **complete calendar year's** archive on **February 1** each year.
 
-If Sushi81 POS is not run on February 1, the archive is performed automatically on the first later startup on which the computer currently holding the authoritative write lineage can safely perform it.
+The archive trigger date does not extend the archive window into January of the current year.
+
+For example, the archive run triggered on February 1, 2027 processes only records whose approved archive year is **2026**. Its year boundary ends on **December 31, 2026**. Records whose approved archive year is 2027, including records ending during January 2027, must remain in `live.db` and are not touched by the 2027 archive run.
+
+If Sushi81 POS is not run on February 1, the archive is performed automatically on the first later startup on which the computer currently holding the authoritative write lineage can safely perform it. The target archive year remains the previous complete natural year; delaying execution does not enlarge the archive period.
 
 Only the current authoritative/writable computer may create an annual archive. A non-authoritative computer must never independently create a competing archive from an older local database.
-
-Example:
-
-- on February 1, 2027, the application archives all records whose approved archive year is 2026;
-- if the application is first opened on February 3, 2027, the same 2026 archive is performed then.
 
 ### 12.2 Archive-year rules
 
@@ -233,7 +294,9 @@ The rules are:
 - Hiboutik emergency order ending as `CANCELLED` => archive year = year of `cancelled_at`;
 - any order still `OPEN` at archive time remains in `live.db`, regardless of creation date or planned fulfilment date.
 
-Therefore an unresolved order from an older year remains live until it is eventually closed or cancelled. It is then archived under the year of that actual closing/cancellation and will be moved during the following year's February archive cycle.
+Therefore an unresolved order from an older year remains live until it is eventually closed or cancelled. It is then assigned to the natural year of that actual closing/cancellation and is not archived until the February archive cycle for that completed natural year.
+
+Example: an order created in December 2026 but closed on January 10, 2027 belongs to archive year 2027 and remains in `live.db` during the February 1, 2027 archive of year 2026. It becomes eligible during the February 2028 archive of year 2027.
 
 ### 12.3 Archive file location and independence
 
@@ -244,6 +307,7 @@ A recommended conceptual organization is:
 ```text
 OneDrive\Sushi81 POS\
     Handoff\
+    DisasterRecovery\
     Archive\
         sushi81-archive-2026.db
         sushi81-archive-2027.db
@@ -288,15 +352,15 @@ Annual archives are not subject to automatic rolling deletion. They are retained
 Before this document becomes an approved Phase 3 baseline, the project should still decide:
 
 - exact Windows local data folder structure;
-- exact OneDrive handoff/archive subfolder naming beyond the approved user-selected root concept;
+- exact OneDrive handoff/recovery/archive subfolder naming beyond the approved logical separation;
 - local recovery snapshot retention policy;
 - formal handoff snapshot retention policy;
-- disaster-recovery procedure;
+- disaster-recovery checkpoint retention policy;
 - exact device-identity metadata created during first installation/pairing;
 - whether the application supports read-only access on a non-authoritative computer before handoff.
 
 ## 14. Approval rule
 
-The handoff mechanism in sections 1-11 and annual archive behavior in section 12 are approved Phase 3 directions: local working SQLite, application-managed local recovery snapshots, normal-exit formal handoff, immutable versioned OneDrive publication, completion marker, verified receiver acquisition, user-selected OneDrive handoff-folder pairing, no stale force takeover, automatic February 1 annual archiving, end-date-based archive-year assignment, and independent OneDrive archive databases.
+The handoff mechanism in sections 1-7 and 9-11, disaster-recovery behavior in section 8, and annual archive behavior in section 12 are approved Phase 3 directions: local working SQLite, application-managed local recovery snapshots, normal-exit formal handoff, immutable versioned OneDrive publication, completion marker, verified receiver acquisition, user-selected OneDrive handoff-folder pairing, no stale force takeover, recovery-only OneDrive checkpoints at a maximum frequency of once every 15 minutes when data has changed, explicit disaster recovery with lineage-generation renewal, strict previous-natural-year February archiving, end-date-based archive-year assignment, and independent OneDrive archive databases.
 
-The document remains **Draft — Phase 3 working design** until the remaining folder/retention/recovery/access details are reviewed.
+The document remains **Draft — Phase 3 working design** until the remaining folder/retention/access details are reviewed.
