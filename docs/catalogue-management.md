@@ -66,7 +66,19 @@ Approved principles:
 
 At the database level, implementation should use a separate opaque/internal product identifier (for example an internal `product_id`) so the application can safely identify catalogue records without forcing the operator-facing `Code` to be immutable. That internal identifier is an implementation concern and is not intended to become part of the normal ordering workflow or visible business code.
 
-Within the **current live catalogue**, codes should still be unambiguous for fast search/selection. The exact duplicate-code validation rule for simultaneously existing catalogue entries remains to be frozen, but historical use of a code must not block future reuse.
+### Current-catalogue code uniqueness — approved Phase 2 decision
+
+Within the current catalogue, a product code must identify **exactly one catalogue product at a time**.
+
+Therefore:
+
+- two simultaneously existing catalogue product records may not have the same operator-facing code;
+- this uniqueness rule applies to the current catalogue state, not to historical orders;
+- a code may be edited, released and later reused for another product, provided no second current catalogue record uses that same code at the same time;
+- historical orders containing a previously used code do not conflict with or block reuse of that code in the current catalogue;
+- the application must reject or clearly prevent an edit/import that would leave duplicate product codes in the current catalogue.
+
+This preserves unambiguous search and ordering while keeping the code system fully reorganizable over time.
 
 ## 4. Product maintenance
 
@@ -155,6 +167,8 @@ The exact target format remains to be approved. Phase 2 must define:
 - rollback/recovery behavior after a failed import;
 - export encoding and column order.
 
+Any import result that would leave two current catalogue products with the same code must be rejected or returned for correction before the catalogue update is committed.
+
 No import should partially apply a logically invalid catalogue update without clearly reporting the result.
 
 ## 9. Decisions still to freeze
@@ -162,7 +176,7 @@ No import should partially apply a logically invalid catalogue update without cl
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
 1. final product fields and which are mandatory;
-2. current-catalogue duplicate-code rules and deletion behavior;
+2. permanent deletion behavior for current catalogue products;
 3. category and category-shortcut model;
 4. final option-group model;
 5. required/optional option-selection behavior;
@@ -177,9 +191,10 @@ The following identity/history principles are already approved and are no longer
 - confirmed historical orders are independent snapshots and do not depend on the live catalogue;
 - operator-facing product codes are editable and may be reused/reassigned over time;
 - prior historical use does not permanently reserve a product code;
+- within the current catalogue, one product code may belong to only one product at a time;
 - later catalogue edits, including code changes, never alter existing confirmed orders;
 - implementation may use a hidden immutable internal identifier for safe database handling without exposing that identifier as the business product code.
 
 ## 10. Approval rule
 
-This file remains a Draft until the catalogue and option rules above are explicitly approved. Implementation must preserve the strict separation between historical order snapshots and the mutable live catalogue, and must not treat the operator-facing product code as an immutable historical identity.
+This file remains a Draft until the catalogue and option rules above are explicitly approved. Implementation must preserve the strict separation between historical order snapshots and the mutable live catalogue, must keep current catalogue product codes unique, and must not treat the operator-facing product code as an immutable historical identity.
