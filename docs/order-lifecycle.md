@@ -7,340 +7,346 @@
 
 ## 1. Scope
 
-This document defines the target lifecycle semantics for Sushi81 POS. It translates the approved Phase 1 product requirements into implementable rules without choosing the database schema or UI technology.
+This document defines the target lifecycle semantics for Sushi81 POS. It translates the approved product boundary into implementable lifecycle rules without choosing physical database schema or UI technology.
 
-The lifecycle must remain deliberately simple. Sushi81 POS is primarily an operational order and turnover-recording relay tool. It is not intended to become a payment-control, refund-accounting or financial-workflow system.
+The lifecycle remains deliberately simple. Sushi81 POS is primarily an operational order and turnover-recording relay tool. It is not a payment-control, refund-accounting or financial-workflow system.
 
 It covers:
 
 - when an order becomes a durable business record;
-- order open/closed/cancelled semantics;
+- Open / Closed / Cancelled semantics;
 - payment recording and arithmetic validation;
-- future-order and overdue behavior;
+- future-order, due-today and overdue behavior;
 - order modification and cancellation;
-- creation of a new order from an existing order's customer information;
-- real-time operational turnover monitoring;
+- creation of a new order from existing customer information;
+- real-time operational turnover;
 - daily received-payment summaries;
-- lifecycle treatment of Hiboutik emergency-import copies.
+- source treatment of Hiboutik paste-created orders.
 
-It does not define catalogue structure, discount formulas, physical database tables, printing templates, external card-terminal settlement or the final export schema.
+It does not define catalogue structure, detailed pricing formulas, physical database tables, printing templates, external card-terminal settlement or the export-file schema.
 
-## 2. Authoritative baseline and Phase 2 refinement
+## 2. Frozen lifecycle principles
 
-The lifecycle design remains based on `current-system.md` and the approved `product-requirements.md` Phase 1 baseline.
-
-Phase 2 freezes these simple principles:
-
-- **payment state does not lock an order against modification**;
-- **payment composition is recorded directly as cash and card amounts rather than through a manually selected payment-method category**;
-- **the order has one authoritative editable total field**;
-- **a manual total edit is temporary and any later price-affecting order change automatically recalculates the total under normal pricing rules**;
-- **an order may be closed only when recorded cash + card exactly equals that current order total**;
-- **real-time operational turnover and received-payment summaries are separate metrics**;
-- **real-time operational turnover is attributed to the planned fulfilment date**;
-- **daily received-payment summaries use the amount actually received on each date, not the nominal value of the whole order**;
-- **only the latest saved order version needs to be retained for normal business use; v1 does not require an order revision-history feature.**
-
-The following principles remain fixed:
+The following principles are authoritative for V1:
 
 1. A confirmed order is durably persisted and must survive application restart/failure.
-2. Cancelling an order does not delete the retained order record.
-3. Uncommitted edits can be abandoned without changing the persisted order.
-4. Existing orders remain retrievable and reprintable according to retention/archive rules.
-5. Future-order behavior is driven by structured planned fulfilment date/time.
-6. A future order automatically leaves the future-orders area when its fulfilment date arrives and appears in the due-today advance-order reminder.
-7. Due-today advance-order visibility is operational and does not depend on whether payment has already been entered.
-8. Partial and mixed payments are representable structurally through CB and Espèce amounts.
-9. Daily received-payment totals represent money actually received on that date, not unpaid order value.
-10. Real-time operational turnover represents the value of valid orders attributed to their planned fulfilment date and does not depend on payment state or order closure.
-11. Hiboutik emergency-import records are operational/printing copies, not new POS-originated sales; they remain excluded from ordinary POS turnover/card-entry/export totals.
-12. External card-terminal refund/additional-charge handling remains outside the POS in v1.
-13. The operator may directly edit the order total without changing catalogue product base prices.
-14. A later change to products, quantities, options/price adjustments, discounts or an applicable configured delivery fee automatically recalculates and replaces any prior manual total override.
-15. Every new order must explicitly select a fulfilment mode: `Retrait` or `Livraison`. No order may be confirmed without that selection.
+2. Printing happens after persistence; print failure does not undo the order.
+3. Business status is limited to `OPEN`, `CLOSED` and `CANCELLED`.
+4. Payment information is independent from business status.
+5. Payment composition is recorded through current cumulative CB and Espèce amounts, not a separate manually selected payment-method category.
+6. The order has one authoritative editable total field.
+7. A manual total edit is temporary: any later price-affecting order change recalculates the total under normal pricing rules and replaces the manual override.
+8. An order may be Closed only when current CB + current Espèce equals the current authoritative order total exactly to the cent.
+9. All non-cancelled orders remain modifiable regardless of Open/Closed state.
+10. Ordinary modification keeps the same stable business order ID and replaces the latest saved business state; V1 does not require operator-visible order revision history.
+11. Cancelling an order does not delete its retained business record or its recorded CB/Espèce facts.
+12. Uncommitted edits can be abandoned without changing the persisted order.
+13. Future/due-today/overdue are derived operational views, not destructive lifecycle statuses.
+14. Real-time operational turnover and received-payment summaries are separate metrics.
+15. Operational turnover is attributed to planned fulfilment date and does not depend on payment/closure state.
+16. Daily received-payment summaries use the payment amount actually attributed to each date, not the nominal whole order value.
+17. Every new order must explicitly select `Retrait` or `Livraison`; confirmation is rejected if neither is selected.
+18. External card-terminal refund/additional-charge execution remains outside Sushi81 POS V1.
+19. A Hiboutik paste-created order follows the same ordinary order lifecycle and UI as any other order; only a hidden source discriminator remains to enforce anti-double-counting exclusions.
 
 ## 3. Lifecycle dimensions
 
-At minimum, an order has independent lifecycle dimensions:
+An order has independent lifecycle dimensions:
 
-- **business/order status** — `Open`, `Closed` or `Cancelled`;
-- **payment information** — cumulative cash and card amounts recorded for the order;
-- **order total** — one authoritative editable amount, normally system-calculated but directly editable by the operator;
-- **planned fulfilment date/time** — used to derive future, due-today and overdue attention and to attribute operational turnover to the correct business day;
-- **source type** — ordinary POS-originated order versus Hiboutik emergency-import copy.
+- **business status** — `OPEN`, `CLOSED`, `CANCELLED`;
+- **payment information** — current cumulative CB and Espèce amounts derived from persisted dated adjustments;
+- **authoritative order total** — normally system-calculated but directly editable by the operator;
+- **planned fulfilment date/time** — used for future/due-today/overdue derivation and operational-turnover attribution;
+- **advance-order marker** — sticky persisted fact that the order has ever participated in the future-order workflow;
+- **source discriminator** — ordinary POS-originated versus Hiboutik paste-created, hidden from normal operator workflow.
 
-Future-order, due-today and overdue labels are operational views derived from the underlying order data rather than separate destructive lifecycle states.
-
-`Open` versus `Closed` is deliberately lightweight. It records only whether the order has passed the application's final arithmetic reconciliation check; it does not mean the POS controls the external payment process.
+The source discriminator is not a user-facing order type and does not create a separate lifecycle.
 
 ## 4. Target lifecycle model
 
 ### 4.1 Before confirmation
 
-An in-progress cart/edit is not yet a durable business order. Leaving or cancelling the in-progress operation must not create an active order unless the operator explicitly confirms it.
+An in-progress new cart is not yet a durable business order.
 
-Before confirmation, the operator must explicitly choose one fulfilment mode:
+Leaving/cancelling it before confirmation creates no active order.
+
+Before confirmation, the operator must explicitly choose exactly one fulfilment mode:
 
 - `Retrait`; or
 - `Livraison`.
 
-There is no inherited/default fulfilment mode from a prior order when creating a new order from existing customer information. If no fulfilment mode has been selected, the application must reject confirmation and keep the order in progress.
+When a new order is initialized from reusable information from an older order, fulfilment mode is not inherited. The operator must choose it again.
 
-### 4.2 Confirmation and open order
+### 4.2 Confirmation and initial Open state
 
-Confirmation creates the durable order record before printing is attempted. Print failure must therefore be recoverable by reprint and must not cause order loss.
+Confirmation:
 
-A newly confirmed order is **Open**. An open order can be saved, printed, retrieved and modified normally even when payment information is still empty or incomplete.
+1. validates the current order under approved business rules;
+2. allocates the stable Sushi81 POS order ID;
+3. commits the complete order transaction durably;
+4. only after successful commit invokes the normal printing workflow.
 
-### 4.3 Payment recording — approved Phase 2 decision
+A newly confirmed order starts `OPEN`.
 
-Each ordinary POS order provides two current cumulative amount fields:
+An Open order can be saved, viewed, printed, retrieved and modified even when payment information is empty or incomplete.
 
-- **Card / CB amount**;
-- **Cash / Espèce amount**.
+### 4.3 Payment recording
 
-The operator does not need to choose a separate `CB`, `Espèce` or `Mixte` value. Payment composition is derived automatically:
+The operator works with two current cumulative amount fields:
 
-- both empty: payment composition not yet recorded;
-- one amount entered and the other empty: the empty field is treated as zero;
-- CB > 0 and Espèce = 0: card-only;
-- Espèce > 0 and CB = 0: cash-only;
-- both > 0: mixed payment.
+- **Card / CB**;
+- **Cash / Espèce**.
 
-The two amount fields remain editable during reconciliation.
+No separate `CB`, `Espèce`, `DIV` or `Mixte` order-level selector is required.
 
-The POS should display where useful:
+Composition is derived automatically:
+
+- CB = 0 and Espèce = 0 -> unpaid/payment not recorded;
+- CB > 0 and Espèce = 0 -> card only;
+- CB = 0 and Espèce > 0 -> cash only;
+- both > 0 -> mixed.
+
+Where useful the UI should show:
 
 - current order total;
-- recorded CB amount;
-- recorded Espèce amount;
+- current CB;
+- current Espèce;
 - total recorded payment;
-- difference between recorded payment and current order total.
+- difference between recorded payment and current total.
 
-Operational payment instruments are grouped only into these two business buckets. Instruments processed through the card terminal belong to the CB bucket; cash-equivalent paper instruments handled as cash belong to the Espèce bucket according to Sushi 81's operating practice.
+The two amounts remain editable during later reconciliation/correction.
 
-### 4.4 Internal dated payment changes — approved Phase 2 decision
+### 4.4 Internally dated payment changes
 
-The operator-facing UI remains limited to the current cumulative `CB` and `Espèce` amounts, but the application must internally retain enough dated change information to calculate daily received-payment summaries correctly.
+The operator-facing UI remains cumulative, but the application internally persists enough signed dated changes to calculate received-payment totals correctly across days.
 
-When an operator changes a cumulative payment amount, the application records the **difference** attributable to that change together with its effective date/time and payment bucket.
+When a current cumulative amount changes, the application records the difference for the affected CB/Espèce bucket with an effective date/time.
 
 Example:
 
-- an order total is €50;
-- on day 1 the operator records CB = €20: day 1 receives a +€20 CB contribution;
-- on day 2 the operator changes CB from €20 to €50: day 2 receives only the additional +€30 CB contribution;
-- the whole €50 is not counted again on day 2.
+- day 1: CB changes €0 -> €20 => day 1 receives `+€20` CB;
+- day 2: CB changes €20 -> €50 => day 2 receives only `+€30` CB;
+- a later reduction records a negative delta on its effective date.
 
-The same principle applies independently to CB and Espèce.
+The application does not need to expose a payment-event ledger as a normal V1 operator feature.
 
-If a later correction reduces a previously entered cumulative amount, the internal dated adjustment must be sufficient to keep daily summaries mathematically consistent. The normal operator UI still shows only the current cumulative amounts and does not expose a payment-event ledger unless a later requirement explicitly introduces one.
+### 4.5 Editable order total
 
-### 4.5 Editable order total — approved Phase 2 decision
+The order has one ordinary authoritative total field.
 
-The order has one ordinary **total** field.
+Normal pricing writes the calculated result into that field. The operator may directly edit the same field when an exceptional real-world amount is needed.
 
-The application normally calculates that field from product lines, quantities, options and applicable pricing/discount rules. The operator may then directly edit the same field when needed.
+A manual edit becomes authoritative immediately but does not lock the total.
 
-A manual edit becomes the authoritative order total at that moment. However, the manual value does **not** lock the order total against future system calculation.
+A later price-affecting change — including products, quantities, options/adjustments, discount application or applicable delivery fee — automatically recalculates the total under normal rules and replaces the earlier manual value.
 
-If any price-affecting order input is subsequently changed — including products, quantities, product options/price adjustments, discount application or an applicable configured delivery fee — the application must automatically recalculate the total using the normal approved rules and overwrite the earlier manual value.
+The operator may then manually edit the recalculated value again if needed.
 
-If the operator still wants a special total after that recalculation, the operator may simply edit the total again.
+The operator is not required to maintain a second visible calculated-total field or provide a mandatory reason for a manual total.
 
-The application does not require a second visible calculated-total field and does not reject the order because product lines no longer mathematically add up to a manually edited total between recalculations.
+VAT behavior for a manual total is defined in `business-rules.md` and `data-model.md`.
 
-### 4.6 Closing an order — approved Phase 2 decision
+### 4.6 Closing an order
 
-An order may be **Closed only when**:
+An order may be Closed only when:
 
-`Card amount + Cash amount = Current order total`
+`CB + Espèce = authoritative order total`
 
-The equality is mandatory to the cent.
+Equality is exact to €0.01.
 
 Therefore:
 
-- if the recorded payment total is less than the order total, closing is rejected;
-- if the recorded payment total is greater than the order total, closing is rejected;
-- if both payment fields are empty, closing is rejected unless the order total is itself zero under an explicitly valid future rule;
-- if equality is satisfied, the order may be closed.
+- underpayment blocks closing;
+- overpayment blocks closing;
+- no recorded payment blocks closing unless a valid zero-total order rule applies;
+- equality permits the explicit Close action.
 
-When closing is rejected, the application must show a clear arithmetic error and keep the order open. The operator may correct the CB/Espèce amounts or directly edit the order total as appropriate.
+A rejected close shows a clear arithmetic error and leaves the order Open/editable.
 
-This validation prevents only the explicit close action. It does not prevent saving, printing or editing an open order.
+Saving and printing an Open order are not blocked merely because it is unsettled.
 
-A previously closed order may still be edited. If a later edit causes CB + Espèce to differ from the current order total, the order must again be treated as Open until the arithmetic close condition is satisfied.
+A previously Closed order may be modified. If the latest saved change makes CB + Espèce differ from the current authoritative total, status becomes Open again until the close condition is satisfied again.
 
-### 4.7 Daily received-payment summary — approved Phase 2 decision
+### 4.7 Daily received-payment summary
 
-The current-day received-payment summary represents **money actually received on that date**, not the nominal value of every order created or due that day.
+For a business date D, the received-payment summary represents money actually received/effectively attributed on D.
 
-It must show at least:
+It shows at least:
 
-- today's actual amount received;
-- today's actual CB amount received;
-- today's actual Espèce amount received.
+- actual total received on D;
+- actual CB received on D;
+- actual Espèce received on D.
 
-An order does not need to be closed in order for an amount already received to contribute to the daily received-payment summary.
+It is based on dated payment deltas, not nominal order totals.
 
 Examples:
 
-- a €50 order with €20 actually received today contributes €20, not €50;
-- the remaining unpaid €30 does not appear in today's received-payment summary;
-- a fully unpaid open order contributes €0;
-- if €20 was received yesterday and an additional €30 is received today, yesterday's summary contains €20 and today's summary contains €30.
+- €50 order with €20 received today contributes €20 today;
+- unpaid €30 remainder contributes €0 today;
+- €20 yesterday + €30 today appears as €20 yesterday and €30 today;
+- an Open order does not block the summary.
 
-The existence of open orders must not block generation or display of the daily received-payment summary.
+Ordinary summaries exclude Cancelled orders and Hiboutik paste-created orders according to the approved source/status boundaries.
 
-The application may separately show open/unsettled orders as an operational reminder.
+### 4.8 Real-time operational turnover
 
-### 4.8 Real-time operational turnover — approved Phase 2 decision
+Operational turnover answers the practical question: **how much valid ordinary POS business belongs to this fulfilment date?**
 
-The main screen must provide a separate **real-time operational turnover** figure, intended to answer the practical question: “How much business belongs to today?”
+For a date D:
 
-This figure is independent from payment reconciliation:
+- include ordinary POS-originated orders whose planned fulfilment date is D;
+- exclude Cancelled orders;
+- sum each included order's current authoritative total;
+- ignore whether the order is Open/Closed/unpaid/partial/settled.
 
-- an Open unpaid order contributes its full order total to real-time operational turnover for its planned fulfilment date;
-- an Open partially paid order contributes its full order total to real-time operational turnover while only the amount actually received contributes to the received-payment summary;
-- a Closed order contributes its order total in the same way as any other valid non-cancelled order;
-- a Cancelled order does not contribute to real-time operational turnover;
-- Hiboutik emergency-import copies remain excluded from ordinary POS-originated turnover to avoid double counting.
+Consequences:
 
-Therefore, order closure and payment entry do **not** control the real-time turnover figure.
+- unpaid ordinary order due today contributes its full total to today's turnover;
+- a future order created today for tomorrow contributes to tomorrow's turnover, not today's;
+- if that future order is prepaid today, the payment contributes to today's received-payment summary while the order contributes to tomorrow's turnover;
+- an old order receiving payment today contributes the new payment delta today but does not move its operational turnover to today.
 
-Operational turnover is attributed to the order's **planned fulfilment date**, not its creation date. Consequently:
+Hiboutik paste-created orders are excluded because the underlying sale already exists in Hiboutik and must not be counted as new POS-originated turnover.
 
-- a normal order planned for today contributes its current order total to today's real-time turnover immediately after confirmation, regardless of payment state;
-- a future order created today for tomorrow does not increase today's operational turnover; it belongs to tomorrow's turnover;
-- if that future order is prepaid today, the amount received today still contributes to today's received-payment summary even though the order itself contributes to tomorrow's operational turnover;
-- an older order from yesterday that receives its remaining payment today does not increase today's operational turnover, but today's newly received amount does increase today's received-payment summary.
+### 4.9 Future, due-today and overdue views
 
-This separation intentionally allows operational turnover and received money to differ on a given day and produces a more accurate basis for analysing which weekdays or calendar dates generate the strongest business activity.
+These are derived operational views:
 
-### 4.9 Future / due today / overdue — Phase 3 refinement incorporated
+- **future order**: `planned_fulfilment_date > current_business_date` and not Cancelled;
+- **due-today advance order**: planned date = current business date, `advance_order_marker = true`, not Cancelled;
+- **overdue unsettled**: planned date < current business date, not Cancelled and not fully Closed/reconciled under the approved lifecycle.
 
-These are operational views derived from planned fulfilment date, the persisted advance-order marker and settlement status:
+The persisted `advance_order_marker` is sticky:
 
-- **future order:** current planned fulfilment date is after today;
-- **due-today advance order:** current planned fulfilment date is today, the order's persisted `advance_order_marker` is true, and the order is not Cancelled;
-- **overdue unsettled:** current planned fulfilment date is before today and the order is not Cancelled and is not closed/fully reconciled.
+- new order begins `false`;
+- if a non-cancelled order is saved while planned date is later than the then-current business date, set it `true`;
+- once true, it never resets for that order;
+- later changes to date/time/products/payment/customer data do not reset it;
+- cancellation need not clear it because Cancelled status independently excludes the order from active reminder views.
 
-The `advance_order_marker` uses the approved sticky semantics defined in `data-model.md`: a new order starts false; once a non-cancelled order is saved with a planned fulfilment date later than the then-current business date, the marker becomes true and remains true permanently for that order. Later changes to date, time, products, payment or customer information do not reset it. Cancellation does not need to clear it because Cancelled status independently excludes the order from reminder views.
+Payment state and Open/Closed status do not remove the due-today advance-order reminder.
 
-The due-today advance-order reminder remains visible for the rest of that calendar day. A legitimate future order may remain open without affecting today's received-payment summary except for any amount actually received today.
+### 4.10 Modification
 
-### 4.10 Order modification — approved Phase 2 decision
+All non-cancelled orders may be modified regardless of Open/Closed state.
 
-**All non-cancelled orders may be modified regardless of whether they are Open or Closed.**
+Saving a modification:
 
-When an order is modified:
+- retains the same order ID;
+- replaces the latest saved business values;
+- uses the latest saved state for current reporting and reprinting;
+- does not create a revision-history chain as a V1 business feature.
 
-- the same business order ID is retained;
-- the operator edits the existing order directly;
-- only the latest saved business version is required for normal use;
-- abandoning an in-progress edit restores the last persisted version unchanged;
-- reprinting and current reporting use the latest saved version.
+Abandoning an in-progress modification leaves the last persisted state unchanged.
 
-V1 does **not** require an operator-visible or business-retained order revision-history feature. The application only needs whatever minimal technical metadata is required for safe persistence and diagnostics; it does not need to preserve prior business versions as a user feature.
-
-The operator may directly change the order total even if it differs from the product-line arithmetic.
-
-If the operator later changes any product, quantity, option/price adjustment, discount or applicable configured delivery fee, the application automatically recalculates the order total according to the approved pricing rules, replacing any prior manual total. The operator can then manually edit the newly calculated total again if needed.
+A later price-affecting modification recalculates the total as described in section 4.5.
 
 External refund/additional-charge handling remains outside the POS.
 
-### 4.11 Partial-payment / unsettled orders
+### 4.11 Partial-payment / unsettled order
 
-If recorded CB + Espèce is greater than zero but less than the current order total, the order remains Open/unsettled and cannot be closed yet.
+If CB + Espèce is greater than zero but below the current total, the order remains Open/unsettled and cannot be Closed.
 
-A partially paid order remains fully editable. Amount already actually received contributes only to the daily received-payment summary for the date on which it was received; the unpaid remainder does not.
+The order remains editable. Only amounts actually received on each date contribute to that date's received-payment summary.
 
-### 4.12 Create a new order from an existing order — approved Phase 2 decision
+### 4.12 Create a new order from existing customer information
 
-The operator must be able to use any existing order as a source of customer information for a **new order with a new order ID**.
+The operator may use an existing order as a source of reusable text information for a completely new order.
 
-This action does not automatically alter the source order, whether that source is Open, Closed or Cancelled.
+Reusable information may include:
 
-The new-order action copies reusable customer-related information including:
+- telephone;
+- delivery address;
+- comment/notes.
 
-- telephone number, when present;
-- delivery address, when present;
-- free-text customer/order comment or notes, when present.
+The copied values remain editable.
 
-The copied values remain editable before confirmation.
+The new order does **not** inherit:
 
-The following are not inherited as transaction data:
-
-- source order ID;
-- source order status;
-- recorded CB/Espèce amounts;
-- source order total;
-- source order creation timestamp;
-- product lines;
+- source order ID/status;
+- CB/Espèce amounts;
+- source total;
+- creation timestamp;
+- products;
 - planned fulfilment date/time;
-- fulfilment mode (`Retrait` / `Livraison`).
+- fulfilment mode.
 
-The operator must explicitly choose `Retrait` or `Livraison` for the new order. This is a mandatory field and confirmation is rejected until one of the two modes is selected.
+The operator explicitly selects Retrait/Livraison again. A new order ID is allocated only on confirmation.
 
-The new order receives its new ID only when confirmed.
+The source order is unchanged whether it is Open, Closed or Cancelled.
 
-### 4.13 Cancellation — approved Phase 2 decision
+### 4.13 Cancellation
 
-Cancellation is an explicit operator action and is distinct from ordinary modification.
+Cancellation is an explicit operator action distinct from ordinary modification.
 
 A Cancelled order:
 
-- remains retained as historical business data;
-- is clearly marked `Cancelled`;
-- retains its previously recorded CB/Espèce amounts for reference;
-- is excluded from normal active-order turnover/statistical calculations, ordinary received-payment summaries and ordinary export unless a later export specification explicitly requires otherwise;
-- may remain viewable/reprintable for reference where appropriate.
+- remains retained;
+- is clearly marked Cancelled;
+- retains previously recorded CB/Espèce facts for reference;
+- is excluded from ordinary active turnover and ordinary received-payment summaries;
+- is excluded from initial positive-sale export;
+- remains viewable and printable/reprintable under `printing.md`;
+- is not automatically recreated as another order.
 
-The POS does not automatically cancel and recreate an order merely because its contents were edited.
+### 4.14 Hiboutik paste-created orders — simplified approved V1 rule
 
-### 4.14 Hiboutik emergency-import copies
+A Hiboutik paste-created order uses the **same ordinary order lifecycle** after the operator confirms it.
 
-Emergency-imported Hiboutik orders participate in operational printing, reminders and discrepancy review where applicable, but they are not new POS-originated sales.
+It may therefore use ordinary:
 
-Their lifecycle must preserve:
+- Open / Closed / Cancelled status;
+- planned fulfilment date/time and advance-order reminders;
+- products/options/cart editing;
+- authoritative-total rules;
+- CB/Espèce fields;
+- modification/cancellation;
+- printing/reprinting.
 
-- source identity as Hiboutik emergency import;
-- original Hiboutik amount;
-- POS operational/actual amount;
-- recorded cash/card payment outcome used for reconciliation;
-- exclusion from ordinary POS-originated received-payment/turnover totals, Hiboutik card-entry totals and `Gestion SUSHI 81.xlsm` export.
+Its Hiboutik origin is represented only by a hidden source discriminator required for anti-double-counting.
 
-External monetary settlement remains outside the application.
+The operator does not manage a special source type or emergency workflow.
 
-## 5. Phase 2 lifecycle decisions frozen in this document
+V1 does **not** preserve or require:
 
-The following lifecycle decisions are approved:
+- a dedicated emergency-order UI/style/count;
+- `EmergencyImportDetail`;
+- immutable original Hiboutik total;
+- Hiboutik-vs-POS discrepancy status;
+- Hiboutik-specific reconciliation/payment workflow;
+- dedicated Hiboutik reference field.
 
-1. user-facing order statuses are limited to `Open`, `Closed` and `Cancelled` (with final FR/ZH wording to be handled by localization/UI design);
-2. Cancelled orders retain CB/Espèce values for reference but are excluded from normal summaries and exports;
-3. v1 keeps only the latest saved business version of an order and does not provide an order revision-history feature;
-4. creating a new order from an existing order copies customer information but does not inherit `Retrait`/`Livraison`; fulfilment mode is mandatory and must be explicitly selected for every new order;
-5. cross-day and partial payments are attributed by internally dated payment-amount changes while the operator-facing UI remains limited to the current cumulative CB/Espèce fields;
-6. real-time operational turnover is separate from daily received-payment totals and is not dependent on order payment/closure state;
-7. operational turnover is attributed to the planned fulfilment date, not the order creation date.
+If a Hiboutik reference is useful, it may be entered in the ordinary order comment.
 
-The Phase 3 refinement in section 4.9 additionally freezes the sticky `advance_order_marker` semantics used to distinguish due-today advance orders after later date edits.
+Because the underlying web sale already exists in Hiboutik, the hidden source discriminator automatically excludes the order from:
 
-The following are not part of the target v1 lifecycle unless explicitly reintroduced later:
+- ordinary POS-originated operational turnover;
+- ordinary POS-originated received-payment summaries;
+- the ordinary POS CB amount that must newly be represented/entered in Hiboutik;
+- export to `Gestion SUSHI 81`.
+
+This section incorporates and is subordinate to the later approved Phase 4 rules in `paste-order-import.md` and `docs/decisions/hiboutik-paste-simplification.md`.
+
+## 5. Lifecycle features explicitly not required in V1
+
+Unless a later approved specification amendment reintroduces them, V1 does not include:
 
 - a manually selected `CB` / `Espèce` / `DIV` / `Mixte` payment-method field;
 - payment-state-based editing locks;
 - supplementary-order chains for already-paid order edits;
 - mandatory cancel-and-replace behavior for ordinary modifications;
 - refund-pending/refund-completed states;
-- POS-managed card-refund workflow;
+- POS-managed card-refund execution;
 - complex replacement-order financial linking;
 - an operator-facing payment-event ledger;
 - an operator-visible order revision-history feature;
-- blocking the daily received-payment summary because one or more orders remain open;
-- requiring a second visible system-calculated total alongside the editable order total;
-- preserving a manual total override after later price-affecting order changes.
+- blocking daily received-payment summaries because one or more orders remain Open;
+- a second mandatory visible calculated total alongside the editable authoritative total;
+- persistence of a manual total override after later price-affecting order changes;
+- a separate Hiboutik emergency-order lifecycle, discrepancy model or reconciliation workflow.
 
-## 6. Approval rule
+## 6. Approval
 
-This document is **Approved — Phase 2 baseline**, including the approved Phase 3 advance-order-marker refinement recorded above. Implementation must preserve the lifecycle decisions above and must not reintroduce more complex payment/replacement/audit workflows or change the operating-day attribution or advance-order reminder semantics without explicit product approval.
+This document is the **Approved — Phase 2 baseline**, including the approved Phase 3 advance-order-marker refinement and the Phase 5 alignment to the later approved Phase 4 Hiboutik paste-import simplification.
+
+Implementation must preserve these lifecycle semantics and must not reintroduce the older emergency-order, payment/replacement or revision-history models without explicit product approval.
