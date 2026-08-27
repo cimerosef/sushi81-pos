@@ -58,7 +58,8 @@ The most important consequences for the data model are:
 9. Hiboutik emergency-import orders are operational copies and must remain excluded from ordinary POS-originated turnover, received-payment, Hiboutik-card-entry and export totals;
 10. catalogue Excel import uses opaque internal identifiers for safe updates, but those identifiers must remain transparent/non-editable in normal operator workflows;
 11. no customer/CRM subsystem is required in v1;
-12. successful catalogue import does not require a permanent operator-facing import-history table.
+12. successful catalogue import does not require a permanent operator-facing import-history table;
+13. while a manual order-total override is authoritative, the complete final TTC amount uses a single 10% VAT bucket rather than the normal mixed product/option VAT breakdown.
 
 ## 3. Design principles
 
@@ -131,7 +132,7 @@ The core logical entities are:
 - `PaymentAdjustment`
 - `EmergencyImportDetail`
 - `BusinessSettings`
-- `OrderTaxBreakdown` — required structurally for stable receipt/tax reproduction, with one calculation rule still to be frozen before approval.
+- `OrderTaxBreakdown`
 
 A future export specification may add export-batch/export-state entities without changing the core order model.
 
@@ -273,9 +274,17 @@ Logical fields:
 | `delivery_address` | no | Latest saved delivery address; may be empty even for initial Livraison confirmation |
 | `comment` | no | Flexible operational free text |
 | `total_ttc` | yes | Single authoritative current order total |
+| `manual_total_override_active` | yes | Whether `total_ttc` currently comes from an operator manual override rather than the latest normal price calculation |
 | `pickup_discount_applied` | yes | Whether the normal Retrait discount is currently applied |
 | `pickup_discount_rate_snapshot` | no | Applied rate snapshot when the discount is active |
 | `delivery_fee_ttc_snapshot` | yes | Current applied order-level delivery fee, normally €0 in v1 |
+
+`manual_total_override_active` is required because the final numeric total alone cannot tell the application which VAT rule is authoritative. Its lifecycle is simple:
+
+- normal system price calculation writes `total_ttc` and sets the marker to `false`;
+- direct operator editing of `total_ttc` sets the marker to `true`;
+- any later price-affecting change triggers normal recalculation and resets it to `false`;
+- another direct manual edit sets it to `true` again.
 
 ### 6.2 Order identity
 
@@ -386,13 +395,14 @@ At minimum:
 - `Order.pickup_discount_applied` records whether the normal discount is active;
 - `Order.pickup_discount_rate_snapshot` records the actual rate used;
 - `Order.delivery_fee_ttc_snapshot` records the fee actually applied;
+- `Order.manual_total_override_active` records whether the current authoritative total is a manual override and therefore whether the single 10% VAT override rule applies;
 - `OrderItem.discount_eligible_snapshot` records sale-time eligibility;
 - option adjustment amount/VAT snapshots preserve their sale-time result;
 - system-calculated line results are persisted as snapshots rather than depending on current catalogue values.
 
 The current configured Retrait minimum and Livraison minimum are **validation parameters**, not historical financial values that must be copied to each order.
 
-A later price-affecting order change recalculates the relevant pricing snapshots under the then-current approved business settings and replaces the prior latest saved values, consistent with the approved same-order modification model.
+A later price-affecting order change recalculates the relevant pricing snapshots under the then-current approved business settings, replaces the prior latest saved values and resets `manual_total_override_active = false`, consistent with the approved same-order modification model.
 
 ## 9. Payment model
 
@@ -580,7 +590,7 @@ Historical reproducibility is achieved by storing the relevant **applied pricing
 
 Customer receipts must preserve VAT information and archived orders must remain reprintable.
 
-For that reason the logical model should provide a durable order-level tax breakdown rather than relying on current catalogue/settings at reprint time.
+For that reason the logical model provides a durable order-level tax breakdown rather than relying on current catalogue/settings at reprint time.
 
 ### 13.1 `OrderTaxBreakdown`
 
@@ -594,9 +604,33 @@ Logical fields:
 | `taxable_ttc_amount` | yes | TTC amount allocated to this VAT rate |
 | `vat_amount` | yes | VAT amount under approved round-half-up rules |
 
-The rows are replaced whenever a price-affecting modification causes the order to be recalculated and saved.
+The rows are replaced whenever a price-affecting modification causes the order to be recalculated and saved, and they are also replaced when the operator manually changes the authoritative total.
 
-However, the exact rule for producing these rows when the operator manually overrides the authoritative order total is **not yet defined by the approved Phase 2 documents**. This is a blocking Phase 3 business/accounting design question listed in section 17.
+### 13.2 Normal calculated total
+
+When `Order.manual_total_override_active = false`, the tax breakdown is generated from the actual sale-time product/option/fee VAT rules and may therefore contain multiple VAT buckets.
+
+The persisted `OrderTaxBreakdown` rows are authoritative for historical receipt reprinting; later catalogue changes do not alter them.
+
+### 13.3 Manual total override — approved rule
+
+When `Order.manual_total_override_active = true`:
+
+- discard the normal mixed VAT allocation for the current final tax snapshot;
+- create exactly one `OrderTaxBreakdown` row;
+- set `vat_rate = 10%`;
+- set `taxable_ttc_amount = Order.total_ttc`;
+- calculate the VAT included in that TTC amount at 10% and round the final VAT amount using the approved round-half-up cent rule.
+
+For a TTC amount `T`, the VAT included at 10% is conceptually:
+
+`VAT = T - (T / 1.10)`
+
+with the final stored/displayed VAT rounded consistently to €0.01 under the approved rounding rule.
+
+This applies to the **entire final manual amount**, regardless of the original products' VAT rates and regardless of whether the override increases or decreases the system-calculated total.
+
+A later price-affecting change resets `manual_total_override_active = false`, recalculates `total_ttc` and regenerates the normal product/option VAT breakdown. A later manual edit sets the marker to `true` again and regenerates the single 10% bucket.
 
 ## 14. Telephone-history assistance without CRM
 
@@ -647,28 +681,15 @@ Unless a later approved document adds a concrete requirement, the core data mode
 
 ## 17. Phase 3 decisions still required before approval
 
-The logical structure above can already support the approved lifecycle, catalogue and payment behavior. The following points remain unresolved and should be decided before this document becomes an approved Phase 3 baseline.
+The logical structure above can already support the approved lifecycle, catalogue, payment and manual-total VAT behavior. The following points remain unresolved and should be decided before this document becomes an approved Phase 3 baseline.
 
-### 17.1 Manual total override versus VAT allocation — blocking
-
-Approved Phase 2 behavior allows `Order.total_ttc` to be manually changed without requiring item arithmetic to match.
-
-The project still needs one explicit rule for the customer receipt/tax snapshot when, for example:
-
-- system-calculated line total = €20.00;
-- operator manually changes authoritative order total = €18.00.
-
-Possible approaches include allocating the €2 difference proportionally across existing VAT bases, applying it to a defined VAT bucket, or representing a separate order-level adjustment with its own VAT treatment.
-
-This must be decided explicitly; the data model must not invent tax treatment for an arbitrary commercial override.
-
-### 17.2 Delivery-fee VAT treatment — blocking if the setting can be enabled in v1
+### 17.1 Delivery-fee VAT treatment — blocking if the setting can be enabled in v1
 
 Phase 2 approved a configurable fixed delivery-fee entry point but did not freeze the VAT rate/treatment of that fee.
 
 Because a non-zero enabled fee becomes part of the order total, receipt, turnover and export, its VAT treatment must be defined before production use of the feature.
 
-### 17.3 Advance-order marker semantics — confirm
+### 17.2 Advance-order marker semantics — confirm
 
 This draft recommends one minimal persisted marker so the application can distinguish an advance order that has become due today from an ordinary same-day order even after planned-date edits.
 
@@ -676,7 +697,7 @@ The project should confirm when that marker becomes true and whether it is ever 
 
 Recommended rule: once a non-cancelled order has been saved with a planned fulfilment date later than the then-current business date, `advance_order_marker` becomes true and remains true for that order.
 
-### 17.4 Category duplicate-name policy — confirm or defer
+### 17.3 Category duplicate-name policy — confirm or defer
 
 The model gives categories their own internal IDs, but Phase 2 did not explicitly state whether two current categories may share the same visible name.
 
@@ -686,4 +707,4 @@ For practical UI/import behavior, unique current category names are recommended,
 
 This file remains **Draft — Phase 3 working design** until the open decisions in section 17 are reviewed and the logical entity structure is explicitly approved.
 
-Implementation must not turn the draft into a physical schema before the remaining tax/fee/advance-order questions are resolved and the related architecture/storage documents are aligned.
+Implementation must not turn the draft into a physical schema before the remaining delivery-fee/advance-order/category questions are resolved and the related architecture/storage documents are aligned.
