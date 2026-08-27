@@ -42,28 +42,34 @@ Eligibility is derived from persisted data, not from UI appearance or operator m
 
 This rule is frozen in `docs/decisions/export-eligibility.md`.
 
-## 4. Operator-selected export period — approved Phase 4 rule
+## 4. Default export scope and optional date filter — approved Phase 4 rule
 
-V1 does **not** impose the legacy fixed J-2 cutoff.
+V1 does **not** impose the legacy fixed J-2 cutoff and does **not** require the operator to choose a date period before every export.
 
-The operator chooses the export period explicitly using at least:
+### 4.1 Default behavior
+
+With no date filter selected, the normal export action considers **all eligible orders that have not already been successfully exported**.
+
+In practical terms, the default action is:
+
+**export all eligible settled orders still waiting for export.**
+
+### 4.2 Optional date range
+
+The operator may optionally narrow the default set by selecting:
 
 - start date;
 - end date.
 
 Both boundaries are inclusive.
 
-The UI may provide convenience presets such as Today, Yesterday or another practical period, but custom date selection must remain available.
+The optional date range applies to the order's business/fulfilment date used for sales-period reporting.
 
-The selected period is an additional filter. The exporter considers only records that:
+The UI may provide convenience presets such as Today, Yesterday, This week or another useful period, but custom date selection must remain available.
 
-- fall within the selected period according to the final approved date-basis rule;
-- satisfy the eligibility rule in section 3;
-- have not already been successfully exported under the applicable idempotency/correction rules.
+The date filter never overrides the eligibility rules in section 3. An order inside the chosen range is still excluded if it is Open, partially paid, Cancelled, Hiboutik-originated or already successfully exported under the applicable idempotency/correction rules.
 
 This rule is frozen in `docs/decisions/export-date-range.md`.
-
-One related business question remains open: **which business date controls membership in the selected period**.
 
 ## 5. Logical export datasets
 
@@ -159,8 +165,9 @@ Tests must cover at least:
 - unpaid and partially paid `Open` orders excluded;
 - Cancelled order excluded;
 - Hiboutik paste-created order excluded;
-- custom inclusive date range;
-- eligible order outside selected range excluded;
+- default export with no date restriction includes all eligible not-yet-exported orders;
+- optional inclusive custom date range narrows the eligible set;
+- eligible order outside the selected optional range excluded for that run;
 - historical prices/options/VAT preserved;
 - failed export safely retryable;
 - repeated export does not duplicate already-exported records;
@@ -172,14 +179,14 @@ Tests must cover at least:
 The following are frozen:
 
 - only fully settled `Closed`, non-cancelled ordinary POS orders are eligible;
-- the operator chooses the export period;
+- default export has no mandatory date restriction and exports all eligible not-yet-exported orders;
+- the operator may optionally narrow export with a custom inclusive date range;
 - no mandatory J-2 cutoff remains.
 
-Three business/workflow decisions remain:
+Two business/workflow decisions remain:
 
-1. **Date basis for the chosen period** — whether inclusion follows the order/fulfilment business date or the date on which the order became fully settled/Closed.
-2. **Physical transfer workflow** — direct write into `Gestion SUSHI 81.xlsm` versus a controlled intermediate export file.
-3. **Post-export correction** — treatment of an already-exported order that is later modified or cancelled.
+1. **Physical transfer workflow** — direct write into `Gestion SUSHI 81.xlsm` versus a controlled intermediate export file.
+2. **Post-export correction** — treatment of an already-exported order that is later modified or cancelled.
 
 ## 12. Approval rule
 
