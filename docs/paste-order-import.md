@@ -47,7 +47,7 @@ The operator:
 2. pastes the textual content of the Hiboutik automatic order-summary email;
 3. asks the application to parse it;
 4. is returned to the ordinary order-entry screen with recognized values pre-populated;
-5. reviews/edits the order exactly as a manually created order;
+5. completes any required option confirmations and reviews/edits the order exactly as a manually created order;
 6. confirms the order through the normal confirmation action.
 
 No order is committed merely by pasting or parsing text.
@@ -96,9 +96,8 @@ A parser exception or unsupported format performs no business write.
 
 When reliably present in the pasted Hiboutik text, the parser may populate ordinary Sushi81 POS fields including:
 
-- ordered products;
+- ordered products identified by product code;
 - quantities;
-- product-option/variant information when it can be represented by the normal order model;
 - fulfilment mode (`Retrait` / `Livraison`);
 - planned fulfilment date;
 - planned fulfilment time;
@@ -107,25 +106,60 @@ When reliably present in the pasted Hiboutik text, the parser may populate ordin
 - customer/preparation comments;
 - source order total, subject to the final total rule still to be frozen below.
 
-These are **not locked source fields**. Once parsing finishes, they are ordinary editable order values.
+The pasted Hiboutik order text used by this workflow is **not expected to contain the Sushi81 product-option selections**. Option values must therefore not be invented or inferred from absence.
+
+All values populated by parsing are ordinary editable order values after parsing.
 
 The parser must preserve a future fulfilment date when the source provides one. A future Hiboutik order must not silently become a same-day order merely because it is pasted today.
 
-## 7. Product-line conversion
+## 7. Product-line conversion and option completion — approved Phase 4 rule
 
-The importer exists primarily to create usable normal product lines quickly.
+Sushi81 POS and Hiboutik use strictly aligned product catalogues and the same product codes.
 
-Where the pasted Hiboutik item can be mapped safely to the current Sushi81 catalogue, the importer should create the same normal `OrderItem` structure that manual product selection would create.
+### 7.1 Product matching
 
-After import, the operator may use all normal cart controls, including:
+Each Hiboutik product line is matched to the current Sushi81 POS catalogue by **exact product code**.
 
-- change quantity;
-- add products;
-- remove products;
-- change/select options;
-- add ordinary custom option adjustments where allowed by the approved business rules.
+Normal paste-import behavior does not require fuzzy matching by product name.
 
-The exact matching rule and unmatched-item behavior remain a business decision to freeze before this document is Approved.
+If the parser cannot establish a usable product code or the code is unexpectedly absent from the current catalogue, the application must not silently substitute or guess another product. The affected line must remain unresolved for operator correction before final order confirmation.
+
+### 7.2 Products without options
+
+If the matched product has no enabled option groups, the parsed product and quantity may be added directly to the ordinary cart.
+
+### 7.3 Products with options
+
+If the matched product has one or more enabled option groups, the operator must manually confirm the option configuration because the pasted Hiboutik text does not provide those selections.
+
+The option confirmation must use the **same ordinary option-selection UI and validation rules used during manual POS order entry**.
+
+No separate Hiboutik-specific option editor or rule set is required.
+
+This confirmation is required for **all enabled option groups**, including groups configured as optional.
+
+The reason is that an empty option in the pasted source cannot distinguish between:
+
+- the customer genuinely choosing no option; and
+- the customer choosing an option that the copied Hiboutik text simply does not contain.
+
+For an optional group, the normal option UI must therefore allow the operator to explicitly confirm that no selection is required when that is the correct result.
+
+All normal catalogue rules continue to apply, including:
+
+- required versus optional groups;
+- single-select versus multi-select;
+- configured minimum/maximum selections;
+- active/inactive choices;
+- configured display order;
+- preset and custom option adjustments;
+- ordinary discount and VAT treatment.
+
+The order cannot be finally confirmed while a pasted product with enabled options still lacks the required operator option confirmation.
+
+After option confirmation, the imported line is an ordinary cart line and may be edited normally, including quantity changes, option changes, adding/removing products and other approved cart actions.
+
+This rule is frozen in `docs/decisions/hiboutik-paste-option-confirmation.md`.
 
 ## 8. Normal order lifecycle after parsing
 
@@ -191,7 +225,7 @@ If a field is ambiguous, it should be left empty or clearly flagged for operator
 
 ### 11.3 Final validation
 
-The final confirmation uses the **normal order validation rules** from `business-rules.md` and `order-lifecycle.md`.
+The final confirmation uses the **normal order validation rules** from `business-rules.md` and `order-lifecycle.md`, together with the required option-confirmation rule in section 7.
 
 The paste importer does not create a second, parallel validation system.
 
@@ -227,26 +261,36 @@ Representative fixtures should cover, where the real Hiboutik format supports th
 - same-day Livraison;
 - future fulfilment date/time;
 - multiple products and quantities;
-- product option/variant text;
+- products without options;
+- products whose Sushi81 catalogue definition requires one or more option confirmations despite the pasted source containing no option selection data;
+- optional option groups explicitly confirmed with no selection;
 - optional telephone/address/comment information;
 - ordinary formatting/spacing variations;
-- malformed/unsupported text.
+- malformed/unsupported text;
+- an unexpectedly unknown/missing product code that must not be guessed by name.
 
 No real customer telephone, address, name or other sensitive production information may be committed to Git.
 
-## 15. Remaining business decisions
+## 15. Remaining business decision
 
-The Phase 4 simplification resolves the previous questions about special review fields, original-Hiboutik amount preservation, dedicated reference fields, discrepancy handling and duplicate controls.
+The Phase 4 simplification and the approved product/option rule now resolve:
 
-Two business choices still materially affect the resulting normal order and therefore still require confirmation:
+- special review fields;
+- original-Hiboutik amount preservation;
+- dedicated reference fields;
+- discrepancy handling;
+- duplicate controls;
+- catalogue product matching;
+- missing option information and option confirmation.
 
-1. **Catalogue matching and unmatched items** — how a Hiboutik product line is matched to the current Sushi81 catalogue and what happens if no safe match exists.
-2. **Initial order total** — whether the parsed Hiboutik total should become the initial authoritative total, or whether the order should initially use the normal Sushi81 POS catalogue calculation after the imported product lines are created.
+One business choice still materially affects the resulting normal order and therefore requires confirmation:
 
-All lower-level parser choices that do not change these business semantics are technical implementation decisions and may be selected directly under the project priority order.
+**Initial order total — whether the total contained in the pasted Hiboutik order should become the initial authoritative order total, or whether the order should initially use the normal Sushi81 POS catalogue calculation after product lines and operator-confirmed options are established.**
+
+All lower-level parser choices that do not change this business meaning are technical implementation decisions and may be selected directly under the project priority order.
 
 ## 16. Approval rule
 
-This document remains **Draft — Phase 4 working design** until the two remaining business choices in section 15 are frozen and the parser has been checked against representative sanitized Hiboutik source examples.
+This document remains **Draft — Phase 4 working design** until the remaining initial-total decision is frozen and the parser has been checked against representative sanitized Hiboutik source examples.
 
 The final design must remain a lightweight order-creation convenience rather than growing back into a separate Hiboutik-order subsystem.
