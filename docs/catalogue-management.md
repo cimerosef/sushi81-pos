@@ -226,6 +226,8 @@ The target application provides a dedicated catalogue-management area with:
 
 The exact layout and controls are deferred to UI design. The approved workflow goal is fast maintenance without Excel for ordinary changes, while reducing accidental changes during live ordering.
 
+**Excel import/export is only an additional bulk-maintenance convenience. It is not the sole or required way to maintain the catalogue.** Ordinary individual product, option and status changes remain fully available from the application's catalogue-management area.
+
 ## 8. Historical stability — approved Phase 2 principle
 
 Historical order lines and the current catalogue are deliberately **decoupled after order confirmation**.
@@ -246,7 +248,7 @@ When an order is committed, its order-item snapshot contains enough sale-time in
 
 Historical reporting reads values stored on the order/order line rather than reconstructing old sales from the current catalogue.
 
-## 9. Batch import/export — partially approved Phase 2 decision
+## 9. Batch import/export — approved safety model; create/update identity still under final review
 
 ### Primary format — approved
 
@@ -271,38 +273,75 @@ The complete workbook uses separate logical sheets for at least:
 
 Exact user-facing sheet names may be localized later, but the exported/imported workbook must have a stable documented structure.
 
-### Internal identifiers in exported workbooks — approved direction
+### Internal identifiers in exported workbooks — direction under final review
 
-Existing catalogue records exported for re-import may carry opaque internal identifiers so the application can distinguish:
+Existing catalogue records exported for re-import may carry opaque internal identifiers so the application can distinguish an edit to an existing record from creation of a new one even when an operator-facing code or label has changed.
 
-- an edit to an existing product/group/option;
-- a newly created record in Excel.
+The intended business meaning is simple: the internal ID identifies **which existing catalogue record is being edited**, while the product code remains an editable menu/catalogue label. This lets a business code be reorganized without forcing the application to interpret every code change as delete-and-create.
 
 These identifiers are technical keys, not business product codes. They may be hidden or visually deemphasized in the workbook and must not prevent the operator from changing/reusing product codes.
 
-For a new record created in Excel, the relevant internal-ID cell is left blank and the application assigns a new internal identifier on successful import.
+The exact create/update rule based on these identifiers remains the final import-identity decision to confirm.
 
-### Safety principles — approved direction
+### Deletion and activation behavior — approved
 
-- Removing a row from the workbook must **not automatically mean permanent deletion** from the POS catalogue.
-- Permanent deletion remains an explicit catalogue-management operation unless a later import rule is deliberately approved.
-- Batch import may support creation, modification and activation/deactivation.
-- An import must be validated before it changes the live catalogue.
-- The system must present a preview/summary of intended changes before final application.
-- A logically invalid import must not be partially applied; the catalogue update should be atomic: all accepted changes commit together or none do.
-- Duplicate current product codes, broken option relationships, invalid required values or other blocking validation errors prevent commit.
+- Removing a product, option group or option row from the workbook does **not** delete the corresponding live catalogue record.
+- Permanent deletion remains an explicit action in the application's catalogue-management interface.
+- Batch import may create, modify, activate and deactivate records through explicit fields in the workbook.
+- A missing row is therefore interpreted as “not included in this import”, not as “delete this record”.
 
-The exact workbook columns and exact rules for update/deactivation/conflict handling remain to be frozen next.
+### Preview and confirmation — approved
+
+Before any live catalogue change is committed, the application must validate the workbook and show a clear preview/summary of intended actions.
+
+The preview should report at least useful counts such as:
+
+- records to create;
+- records to modify;
+- records to activate/deactivate;
+- validation errors;
+- warnings.
+
+Where practical, the operator must be able to inspect which rows/records are affected before giving final confirmation.
+
+### Atomic import — approved
+
+A logically invalid import must not be partially applied.
+
+The catalogue update is atomic:
+
+- if blocking validation errors exist, no catalogue change is committed;
+- if validation passes and the operator confirms, all accepted changes are committed together;
+- the application must not leave the catalogue in a half-updated state because only part of a workbook succeeded.
+
+Blocking validation includes at least situations such as:
+
+- duplicate current product codes;
+- required product fields missing;
+- invalid prices or VAT values;
+- references to nonexistent or inconsistent parent records;
+- invalid single/multi-select configuration;
+- a multi-select minimum greater than its maximum;
+- malformed or otherwise unusable technical identifiers where those identifiers are required for an update.
+
+Blocking problems must be reported with enough detail to find and correct the relevant worksheet/row.
+
+### Errors versus warnings — approved
+
+Import feedback has at least two practical levels:
+
+- **Error** — the workbook cannot be committed until the issue is corrected;
+- **Warning** — the condition deserves operator attention but does not prevent import.
+
+For example, a resulting duplicate current product code is an Error. A large but structurally valid set of price changes may be shown as a Warning rather than being blocked automatically.
 
 ## 10. Decisions still to freeze
 
 Before this document becomes baseline, Phase 2 still needs to approve:
 
-1. exact `Products`, `OptionGroups` and `Options` workbook columns;
-2. exact rules for distinguishing create/update during import;
-3. activation/deactivation behavior during import;
-4. conflict and validation behavior, including how errors are presented;
-5. import preview contents and final confirmation behavior.
+1. the final create/update identity rule for existing versus new products, option groups and options, including the use of internal IDs in Excel;
+2. any final details for protecting/deemphasizing technical-ID columns in the workbook;
+3. whether an import result/report needs to be retained after a successful import or whether the preview/result shown at import time is sufficient.
 
 The following are already approved and no longer open questions:
 
@@ -316,13 +355,17 @@ The following are already approved and no longer open questions:
 - individual option activation, positive/negative/zero price adjustments and operator-defined display order;
 - automatic option prompting during order entry;
 - dedicated in-application catalogue maintenance separated from normal ordering;
+- Excel import/export is an optional bulk-maintenance convenience and not the only way to edit the catalogue;
 - Excel `.xlsx` is the official complete V1 batch import/export format;
 - CSV is not a required complete-catalogue format in V1;
 - complete Excel export/import is organized into product, option-group and option sheets;
-- exported technical internal IDs may be used to identify existing records without making product codes immutable;
-- removing rows from Excel does not itself delete live catalogue records;
-- import is validated/previewed and must not partially apply an invalid catalogue update.
+- removing rows from Excel does not delete live catalogue records;
+- activation/deactivation may be performed explicitly through Excel import;
+- import is validated and previewed before commit;
+- any blocking error prevents the entire import from being applied;
+- accepted imports are atomic rather than partially committed;
+- validation distinguishes blocking Errors from non-blocking Warnings.
 
 ## 11. Approval rule
 
-This file remains a Draft until the remaining Excel import/export rules are explicitly approved. Implementation must preserve historical snapshot independence, mutable but unique current product codes, safe catalogue maintenance, structured option behavior, and the approved Excel-first batch-maintenance model.
+This file remains a Draft until the remaining Excel import/export identity and technical-column handling rules are explicitly approved. Implementation must preserve historical snapshot independence, mutable but unique current product codes, safe catalogue maintenance, structured option behavior, and the approved Excel-first batch-maintenance model.
