@@ -1,0 +1,38 @@
+<Window x:Class="Sushi81.Pos.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding Title}"
+        Width="480"
+        Height="260"
+        MinWidth="420"
+        MinHeight="220"
+        WindowStartupLocation="CenterScreen">
+  <Grid Margin="24">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <TextBlock FontSize="24"
+               FontWeight="SemiBold"
+               Text="{Binding Title}" />
+
+    <TextBlock Grid.Row="1"
+               VerticalAlignment="Center"
+               TextWrapping="Wrap"
+               Text="{Binding Status}" />
+
+    <StackPanel Grid.Row="2"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right">
+      <TextBlock VerticalAlignment="Center"
+                 Margin="0,0,8,0"
+                 Text="{Binding LanguageLabel}" />
+      <ComboBox Width="150"
+                DisplayMemberPath="DisplayName"
+                ItemsSource="{Binding Languages}"
+                SelectedItem="{Binding SelectedLanguage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+    </StackPanel>
+  </Grid>
+</Window>
