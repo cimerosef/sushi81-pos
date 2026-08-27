@@ -13,6 +13,8 @@ The live database is never directly opened from a OneDrive-synchronized folder a
 
 OneDrive is used only for controlled transfer of validated complete snapshots and for retained recovery/backup copies.
 
+The operator does not manually manage the active `live.db` file or local recovery snapshot files.
+
 ## 2. Two distinct snapshot purposes
 
 ### 2.1 Local recovery snapshots
@@ -32,6 +34,8 @@ Typical triggers include:
 Local snapshot generation may use a short debounce/coalescing delay so several saves occurring within a few seconds can be protected by one snapshot rather than creating unnecessary duplicate files.
 
 These snapshots remain local and exist primarily for crash/corruption/accidental-change recovery.
+
+They are application-managed technical recovery data. The normal operator workflow does not require browsing, copying, renaming or selecting these files.
 
 The exact local snapshot retention count/time window is still to be frozen.
 
@@ -89,7 +93,7 @@ Before another computer can enter normal write/edit mode, it must establish that
 
 Startup/acquisition sequence:
 
-1. identify the latest formally completed handoff version available through OneDrive;
+1. identify the latest formally completed handoff version available through the configured OneDrive handoff folder;
 2. ensure both the immutable snapshot and matching ready marker are locally available;
 3. verify version/checksum consistency;
 4. run SQLite integrity validation on the received snapshot;
@@ -99,7 +103,52 @@ Startup/acquisition sequence:
 
 A partially synchronized snapshot, a snapshot with no ready marker, a checksum mismatch or a failed integrity check must never become the local live database automatically.
 
-## 6. No normal force takeover — approved Phase 3 decision
+## 6. OneDrive handoff-folder configuration and pairing — approved Phase 3 decision
+
+The operator may choose the OneDrive folder used by Sushi81 POS for formal handoff exchange.
+
+This folder selection is the normal user-facing configuration point for cross-computer synchronization. It does **not** expose or relocate the local working database.
+
+### 6.1 First computer
+
+On first installation/setup of the first Sushi81 POS computer:
+
+- the application keeps its local working `live.db` and local recovery area in application-managed local storage;
+- the operator chooses or creates a folder inside the locally available OneDrive tree to serve as the Sushi81 POS handoff folder;
+- the application validates that the selected path is suitable and stores the path in local machine configuration;
+- the application initializes the required handoff metadata/structure in that folder as needed;
+- subsequent formal handoffs are published there automatically.
+
+The operator is not asked to choose a location for `live.db` or for local recovery snapshots.
+
+### 6.2 Second computer
+
+On installation/setup of another Sushi81 POS computer:
+
+- the operator opens the synchronization/storage setting and selects the same OneDrive handoff folder as the first computer;
+- the application scans that folder for the latest formally completed handoff version;
+- only a snapshot with its matching completed ready marker and valid checksum/integrity may be accepted;
+- the application copies/restores that validated handoff into its own application-managed local `live.db` location;
+- the OneDrive snapshot itself is never opened as the working database;
+- after successful initialization/acquisition, subsequent starts follow the normal handoff rules in section 5.
+
+This pairing model allows both computers to participate in the same authoritative database lineage without manual file copying or USB transfer.
+
+### 6.3 User interaction boundary
+
+Normal users may configure/change which OneDrive handoff folder Sushi81 POS uses, but they are not expected to:
+
+- open or edit handoff database files;
+- rename versioned snapshot or ready-marker files;
+- copy snapshots manually between computers;
+- move the local working database;
+- manage local recovery snapshot files.
+
+If the handoff folder setting is changed later, the application must validate the new location before adopting it and must not silently begin a new unrelated authoritative lineage.
+
+Exact validation/relink behavior for changing an already-established handoff folder may be finalized during implementation/storage review, but silent data-lineage splitting is forbidden.
+
+## 7. No normal force takeover — approved Phase 3 decision
 
 If the current working computer did not complete a formal handoff, the other computer must **not** start writing from an older OneDrive version.
 
@@ -109,7 +158,7 @@ If the shop computer was left running or was closed without completing handoff, 
 
 This inconvenience is deliberate: preventing silent data loss or database divergence has priority over allowing a second computer to continue from uncertain/stale data.
 
-## 7. Forgotten close and abnormal termination
+## 8. Forgotten close and abnormal termination
 
 If the operator forgets to close Sushi81 POS normally, formal handoff may not have occurred.
 
@@ -121,7 +170,7 @@ Local recovery snapshots and any future disaster-recovery copies may be used to 
 
 Exact disaster-recovery workflow is still to be specified.
 
-## 8. Single-writer / anti-fork invariant
+## 9. Single-writer / anti-fork invariant
 
 The central safety invariant is:
 
@@ -133,7 +182,7 @@ The system must never silently create two valid-looking successors from the same
 
 No automatic database merge algorithm is required in v1.
 
-## 9. Offline behavior
+## 10. Offline behavior
 
 The computer currently holding the active local working lineage may continue normal local operation during temporary Internet/OneDrive loss because its SQLite database is local.
 
@@ -141,15 +190,19 @@ However, it cannot complete a successful formal handoff until the required OneDr
 
 A second computer that cannot verify/acquire the latest completed handoff may not enter normal write mode merely because it has an older local copy.
 
-## 10. Local database versus OneDrive location
+## 11. Local database versus OneDrive location
 
-The active working SQLite database must reside in a normal local application-data location outside OneDrive synchronization.
+The active working SQLite database must reside in a normal application-managed local data location outside OneDrive synchronization.
 
-The OneDrive handoff area contains only validated released snapshots, ready markers and retained recovery/backup artifacts approved by this strategy.
+The local recovery-snapshot area is also application managed and is not part of ordinary operator file handling.
 
-The exact Windows paths and whether operator-visible export/archive folders live elsewhere are still to be frozen.
+The OneDrive handoff area is operator-configurable and contains only validated/released handoff snapshots, ready markers and any retained recovery/backup artifacts explicitly approved by this strategy.
 
-## 11. Annual archive relationship
+The application must never interpret the configured OneDrive handoff folder itself as the location of the working `live.db`.
+
+Exact Windows local paths and whether operator-visible export/archive folders live elsewhere are still to be frozen.
+
+## 12. Annual archive relationship
 
 The logical archive model remains governed by `data-model.md` and `product-requirements.md`:
 
@@ -160,21 +213,21 @@ The logical archive model remains governed by `data-model.md` and `product-requi
 
 This document has not yet frozen archive filenames, exact archive folder location, archive transfer between computers or retention rules for Cancelled/emergency records; those are still part of Phase 3 storage review.
 
-## 12. Decisions still to freeze
+## 13. Decisions still to freeze
 
 Before this document becomes an approved Phase 3 baseline, the project should still decide:
 
 - exact Windows local data folder structure;
-- exact OneDrive handoff folder structure/configuration;
+- exact OneDrive handoff subfolder/file organization beyond the approved user-selected root folder;
 - local recovery snapshot retention policy;
 - formal handoff snapshot retention policy;
 - disaster-recovery procedure;
 - archive database filenames/location and archive-year treatment for Cancelled/Hiboutik emergency records;
-- how first installation/pairing of the two computers establishes device identity and initial authoritative version;
+- exact device-identity metadata created during first installation/pairing;
 - whether the application supports read-only access on a non-authoritative computer before handoff.
 
-## 13. Approval rule
+## 14. Approval rule
 
-The handoff mechanism in sections 1-10 is an approved Phase 3 direction: local working SQLite, local recovery snapshots, normal-exit formal handoff, immutable versioned OneDrive publication, completion marker, verified receiver acquisition and no stale force takeover.
+The handoff mechanism in sections 1-11 is an approved Phase 3 direction: local working SQLite, application-managed local recovery snapshots, normal-exit formal handoff, immutable versioned OneDrive publication, completion marker, verified receiver acquisition, user-selected OneDrive handoff-folder pairing and no stale force takeover.
 
 The document remains **Draft — Phase 3 working design** until the remaining folder/retention/recovery/archive details are reviewed.
