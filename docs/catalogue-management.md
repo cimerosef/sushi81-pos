@@ -135,16 +135,32 @@ The current catalogue supports both **deactivation** and **permanent deletion**,
 
 Historical sales are therefore not a reason to block deletion. The operator chooses between deactivation and deletion according to whether the current catalogue entry is expected to be reused.
 
-## 5. Categories
+## 5. Categories — partially approved; shortcut/display model deferred to UI design
 
-The current workbook uses both `Categorie` and `RaccourciCat` to support category filtering and compact display labels such as `[BR]`, `[ML]` and `[RP]`.
+Every current catalogue product must have a **category**. Category itself is therefore part of the approved product model and is not optional.
 
-The target application must preserve fast category-based product selection. Phase 2 must decide:
+The current Excel/VBA workbook also uses `RaccourciCat` values such as `[BR]`, `[ML]` and `[RP]`. Those shortcuts exist primarily because the current VBA interface needs compact labels and a specific filtering/order mechanism.
 
-- whether category shortcut remains a separate editable field;
-- category display/order rules;
-- how category rename affects existing products;
-- whether inactive/unused categories are retained or removed.
+Phase 2 does **not** treat that legacy shortcut field as an automatically required target field.
+
+Approved direction:
+
+- the target application must preserve fast and practical category-based product selection;
+- category names must remain editable catalogue data;
+- changing a category name or product-category assignment affects only the live catalogue and never rewrites historical orders;
+- the target UI may use a better filtering, grouping, ordering or navigation mechanism than the legacy VBA shortcut system;
+- `RaccourciCat` should be retained only if later UI/interaction design demonstrates a real operational benefit;
+- no permanent business rule should be invented solely to reproduce an old Excel/VBA UI constraint.
+
+The following details are therefore intentionally deferred to the later UI/interaction design stage:
+
+- whether a separate category shortcut field exists at all;
+- how categories are visually ordered or grouped on the order-entry screen;
+- whether the operator manually controls category display order;
+- what compact labels, buttons, tabs or other navigation mechanism are used;
+- category deletion/unused-category behavior if it depends on the chosen category-management UI.
+
+This deferral is intentional and is not a missing business decision: the required business concept is the category itself; shortcut and display-order mechanics are presentation/interaction concerns unless a later design proves otherwise.
 
 ## 6. Product options / choices
 
@@ -213,16 +229,15 @@ No import should partially apply a logically invalid catalogue update without cl
 
 Before this document becomes baseline, Phase 2 must explicitly approve at least:
 
-1. category and category-shortcut model;
-2. final option-group model;
-3. required/optional option-selection behavior;
-4. predefined option-price-adjustment catalogue behavior consistent with `business-rules.md`;
-5. in-application catalogue editing workflow;
-6. final batch import/export format and columns;
-7. update/conflict/deactivation/delete behavior during import;
-8. validation and preview requirements.
+1. final option-group model;
+2. required/optional option-selection behavior;
+3. predefined option-price-adjustment catalogue behavior consistent with `business-rules.md`;
+4. in-application catalogue editing workflow;
+5. final batch import/export format and columns;
+6. update/conflict/deactivation/delete behavior during import;
+7. validation and preview requirements.
 
-The following product-field/identity/lifecycle/history principles are already approved and are no longer open questions:
+The following product-field/identity/lifecycle/history/category principles are already approved and are no longer open questions:
 
 - the required base product fields are code, name, category, TTC selling price and VAT rate/category;
 - every product also stores active/inactive and Retrait-discount-eligibility settings;
@@ -235,8 +250,10 @@ The following product-field/identity/lifecycle/history principles are already ap
 - current catalogue products may be deactivated for later reactivation;
 - current catalogue products may also be permanently deleted, even if previously sold, without affecting historical orders;
 - permanent deletion releases the product code for immediate reuse;
+- every product has a category;
+- the legacy `RaccourciCat` field is not frozen as a required target field and will be retained only if later UI design demonstrates a real need;
 - implementation may use a hidden immutable internal identifier for safe database handling without exposing that identifier as the business product code.
 
 ## 10. Approval rule
 
-This file remains a Draft until the catalogue and option rules above are explicitly approved. Implementation must preserve the strict separation between historical order snapshots and the mutable live catalogue, must keep current catalogue product codes unique, must support both deactivation and confirmed permanent deletion, and must not treat the operator-facing product code as an immutable historical identity.
+This file remains a Draft until the catalogue and option rules above are explicitly approved. Implementation must preserve the strict separation between historical order snapshots and the mutable live catalogue, must keep current catalogue product codes unique, must support both deactivation and confirmed permanent deletion, and must not treat the operator-facing product code as an immutable historical identity. UI-specific category shortcut/display mechanics must not be hard-coded before the later interaction design is approved.
