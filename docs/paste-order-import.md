@@ -1,6 +1,6 @@
 # Hiboutik paste-order import
 
-**Status:** Draft — Phase 4 working design  
+**Status:** Approved — Phase 4 baseline  
 **Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
 **Purpose:** Specify the simple fallback workflow that converts pasted Hiboutik order-summary text into an ordinary Sushi81 POS order when Hiboutik server-side printing is unavailable.
@@ -103,14 +103,15 @@ When reliably present in the pasted Hiboutik text, the parser may populate ordin
 - planned fulfilment time;
 - telephone;
 - delivery address;
-- customer/preparation comments;
-- source order total, subject to the final total rule still to be frozen below.
+- customer/preparation comments.
 
 The pasted Hiboutik order text used by this workflow is **not expected to contain the Sushi81 product-option selections**. Option values must therefore not be invented or inferred from absence.
 
 All values populated by parsing are ordinary editable order values after parsing.
 
 The parser must preserve a future fulfilment date when the source provides one. A future Hiboutik order must not silently become a same-day order merely because it is pasted today.
+
+Any total amount present in the pasted Hiboutik text is **not an authoritative order-total input** for the resulting Sushi81 POS order. The authoritative total rule is defined in section 8.
 
 ## 7. Product-line conversion and option completion — approved Phase 4 rule
 
@@ -161,7 +162,28 @@ After option confirmation, the imported line is an ordinary cart line and may be
 
 This rule is frozen in `docs/decisions/hiboutik-paste-option-confirmation.md`.
 
-## 8. Normal order lifecycle after parsing
+## 8. Authoritative order total — approved Phase 4 rule
+
+The authoritative total of a Hiboutik paste-created order is calculated by **Sushi81 POS from its own current catalogue data and the final reviewed cart**, exactly as for a manually created ordinary order.
+
+Therefore:
+
+1. parsed Hiboutik product codes identify current Sushi81 catalogue products;
+2. their current Sushi81 catalogue prices become the normal product base prices;
+3. missing option selections are completed by the operator under section 7;
+4. option price adjustments, quantities, discount eligibility, Retrait discount rules, delivery rules and any configured delivery fee are applied through the ordinary Sushi81 pricing engine;
+5. the resulting normal POS calculation writes the initial authoritative `Order.total_ttc`;
+6. any total text copied from Hiboutik is not used to override that calculated result automatically.
+
+This keeps the product lines, confirmed options and calculated order amount internally consistent and avoids creating a second pricing authority for paste-imported orders.
+
+After that normal calculation, the operator retains the already-approved ability to manually edit the ordinary authoritative order-total field under `business-rules.md`. Such a manual edit follows exactly the same rules as for any other Sushi81 POS order.
+
+No separate Hiboutik-total comparison or discrepancy workflow is required.
+
+This rule is frozen in `docs/decisions/hiboutik-paste-total-calculation.md`.
+
+## 9. Normal order lifecycle after parsing
 
 After the parser populates the order-entry screen, the order is treated like an ordinary in-progress order.
 
@@ -176,7 +198,7 @@ Therefore:
 
 The operator may manually type the Hiboutik order number into the normal comment field before or after confirmation, subject to ordinary order editing rules.
 
-## 9. Minimal hidden source marker
+## 10. Minimal hidden source marker
 
 Although the interface and workflow are ordinary, implementation may persist one small non-user-facing source discriminator for an order created through the Hiboutik paste-import entry point.
 
@@ -193,7 +215,7 @@ Accordingly it remains automatically excluded from:
 
 No additional Hiboutik-specific business entity is required solely for this marker.
 
-## 10. No dedicated Hiboutik metadata model
+## 11. No dedicated Hiboutik metadata model
 
 V1 does **not** require:
 
@@ -209,27 +231,27 @@ If a source order number is useful operationally, the operator records it manual
 
 Technical logs must not retain full pasted customer/order text unnecessarily.
 
-## 11. Validation and failure behavior
+## 12. Validation and failure behavior
 
-### 11.1 Parser failure
+### 12.1 Parser failure
 
 If the source cannot be parsed reliably enough to create useful order lines, the application must report the problem and leave the business database unchanged.
 
 The operator may correct the pasted text, retry, or abandon the import and create the order manually.
 
-### 11.2 Ambiguous fields
+### 12.2 Ambiguous fields
 
 The parser must not invent material business facts.
 
 If a field is ambiguous, it should be left empty or clearly flagged for operator review rather than silently guessed when the guess could affect preparation, fulfilment or price.
 
-### 11.3 Final validation
+### 12.3 Final validation
 
-The final confirmation uses the **normal order validation rules** from `business-rules.md` and `order-lifecycle.md`, together with the required option-confirmation rule in section 7.
+The final confirmation uses the **normal order validation rules** from `business-rules.md` and `order-lifecycle.md`, together with the required option-confirmation rule in section 7 and the normal price calculation rule in section 8.
 
 The paste importer does not create a second, parallel validation system.
 
-## 12. Persistence and printing boundary
+## 13. Persistence and printing boundary
 
 The confirmed order must be committed successfully before printing is attempted.
 
@@ -243,7 +265,7 @@ Therefore:
 
 The pasted-source workflow must not make printing itself the event that creates the business record.
 
-## 13. Duplicate handling
+## 14. Duplicate handling
 
 V1 does not require a dedicated Hiboutik duplicate-detection subsystem.
 
@@ -251,7 +273,7 @@ Because the operator may record the Hiboutik order number manually in the ordina
 
 This intentionally removes the earlier planned source-reference/fingerprint duplicate-control mechanism.
 
-## 14. Testing and sanitized fixtures
+## 15. Testing and sanitized fixtures
 
 The parser must be covered by automated tests using synthetic or sanitized Hiboutik source examples.
 
@@ -267,30 +289,31 @@ Representative fixtures should cover, where the real Hiboutik format supports th
 - optional telephone/address/comment information;
 - ordinary formatting/spacing variations;
 - malformed/unsupported text;
-- an unexpectedly unknown/missing product code that must not be guessed by name.
+- an unexpectedly unknown/missing product code that must not be guessed by name;
+- a pasted Hiboutik total that differs from the POS-calculated total, confirming that the POS-calculated value remains authoritative.
 
 No real customer telephone, address, name or other sensitive production information may be committed to Git.
 
-## 15. Remaining business decision
+These parser fixtures are an implementation/acceptance requirement. They do not reopen the approved business semantics in this document.
 
-The Phase 4 simplification and the approved product/option rule now resolve:
+## 16. Frozen Phase 4 decisions
 
-- special review fields;
-- original-Hiboutik amount preservation;
-- dedicated reference fields;
-- discrepancy handling;
-- duplicate controls;
-- catalogue product matching;
-- missing option information and option confirmation.
+The paste-order workflow is now fully frozen at the business/specification level:
 
-One business choice still materially affects the resulting normal order and therefore requires confirmation:
+1. paste import is only a fast way to create an ordinary order;
+2. no special operator-facing Hiboutik/emergency order UI exists;
+3. Hiboutik reference, if useful, is manually written in the ordinary comment field;
+4. the hidden source marker exists only to prevent downstream double counting;
+5. products are matched by exact shared product code;
+6. no fuzzy product-name matching is required;
+7. every imported product with enabled options requires explicit operator option confirmation, including explicit no-selection confirmation for optional groups;
+8. the ordinary Sushi81 POS pricing engine recalculates the authoritative order total from current catalogue data and the completed reviewed cart;
+9. pasted Hiboutik total text does not automatically override the POS total;
+10. ordinary manual order-total override remains available afterwards under the same rules as every other order;
+11. no dedicated Hiboutik duplicate, discrepancy, original-total or reconciliation subsystem is required.
 
-**Initial order total — whether the total contained in the pasted Hiboutik order should become the initial authoritative order total, or whether the order should initially use the normal Sushi81 POS catalogue calculation after product lines and operator-confirmed options are established.**
+## 17. Approval
 
-All lower-level parser choices that do not change this business meaning are technical implementation decisions and may be selected directly under the project priority order.
+This document is **Approved — Phase 4 baseline**.
 
-## 16. Approval rule
-
-This document remains **Draft — Phase 4 working design** until the remaining initial-total decision is frozen and the parser has been checked against representative sanitized Hiboutik source examples.
-
-The final design must remain a lightweight order-creation convenience rather than growing back into a separate Hiboutik-order subsystem.
+Implementation may choose parser internals, normalization details and test structure directly under the project priority order, but it must preserve the business semantics frozen above.
