@@ -3,309 +3,297 @@
 **Status:** Approved — Phase 2 baseline  
 **Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
-**Purpose:** Freeze Sushi 81 commercial and operational rules that must be implemented consistently by the application.
+**Purpose:** Freeze the Sushi 81 commercial, pricing, fulfilment, VAT and monetary rules that V1 must implement consistently.
 
 ## 1. Scope
 
-This document defines target business rules that affect order acceptance, pricing, discounts, fulfilment information and other operator-facing validations.
+This document defines target V1 business rules affecting:
 
-It does not define the order lifecycle, physical database schema, UI layout, printing templates or export file format.
+- `Retrait` / `Livraison` validation;
+- pickup discount and minimums;
+- delivery minimum and optional fixed delivery fee;
+- required/optional order information;
+- product-option price adjustments;
+- manual order-total override;
+- VAT treatment associated with those rules;
+- monetary precision/rounding;
+- normal business configuration.
 
-## 2. Authoritative Phase 1 baseline
+Order status/payment lifecycle belongs to `order-lifecycle.md`. Catalogue structure belongs to `catalogue-management.md`. Logical persistence belongs to `data-model.md`.
 
-The following constraints are already established by `current-system.md` and `product-requirements.md`:
+The rules below are approved target behavior. Former Excel/VBA warnings, overrides or mandatory-field behavior described in `current-system.md` do not override this V1 baseline.
 
-- fulfilment modes are `Retrait` and `Livraison`;
-- telephone number and delivery address are useful operational information, but Phase 2 may refine when they are mandatory;
-- the application retains a free-text operational comment field;
-- planned fulfilment date/time is structured separately from comments;
-- product discounts depend on catalogue-level discount eligibility;
-- ordinary order entry cannot arbitrarily overwrite a product's catalogue base price;
-- product options may carry predefined or operator-entered option-price adjustments;
-- normal business configuration expected to change must not require source-code edits.
+## 2. Fulfilment mode and order information
 
-The Phase 1 restriction on changing a catalogue product's **base unit price** does not prevent an operator from directly editing the **order total**. These are separate concepts.
-
-## 3. Current-system rules that require target confirmation
-
-The current Excel/VBA system behaves as follows:
-
-### 3.1 Pickup
-
-- no delivery fee;
-- operator may trigger a 10% discount;
-- only products marked discount-eligible receive the reduction;
-- current VBA checks the resulting total against a €15 threshold but allows the operator to override the warning.
-
-### 3.2 Delivery
-
-- no delivery fee;
-- current minimum original order total is €30;
-- current delivery orders are charged at normal price and do not use the pickup 10% discount workflow;
-- address is normally operationally expected.
-
-These current behaviors are inputs to Phase 2, not automatically frozen target rules unless explicitly approved below.
-
-## 4. Approved business rules
-
-### 4.1 Retrait discount rule — approved Phase 2 decision
-
-For `Retrait` orders, the operator may choose whether to apply the normal pickup discount.
-
-The rule is:
-
-- the default discount rate is **10%**;
-- the discount applies only to catalogue items marked as discount-eligible;
-- items not marked as discount-eligible remain at their normal price;
-- the application first calculates the order using the normal product prices and then applies the configured discount to eligible items;
-- after the discount has been applied, the resulting order total must be at least the configured minimum discounted-order amount;
-- the default minimum discounted-order amount is **€15.00**;
-- if applying the discount would cause the resulting order total to fall below that minimum, the discount must not be applied;
-- this discount rule has no separate force-apply/override action.
-
-Examples using the default 10% discount and €15 minimum:
-
-- €20.00 normal total -> €18.00 after discount: discount allowed;
-- €16.00 normal total -> €14.40 after discount: discount rejected;
-- an order already below €15.00 cannot receive the normal pickup discount if the discounted result would remain below the configured minimum.
-
-Exceptional commercial situations do not require weakening the discount rule. The operator may instead use the already-approved editable order-total field when a deliberately exceptional final amount is needed.
-
-#### Configurability
-
-The following values are **business configuration**, not hard-coded constants:
-
-- pickup discount rate (default: 10%);
-- minimum order total required **after discount** (default: €15.00).
-
-The operator must be able to modify these values through the normal application settings/configuration interface and save the new values without recompiling, reinstalling or editing source code.
-
-For example, if the minimum is later changed from €15 to €20, the application must enforce the same approved rule using €20 as the new post-discount minimum.
-
-### 4.2 Livraison rule — approved Phase 2 decision
-
-For `Livraison` orders, the default business rule is:
-
-- the order does **not** receive the normal `Retrait` discount;
-- the default minimum merchandise/order amount required for delivery is **€30.00**;
-- if the merchandise/order amount used for the minimum check is below the configured delivery minimum, the order cannot be confirmed as `Livraison`;
-- there is no ordinary force-override action for bypassing the delivery minimum;
-- the delivery minimum is a user-editable business parameter and must not be hard-coded.
-
-The minimum-delivery check is based on the order's merchandise/commercial amount **before any delivery fee is added**. A delivery fee must never be allowed to make an otherwise-under-minimum order qualify for delivery.
-
-Examples if the delivery minimum is €30 and a future delivery fee is €5:
-
-- €28 merchandise + €5 delivery fee = €33 final order total -> delivery still rejected because the merchandise amount is below €30;
-- €30 merchandise + €5 delivery fee = €35 final order total -> delivery allowed.
-
-#### Delivery-fee extensibility
-
-V1 keeps delivery free in normal operation, but the product must preserve a simple future delivery-fee entry point.
-
-The approved design direction is:
-
-- `delivery fee enabled` is a user-editable business setting, default **off**;
-- `fixed delivery fee amount` is a user-editable amount, default **€0.00**;
-- when delivery fee is disabled, the fee contributes €0 to the order;
-- when delivery fee is enabled, the configured fee is automatically added at order level after the delivery-minimum check;
-- the resulting amount becomes part of the ordinary authoritative order total and therefore participates in printing, closing/reconciliation, turnover and export in the same way as the rest of the order total;
-- changing a price-affecting order input must recalculate the merchandise amount and then reapply the current delivery-fee rule before writing the order total;
-- the operator may still manually edit the final order total afterwards under section 4.5.
-
-The implementation should keep delivery-fee calculation logically separate from product-price calculation. V1 only needs the simple fixed-fee rule above, but the architecture must not require a rewrite of the order model if Sushi 81 later introduces conditions such as free delivery above a threshold, different fees by area, or other delivery-fee formulas.
-
-The future presence of this extension point does **not** require those advanced fee rules or their UI to be implemented in v1.
-
-#### Delivery-fee VAT — approved Phase 3 amendment
-
-When a non-zero delivery fee is enabled and applied to a `Livraison` order under normal calculated pricing:
-
-- the delivery fee uses a fixed **10% VAT rate**;
-- the operator does not select or override the VAT rate for the delivery fee during order entry;
-- the delivery fee contributes to the 10% bucket in the normal order VAT/tax breakdown;
-- no configurable delivery-fee VAT-rate setting is required in v1.
-
-This rule is scoped to the Sushi81 POS delivery workflow. It must not be generalized in project documentation as a claim that every transport or delivery charge in France is always taxed at 10%.
-
-If the operator subsequently manually edits the authoritative order total, the manual-total VAT rule in section 4.5 supersedes the normal mixed tax breakdown: the entire final authoritative TTC amount is then represented as one 10% VAT bucket.
-
-### 4.3 Required customer/order information — approved Phase 2 decision
+### 2.1 Mandatory fulfilment mode
 
 Every new order must explicitly select exactly one fulfilment mode:
 
 - `Retrait`; or
 - `Livraison`.
 
-Fulfilment mode is a **mandatory order field**. If neither option has been selected, the application must reject order confirmation/completion and keep the order in progress.
+If neither is selected, confirmation is rejected and the order remains in progress.
 
-When a new order is initialized from an existing order's reusable customer information, the prior order's fulfilment mode is **not inherited**. The operator must explicitly choose `Retrait` or `Livraison` again for the new order.
+When starting a new order from reusable information from an earlier order, fulfilment mode is **not inherited**. It must be chosen again.
 
-Telephone number is **optional for both `Retrait` and `Livraison`**. A missing telephone number must never by itself prevent order confirmation.
+### 2.2 Telephone
 
-Delivery address is also **optional at the time a `Livraison` order is confirmed**. A missing address must not prevent the order from being created, saved, printed or otherwise completed in the normal order-entry workflow.
+Telephone is optional for both `Retrait` and `Livraison`.
 
-The operator must be able to reopen the same existing `Livraison` order later and add or correct the delivery address without creating a replacement order. The latest saved address then becomes the address used for subsequent viewing and reprinting.
+A missing telephone number must never by itself block confirmation.
 
-The normal fast-entry workflow should allow the operator to type a standard French 10-digit telephone number as ten continuous digits without inserting spaces manually, for example:
+For normal fast entry, a standard French ten-digit number may be typed continuously, for example:
 
 `0612345678`
 
-After the number is accepted/saved, normal order display and printing should format that 10-digit number for readability as:
+After acceptance/save, normal display and printing should group it for readability as:
 
 `06 12 34 56 78`
 
-This formatting is a presentation/normalization convenience, not a reason to make telephone mandatory or to introduce burdensome phone-number validation. The UI should favor fast entry and readable saved/displayed output.
+This formatting is a presentation/normalization convenience, not a reason to introduce burdensome mandatory validation.
 
-### 4.4 Product-option price adjustments — approved Phase 2 decision
+### 2.3 Delivery address
 
-Product options may carry either preset or operator-entered price adjustments associated with a specific order line.
+Delivery address is optional at the time a `Livraison` order is first confirmed.
 
-Approved rules:
+A missing address must not prevent the order from being created, saved or printed.
 
-- option-price adjustments may be **positive or negative**;
-- custom adjustment amounts are entered/stored to **€0.01 precision**;
-- no business maximum or minimum adjustment amount is required;
-- a custom operator-entered adjustment must have a **non-empty text label/description**;
-- that description is the commercial name of the adjustment and must be retained with the order line and shown on the customer-facing receipt/printout where the adjustment is displayed;
-- an adjustment changes only that order line; it does not change the catalogue product's base price;
-- changing the order line, its options or its adjustments is a price-affecting change and therefore triggers normal order-total recalculation under section 4.5.
+The operator may reopen the same order later and add/correct the address. The latest saved address is used for later viewing/reprinting.
 
-#### Discount interaction — approved Phase 2 decision
+### 2.4 Operational comment
+
+A flexible free-text order comment remains available for preparation instructions, references and other operational information not represented by structured fields.
+
+## 3. Retrait discount
+
+For `Retrait`, the operator may choose whether to apply the normal pickup discount.
+
+The approved rule is:
+
+- default discount rate: **10%**;
+- only catalogue products marked discount-eligible receive the reduction;
+- non-eligible products remain at normal price;
+- positive option surcharges do not receive the pickup discount;
+- negative option adjustments reduce the discountable product amount before discount calculation;
+- after discount, the resulting authoritative calculated order total must be at least the configured minimum discounted-order amount;
+- default minimum after discount: **€15.00**;
+- if applying the discount would produce a total below that minimum, the discount is not applied;
+- there is no separate force-apply/override action for the normal discount rule.
+
+Examples with default 10% / €15 minimum:
+
+- €20.00 normal total -> €18.00 after discount: allowed;
+- €16.00 normal total -> €14.40 after discount: discount rejected.
+
+Exceptional commercial amounts do not require weakening this normal rule. The operator may use the separately approved editable authoritative order-total field after normal calculation.
+
+The discount rate and post-discount minimum are user-editable business settings.
+
+## 4. Livraison
+
+### 4.1 Normal delivery minimum
+
+`Livraison` does not receive the normal `Retrait` discount.
+
+The default minimum merchandise/commercial amount required for delivery is **€30.00**.
+
+The rule is:
+
+- the minimum is checked before any delivery fee is added;
+- if the merchandise/commercial amount is below the configured minimum, the order cannot be confirmed as `Livraison`;
+- a delivery fee must never allow an otherwise-under-minimum order to qualify;
+- there is no ordinary force-override for bypassing this minimum;
+- the minimum is a user-editable setting.
+
+Examples with €30 minimum and hypothetical €5 fee:
+
+- €28 merchandise + €5 fee -> rejected;
+- €30 merchandise + €5 fee -> allowed.
+
+### 4.2 Fixed delivery-fee extension point
+
+V1 normal operation keeps delivery free by default while preserving a simple configurable fixed-fee mechanism.
+
+Business settings:
+
+- `delivery fee enabled` — default **off**;
+- `fixed delivery fee amount` — default **€0.00**.
+
+When disabled, the fee contributes €0.
+
+When enabled, the configured fee is automatically added at order level **after** the delivery-minimum check.
+
+The applied fee becomes part of the authoritative order total and therefore participates normally in:
+
+- printing;
+- close/reconciliation arithmetic;
+- operational turnover;
+- downstream export.
+
+Changing a price-affecting order input recalculates the merchandise/commercial result and reapplies the current fee rule before writing the calculated order total.
+
+V1 does not implement speculative zone-based/free-above-threshold/other advanced delivery-fee formulas. The internal architecture should keep fee calculation separable so such rules could be added later without redesigning the order model.
+
+### 4.3 Delivery-fee VAT
+
+Whenever an enabled non-zero Sushi 81 delivery fee is present under normal calculated pricing:
+
+- VAT rate is fixed at **10%**;
+- the operator does not choose/override its VAT rate during order entry;
+- the fee contributes to the 10% bucket of the normal order tax snapshot;
+- no delivery-fee VAT-rate business setting exists in V1.
+
+This is the approved Sushi 81 workflow rule, not a general statement about every transport/delivery charge in France.
+
+A later manual order-total override replaces the normal mixed tax snapshot with the manual-total rule in section 6.
+
+This rule is also recorded in `docs/decisions/delivery-fee-vat.md`.
+
+## 5. Product-option price adjustments
+
+Product options may carry preset or custom price adjustments attached to a specific order line.
+
+### 5.1 Allowed amounts and labels
+
+Adjustments may be:
+
+- positive;
+- negative;
+- exactly €0.00.
+
+Custom operator-entered adjustments:
+
+- use €0.01 business precision;
+- have no additional V1 business minimum/maximum cap;
+- require a non-empty text label/description;
+- change only the current order line;
+- never change the catalogue product's base unit price.
+
+The label is retained in the order-line snapshot and shown on customer-facing output where the adjustment is displayed.
+
+### 5.2 Discount interaction
 
 For a discount-eligible product in a discounted `Retrait` order:
 
-- a **positive option adjustment does not receive the pickup discount**;
-- a **negative option adjustment reduces the discountable product amount before the discount is calculated**.
+- a **positive** option adjustment is not discounted;
+- a **negative** option adjustment reduces the discountable product amount before discount calculation.
 
-With a 10% discount on a €10 discount-eligible product:
+Example with a €10 eligible product and 10% discount:
 
 - product €10 + positive option €2 -> `€10 × 90% + €2 = €11.00`;
 - product €10 + negative option €2 -> `(€10 - €2) × 90% = €7.20`.
 
-This asymmetry is intentional: extra-charge options keep their full added price, while negative adjustments reduce the amount that is subject to the product's discount.
+This asymmetry is intentional.
 
-#### VAT treatment — approved Phase 2 decision
+### 5.3 VAT treatment
 
-Option-price adjustments use the following VAT rules automatically; the operator does not choose a VAT rate during order entry:
+The operator does not choose option-adjustment VAT during order entry.
 
-- every **positive option adjustment** uses a fixed VAT rate of **5.5%**;
-- every **negative option adjustment** inherits the VAT rate of the product/order line to which it belongs.
+Automatic rule:
 
-This rule applies to the adjustment amount itself. The underlying product continues to retain its own catalogue/product VAT rate.
+- every **positive** option adjustment uses **5.5% VAT**;
+- every **negative** option adjustment inherits the VAT rate of the associated product/order line;
+- €0.00 adjustments have no monetary tax effect.
 
-### 4.5 Editable order total — approved Phase 2 decision
+Sale-time adjustment amount/VAT is persisted in the historical order snapshot.
 
-The order-entry interface has **one authoritative order-total field**, not separate "system total" and "final total" fields.
+## 6. Editable authoritative order total
 
-Normal behavior is:
+The order-entry interface has **one authoritative order-total field**.
 
-- the application calculates the order total from product lines, quantities, product-option adjustments and approved pricing/discount rules;
-- that calculated amount is written directly into the ordinary order-total field;
-- the operator may directly edit that same order-total field when an exceptional real-world situation requires a different amount;
-- after a manual edit, the entered amount itself becomes the authoritative total for the order at that moment.
+Normal pricing calculates the total from product lines, quantities, options/adjustments, discount and applicable delivery fee and writes the result into that field.
 
-A manual total edit is deliberately a **temporary override of the current calculation**, not a lock on future automatic calculation.
+The operator may then directly edit the same field when a different exceptional real-world amount is needed.
 
-If any price-affecting order input is subsequently changed — including product lines, quantities, product options/price adjustments, discount application or a configured delivery fee — the application must automatically recalculate the order total using the normal approved rules and replace any earlier manually entered total.
+A manual edit:
 
-After that recalculation, if the operator still wants a different exceptional amount, the operator may simply edit the total again.
+- immediately becomes the authoritative order total;
+- does not change catalogue product base prices;
+- does not require the lines to mathematically equal the manual total while the override is active;
+- does not require a mandatory reason/refund/surcharge workflow;
+- controls printing, close/reconciliation, operational turnover and export until replaced.
 
-The application must not require a second visible amount field merely to preserve the previously calculated or previously overridden value.
+The manual value is a **temporary override**, not a lock.
 
-Manual editing of the order total:
+Any later price-affecting change — including product, quantity, options/adjustments, discount application or applicable delivery fee — automatically recalculates the ordinary total and replaces the prior manual override.
 
-- does **not** change catalogue product base prices;
-- does **not** require the product lines to mathematically add up to the manually entered total at the time of the override;
-- does **not** require a mandatory reason, refund, surcharge or correction workflow;
-- must not be rejected merely because it differs from what the normal pricing rules calculate;
-- controls the order amount used for printing, closing/reconciliation, retained turnover and downstream export until a later price-affecting order change triggers normal recalculation or the operator manually changes the total again.
+If the operator still wants an exceptional amount afterwards, the total may be edited again.
 
-This capability is intentional. Sushi81 POS is a practical operational/turnover-recording tool, and the operator may encounter exceptional situations not anticipated by the normal pricing rules. The software should allow the operator to record the business amount that has actually been decided while keeping automatic calculation behavior predictable whenever the underlying order changes.
+A second mandatory visible “calculated total” field is not required.
 
-#### VAT after a manual total override — approved Phase 3 amendment
+### 6.1 VAT while manual total is authoritative
 
-If the operator manually edits the authoritative order total, the VAT treatment of that manually overridden final amount is simplified deliberately:
+When the authoritative final total is a manual override:
 
-- the **entire authoritative final TTC amount is treated as subject to 10% VAT**;
-- the normal mixed VAT breakdown derived from the individual products/options is no longer used for the final receipt/tax breakdown while that manual override remains authoritative;
-- the tax snapshot must therefore contain a single 10% VAT bucket whose TTC base equals the manually entered `Order.total_ttc`;
-- the VAT amount is calculated from that TTC total using the approved round-half-up rule;
-- this rule applies whether the manual total is higher or lower than the system-calculated product-line total;
-- no proportional allocation back across the original product VAT rates is required.
+- the ordinary mixed product/option/fee VAT allocation is not the final tax snapshot;
+- the **entire final TTC amount is represented in one 10% VAT bucket**;
+- `taxable_ttc_amount` for that bucket equals the authoritative final total;
+- included VAT is calculated at 10% using the approved round-half-up cent rule;
+- the rule applies whether the manual total is above or below the calculated total.
 
-If a later price-affecting order change automatically recalculates the order total and thereby replaces the manual override, the application returns to the normal product/option/delivery-fee VAT calculation rules. If the operator then manually edits the recalculated total again, the single-rate 10% override VAT rule applies again.
+When a later price-affecting change replaces the manual override, normal product/option/delivery-fee VAT calculation resumes. Another manual edit reactivates the single 10% bucket rule.
 
-### 4.6 Rounding and monetary consistency — approved Phase 2 decision
+## 7. Monetary precision and rounding
 
-All operator-facing and persisted monetary amounts use **€0.01 precision** unless another explicit rule states otherwise.
+All operator-facing and persisted business amounts use **€0.01 precision** unless another explicit specification states otherwise.
 
-The application uses ordinary decimal **round-half-up** behavior to the nearest cent for final monetary results. For example, `€13.635` becomes `€13.64`.
+Final monetary rounding uses ordinary **round-half-up** to the nearest cent.
 
-This same cent-precision rule applies consistently to:
+Example:
 
-- percentage-discount results;
-- VAT amounts shown or persisted by the application;
-- product/option monetary results where rounding is required;
+`€13.635 -> €13.64`
+
+The same deterministic rule applies across:
+
+- percentage discounts;
+- VAT amounts;
+- product/option monetary results when rounding is required;
 - authoritative order totals;
-- CB and Espèce amounts;
-- turnover and received-payment summaries;
-- printed/exported monetary values.
+- CB/Espèce amounts;
+- turnover/received-payment summaries;
+- print output;
+- export output.
 
-The implementation may retain additional internal precision during intermediate calculations when useful, but it must use one deterministic calculation/rounding sequence so that the values shown on screen, printed on receipts, used for closing validation, included in summaries and exported downstream never disagree because different modules rounded the same business amount differently.
+Implementation may use additional internal precision for intermediate calculations, but all modules must share one deterministic sequence so screen/close/print/export results cannot disagree because different rounding conventions were used.
 
-Banker's rounding or module-specific rounding conventions must not be introduced.
+Banker's rounding and module-specific business rounding are not allowed.
 
-## 5. Configuration principle — approved Phase 2 principle
+## 8. V1 business configuration
 
-Values that Sushi 81 may reasonably change during normal operation must be represented as user-editable business configuration rather than hard-coded constants when practical.
+The following normal business parameters are persisted and editable through the application settings UI without recompilation/reinstallation:
 
-The operator must be able to change such values through the application's normal configuration/settings UI without recompiling the software.
+| Setting | Default |
+|---|---:|
+| Retrait discount rate | 10% |
+| Minimum total after Retrait discount | €15.00 |
+| Livraison merchandise/commercial minimum | €30.00 |
+| Delivery fee enabled | false |
+| Fixed delivery fee amount | €0.00 |
 
-The v1 business-configuration scope includes:
+Changing a setting changes the parameter used by the same approved rule; it does not change the meaning of the rule.
 
-- pickup discount percentage (default 10%);
-- post-discount minimum `Retrait` order amount (default €15.00);
-- minimum `Livraison` merchandise/order amount (default €30.00);
-- delivery-fee enabled/disabled setting (default disabled);
-- fixed delivery-fee amount (default €0.00).
+Delivery-fee VAT is not a configurable setting in V1; it remains fixed at 10%.
 
-The delivery-fee VAT rate is not a configurable business setting in v1; it is fixed at 10% by the approved Sushi81 delivery-fee rule.
+## 9. Frozen V1 business invariants
 
-No additional commercial configuration values are required for the Phase 2 baseline. New parameters may be added later without changing the approved semantics above.
+Implementation must not reintroduce former or speculative behavior that conflicts with these rules, including:
 
-Configuration must not weaken the rule model: changing a value changes the parameter used by the approved rule, not the underlying meaning of the rule itself.
+- force-applying the normal Retrait discount below its configured post-discount minimum;
+- allowing a delivery fee to satisfy an under-minimum Livraison order;
+- applying the normal Retrait discount to positive option surcharges;
+- assigning option-adjustment VAT contrary to section 5;
+- making telephone mandatory;
+- making delivery address mandatory at initial Livraison confirmation;
+- requiring a second visible calculated-total field;
+- permanently locking a manual total against later price-affecting recalculation;
+- allocating an active manual total across the original mixed product VAT rates;
+- using banker's/module-specific monetary rounding;
+- hard-coding normal configurable business values in source code.
 
-## 6. Phase 2 business rules frozen in this document
+## 10. Approval
 
-The following are approved and are no longer open questions:
+This file is the **Approved — Phase 2 baseline**, including the approved Phase 3 VAT amendments and the Phase 5 consistency cleanup.
 
-- Retrait orders may use the configurable pickup discount;
-- the default pickup discount is 10%;
-- only discount-eligible catalogue products receive that discount;
-- the discounted order total must reach the configured post-discount minimum, default €15;
-- there is no force-apply override for the normal discount rule;
-- the discount rate and post-discount minimum are editable by the operator without recompilation;
-- Livraison does not use the normal Retrait discount;
-- the default Livraison minimum is €30 and is user-configurable;
-- the Livraison minimum is checked before any delivery fee is added and cannot be satisfied by the delivery fee itself;
-- below-minimum Livraison orders cannot be confirmed through an ordinary override;
-- delivery fee is currently free/default €0 but an application-level enable/amount configuration entry point is preserved;
-- delivery-fee calculation is kept logically extensible so future fee rules do not require rebuilding the order model;
-- whenever a non-zero delivery fee is enabled under normal calculated pricing, that fee uses fixed 10% VAT and contributes to the 10% tax bucket;
-- every new order must explicitly select `Retrait` or `Livraison` before confirmation;
-- fulfilment mode is not inherited when creating a new order from an existing order's customer information;
-- telephone is optional for both Retrait and Livraison;
-- delivery address is optional at initial Livraison confirmation and may be added or corrected later on the same order;
-- standard 10-digit telephone entry may be typed without spaces and is displayed/printed in grouped form such as `06 12 34 56 78` after save;
-- custom option adjustments may be positive or negative, have no amount cap, require a text description and use €0.01 precision;
-- positive option adjustments do not receive pickup discount, while negative adjustments reduce the discountable product amount before discount calculation;
-- positive option adjustments use fixed 5.5% VAT, while negative adjustments inherit the associated product VAT rate;
-- all final monetary results use €0.01 precision with ordinary round-half-up behavior;
-- the ordinary order-total field is directly editable;
-- while a manual order-total override is authoritative, the entire final TTC amount uses a single 10% VAT bucket for receipt/tax purposes;
-- later price-affecting order changes automatically recalculate and replace any manual total override and restore normal product/option/delivery-fee VAT calculation until another manual total edit occurs.
+There are no remaining unresolved V1 commercial/business-rule decisions in this document.
 
-## 7. Approval rule
-
-This file is the approved Phase 2 business-rules baseline, including the approved Phase 3 amendments defining VAT treatment for a manual order-total override and for the Sushi81 delivery fee. Codex must implement these semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, hard-code configurable commercial thresholds, apply pickup discount to positive option surcharges, assign option-adjustment or delivery-fee VAT contrary to the rules above, allocate a manually overridden order total across the original mixed VAT rates, use inconsistent monetary rounding, or introduce additional commercial constraints without explicit product approval.
+Implementation may choose presentation/layout details only where they preserve every rule above and the acceptance criteria in `acceptance-criteria.md`.
