@@ -1,6 +1,6 @@
 # Business rules
 
-**Status:** Draft — Phase 2 first batch  
+**Status:** Approved — Phase 2 baseline  
 **Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
 **Purpose:** Freeze Sushi 81 commercial and operational rules that must be implemented consistently by the application.
@@ -46,7 +46,7 @@ The current Excel/VBA system behaves as follows:
 
 These current behaviors are inputs to Phase 2, not automatically frozen target rules unless explicitly approved below.
 
-## 4. Approved and pending business rules
+## 4. Approved business rules
 
 ### 4.1 Retrait discount rule — approved Phase 2 decision
 
@@ -230,13 +230,13 @@ The implementation may retain additional internal precision during intermediate 
 
 Banker's rounding or module-specific rounding conventions must not be introduced.
 
-### 5. Configuration principle — approved Phase 2 principle
+## 5. Configuration principle — approved Phase 2 principle
 
 Values that Sushi 81 may reasonably change during normal operation must be represented as user-editable business configuration rather than hard-coded constants when practical.
 
 The operator must be able to change such values through the application's normal configuration/settings UI without recompiling the software.
 
-This includes at least:
+The v1 business-configuration scope includes:
 
 - pickup discount percentage (default 10%);
 - post-discount minimum `Retrait` order amount (default €15.00);
@@ -244,13 +244,13 @@ This includes at least:
 - delivery-fee enabled/disabled setting (default disabled);
 - fixed delivery-fee amount (default €0.00).
 
+No additional commercial configuration values are required for the Phase 2 baseline. New parameters may be added later without changing the approved semantics above.
+
 Configuration must not weaken the rule model: changing a value changes the parameter used by the approved rule, not the underlying meaning of the rule itself.
 
-## 6. Decisions still to freeze
+## 6. Phase 2 business rules frozen in this document
 
-Before this document becomes baseline, Phase 2 only needs to confirm whether any **additional** commercial values beyond those already listed in section 5 must be operator-configurable in v1.
-
-The following are already approved and are no longer open questions:
+The following are approved and are no longer open questions:
 
 - Retrait orders may use the configurable pickup discount;
 - the default pickup discount is 10%;
@@ -278,4 +278,4 @@ The following are already approved and are no longer open questions:
 
 ## 7. Approval rule
 
-This file remains a Draft only until the remaining configuration-scope question in section 6 is reviewed. Codex must implement the approved Retrait and Livraison semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, hard-code configurable commercial thresholds, apply pickup discount to positive option surcharges, assign option-adjustment VAT contrary to the rules above, or use inconsistent monetary rounding without explicit product approval.
+This file is the approved Phase 2 business-rules baseline. Codex must implement these semantics and must not restore former VBA warning/override behavior, mandatory telephone/address checks, hard-code configurable commercial thresholds, apply pickup discount to positive option surcharges, assign option-adjustment VAT contrary to the rules above, use inconsistent monetary rounding, or introduce additional commercial constraints without explicit product approval.
