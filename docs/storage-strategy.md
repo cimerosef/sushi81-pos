@@ -3,7 +3,7 @@
 **Status:** Approved — Phase 3 baseline  
 **Last updated:** 2026-08-27  
 **Product:** Sushi81 POS  
-**Purpose:** Define how live data, local recovery snapshots, OneDrive handoff snapshots, disaster-recovery checkpoints and annual archives are stored and transferred safely across any number of paired Windows devices without silent divergence.
+**Purpose:** Define how live data, local recovery snapshots, OneDrive handoff snapshots, disaster-recovery checkpoints and annual archives are stored and transferred safely across paired Windows devices without silent divergence.
 
 ## 1. Core storage principle
 
@@ -11,22 +11,22 @@ Each paired Sushi81 POS computer uses its own **local working SQLite database**.
 
 The live database is never directly opened from a OneDrive-synchronized folder and is never intentionally written by more than one device at the same time.
 
-OneDrive is used only for controlled transfer of validated complete snapshots and for retained recovery/archive artifacts.
+OneDrive is used only for controlled transfer of validated complete snapshots and retained recovery/archive artifacts.
 
-The architecture supports **an arbitrary number of paired devices by default**. The initial deployment may use two computers, but no storage structure or protocol may assume exactly two devices.
+The architecture supports an arbitrary number of paired devices. The initial deployment may use two computers, but no protocol or data structure may assume exactly two.
 
 At any moment:
 
-- at most one paired device is authoritative and writable;
-- all other paired devices are non-authoritative and may use only approved read-only access;
-- write authority moves only through a completed formal handoff or an explicit disaster-recovery action;
-- v1 performs no automatic row-level database merge.
+- at most one paired device is authoritative/writable;
+- every other paired device is non-authoritative/read-only;
+- write authority moves only through a completed formal handoff or explicit disaster recovery;
+- V1 performs no automatic row-level database merge.
 
-The operator does not manually manage `live.db` or local recovery snapshot files.
+The operator does not manually manage `live.db` or local recovery files.
 
 ## 2. Application-managed local storage
 
-Local business and technical data use the fixed per-user application-data root:
+Local business/technical data uses:
 
 ```text
 %LOCALAPPDATA%\Sushi81 POS\
@@ -41,16 +41,16 @@ Local business and technical data use the fixed per-user application-data root:
 
 Semantics:
 
-- `Data\live.db` is the active local working database;
-- `Recovery\` contains rolling local recovery snapshots;
-- `Cache\` contains disposable local caches, including locally hydrated read-only annual archives where needed;
-- `Logs\` contains technical diagnostics;
-- `Config\` contains local configuration and device identity;
-- `Temp\` is used for safe staging of snapshots/archives before publication.
+- `Data\live.db` — active local working database;
+- `Recovery\` — rolling validated local recovery snapshots;
+- `Cache\` — disposable local caches, including hydrated read-only archives;
+- `Logs\` — technical diagnostics;
+- `Config\` — local configuration/device identity;
+- `Temp\` — safe staging for snapshot/archive/export-related file operations where needed.
 
-The operator is not offered an ordinary setting to relocate `live.db` or the local Recovery area.
+The operator is not offered an ordinary setting to relocate the live database or local Recovery directory.
 
-Application binaries/install files remain separate from this business-data root. Updating or reinstalling the application must not treat the local business-data directory as disposable program content.
+Application binaries/install files remain separate. Update/reinstall must not treat business data or device identity as disposable program content.
 
 ## 3. Local recovery snapshots
 
@@ -59,52 +59,50 @@ Important durable business saves trigger local recovery protection, including ty
 - confirming a new order;
 - saving an order modification;
 - changing CB/Espèce amounts;
-- closing or cancelling an order;
+- closing/cancelling an order;
 - saving catalogue changes;
 - successful catalogue batch import;
 - saving business settings.
 
-A short debounce/coalescing delay may combine several saves occurring within a few seconds into one local recovery snapshot.
+A short technical debounce may coalesce several saves occurring within a few seconds.
 
-Local recovery snapshots exist primarily for crash/corruption/accidental-change recovery on the current computer.
+The application retains the latest **five** successfully generated and validated local recovery snapshots.
 
-The application retains the **latest five successfully generated and validated local recovery snapshots**. An older snapshot may be deleted only after a newer valid snapshot has been secured.
+An older valid snapshot may be removed only after a newer valid replacement exists.
 
-These files are application-managed technical data and require no normal user file handling.
+These snapshots are application-managed technical data, not an operator-facing business history.
 
-## 4. Formal handoff — normal exit equals release
+## 4. Formal handoff — normal exit releases authority
 
-A **formal handoff snapshot** is the only normal mechanism by which another paired device receives authority to continue editing Sushi81 POS business data.
+A formal handoff snapshot is the only normal mechanism by which another paired device receives authority to continue editing the same business lineage.
 
 Normal application exit triggers handoff automatically.
 
-When the operator closes Sushi81 POS, the application does not immediately terminate. It enters a closing/handoff state in which new business edits are blocked and performs:
+When the operator closes Sushi81 POS, the application enters a closing/handoff state, blocks new business edits and:
 
-1. complete/commit all accepted application/database writes;
-2. generate a complete SQLite snapshot through a SQLite-safe backup mechanism;
-3. validate SQLite integrity locally;
-4. assign the next immutable monotonically advancing handoff version;
-5. compute a checksum/hash;
-6. attach required lineage/generation/source-device metadata;
-7. publish the snapshot into the configured OneDrive `Handoff` area;
-8. monitor synchronization until the snapshot is confirmed no longer pending upload and no sync error is reported;
-9. publish a small matching completion/ready marker containing at least the lineage, generation, handoff version and checksum;
-10. wait until the ready marker is also confirmed synchronized;
-11. only then mark the handoff released/successful, display a clear success confirmation and complete application exit.
+1. completes/commits accepted application/database writes;
+2. generates a complete SQLite snapshot using a SQLite-safe mechanism;
+3. validates SQLite integrity locally;
+4. assigns the next immutable monotonically advancing handoff version;
+5. computes a checksum/hash;
+6. associates lineage/generation/source-device metadata;
+7. publishes the snapshot into the configured OneDrive `Handoff` area;
+8. waits until required synchronization status confirms no pending upload/error;
+9. publishes a small matching completion/ready marker containing at least lineage, generation, handoff version and checksum;
+10. waits until that marker is also confirmed synchronized;
+11. only then records/reports a successful release and completes normal exit.
 
 If any required step fails, the application must not report a successful handoff.
 
-Normal user workflow:
+Normal operator behavior is therefore:
 
-**Close POS -> wait for successful handoff confirmation -> leave.**
+**Close POS -> obtain successful handoff confirmation -> leave.**
 
-Forgetting to close POS means accepting that formal handoff did not occur; the normal remedy is to return to the current authoritative device and complete the close/handoff.
+If the POS was not closed successfully, another device must not assume authority from an older version.
 
 ## 5. Immutable handoff versions and retention
 
-Formal handoff snapshots are immutable versioned files rather than repeated in-place overwrites of one `latest.db`.
-
-Conceptually:
+Formal handoffs are immutable versioned snapshot+ready-marker units, conceptually:
 
 ```text
 handoff-v000157.db
@@ -113,19 +111,19 @@ handoff-v000158.db
 handoff-v000158.ready
 ```
 
-Exact filenames are implementation details, but semantics are fixed:
+Exact filenames are technical details, but semantics are fixed:
 
-- a snapshot without its matching completed ready marker is not a released/accepted handoff;
-- the marker references the exact expected lineage/generation/version/checksum;
-- the database and ready marker are one retention/deletion unit;
-- the application retains the **latest five complete validated handoff versions**;
-- cleanup of an older handoff occurs only after a newer handoff has been generated, validated and confirmed synchronized.
+- a snapshot without the matching completed ready marker is not a released handoff;
+- marker and database must agree on lineage/generation/version/checksum;
+- the pair is one retention unit;
+- latest **five** complete validated handoff versions are retained;
+- cleanup of an older handoff happens only after a newer replacement is validated and, where required, confirmed synchronized.
 
-## 6. OneDrive shared root and fixed subareas
+## 6. OneDrive shared root
 
-The operator selects one folder inside the locally available OneDrive tree as the Sushi81 POS shared root.
+The operator selects one locally available folder inside the OneDrive tree as the Sushi81 POS shared root.
 
-The application creates/manages the logical subareas beneath it:
+The application creates/manages:
 
 ```text
 <Selected OneDrive root>\
@@ -137,234 +135,264 @@ The application creates/manages the logical subareas beneath it:
 
 Semantics:
 
-- `Handoff\` contains completed formal handoff versions and markers;
-- `DisasterRecovery\` contains recovery-only cloud checkpoints;
-- `Archive\` contains permanent annual archive databases;
-- `System\` contains small lineage/device/coordination metadata required by the protocol.
+- `Handoff\` — completed formal handoff versions/markers;
+- `DisasterRecovery\` — recovery-only checkpoints;
+- `Archive\` — permanent annual archive databases;
+- `System\` — small lineage/device/coordination metadata required by the protocol.
 
-The selected OneDrive root is never used as the location of `live.db`.
+The selected root is never the live database location.
 
-Users may change the configured shared root only through application settings. The application must validate a new root before adoption and must not silently create or join an unrelated data lineage.
+Changing the shared root occurs only through application settings. A proposed new root must be validated before adoption and must not silently join/combine an unrelated lineage.
 
-## 7. Device and lineage identity — approved Phase 3 design
+## 7. Device and lineage identity
 
-The synchronization/storage design uses identities, not fixed computer roles such as SHOP/HOME.
+The protocol uses opaque identities rather than fixed roles such as SHOP/HOME.
 
 ### 7.1 `device_id`
 
-Each installation/device receives an opaque immutable random UUID-like `device_id` when it is first initialized.
+Each installation receives an immutable random UUID-like `device_id` when initialized.
 
-The device identity is stored in local application configuration and is not ordinary user-editable data.
+It is stored in local application configuration and is not ordinary user-editable business data.
 
-A separate human-readable device name may be shown/editable, for example `店铺电脑`, `家里电脑`, or another label. Changing the display name must not change `device_id`.
+A separate human-readable device display name may be editable without changing `device_id`.
 
-If Windows is fully reinstalled and the local Sushi81 POS identity is lost, that installation is treated as a new device and receives a new `device_id`.
+If a complete Windows reinstall loses the local identity, that installation is treated as a new device and receives a new ID.
 
 ### 7.2 `lineage_id`
 
-The first authoritative Sushi81 POS business database creates one stable opaque `lineage_id` identifying the business-data family.
+The first authoritative business database establishes a stable opaque `lineage_id` identifying that business-data family.
 
-All valid live/handoff/disaster-recovery metadata belonging to that business dataset carries the same `lineage_id`.
+All valid live/handoff/disaster-recovery metadata belonging to it carries the same lineage.
 
-A device attempting to join a OneDrive root with a different lineage must not silently adopt or combine it.
+A device encountering another lineage must not silently merge/adopt it.
 
 ### 7.3 `generation`
 
-Each lineage has a generation/epoch value.
+A lineage has a generation/epoch.
 
-Normal formal handoffs keep the same generation.
-
-A confirmed disaster recovery creates a new generation so that old devices/data from the pre-recovery generation cannot silently resume writing later.
+Normal handoffs preserve generation. Confirmed disaster recovery advances it so devices holding pre-recovery state cannot later resume writing silently.
 
 ### 7.4 `handoff_version`
 
-Formal handoffs advance a monotonically increasing handoff version within the authoritative lineage history.
+Formal handoffs advance a monotonic handoff version within the current lineage history.
 
-Technical metadata must therefore be sufficient to identify at least:
+Protocol metadata must identify at least:
 
-- `lineage_id`;
-- `generation`;
-- `handoff_version`;
-- source/current `device_id` where applicable;
-- snapshot checksum and timestamps where required.
+- lineage ID;
+- generation;
+- handoff version;
+- relevant source/current device ID;
+- checksum;
+- required timestamps.
 
-## 8. Pairing and adding any number of devices
+## 8. Pairing additional devices
 
-The design has no fixed two-device slots and no logical maximum tied to the original shop/home use case.
+The design contains no two-device slots or fixed logical maximum.
 
 ### 8.1 First device
 
-On first setup:
+On initial setup:
 
-- the application creates/manages its local `live.db` and local recovery area;
-- the operator selects/creates the OneDrive shared root;
-- the application establishes the lineage metadata and device identity;
-- subsequent formal handoffs use that shared root automatically.
+- application creates local live/recovery areas;
+- operator selects/creates the OneDrive shared root;
+- application establishes device/lineage metadata;
+- subsequent formal handoffs use that root.
 
-### 8.2 Additional device — second, third or later
+### 8.2 Second, third or later device
 
-To add any later computer:
+To add another computer:
 
 1. install Sushi81 POS normally;
-2. the installation creates a new unique `device_id`;
-3. in settings, select the same existing OneDrive shared root;
-4. validate the existing `lineage_id`, generation and shared structure;
-5. locate the latest formally completed handoff;
+2. create its new `device_id`;
+3. select the same existing OneDrive shared root;
+4. validate lineage/generation/shared structure;
+5. locate latest formally completed handoff;
 6. verify snapshot + ready marker + checksum + SQLite integrity;
-7. restore the validated version into the new device's own local application-managed `live.db`;
-8. join the same lineage without changing the architecture or migrating the database format.
+7. restore the validated version into that device's own local `live.db`;
+8. join the existing lineage.
 
-If write authority is still held by another device, the newly paired device may only use non-authoritative read-only mode.
+If another device still holds authority, the new device remains read-only.
 
-If a released handoff is safely available and the new/other device acquires authority according to the handoff protocol, that device becomes the sole writer until it releases through its next formal handoff.
+If a released handoff is safely available, authority may be acquired according to the protocol.
 
-Shared state and application code must use collections/device IDs rather than fixed fields for exactly two computers.
-
-If competing acquisition attempts for the same released handoff are detected, the application must not silently allow multiple writers; it must block write activation until one authoritative acquisition is safely established. Exact low-level coordination representation is an implementation detail, but silent multi-writer acquisition is forbidden.
+Competing acquisition attempts must never silently activate multiple writers. Write activation remains blocked until one authoritative acquisition is established.
 
 ## 9. Receiving/acquiring a completed handoff
 
-Before any non-authoritative paired device may enter write/edit mode, it must establish that a valid released handoff exists.
+Before a non-authoritative device enters write mode it must:
 
-Acquisition sequence:
-
-1. identify the latest formally completed handoff available in `Handoff`;
+1. identify the latest formally completed handoff;
 2. ensure snapshot and matching ready marker are locally available;
 3. verify lineage/generation/version/checksum consistency;
 4. validate SQLite integrity;
-5. compare with the device's current local version/generation;
-6. safely/atomically restore the accepted handoff into local `live.db` if required;
-7. establish that this device is the one authorized writer for the acquired lineage state;
-8. only then enable write operations.
+5. compare with local version/generation;
+6. safely restore the accepted snapshot to local `live.db` when required;
+7. establish exclusive authority for this device;
+8. only then enable writes.
 
-A partial snapshot, missing ready marker, checksum mismatch, lineage/generation mismatch or integrity failure must never automatically become `live.db`.
+A partial snapshot, missing marker, checksum mismatch, lineage/generation mismatch, integrity failure or unresolved competing acquisition must never become a writable live database automatically.
 
 ## 10. No normal force takeover
 
-If the current authoritative device did not complete a formal handoff, another device must not begin writing from an older OneDrive version.
+If the current authoritative device did not complete a formal handoff, another device must not begin writing from an older local/OneDrive version through an ordinary force-takeover path.
 
-There is no ordinary force-takeover button that silently promotes stale data.
+If the authoritative device remains available, the normal remedy is to return to it and complete the handoff.
 
-If the authoritative device remains available, the normal remedy is to return to it and complete normal close/handoff.
-
-Preventing silent data loss/divergence has priority over convenience.
+Reliability and prevention of silent divergence take precedence over convenience.
 
 ## 11. Disaster recovery
 
-Disaster recovery is reserved for genuine abnormal loss of the authoritative device, such as unrecoverable hardware/disk/operating-system failure that prevents normal handoff.
+Disaster Recovery is reserved for genuine abnormal loss of the authoritative device, such as unrecoverable hardware/disk/OS failure preventing normal handoff.
 
 It is separate from normal handoff.
 
-### 11.1 OneDrive disaster-recovery checkpoints
+### 11.1 Recovery-only cloud checkpoints
 
-While the authoritative device is in normal use:
+While the authoritative device operates normally:
 
-- local recovery continues normally;
-- if durable business data has changed since the previous cloud checkpoint, the application publishes a validated recovery-only checkpoint to `DisasterRecovery`;
+- local recovery continues;
+- if durable business data changed since the previous cloud checkpoint, a validated recovery-only checkpoint may be published to `DisasterRecovery`;
 - maximum normal publication frequency is **one checkpoint every 15 minutes**;
 - if no durable data changed, no redundant checkpoint is required;
-- checkpoint publication must not block routine POS work merely to behave like formal handoff;
-- the application retains the **latest five successfully published and validated disaster-recovery checkpoints**.
+- publication must not unnecessarily block ordinary POS work like a formal handoff;
+- latest **five** successfully published and validated recovery checkpoints are retained.
 
-These checkpoints are technically/logically marked **recovery-only**. They do not release write authority and cannot be automatically consumed as a normal handoff.
+These checkpoints do **not** release write authority and are never consumed automatically as ordinary handoffs.
 
 ### 11.2 Recovery user flow
 
-If the latest formal handoff was not completed, normal write acquisition remains blocked.
+If no valid latest formal handoff exists, ordinary acquisition stays blocked.
 
-A separate Disaster Recovery action may be used only when the operator knows the authoritative device genuinely cannot complete handoff.
+A separate Disaster Recovery action displays at least:
 
-Before confirmation the application shows at least:
-
-- latest completed formal handoff timestamp/version;
-- newest validated disaster-recovery checkpoint timestamp;
+- latest completed handoff timestamp/version;
+- newest validated recovery checkpoint timestamp;
 - checkpoint source device;
-- clear warning that changes after the checkpoint time may be lost.
+- warning that changes after the checkpoint may be lost.
 
-After explicit confirmation the application:
+After explicit confirmation, the application:
 
-1. validates the selected newest appropriate recovery checkpoint;
-2. restores it into the recovering device's local `live.db`;
-3. advances the lineage generation/epoch;
-4. records the recovery as establishing the new authoritative generation;
-5. allows writes only after recovery activation succeeds.
+1. validates the selected appropriate checkpoint;
+2. restores it to local `live.db`;
+3. advances the lineage generation;
+4. records the new authoritative generation;
+5. enables writes only after activation succeeds.
 
-### 11.3 Old-device invalidation
+### 11.3 Old-generation invalidation
 
-Any device returning later with an older generation must not resume writing from its stale local database, regardless of ordinary file timestamps.
+A device later returning with an older generation may not resume writes from its stale local database, regardless of file timestamps.
 
-It must be reinitialized from current authoritative released data before regaining write capability.
+It must be reinitialized from current authoritative released data before write capability is restored.
 
-Merely forgetting to close POS is not by itself a reason to use Disaster Recovery if the original device remains available.
+Merely forgetting to close the POS is not sufficient reason to use Disaster Recovery while the original device remains recoverable.
 
 ## 12. Non-authoritative read-only mode
 
-Any paired device that has not acquired the latest completed formal handoff may still open Sushi81 POS in a non-authoritative read-only mode.
+A paired device that has not acquired authority may open Sushi81 POS in clearly marked non-authoritative/read-only mode.
 
-It may consult the most recent formally acquired local business database already present on that device and completed annual archives.
+It may consult:
+
+- the most recent formally acquired local live-data copy it already holds;
+- completed annual archives.
 
 The UI must clearly and persistently show:
 
-- read-only / not current status;
-- that displayed live data may be stale;
-- the version and/or effective time of the most recently formally acquired data.
+- read-only/non-authoritative state;
+- that current live data may be stale;
+- the version and/or effective time of the most recently acquired data.
 
-The device must not use a newer Disaster Recovery checkpoint as an ordinary read-only update.
+A newer recovery-only checkpoint is not consumed as an ordinary read-only update.
 
-Read-only mode blocks every operation that changes authoritative business state, including at least:
+Read-only mode blocks authoritative business writes including:
 
 - creating/modifying orders;
 - changing payments;
 - closing/cancelling orders;
-- editing catalogue/categories/options;
+- catalogue/category/option edits;
 - catalogue imports;
 - business-setting changes;
 - annual archive execution;
-- publishing formal handoff from the stale copy.
+- formal handoff publication from the stale copy.
 
-Whether printing/reprinting from a non-authoritative current-data copy is allowed is deferred to `printing.md` because stale printed operational output can create business risk even though printing does not modify the database.
+### 12.1 Printing from non-authoritative data — Phase 4 alignment
+
+The later Approved printing decision is final for V1: a non-authoritative/read-only device **may print/reprint** from the committed live-data copy currently available on that device.
+
+It is not hard-blocked, but before/at the print action the application must clearly indicate that:
+
+- this device is non-authoritative;
+- displayed live data may be stale;
+- freshness has not been verified.
+
+Printing performs no business write, does not transfer authority and does not claim synchronization success.
+
+Detailed marking/printing behavior remains in `printing.md` and `docs/decisions/non-authoritative-device-printing.md`.
 
 ## 13. Offline behavior
 
-The current authoritative device may continue normal local operation during temporary Internet/OneDrive loss because `live.db` is local.
+The authoritative device may continue normal local operation during temporary Internet/OneDrive loss because `live.db` is local.
 
-It cannot complete a successful formal handoff until required OneDrive synchronization can be confirmed.
+It cannot complete a successful formal handoff until required OneDrive publication/synchronization can be confirmed.
 
-Cloud disaster-recovery checkpoints may also remain unavailable/pending during prolonged OneDrive loss; local work on the current authoritative device remains authoritative until valid handoff or explicit disaster recovery.
+Cloud disaster-recovery checkpoints may remain pending/unavailable while offline; local work remains authoritative until valid handoff or explicit disaster recovery.
 
-A non-authoritative device that cannot verify/acquire the latest completed handoff may not enter write mode from an older local copy, although approved read-only access remains available.
+A non-authoritative device that cannot verify/acquire the latest handoff cannot enter write mode from an older copy, though read-only use and approved printing remain available.
 
 ## 14. Annual archive
 
-Annual archives are separate historical SQLite database files stored in OneDrive `Archive` and independent from the installed application and active local `live.db`.
+Annual archives are separate historical SQLite files stored in OneDrive `Archive`, independent from installed binaries and active local `live.db`.
 
-They are read-only historical databases, not part of normal handoff lineage.
+They are read-only historical databases and not part of normal live handoff lineage.
 
-### 14.1 Schedule and strict natural-year boundary
+### 14.1 Schedule and strict calendar-year boundary
 
-The application automatically performs the previous **complete calendar year's** archive on **February 1** each year.
+The authoritative device automatically processes the previous **complete calendar year** on **February 1** each year.
 
-The trigger date never extends the archive window into January of the current year.
+The trigger date never extends the target window into January of the current year.
 
-Example: the February 1, 2027 run processes only archive-year **2026** records, ending at December 31, 2026. Records assigned to archive year 2027, including records ending in January 2027, remain in `live.db`.
+Example: the February 1, 2027 archive processes only archive-year 2026 records ending no later than December 31, 2026.
 
-If POS is not run on February 1, the archive occurs on the first later startup when the current authoritative/writable device can safely perform it. Delayed execution does not enlarge the target period.
+If the POS is not run on February 1, the archive occurs on the first later startup on which the authoritative device can safely perform it. Delayed execution does not enlarge the target year.
 
-Only the current authoritative device may create an annual archive.
+Only the authoritative device may create an annual archive.
 
 ### 14.2 Archive-year rules
 
-Archive year is the natural year in which the order actually ends:
+Archive year is the natural year in which the business order ends:
 
-- ordinary `CLOSED` POS order => year of `closed_at`;
-- ordinary `CANCELLED` POS order => year of `cancelled_at`;
-- Hiboutik emergency `CLOSED` => year of `closed_at`;
-- Hiboutik emergency `CANCELLED` => year of `cancelled_at`;
-- any `OPEN` order remains in `live.db` regardless of age.
+- `CLOSED` order -> year of `closed_at`;
+- `CANCELLED` order -> year of `cancelled_at`;
+- `OPEN` order -> remains in `live.db` regardless of age.
 
-Example: an order created in December 2026 but closed January 10, 2027 belongs to archive year 2027, remains live during the February 2027 archive run, and becomes eligible during the February 2028 archive of 2027.
+This rule applies equally to ordinary `POS` and hidden-source `HIBOUTIK_PASTE` orders. The source discriminator affects ordinary POS financial/export inclusion; it does not create different archive-year semantics.
 
-### 14.3 Archive publication and safety
+Example: an order created December 2026 and Closed January 10, 2027 belongs to archive year 2027, stays live through the February 2027 archive and becomes eligible when archive year 2027 is processed in February 2028.
+
+### 14.3 Publication safety
+
+Archive creation is failure-safe:
+
+1. identify target-year eligible records;
+2. build archive in safe local staging;
+3. validate archive/expected records;
+4. publish to OneDrive `Archive`;
+5. confirm successful publication/synchronization;
+6. only then remove those records from `live.db`;
+7. create a new local recovery point; later formal handoff contains the post-archive live state.
+
+If creation, validation or publication fails, records remain live and archiving is retried later.
+
+### 14.4 Archive independence and retention
+
+Completed annual archives:
+
+- survive application uninstall/reinstall;
+- are outside install/local-live-data directories as their authoritative copy;
+- are shared through OneDrive;
+- are immutable/read-only in normal POS use;
+- remain queryable/reprintable;
+- may be hydrated transparently to a local read-only cache;
+- are retained permanently unless the operator deliberately manages/removes them outside normal application workflow.
 
 Conceptually:
 
@@ -374,66 +402,44 @@ Conceptually:
     sushi81-archive-2027.db
 ```
 
-Exact filenames may be refined during implementation.
-
-Archive creation is failure-safe:
-
-1. identify target-year eligible records;
-2. build the archive in a safe local staging location;
-3. validate the archive and expected records;
-4. publish to OneDrive `Archive`;
-5. confirm successful synchronization/publication;
-6. only then remove archived records from `live.db`;
-7. generate a new local recovery point; the later normal close/handoff contains the post-archive live state.
-
-If creation, validation or publication fails, records remain in `live.db` and archiving is retried later.
-
-### 14.4 Archive independence and retention
-
-Completed annual archives:
-
-- survive application uninstall/reinstall;
-- are outside application install/local-data directories as their authoritative copy;
-- are shared through OneDrive;
-- are normally immutable/read-only;
-- remain queryable and reprintable from Sushi81 POS;
-- may be transparently hydrated to a local read-only cache before querying;
-- are retained permanently unless the operator deliberately manages/removes them outside normal application workflow.
+Exact filenames may be refined technically.
 
 ## 15. Rolling retention
 
-The rolling technical protection sets use one simple fixed v1 rule:
+V1 uses:
 
 - Local Recovery: latest **5** validated snapshots;
 - OneDrive Handoff: latest **5** complete validated versions;
 - OneDrive Disaster Recovery: latest **5** validated checkpoints;
-- Annual Archive: permanent, no rolling deletion.
+- Annual Archive: permanent/no rolling deletion.
 
-Cleanup always occurs after, never before, a newer replacement has been successfully generated and validated. Where synchronization confirmation is part of the artifact's safety contract, cleanup also waits for the newer replacement to be confirmed synchronized.
+Cleanup happens after, never before, a newer replacement is safely generated/validated and, where required, synchronized.
 
-These counts are fixed v1 defaults rather than ordinary operator-configurable settings.
+These counts are fixed V1 technical defaults rather than ordinary operator-configurable settings.
 
-## 16. Storage invariants for implementation
+## 16. Storage invariants
 
-Codex/implementation must preserve all of the following:
+Implementation must preserve all of the following:
 
-1. `live.db` is local and application managed, never a live OneDrive database.
-2. Any number of devices may pair with one lineage; the design must not contain exactly-two-device assumptions.
-3. At most one paired device may write at a time.
+1. `live.db` is local/application-managed, never a live OneDrive database.
+2. Any number of devices may pair; exactly-two-device assumptions are forbidden.
+3. At most one device writes at a time.
 4. Normal write transfer requires a validated completed formal handoff.
 5. No stale normal force takeover.
-6. Disaster Recovery is explicit, recovery-only and creates a new generation.
+6. Disaster Recovery is explicit/recovery-only and creates a new generation.
 7. Old-generation devices cannot resume writes without reinitialization.
-8. Non-authoritative devices may consult stale formally acquired data only in clearly marked read-only mode.
-9. Local Recovery/Handoff/Disaster Recovery retain five valid rolling versions.
-10. Annual archive runs on February 1 for the previous complete natural year only and never consumes current-year January records.
-11. Archive records are removed from `live.db` only after validated OneDrive archive publication.
-12. Annual archives remain independent permanent historical files.
+8. Non-authoritative devices use clearly marked stale/read-only state.
+9. Non-authoritative printing is allowed only under the explicit stale-data warning rules already Approved in Phase 4.
+10. Local Recovery/Handoff/Disaster Recovery each retain five valid rolling versions.
+11. Annual archive targets only the previous complete natural year when triggered on/after February 1.
+12. Closed and Cancelled orders use their end timestamp year; Open orders remain live.
+13. Archive records leave `live.db` only after validated successful OneDrive archive publication.
+14. Annual archives remain independent permanent historical files.
 
 ## 17. Approval
 
-This document is **Approved — Phase 3 baseline**.
+This document is the **Approved — Phase 3 baseline**, aligned during Phase 5 with the later Approved Phase 4 printing/source decisions.
 
-The approved storage architecture is local SQLite per device, N-device pairing through a user-selected OneDrive root, single-writer authority, verified immutable formal handoff, application-managed local Recovery, 15-minute change-triggered Disaster Recovery checkpoints, explicit recovery generation renewal, non-authoritative read-only access, five-version rolling technical retention, and independent February natural-year annual archives.
+The storage architecture is local SQLite per paired device, N-device single-writer authority, validated immutable OneDrive handoff, application-managed local recovery, change-triggered recovery-only cloud checkpoints, explicit generation-changing Disaster Recovery, non-authoritative read-only access, five-version rolling technical protection and independent February natural-year archives.
 
-Low-level file naming, exact coordination serialization and similar implementation details may be selected during implementation only if they preserve every invariant in this document.
+Low-level filenames, coordination serialization and similar pure implementation details may be selected during implementation only if every invariant above remains true.
