@@ -8,6 +8,7 @@
   <data name="FoundationReady" xml:space="preserve"><value>Fondation prête.</value></data>
   <data name="StartupFailure" xml:space="preserve"><value>Le démarrage a échoué. Consultez les diagnostics.</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>Langue</value></data>
+  <data name="LanguageSaveFailure" xml:space="preserve"><value>Impossible d’enregistrer la préférence de langue. Réessayez.</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>Français</value></data>
   <data name="ChineseLanguage" xml:space="preserve"><value>中文（简体）</value></data>
 </root>

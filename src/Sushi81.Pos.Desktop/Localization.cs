@@ -11,7 +11,7 @@ public interface ISelectedCultureStore
 {
     CultureInfo Load();
 
-    void Save(CultureInfo culture);
+    Task SaveAsync(CultureInfo culture, CancellationToken cancellationToken = default);
 }
 
 public sealed class InMemorySelectedCultureStore : ISelectedCultureStore
@@ -20,10 +20,12 @@ public sealed class InMemorySelectedCultureStore : ISelectedCultureStore
 
     public CultureInfo Load() => _culture;
 
-    public void Save(CultureInfo culture)
+    public Task SaveAsync(CultureInfo culture, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(culture);
+        cancellationToken.ThrowIfCancellationRequested();
         _culture = culture;
+        return Task.CompletedTask;
     }
 }
 
@@ -40,11 +42,12 @@ public sealed class ConfigurationSelectedCultureStore : ISelectedCultureStore
 
     public CultureInfo Load() => CultureInfo.GetCultureInfo(_configuration.UiCulture);
 
-    public void Save(CultureInfo culture)
+    public async Task SaveAsync(CultureInfo culture, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(culture);
-        _configuration = _configuration with { UiCulture = culture.Name };
-        _configurationService.SaveAsync(_configuration).GetAwaiter().GetResult();
+        var updatedConfiguration = _configuration with { UiCulture = culture.Name };
+        await _configurationService.SaveAsync(updatedConfiguration, cancellationToken);
+        _configuration = updatedConfiguration;
     }
 }
 
@@ -56,6 +59,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     private readonly ISelectedCultureStore _cultureStore;
     private CultureInfo _culture;
     private LanguageOption _selectedLanguage;
+    private bool _isLanguageChangeInProgress;
 
     public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded)
     {
@@ -79,22 +83,54 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
     public string LanguageLabel { get; private set; } = string.Empty;
 
+    public string LanguageSaveFailure { get; private set; } = string.Empty;
+
     public LanguageOption SelectedLanguage
     {
         get => _selectedLanguage;
-        set
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            if (_selectedLanguage == value)
-            {
-                return;
-            }
+    }
 
-            _culture = Normalize(CultureInfo.GetCultureInfo(value.CultureName));
-            _cultureStore.Save(_culture);
+    public bool CanChangeLanguage => !_isLanguageChangeInProgress;
+
+    /// <summary>
+    /// Persists the culture before refreshing localized resources, so a failed save leaves the
+    /// visible and persisted selections unchanged.
+    /// </summary>
+    public async Task ChangeLanguageAsync(LanguageOption language, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(language);
+        var requestedCulture = Normalize(CultureInfo.GetCultureInfo(language.CultureName));
+        if (requestedCulture.Name == _culture.Name)
+        {
+            return;
+        }
+
+        if (_isLanguageChangeInProgress)
+        {
+            return;
+        }
+
+        _isLanguageChangeInProgress = true;
+        OnPropertyChanged(nameof(CanChangeLanguage));
+        try
+        {
+            await _cultureStore.SaveAsync(requestedCulture, cancellationToken);
+
+            _culture = requestedCulture;
             RefreshResources();
             _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
-            OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedLanguage));
+        }
+        catch
+        {
+            // Restore the ComboBox selection to the last successfully persisted culture.
+            OnPropertyChanged(nameof(SelectedLanguage));
+            throw;
+        }
+        finally
+        {
+            _isLanguageChangeInProgress = false;
+            OnPropertyChanged(nameof(CanChangeLanguage));
         }
     }
 
@@ -103,12 +139,14 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         Title = Read("ShellTitle");
         Status = Read(StartupSucceeded ? "FoundationReady" : "StartupFailure");
         LanguageLabel = Read("LanguageLabel");
+        LanguageSaveFailure = Read("LanguageSaveFailure");
         Languages.Clear();
         Languages.Add(new LanguageOption("fr-FR", Read("FrenchLanguage")));
         Languages.Add(new LanguageOption("zh-CN", Read("ChineseLanguage")));
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));
         OnPropertyChanged(nameof(LanguageLabel));
+        OnPropertyChanged(nameof(LanguageSaveFailure));
     }
 
     private string Read(string key) => ResourceManager.GetString(key, _culture) ?? throw new InvalidOperationException($"Missing required localization resource '{key}'.");

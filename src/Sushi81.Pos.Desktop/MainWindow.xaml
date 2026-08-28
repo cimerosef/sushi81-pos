@@ -30,9 +30,11 @@
                  Margin="0,0,8,0"
                  Text="{Binding LanguageLabel}" />
       <ComboBox Width="150"
+                IsEnabled="{Binding CanChangeLanguage}"
                 DisplayMemberPath="DisplayName"
                 ItemsSource="{Binding Languages}"
-                SelectedItem="{Binding SelectedLanguage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                SelectedItem="{Binding SelectedLanguage, Mode=OneWay}"
+                SelectionChanged="OnLanguageSelectionChanged" />
     </StackPanel>
   </Grid>
 </Window>

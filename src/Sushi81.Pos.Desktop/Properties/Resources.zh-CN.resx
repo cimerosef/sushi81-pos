@@ -8,6 +8,7 @@
   <data name="FoundationReady" xml:space="preserve"><value>基础已就绪。</value></data>
   <data name="StartupFailure" xml:space="preserve"><value>启动失败。请查看诊断信息。</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>语言</value></data>
+  <data name="LanguageSaveFailure" xml:space="preserve"><value>无法保存语言偏好设置。请重试。</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>法语</value></data>
   <data name="ChineseLanguage" xml:space="preserve"><value>简体中文</value></data>
 </root>

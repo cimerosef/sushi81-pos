@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 plan Approved; production implementation not started
+**Current state:** Phase 6 M01 implementation is in progress; automated repair coverage has been added and Windows/WPF manual re-verification is required.
 
 ## 1. Status vocabulary
 
@@ -19,7 +19,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 
 | Milestone | Status | Authorization / result |
 |---|---|---|
-| M01 — Foundation and safe persistence spine | Passed | Completed on `codex/m01-foundation`; evidence record in section 5 |
+| M01 — Foundation and safe persistence spine | In progress | Repair validation is in progress on `codex/m01-foundation`; Windows/WPF manual re-verification remains required before milestone acceptance. |
 | M02 — OneDrive feasibility gate | Not started | Pending M01 |
 | M03 — Catalogue and settings | Not started | Pending M02 |
 | M04 — Order-entry vertical slice | Not started | Pending M03 |
@@ -145,7 +145,7 @@ For each completed milestone append a short record containing:
 
 Do not mark an AC Passed using only a planned test name or an unexecuted checklist.
 
-## 5. M01 completion evidence
+## 5. M01 implementation and re-verification evidence
 
 **Milestone:** M01 — Executable foundation and safe persistence spine
 **Branch:** `codex/m01-foundation`
@@ -171,7 +171,11 @@ Do not mark an AC Passed using only a planned test name or an unexecuted checkli
 - No Catalogue, BusinessSettings, Order, Payment, pricing/VAT, printing, Hiboutik parsing, ClosedXML, export, OneDrive handoff, pairing/disaster-recovery, archive, installer or legacy emergency-model code was added.
 - Tests use only synthetic data. No database, log, local configuration, build output, credentials or business data is committed.
 
-### Manual verification not performed
+### Windows/WPF manual verification
 
-- A real interactive Windows/WPF launch and visual shell check was not executed in this non-interactive environment. The automated WPF compilation, resource switching and persisted-culture tests passed; manual launch remains required.
+- The first interactive Windows/WPF check launched the application and showed the French default interface correctly.
+- Selecting Simplified Chinese then caused a repeatable UI hang on two attempts. M01 is therefore not Passed.
+- The root cause was synchronous waiting on asynchronous local-configuration persistence from the WPF language-selection path. The implementation now uses an explicit awaitable language-change operation; persistence completes before localized resources are refreshed, and failed persistence leaves the previous selection intact.
+- Automated regression coverage includes isolated temporary-directory use of `JsonLocalConfigurationService` with the production culture store, restart persistence, an awaitable synchronization-context path, failed-save state preservation, and French/Chinese resource refresh behavior.
+- A second interactive Windows/WPF check is still required. Do not record Windows manual verification as passed until that check completes.
 
