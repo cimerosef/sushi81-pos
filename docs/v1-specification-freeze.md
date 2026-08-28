@@ -1,15 +1,16 @@
 # V1 Specification freeze
 
-**Status:** Approved — Phase 5 baseline  
+**Status:** Approved — Phase 5 baseline, amended 2026-08-28  
 **Freeze date:** 2026-08-27  
+**Latest approved amendment:** 2026-08-28  
 **Product:** Sushi81 POS  
-**Purpose:** Record completion of the V1 design/specification phase and establish the authoritative implementation baseline for the next Codex phase.
+**Purpose:** Record completion of the V1 design/specification phase and establish the authoritative implementation baseline for the Codex implementation phase.
 
 ## 1. Freeze declaration
 
-The Sushi81 POS V1 product and technical specification is **frozen** as of 2026-08-27.
+The Sushi81 POS V1 product and technical specification was **frozen** on 2026-08-27.
 
-The Phase 1–5 document set has completed a repo-wide consistency review covering:
+The Phase 1–5 document set completed a repo-wide consistency review covering:
 
 - product scope;
 - order lifecycle and payment semantics;
@@ -22,11 +23,9 @@ The Phase 1–5 document set has completed a repo-wide consistency review coveri
 - kitchen/customer printing and reprinting;
 - export to the downstream `Gestion SUSHI 81` workflow;
 - V1 acceptance criteria;
-- repository/agent phase-state instructions used by the later implementation phase.
+- repository/agent phase-state instructions used by the implementation phase.
 
-No unresolved V1 business decision or known cross-document technical contradiction remains at this freeze point.
-
-Production implementation has **not** been started by this freeze action. The freeze authorizes the repository to enter the implementation phase only when an explicit Codex implementation task is issued.
+The freeze is a controlled baseline, not a ban on later necessary amendments. Any approved amendment becomes part of the implementation-authoritative V1 baseline when affected documents are aligned consistently.
 
 ## 2. Frozen baseline documents
 
@@ -45,9 +44,9 @@ The implementation-authoritative V1 baseline is:
 
 ### Phase 3
 
-- `architecture.md` — **Approved — Phase 3 baseline**.
+- `architecture.md` — **Approved — Phase 3 baseline**, including later approved amendments recorded in that document.
 - `data-model.md` — **Approved — Phase 3 baseline**.
-- `storage-strategy.md` — **Approved — Phase 3 baseline**.
+- `storage-strategy.md` — **Approved — Phase 3 baseline**, including later approved amendments recorded in that document.
 
 ### Phase 4
 
@@ -57,8 +56,8 @@ The implementation-authoritative V1 baseline is:
 
 ### Phase 5
 
-- `acceptance-criteria.md` — **Approved — Phase 5 baseline (V1 Specification)**.
-- this `v1-specification-freeze.md` record — **Approved — Phase 5 baseline**.
+- `acceptance-criteria.md` — **Approved — Phase 5 baseline (V1 Specification)**, including later approved amendments recorded in that document.
+- this `v1-specification-freeze.md` record — **Approved — Phase 5 baseline**, with amendment log below.
 
 ## 3. Approved decision records incorporated into the V1 baseline
 
@@ -79,11 +78,10 @@ The following approved records under `docs/decisions/` materially constrain V1 a
 - `non-authoritative-device-printing.md`;
 - `order-modification-printing.md`;
 - `payment-effective-date.md`;
-- `reprint-marking.md`.
+- `reprint-marking.md`;
+- `target-directed-authority-handoff.md` — **Approved 2026-08-28 V1 specification amendment**.
 
-The baseline documents have been aligned so implementation should not need to resolve normal V1 behavior merely by comparing decision chronology.
-
-Decision records that originally contained future-tense instructions such as “incorporate this before approval/final review” have also been updated where necessary to state that Phase 5 incorporation is complete.
+The baseline documents are aligned so implementation should not need to resolve normal V1 behavior merely by comparing decision chronology.
 
 ## 4. Hiboutik model cleanup — final V1 state
 
@@ -114,7 +112,7 @@ Phase 5 froze the last identified business-attribution ambiguity:
 
 This is recorded in `docs/decisions/payment-effective-date.md` and incorporated into `order-lifecycle.md`, `data-model.md` and `acceptance-criteria.md`.
 
-## 6. Consistency-review result
+## 6. Phase 5 consistency-review result
 
 The Phase 5 review found and corrected the following classes of stale, conflicting or incomplete specification material:
 
@@ -131,21 +129,41 @@ The Phase 5 review found and corrected the following classes of stale, conflicti
 - the initial acceptance draft needed stronger direct coverage of business-setting edits, main-screen summaries/reminders, telephone/comment search, explicit archive access, local-recovery triggers and change-triggered disaster-recovery checkpoints;
 - repository-level `README.md`, `AGENTS.md`, `src/README.md` and `tests/README.md` still described the project as pre-freeze design work.
 
-All of those items have been corrected in GitHub.
+All of those items were corrected during Phase 5.
 
-After correction:
+## 7. Post-freeze amendment — target-directed authority handoff (2026-08-28)
 
-- no target V1 baseline document remains intentionally in Draft status;
-- no known V1 business question remains open;
-- no known baseline contradiction requires Codex to choose between competing semantics;
-- the legacy/current-system document remains contextual and is explicitly prevented from overriding later V1 target behavior;
-- implementation-level freedom remains only where the approved specifications deliberately delegate low-level choices.
+During Phase 6 M02, deterministic feasibility testing proved a material architecture blocker in the original generic OneDrive acquisition model:
 
-Examples of intentionally delegated implementation details include exact UI layout/typography, physical SQL table/index naming, minor coordination serialization/file-name mechanics and similar representation choices that do not alter frozen behavior or acceptance criteria.
+- an eventually synchronized file-claim/election protocol can expose different claim sets to different devices;
+- a claim-only design has an executable double-writer counterexample;
+- a fully fail-closed design can avoid double writers only by refusing ordinary N-device acquisition without an external atomic grant;
+- OneDrive per-file synchronization state is useful transport evidence but is not a documented distributed mutex or cross-client compare-and-swap.
 
-## 7. Authority and conflict rule for implementation
+The blocker evidence was merged through PR #2.
 
-Codex and other implementation agents must use the frozen GitHub specification rather than prior chat memory or legacy VBA behavior.
+The user approved the amendment recorded in `docs/decisions/target-directed-authority-handoff.md` on 2026-08-28.
+
+The V1 normal-handoff model is therefore amended as follows:
+
+- N-device support remains;
+- `live.db` remains local to each device and OneDrive remains transport/recovery/archive storage only;
+- normal close distinguishes **Close and retain authority** from **Transfer authority and close**;
+- normal transfer is directed by the current authoritative source to exactly one eligible target device;
+- the source must durably relinquish business-write authority before the target-releasing ready/grant marker can exist;
+- after relinquishment the source is read-only/pending-transfer across restart and may only retry the same immutable transfer;
+- only the exact designated target may acquire the normal handoff;
+- non-target devices do not compete through claims/election;
+- inability to recover/complete the designated target path uses explicit Disaster Recovery rather than ordinary target substitution;
+- no Graph/OAuth/backend/server is introduced merely to arbitrate normal V1 authority transfer.
+
+`architecture.md`, `storage-strategy.md` and `acceptance-criteria.md` are amended to contain these semantics directly.
+
+M02 must re-verify the amended protocol before M03 can start.
+
+## 8. Authority and conflict rule for implementation
+
+Codex and other implementation agents must use the frozen-and-amended GitHub specification rather than prior chat memory or legacy VBA behavior.
 
 `current-system.md` documents the former/current operational system and may explain why a requirement exists. It must **not** override later approved V1 target behavior.
 
@@ -156,18 +174,20 @@ If implementation discovers a genuine contradiction or a missing decision that w
 3. surface the issue for product/specification resolution;
 4. record any approved amendment in GitHub before implementing the changed behavior.
 
-Pure implementation details that preserve all frozen semantics may be selected autonomously according to the project priority order:
+Pure implementation details that preserve all approved semantics may be selected autonomously according to the project priority order:
 
 **reliability > simplicity > maintainability > operational clarity > novelty.**
 
-## 8. Change-control rule after freeze
+## 9. Change-control rule after freeze
 
-The V1 Specification is now a baseline, not an immutable historical artifact.
+The V1 Specification is a baseline, not an immutable historical artifact.
 
 A future necessary change is allowed, but any change that alters frozen product/business/architecture/data behavior must be treated as an explicit specification amendment and must update all affected baseline/acceptance documents consistently before the implementation is considered conformant.
 
-## 9. Exit condition
+The 2026-08-28 target-directed authority-handoff amendment is the first post-freeze V1 amendment and demonstrates this process.
 
-**Phase 5 is complete.**
+## 10. Current exit condition
 
-The repository is ready for the next phase: explicit Codex implementation planning and execution against the frozen V1 Specification and `acceptance-criteria.md`.
+**Phase 5 remains complete.**
+
+Phase 6 implementation is active. M01 is complete. M02 produced and documented a blocker under the original architecture, that blocker has now received an approved specification amendment, and M02 re-verification of the amended design is required before M03 may be authorized.
