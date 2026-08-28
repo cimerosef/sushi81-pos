@@ -291,6 +291,35 @@ public sealed class DirectedHandoffTests
         Assert.AreEqual(2, Directory.EnumerateFiles(fixture.DirectoryPath, "directed-*.json").Count());
     }
 
+    [TestMethod]
+    public async Task ReadyAndGrantPublicationFailuresLeaveSourceBlocked()
+    {
+        foreach (var failurePoint in new[]
+        {
+            DirectedTransferFailurePoint.BeforeReadyMarker,
+            DirectedTransferFailurePoint.BeforeGrantMarker
+        })
+        {
+            using var fixture = new Fixture();
+            var injector = new MarkerFailureInjector(failurePoint);
+            var coordinator = fixture.CreateCoordinator(markerFailureInjector: injector);
+            Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target"]).Succeeded);
+            var transfer = Fixture.Transfer("target", failurePoint == DirectedTransferFailurePoint.BeforeReadyMarker ? 15 : 16);
+            Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
+            var snapshot = fixture.CreateSnapshot();
+            Assert.IsTrue((await coordinator.DurablyRelinquishAsync(await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshot, true))).Succeeded);
+
+            var failed = await coordinator.PublishReleaseMarkersAsync(fixture.DirectoryPath, snapshot);
+            Assert.IsFalse(failed.Succeeded);
+            Assert.AreEqual("marker-publication-failed", failed.Code);
+            Assert.AreEqual(DirectedAuthorityMode.RelinquishedBlocked, coordinator.Current.Mode);
+            Assert.IsFalse(coordinator.MayBusinessWrite("source"));
+
+            var retry = await coordinator.PublishReleaseMarkersAsync(fixture.DirectoryPath, snapshot);
+            Assert.IsTrue(retry.Succeeded, retry.Message);
+        }
+    }
+
     private sealed class SaveFailureInjector : IDurableAuthorityStateFailureInjector
     {
         public bool FailNext { get; set; }
