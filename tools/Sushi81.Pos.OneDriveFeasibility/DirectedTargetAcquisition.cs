@@ -146,12 +146,16 @@ public sealed class DurableTargetAcquisitionStore(
 
 public sealed class DirectedTargetAcquisitionCoordinator(
     DurableTargetAcquisitionStore stateStore,
-    string localDeviceId)
+    string localDeviceId,
+    IEnumerable<string>? pairedDeviceIds = null,
+    IArtifactSyncObserver? syncObserver = null)
 {
     public DurableTargetAcquisitionStore StateStore { get; } = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
     public string LocalDeviceId { get; } = string.IsNullOrWhiteSpace(localDeviceId)
         ? throw new ArgumentException("A local target device ID is required.", nameof(localDeviceId))
         : localDeviceId;
+    public IReadOnlySet<string>? PairedDeviceIds { get; } = pairedDeviceIds?.ToHashSet(StringComparer.Ordinal);
+    private IArtifactSyncObserver? SyncObserver { get; } = syncObserver;
 
     public DurableTargetAcquisitionState? Current
     {
@@ -164,7 +168,7 @@ public sealed class DirectedTargetAcquisitionCoordinator(
     }
 
     public bool MayBusinessWrite(DirectedTransferIdentity transfer) =>
-        transfer is not null && transfer.IsValid && Current is { } state && state.Matches(transfer, LocalDeviceId);
+        transfer is not null && transfer.IsValid && IsPaired(transfer) && Current is { } state && state.Matches(transfer, LocalDeviceId);
 
     public async Task<DirectedTransferOperationResult> AcquireAsync(
         string handoffDirectory,
@@ -175,6 +179,10 @@ public sealed class DirectedTargetAcquisitionCoordinator(
         if (!expectedTransfer.IsValid || !string.Equals(expectedTransfer.TargetDeviceId, LocalDeviceId, StringComparison.Ordinal))
         {
             return new(false, "wrong-target", "Only the exact directed target may acquire this transfer.");
+        }
+        if (!IsPaired(expectedTransfer))
+        {
+            return new(false, "unpaired-target", "The source and target are not both present in the target's paired device set.");
         }
 
         DurableTargetAcquisitionState? existing = null;
@@ -198,6 +206,21 @@ public sealed class DirectedTargetAcquisitionCoordinator(
             return new(false, "stale-target-state", "A different or stale durable target acquisition already exists; it cannot be overwritten.");
         }
 
+        IReadOnlyList<ArtifactSyncObservation>? syncObservations = null;
+        if (SyncObserver is not null)
+        {
+            syncObservations =
+            [
+                SyncObserver.Observe(snapshotPath),
+                SyncObserver.Observe(Path.Combine(handoffDirectory, "directed-" + expectedTransfer.TransferId + ".ready.json")),
+                SyncObserver.Observe(Path.Combine(handoffDirectory, "directed-" + expectedTransfer.TransferId + ".grant.json"))
+            ];
+            if (syncObservations.Any(observation => !observation.IsConfirmedInSync))
+            {
+                return new(false, "target-artifacts-not-synchronized", "Device B requires observer-confirmed IN_SYNC for the snapshot and both directed markers.", SyncObservations: syncObservations);
+            }
+        }
+
         var validation = await DirectedTransferMarkerPublisher.ValidateAsync(
             handoffDirectory,
             snapshotPath,
@@ -206,7 +229,7 @@ public sealed class DirectedTargetAcquisitionCoordinator(
             cancellationToken);
         if (!validation.IsValid || validation.Ready is null || validation.Grant is null)
         {
-            return new(false, validation.Code, validation.Message, Validation: validation);
+            return new(false, validation.Code, validation.Message, Validation: validation, SyncObservations: syncObservations);
         }
 
         var next = new DurableTargetAcquisitionState(
@@ -228,11 +251,17 @@ public sealed class DirectedTargetAcquisitionCoordinator(
         try
         {
             StateStore.Save(next);
-            return new(true, "target-acquired", "Exact target validation and durable acquisition completed.", Validation: validation, TargetState: next);
+            return new(true, "target-acquired", "Exact target validation and durable acquisition completed.", Validation: validation, TargetState: next, SyncObservations: syncObservations);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or InvalidOperationException)
         {
-            return new(false, "target-durable-write-failed", exception.Message, Validation: validation);
+            return new(false, "target-durable-write-failed", exception.Message, Validation: validation, SyncObservations: syncObservations);
         }
     }
+
+    private bool IsPaired(DirectedTransferIdentity transfer) =>
+        PairedDeviceIds is null
+        || PairedDeviceIds.Contains(transfer.SourceDeviceId)
+        && PairedDeviceIds.Contains(transfer.TargetDeviceId)
+        && PairedDeviceIds.Contains(LocalDeviceId);
 }

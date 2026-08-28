@@ -20,7 +20,8 @@ public sealed record DirectedTransferOperationResult(
     string Message,
     DurableAuthorityState? State = null,
     DirectedTargetValidationResult? Validation = null,
-    DurableTargetAcquisitionState? TargetState = null);
+    DurableTargetAcquisitionState? TargetState = null,
+    IReadOnlyList<ArtifactSyncObservation>? SyncObservations = null);
 
 /// <summary>
 /// Synthetic directed-transfer state machine. It persists relinquishment before publishing

@@ -32,6 +32,7 @@ internal static class Program
                 "publish" => Print(await PublishAsync(arguments), json),
                 "inspect" => Print(await InspectAsync(arguments), json),
                 "directed-source-run" => Print(await DirectedSourceRunAsync(arguments), json),
+                "directed-source-resume" => Print(await DirectedSourceResumeAsync(arguments), json),
                 "directed-target-acquire" => Print(await DirectedTargetAcquireAsync(arguments), json),
                 "directed-source-state" => Print(DirectedSourceState(arguments), json),
                 "claim" => Print(await CreateClaimAsync(arguments), json),
@@ -199,14 +200,81 @@ internal static class Program
         var handoffDirectory = Path.Combine(Path.GetFullPath(root), "Sushi81-M02-Synthetic", "DirectedHandoff");
         var snapshotPath = Value(args, "--snapshot") ?? Path.Combine(handoffDirectory, "directed-" + transfer.TransferId + ".snapshot.db");
         var statePath = Path.Combine(stateDirectory, "target-" + localDevice + ".json");
-        var coordinator = new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(statePath), localDevice);
+        var observer = new CloudFileArtifactSyncObserver(new CloudFileStateReader());
+        var coordinator = new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(statePath), localDevice, [source, target], observer);
         var result = await coordinator.AcquireAsync(handoffDirectory, snapshotPath, transfer);
         var restarted = new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(statePath), localDevice);
         var mayWrite = restarted.MayBusinessWrite(transfer);
         return new CommandResult(result.Succeeded && mayWrite, result.Code, result.Message, new
         {
             transfer, localDeviceId = localDevice, sourceDeviceId = source, targetDeviceId = target, handoffDirectory, snapshotPath, statePath,
-            validation = result.Validation, durableTargetState = restarted.Current, restarted = true, mayBusinessWrite = mayWrite
+            validation = result.Validation, syncObservations = result.SyncObservations, durableTargetState = restarted.Current, restarted = true, mayBusinessWrite = mayWrite
+        });
+    }
+
+    private static async Task<CommandResult> DirectedSourceResumeAsync(string[] args)
+    {
+        var root = Required(args, 1, "registered OneDrive root");
+        var rootValidation = new WindowsSyncRootCatalog().Validate(root);
+        if (!rootValidation.IsAccepted) return new CommandResult(false, "rejected-root", rootValidation.Reason, rootValidation);
+        var stateDirectory = SyntheticStateDirectory(args);
+        var source = RequiredOption(args, "--device", "source device ID");
+        var target = RequiredOption(args, "--target", "target device ID");
+        var lineage = RequiredOption(args, "--lineage", "lineage ID");
+        var transferId = RequiredOption(args, "--transfer-id", "transfer ID");
+        var generation = ParseLong(args, "--generation", 1);
+        var version = ParseLong(args, "--version", 1);
+        var timeoutSeconds = ParseLong(args, "--timeout-seconds", 60);
+        var pollMs = ParseLong(args, "--poll-ms", 500);
+        var transfer = new DirectedTransferIdentity(transferId, lineage, generation, version, source, target);
+        if (!transfer.IsValid) throw new ArgumentException("The directed source transfer identity is invalid.");
+
+        var handoffDirectory = Path.Combine(Path.GetFullPath(root), "Sushi81-M02-Synthetic", "DirectedHandoff");
+        var snapshotPath = Value(args, "--snapshot") ?? Path.Combine(handoffDirectory, "directed-" + transfer.TransferId + ".snapshot.db");
+        var observer = new CloudFileArtifactSyncObserver(new CloudFileStateReader());
+        var statePath = Path.Combine(stateDirectory, "source-authority.json");
+        var coordinator = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(statePath), syncObserver: observer);
+        DurableAuthorityState state;
+        try
+        {
+            state = coordinator.Current;
+        }
+        catch (InvalidDataException exception)
+        {
+            return new CommandResult(false, "source-state-unresolved", exception.Message);
+        }
+        if (state.Transfer != transfer || state.DeviceId != source)
+            return new CommandResult(false, "transfer-state-mismatch", "Durable source state does not match the requested immutable transfer.", state);
+        if (state.Mode == DirectedAuthorityMode.Released)
+            return new CommandResult(true, "already-released", "Restart/resume found a durably completed source transfer.", new { restarted = true, state, sourceMayBusinessWrite = coordinator.MayBusinessWrite(source) });
+        if (state.Mode != DirectedAuthorityMode.RelinquishedBlocked)
+            return new CommandResult(false, "resume-requires-relinquished", "Source resume is only available after durable relinquishment and before Released.", state);
+
+        var published = await coordinator.PublishReleaseMarkersAsync(handoffDirectory, snapshotPath);
+        if (!published.Succeeded && published.Code != "already-released")
+        {
+            var readyPath = Path.Combine(handoffDirectory, "directed-" + transfer.TransferId + ".ready.json");
+            var grantPath = Path.Combine(handoffDirectory, "directed-" + transfer.TransferId + ".grant.json");
+            var readySync = await WaitForInSyncAsync(observer, readyPath, TimeSpan.FromSeconds(timeoutSeconds), TimeSpan.FromMilliseconds(pollMs));
+            var grantSync = await WaitForInSyncAsync(observer, grantPath, TimeSpan.FromSeconds(timeoutSeconds), TimeSpan.FromMilliseconds(pollMs));
+            if (!readySync.IsConfirmedInSync || !grantSync.IsConfirmedInSync)
+                return new CommandResult(false, published.Code, published.Message, new { restarted = true, state = coordinator.Current, readySync, grantSync });
+            published = await coordinator.PublishReleaseMarkersAsync(handoffDirectory, snapshotPath);
+            if (!published.Succeeded && published.Code != "already-released") return new CommandResult(false, published.Code, published.Message, published);
+        }
+
+        var finalState = coordinator.Current;
+        return new CommandResult(finalState.Mode == DirectedAuthorityMode.Released, "source-resumed", "Restart/resume completed the same immutable directed transfer.", new
+        {
+            restarted = true,
+            transfer,
+            sourceMode = finalState.Mode,
+            sourceMayBusinessWrite = coordinator.MayBusinessWrite(source),
+            snapshotPath,
+            readyMarkerPath = Path.Combine(handoffDirectory, "directed-" + transfer.TransferId + ".ready.json"),
+            grantMarkerPath = Path.Combine(handoffDirectory, "directed-" + transfer.TransferId + ".grant.json"),
+            readySync = observer.Observe(Path.Combine(handoffDirectory, "directed-" + transfer.TransferId + ".ready.json")),
+            grantSync = observer.Observe(Path.Combine(handoffDirectory, "directed-" + transfer.TransferId + ".grant.json"))
         });
     }
 
@@ -324,6 +392,7 @@ internal static class Program
         claim <claims-directory> --lineage guid [--device id] [--generation n] [--version n]
         observe-claims <claims-directory> --lineage guid [--generation n] [--version n]
         directed-source-run <registered-OneDrive-root> --state-dir <synthetic-dir> --device <source> --target <target> --lineage <guid> --generation <n> --version <n> [--transfer-id <guid>] [--timeout-seconds n] [--poll-ms n] [--json]
+        directed-source-resume <registered-OneDrive-root> --state-dir <synthetic-dir> --device <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> [--snapshot path] [--timeout-seconds n] [--poll-ms n] [--json]
         directed-target-acquire <registered-OneDrive-root> --state-dir <synthetic-dir> --device <local> --source <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> [--snapshot path] [--json]
         directed-source-state <source-state-file> --device <source> [--json]
 
