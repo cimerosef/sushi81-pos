@@ -192,13 +192,13 @@ public sealed class TransportProbe
         Add(0x00000002, "Hidden");
         Add(0x00000004, "System");
         Add(0x00000010, "Directory");
-        Add(0x00000400, "Compressed");
+        Add(0x00000400, "ReparsePoint");
+        Add(0x00000800, "Compressed");
         Add(0x00004000, "Encrypted");
         Add(0x00040000, "RecallOnOpen");
         Add(0x00080000, "Pinned");
         Add(0x00100000, "Unpinned");
         Add(0x00400000, "RecallOnDataAccess");
-        Add(0x04000000, "ReparsePoint");
         return flags;
 
         void Add(uint mask, string name)
