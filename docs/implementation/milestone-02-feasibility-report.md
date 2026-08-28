@@ -7,6 +7,7 @@ This report records the M02 feasibility evidence. It is not a specification amen
 ## Scope and provenance
 
 - Branch: `codex/m02-onedrive-feasibility`
+- Verified implementation commit: `9d04653bb8643e4d94d8d101ee1483fc6f0c4707`.
 - Task contract: `docs/implementation/milestone-02-onedrive-feasibility.md`
 - Evidence data: synthetic payloads, local synthetic SQLite files and in-memory transport simulation only; no customer, order, payment, credential, or account data.
 - M02 does not activate the POS write authority, relocate `live.db`, or implement business features.

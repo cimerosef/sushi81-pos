@@ -191,7 +191,7 @@ Do not mark an AC Passed using only a planned test name or an unexecuted checkli
 **Milestone:** M02 — OneDrive single-writer feasibility gate  
 **Authorized task definition:** `docs/implementation/milestone-02-onedrive-feasibility.md`  
 **Task-definition commit:** `a158e6a49faff831c6236df06e285056410e6225`  
-**Implementation status:** Partial; deterministic evidence is complete, and the gate conclusion is `PARTIAL — real multi-device evidence still required`.
+**Implementation status:** Partial; deterministic evidence is complete at commit `9d04653bb8643e4d94d8d101ee1483fc6f0c4707`, and the gate conclusion is `PARTIAL — real multi-device evidence still required`.
 
 ### M02 evidence record
 
