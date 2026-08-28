@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed and merged to `main` via PR #1. M02 — OneDrive single-writer feasibility gate is explicitly authorized by `docs/implementation/milestone-02-onedrive-feasibility.md` and has not started implementation yet.
+**Current state:** Phase 6 M01 is Passed and merged to `main` via PR #1. M02 — OneDrive single-writer feasibility gate is blocked pending a specification/architecture amendment: the approved OneDrive/local-filesystem model has no documented cross-client atomic exclusive-grant primitive.
 
 ## 1. Status vocabulary
 
@@ -20,7 +20,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 | Milestone | Status | Authorization / result |
 |---|---|---|
 | M01 — Foundation and safe persistence spine | Passed | Merged to `main` via PR #1 after automated verification and successful Windows/WPF manual re-verification. |
-| M02 — OneDrive feasibility gate | Not started | Explicitly authorized by `docs/implementation/milestone-02-onedrive-feasibility.md`; implementation may begin from latest `main`. |
+| M02 — OneDrive feasibility gate | Blocked — amendment required | Deterministic evidence distinguishes transport observation from mutual-exclusion proof; no documented cross-client atomic exclusive-grant primitive is available in the approved model. See `docs/implementation/milestone-02-feasibility-report.md`. |
 | M03 — Catalogue and settings | Not started | Pending successful M02 feasibility gate and explicit M03 authorization |
 | M04 — Order-entry vertical slice | Not started | Pending M03 |
 | M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
@@ -191,7 +191,11 @@ Do not mark an AC Passed using only a planned test name or an unexecuted checkli
 **Milestone:** M02 — OneDrive single-writer feasibility gate  
 **Authorized task definition:** `docs/implementation/milestone-02-onedrive-feasibility.md`  
 **Task-definition commit:** `a158e6a49faff831c6236df06e285056410e6225`  
-**Implementation status:** Not started.
+**Implementation status:** Blocked — amendment required; correction code/tests are verified at commit `5f44e34ec4a98b767d01a35846deec75e6d29825`; current gate conclusion is `BLOCKED — specification/architecture amendment required`.
+
+### M02 evidence record
+
+The evidence report is `docs/implementation/milestone-02-feasibility-report.md`. It records the fail-closed interpretation, strict handoff validation, publication ordering, deterministic N-device contention simulation, and the distinction between transport evidence and mutual-exclusion proof. The correction-pass Release verification is 67 passed, 0 failed, 0 skipped: Domain 3, Application 2, Infrastructure 16, Architecture/localization 8, M02 protocol 13, and M02 Windows/SQLite harness 25; build completed with 0 warnings/errors and the existing desktop win-x64 self-contained publish passed. M02 does not mark any M06/M07/M08-owned acceptance criterion Passed and does not authorize M03.
 
 M02 must end in exactly one gate conclusion defined by the task contract:
 
