@@ -17,8 +17,8 @@ Automated fake-HTTP/synthetic tests cover strict receipts, missing digest, publi
 ## Branch, commits and amended sources
 
 - Branch: `codex/m02-directed-handoff-revalidation`
-- Verification implementation commit: `0e5938d1f3fd7d7bc0af6bf2f25eed31759a01dc`.
-- Latest test-complete code head: `05c59f5bffd9f21f0f9deb52f5c70d0cab033509` (the final evidence/status commit follows this code head).
+- Verification implementation commit: `02633f5e0944c6d29893df906f56d9d971bec149`.
+- Verification CI head: `02633f5e0944c6d29893df906f56d9d971bec149` (GitHub Actions run #81, success).
 - PR: [#3](https://github.com/cimerosef/sushi81-pos/pull/3), open and not merged.
 - Original feasibility evidence remains in `docs/implementation/milestone-02-feasibility-report.md`; it is not rewritten here.
 - Amended sources: `docs/decisions/target-directed-authority-handoff.md`, `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`, and `docs/implementation-plan.md`.
@@ -204,7 +204,7 @@ GitHub Actions Continuous Integration has completed successfully for the pushed 
 
 Final implementation tree is limited to the M02 harness and evidence: `tools/Sushi81.Pos.OneDriveFeasibility` (Cloud Files historical observation, centralized device-local lifecycle authority gate, persistent authority cursor, durable source/target stores, marker/snapshot validation, direct `HttpClient` GitHub Release Asset transport, grant schema, source/target GitHub coordinators, newest-three retention and directed CLI including promotion/restart); `tools/Sushi81.Pos.OneDriveFeasibility.Tests` (64 directed durable/source/target/lifecycle/diagnostic/GitHub transport tests, including strict receipt, token redaction, source ordering, exact target and retention tests); `tests/Sushi81.Pos.OneDriveFeasibility.Tests` (32 pure protocol tests); unchanged M01/product projects under `src/` and their existing test projects; and the M02 evidence/status documents. No Catalogue, BusinessSettings, Order, Cart, Payment, pricing/VAT, printing, export, Hiboutik, pairing, disaster-recovery, archive, installer or legacy emergency-model code was added.
 
-The real Home Device A run above supplied historical OneDrive transport evidence, but it also demonstrated that the local observer is a false negative for a remotely-visible regular file (`NO_STATES`). That historical local-only gate remains blocked and is superseded for normal handoff by the approved GitHub transport amendment. CI run #75 verified the prior directed evidence head `49c9866576dee27b35af62b0e177464b176830eb`; the current GitHub verification head and CI run will be recorded after push.
+The real Home Device A run above supplied historical OneDrive transport evidence, but it also demonstrated that the local observer is a false negative for a remotely-visible regular file (`NO_STATES`). That historical local-only gate remains blocked and is superseded for normal handoff by the approved GitHub transport amendment. CI run #75 verified the prior directed evidence head `49c9866576dee27b35af62b0e177464b176830eb`; current GitHub verification head `02633f5e0944c6d29893df906f56d9d971bec149` is verified by CI run #81 (success).
 
 The amended preparation mapping is: AC-STO-002 (N-device target-directed single writer), AC-STO-003 (close and handoff ordering), AC-STO-004 (target validation/acquisition), AC-STO-005 (no silent takeover), AC-STO-007 (target-directed retention), AC-STO-008 (transport/checkpoint assumptions), AC-STO-009 (generation invalidation), and AC-STO-010 (read-only authority boundary). These remain owner-milestone criteria and are not marked Passed by M02 revalidation; the report is preparation evidence for their M07 owner milestone.
 
