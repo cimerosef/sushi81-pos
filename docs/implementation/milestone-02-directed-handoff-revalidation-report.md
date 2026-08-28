@@ -46,7 +46,7 @@ The executable coordinator enforces this with `DirectedSnapshotEvidence.CaptureA
 | source write after relinquishment | rejected |
 | participant disappearance | no substitute writer; target remains blocked |
 
-The automated tests cover each row with synthetic failure injectors; the full solution result is 96 passed, 0 failed and 0 skipped.
+The automated tests cover each row with synthetic failure injectors; the full solution result is 97 passed, 0 failed and 0 skipped.
 
 ## Target validation matrix
 
@@ -54,7 +54,7 @@ Target acquisition requires exact local target identity, distinct valid paired s
 
 ## N-device safety and liveness
 
-The deterministic model includes at least source A and target/non-target devices B and C with arbitrary artifact visibility order, delayed marker, duplicate/replayed marker, stale versions/generations, malformed identity, source==target, restart/retry and retarget attempts. The safety invariant is `writable-device-count <= 1` for every modeled interleaving. The valid-path liveness invariant is that, after successful durable relinquishment, complete transport and exact target validation, the selected target can become writable. The directed protocol suite passed 30/30 and the durable handoff suite passed 37/37.
+The deterministic model includes at least source A and target/non-target devices B and C with arbitrary artifact visibility order, delayed marker, duplicate/replayed marker, stale versions/generations, malformed identity, source==target, restart/retry and retarget attempts. The safety invariant is `writable-device-count <= 1` for every modeled interleaving. The valid-path liveness invariant is that, after successful durable relinquishment, complete transport and exact target validation, the selected target can become writable. The directed protocol suite passed 30/30 and the durable handoff suite passed 38/38.
 
 ## Cloud Files and transport boundary
 
@@ -79,7 +79,7 @@ Device B independently runs `validate-root` and `inspect` against the same regis
 
 ## Build, tests and AC mapping
 
-Verification was run on Windows 10.0.26200 x64 with .NET SDK 10.0.400 (runtime 10.0.11). Central package versions are `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0 and `MSTest` 4.0.2. `dotnet restore Sushi81.Pos.sln` passed with network access; `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings and 0 errors; `dotnet test Sushi81.Pos.sln -c Release --no-build` passed with 96 passed, 0 failed and 0 skipped: Domain 3, Application 2, Infrastructure integration 16, Architecture 8, existing M02 Cloud Files/protocol 30, and directed durable handoff 37. The required self-contained `win-x64` publish with `PublishSingleFile=false` passed and produced the ignored Desktop publish directory. A non-escalated restore/publish attempt was blocked only by NuGet network policy; the escalated reruns passed.
+Verification was run on Windows 10.0.26200 x64 with .NET SDK 10.0.400 (runtime 10.0.11). Central package versions are `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0 and `MSTest` 4.0.2. `dotnet restore Sushi81.Pos.sln` passed with network access; `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings and 0 errors; `dotnet test Sushi81.Pos.sln -c Release --no-build` passed with 97 passed, 0 failed and 0 skipped: Domain 3, Application 2, Infrastructure integration 16, Architecture 8, existing M02 Cloud Files/protocol 30, and directed durable handoff 38. The required self-contained `win-x64` publish with `PublishSingleFile=false` passed and produced the ignored Desktop publish directory. A non-escalated restore/publish attempt was blocked only by NuGet network policy; the escalated reruns passed.
 
 No real two-device OneDrive transport run was available: the harness reported zero registered sync roots in this environment. Therefore the deterministic protocol/durable-state evidence is complete, but the gate remains Partial rather than Feasible.
 
