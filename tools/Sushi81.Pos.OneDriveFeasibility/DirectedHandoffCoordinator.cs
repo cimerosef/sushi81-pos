@@ -30,9 +30,11 @@ public sealed record DirectedTransferOperationResult(
 public sealed class DirectedHandoffCoordinator(
     DurableAuthorityStateStore stateStore,
     IDirectedTransferFailureInjector? failureInjector = null,
-    IArtifactSyncObserver? syncObserver = null)
+    IArtifactSyncObserver? syncObserver = null,
+    DirectedLifecycleLedgerStore? lifecycleLedger = null)
 {
     private readonly IArtifactSyncObserver syncObserver = syncObserver ?? new DeterministicArtifactSyncObserver();
+    public DirectedLifecycleLedgerStore? LifecycleLedger { get; } = lifecycleLedger;
 
     public DurableAuthorityState Current => stateStore.Load();
 
@@ -43,10 +45,17 @@ public sealed class DirectedHandoffCoordinator(
     public bool MayBusinessWrite(string deviceId)
     {
         var state = TryLoad();
-        return state is not null
-            && state.Mode == DirectedAuthorityMode.Authoritative
-            && !state.ClosedWithAuthority
-            && string.Equals(state.DeviceId, deviceId, StringComparison.Ordinal);
+        if (state is null || !string.Equals(state.DeviceId, deviceId, StringComparison.Ordinal)) return false;
+        try
+        {
+            return new DirectedLifecycleAuthorityGate(deviceId, LifecycleLedger)
+                .EvaluateSource(state)
+                .MayWrite;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
     }
 
     public DirectedTransferOperationResult ReopenRetainedAuthority()
