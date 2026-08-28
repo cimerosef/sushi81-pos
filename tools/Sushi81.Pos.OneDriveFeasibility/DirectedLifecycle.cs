@@ -144,15 +144,19 @@ public sealed class DirectedLifecycleLedgerStore(string ledgerPath)
 }
 
 public sealed class DirectedContinuousLifecycleCoordinator(
-    DirectedLifecycleLedgerStore ledger,
+    DirectedLifecycleLedgerStore? ledger,
     string localDeviceId)
 {
-    public DirectedLifecycleLedgerStore Ledger { get; } = ledger ?? throw new ArgumentNullException(nameof(ledger));
+    /// <summary>Optional append-only diagnostic history; never required for local authority safety.</summary>
+    public DirectedLifecycleLedgerStore? Ledger { get; } = ledger;
     public string LocalDeviceId { get; } = string.IsNullOrWhiteSpace(localDeviceId)
         ? throw new ArgumentException("A local device ID is required.", nameof(localDeviceId))
         : localDeviceId;
 
-    public DirectedTransferOperationResult ValidateNextTransfer(DirectedTransferIdentity transfer, IEnumerable<string> pairedDeviceIds)
+    public DirectedTransferOperationResult ValidateNextTransfer(
+        DirectedTransferIdentity transfer,
+        IEnumerable<string> pairedDeviceIds,
+        DurableAuthorityState? localSourceState = null)
     {
         var paired = pairedDeviceIds?.ToHashSet(StringComparer.Ordinal)
             ?? throw new ArgumentNullException(nameof(pairedDeviceIds));
@@ -160,6 +164,28 @@ public sealed class DirectedContinuousLifecycleCoordinator(
             || !paired.Contains(LocalDeviceId) || transfer.SourceDeviceId != LocalDeviceId)
         {
             return new(false, "unpaired-or-invalid-progression", "The next transfer is not a valid exact local-source member of the paired set.");
+        }
+
+        if (localSourceState is not null)
+        {
+            if (!localSourceState.IsValid
+                || localSourceState.Mode != DirectedAuthorityMode.Authoritative
+                || localSourceState.AuthorityCursor is not { } cursor
+                || cursor.LineageId != transfer.LineageId
+                || cursor.Generation != transfer.Generation
+                || cursor.HandoffVersion + 1 != transfer.HandoffVersion)
+            {
+                return new(false, "stale-or-replayed-version", "The local authoritative cursor does not permit this exact next handoff version.");
+            }
+
+            return new(true, "next-transfer-valid", "The next transfer is monotonic from the device-local authority cursor.");
+        }
+
+        if (Ledger is null)
+        {
+            return transfer.HandoffVersion == 1
+                ? new(true, "first-transfer-valid", "The first local transfer establishes the lineage cursor.")
+                : new(false, "local-cursor-required", "A later transfer requires the current device-local authority cursor.");
         }
 
         IReadOnlyList<DirectedLifecycleLedgerEntry> entries;
@@ -212,6 +238,11 @@ public sealed class DirectedContinuousLifecycleCoordinator(
             return new(false, "lifecycle-completion-mismatch", "Released source and durable target acquisition do not describe the same transfer.");
         }
 
+        if (Ledger is null)
+        {
+            return new(false, "audit-ledger-unconfigured", "No diagnostic ledger is configured; local authority safety does not require one.");
+        }
+
         var entries = Ledger.Load();
         var revision = entries.Count == 0 ? 1 : entries.Max(entry => entry.Revision) + 1;
         var entry = new DirectedLifecycleLedgerEntry(
@@ -238,6 +269,49 @@ public sealed class DirectedContinuousLifecycleCoordinator(
         }
     }
 
+    /// <summary>
+    /// Records audit history from the target's local durable cursor only. This
+    /// overload is intentionally suitable for a distributed test or operator
+    /// diagnostic: it never reads a source device's local state.
+    /// </summary>
+    public DirectedTransferOperationResult RecordCompletedTransfer(DurableTargetAcquisitionState acquisition)
+    {
+        ArgumentNullException.ThrowIfNull(acquisition);
+        if (Ledger is null)
+        {
+            return new(false, "audit-ledger-unconfigured", "No diagnostic ledger is configured; local authority safety does not require one.");
+        }
+        if (!acquisition.IsValid)
+        {
+            return new(false, "invalid-target-state", "Only valid durable target acquisition may be recorded in audit history.");
+        }
+
+        var entries = Ledger.Load();
+        var revision = entries.Count == 0 ? 1 : entries.Max(entry => entry.Revision) + 1;
+        var entry = new DirectedLifecycleLedgerEntry(
+            DirectedLifecycleLedgerEntry.CurrentFormatVersion,
+            revision,
+            acquisition.LineageId,
+            acquisition.Generation,
+            acquisition.HandoffVersion,
+            acquisition.TransferId,
+            acquisition.SourceDeviceId,
+            acquisition.TargetDeviceId,
+            acquisition.SnapshotPath,
+            acquisition.SnapshotChecksum,
+            acquisition.SnapshotByteLength,
+            DateTimeOffset.UtcNow);
+        try
+        {
+            Ledger.Append(entry);
+            return new(true, "audit-leg-recorded", "The durable target cursor was appended to optional audit history.");
+        }
+        catch (InvalidDataException exception)
+        {
+            return new(false, "lifecycle-ledger-write-failed", exception.Message);
+        }
+    }
+
     public DirectedTransferOperationResult PromoteAcquiredTargetToSource(
         DurableTargetAcquisitionState acquisition,
         string authorityStatePath,
@@ -252,26 +326,6 @@ public sealed class DirectedContinuousLifecycleCoordinator(
 
         try
         {
-            var history = Ledger.Load();
-            var latest = history
-                .Where(entry => entry.LineageId == acquisition.LineageId && entry.Generation == acquisition.Generation)
-                .OrderByDescending(entry => entry.HandoffVersion)
-                .FirstOrDefault();
-            if (latest is null)
-            {
-                return new(false, "lifecycle-completion-required", "Target promotion requires a recorded completed lifecycle leg.");
-            }
-            if (!latest.Matches(new DirectedTransferIdentity(
-                    acquisition.TransferId,
-                    acquisition.LineageId,
-                    acquisition.Generation,
-                    acquisition.HandoffVersion,
-                    acquisition.SourceDeviceId,
-                    acquisition.TargetDeviceId)))
-            {
-                return new(false, "stale-target-promotion", "Only the latest completed lifecycle target may be promoted to the next source.", null, null, acquisition);
-            }
-
             var authority = new DurableAuthorityStateStore(authorityStatePath);
             if (File.Exists(authority.StatePath))
             {
@@ -283,14 +337,17 @@ public sealed class DirectedContinuousLifecycleCoordinator(
                 if (existing.Mode != DirectedAuthorityMode.Released
                     || existing.Transfer is not { IsValid: true } releasedTransfer
                     || releasedTransfer.LineageId != acquisition.LineageId
-                    || releasedTransfer.Generation != acquisition.Generation)
+                    || releasedTransfer.Generation != acquisition.Generation
+                    || existing.AuthorityCursor is not { } releasedCursor
+                    || releasedCursor.HandoffVersion + 1 != acquisition.HandoffVersion
+                    || !string.Equals(releasedTransfer.TargetDeviceId, acquisition.SourceDeviceId, StringComparison.Ordinal))
                 {
-                    return new(false, "promotion-state-collision", "An unresolved or unrelated authority state cannot be replaced.", existing);
+                    return new(false, "stale-target-promotion", "The target cursor is not the exact next successor to this device's released local cursor.", existing, null, acquisition);
                 }
 
                 // The source file is a current cursor. Its prior Released
-                // evidence remains represented by the append-only lifecycle
-                // ledger while this atomic write advances the cursor.
+                // evidence remains represented by the optional append-only
+                // audit history while this atomic write advances the cursor.
                 var advanced = new DurableAuthorityState(
                     DurableAuthorityState.CurrentFormatVersion,
                     existing.Revision + 1,
@@ -301,29 +358,48 @@ public sealed class DirectedContinuousLifecycleCoordinator(
                     DateTimeOffset.UtcNow,
                     false,
                     null,
-                    null);
+                    null,
+                    new DirectedLocalAuthorityCursor(acquisition.LineageId, acquisition.Generation, acquisition.HandoffVersion));
                 authority.Save(advanced);
-                return new(true, "target-promoted-to-source", "Latest durable target promoted to the next source; prior source evidence remains in the lifecycle ledger.", advanced);
+                return new(true, "target-promoted-to-source", "Latest durable target promoted to the next source; prior source evidence remains in local durable history.", advanced);
             }
 
-            var result = new DirectedHandoffCoordinator(authority).InitializeAuthoritative(LocalDeviceId, paired);
+            if (acquisition.HandoffVersion != 1)
+            {
+                return new(false, "promotion-local-cursor-missing", "A later target cannot be promoted without this device's prior local authority cursor.", TargetState: acquisition);
+            }
+
+            var result = new DirectedHandoffCoordinator(authority).InitializeAuthoritative(
+                LocalDeviceId,
+                paired,
+                new DirectedLocalAuthorityCursor(
+                    acquisition.LineageId,
+                    acquisition.Generation,
+                    acquisition.HandoffVersion));
             return result.Succeeded
-                ? result with { Code = "target-promoted-to-source", Message = "Durably acquired target promoted to the next source without deleting acquisition or ledger state." }
+                ? result with
+                {
+                    Code = "target-promoted-to-source",
+                    Message = "Durably acquired target promoted to the next source without deleting acquisition or audit history."
+                }
                 : result;
         }
         catch (InvalidDataException exception)
         {
             return new(false, "lifecycle-state-unresolved", exception.Message);
         }
+        catch (IOException exception)
+        {
+            return new(false, "promotion-durable-write-failed", exception.Message, TargetState: acquisition);
+        }
     }
 }
 
 /// <summary>
 /// Centralized lifecycle-aware business-write decision. Durable source and
-/// target records are interpreted as current cursors only after the append-only
-/// lifecycle high-water mark confirms that they still describe the current
-/// holder. Historical target evidence is therefore retained for audit without
-/// retaining write authority.
+/// target records are interpreted as a device-local high-water/cursor. The
+/// optional ledger is diagnostic history only and is deliberately not read by
+/// the safety-critical decision.
 /// </summary>
 public sealed class DirectedLifecycleAuthorityGate(
     string localDeviceId,
@@ -334,7 +410,8 @@ public sealed class DirectedLifecycleAuthorityGate(
     public string LocalDeviceId { get; } = string.IsNullOrWhiteSpace(localDeviceId)
         ? throw new ArgumentException("A local device ID is required.", nameof(localDeviceId))
         : localDeviceId;
-    public DirectedLifecycleLedgerStore? LifecycleLedger { get; } = lifecycleLedger;
+    /// <summary>Optional test/audit history; never a safety input.</summary>
+    public DirectedLifecycleLedgerStore? AuditLedger { get; } = lifecycleLedger;
     public DurableAuthorityStateStore? SourceStateStore { get; } = sourceStateStore;
     public DurableTargetAcquisitionStore? TargetStateStore { get; } = targetStateStore;
 
@@ -344,8 +421,8 @@ public sealed class DirectedLifecycleAuthorityGate(
         DurableTargetAcquisitionState? target = null;
         try
         {
-            if (SourceStateStore is not null) source = SourceStateStore.Load();
-            if (TargetStateStore is not null) target = TargetStateStore.Load();
+            if (SourceStateStore is not null && File.Exists(SourceStateStore.StatePath)) source = SourceStateStore.Load();
+            if (TargetStateStore is not null && File.Exists(TargetStateStore.StatePath)) target = TargetStateStore.Load();
         }
         catch (InvalidDataException exception)
         {
@@ -365,15 +442,8 @@ public sealed class DirectedLifecycleAuthorityGate(
             return new(false, "source-not-current-authority", "Durable source state is not the current writable authority.");
         }
 
-        var latest = LifecycleLedger?.Load()
-            .OrderByDescending(entry => entry.Revision)
-            .FirstOrDefault();
-        if (latest is not null && !string.Equals(latest.TargetDeviceId, LocalDeviceId, StringComparison.Ordinal))
-        {
-            return new(false, "source-authority-superseded", "A later lifecycle entry names another current authority holder.", latest);
-        }
-
-        return new(true, "current-source-authority", "The durable source state is the current lifecycle authority holder.", latest);
+        var highWater = sourceState.AuthorityCursor?.HandoffVersion;
+        return new(true, "current-source-authority", "The local durable source cursor is the current lifecycle authority holder.", LocalHighWaterVersion: highWater);
     }
 
     public DirectedLifecycleAuthorityDecision Evaluate(
@@ -387,17 +457,6 @@ public sealed class DirectedLifecycleAuthorityGate(
             return new(false, "not-participant", "The local device is not an exact source or target for this transfer.");
         }
 
-        if (sourceState is not null)
-        {
-            if (sourceState.Mode != DirectedAuthorityMode.Released
-                || sourceState.Transfer is not { IsValid: true } sourceTransfer
-                || sourceTransfer != transfer
-                || !string.Equals(sourceState.DeviceId, transfer.SourceDeviceId, StringComparison.Ordinal))
-            {
-                return new(false, "source-release-not-current", "The durable source state does not prove this exact transfer was released.");
-            }
-        }
-
         if (targetState is null)
         {
             return new(false, "target-acquisition-missing", "No durable target acquisition is available for the current lifecycle cursor.");
@@ -407,29 +466,51 @@ public sealed class DirectedLifecycleAuthorityGate(
             return new(false, "target-acquisition-stale", "The durable target cursor does not match the requested transfer and local target.");
         }
 
-        var latest = CurrentEntryFor(transfer.LineageId, transfer.Generation);
-        if (LifecycleLedger is not null)
+        if (sourceState is not null)
         {
-            if (latest is null)
+            if (!sourceState.IsValid || !string.Equals(sourceState.DeviceId, LocalDeviceId, StringComparison.Ordinal))
             {
-                return new(false, "lifecycle-position-unresolved", "The lifecycle high-water mark has no completed entry for this target acquisition.");
+                return new(false, "local-source-state-unresolved", "The local source cursor is invalid or belongs to another device.");
             }
-            if (!latest.Matches(transfer) || latest.TargetDeviceId != LocalDeviceId)
+
+            if (sourceState.Mode is DirectedAuthorityMode.Uninitialized or DirectedAuthorityMode.TransferPrepared or DirectedAuthorityMode.RelinquishedBlocked)
             {
-                return new(false, "target-acquisition-superseded", "The durable target acquisition is historical evidence superseded by a later lifecycle position.", latest);
+                return new(false, "local-source-not-released", "A local prepared/relinquished source cannot authorize a target cursor.");
+            }
+
+            if (sourceState.Mode == DirectedAuthorityMode.Authoritative)
+            {
+                var highWater = Math.Max(sourceState.AuthorityCursor?.HandoffVersion ?? 0, targetState.HandoffVersion);
+                return new(false, "local-source-still-authoritative", "A device-local authoritative source cursor cannot simultaneously authorize a target cursor.", LocalHighWaterVersion: highWater);
+            }
+
+            if (sourceState.Mode == DirectedAuthorityMode.Released)
+            {
+                if (sourceState.Transfer is not { IsValid: true } releasedTransfer
+                    || sourceState.AuthorityCursor is not { } releasedCursor
+                    || !releasedCursor.Matches(releasedTransfer))
+                {
+                    return new(false, "local-source-cursor-unresolved", "Released source state lacks a matching local authority cursor.");
+                }
+
+                var localHighWater = Math.Max(releasedCursor.HandoffVersion, targetState.HandoffVersion);
+                if (transfer.LineageId != releasedTransfer.LineageId
+                    || transfer.Generation != releasedTransfer.Generation
+                    || transfer.HandoffVersion != releasedTransfer.HandoffVersion + 1
+                    || !string.Equals(transfer.SourceDeviceId, releasedTransfer.TargetDeviceId, StringComparison.Ordinal))
+                {
+                    return new(false, "target-acquisition-stale", "The target cursor is not the exact next local successor to the released source cursor.", LocalHighWaterVersion: localHighWater);
+                }
+
+                return new(true, "current-target-authority", "The target cursor is the exact next local successor to the released source cursor.", LocalHighWaterVersion: localHighWater);
             }
         }
 
-        return new(true, "current-target-authority", "The durable target cursor matches the current lifecycle authority position.", latest);
-    }
-
-    private DirectedLifecycleLedgerEntry? CurrentEntryFor(string? lineageId, long? generation)
-    {
-        if (LifecycleLedger is null || string.IsNullOrWhiteSpace(lineageId) || generation is null) return null;
-        return LifecycleLedger.Load()
-            .Where(entry => entry.LineageId == lineageId && entry.Generation == generation.Value)
-            .OrderByDescending(entry => entry.HandoffVersion)
-            .FirstOrDefault();
+        // A participant without any local lineage context may establish its
+        // first cursor from the exact immutable target grant. Subsequent
+        // progression must be anchored by that device's own released source
+        // cursor (handled above), never by a shared mutable ledger.
+        return new(true, "current-target-authority", "The durable target cursor established the first local lifecycle cursor.", LocalHighWaterVersion: targetState.HandoffVersion);
     }
 }
 
@@ -437,4 +518,5 @@ public sealed record DirectedLifecycleAuthorityDecision(
     bool MayWrite,
     string Code,
     string Message,
-    DirectedLifecycleLedgerEntry? CurrentEntry = null);
+    DirectedLifecycleLedgerEntry? CurrentEntry = null,
+    long? LocalHighWaterVersion = null);

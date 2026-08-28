@@ -3,131 +3,132 @@ namespace Sushi81.Pos.OneDriveFeasibility.Tests;
 [TestClass]
 public sealed class ContinuousAuthorityLifecycleTests
 {
-    private static readonly string[] Paired = ["device-a", "device-b"];
     private static readonly string[] PairedWithC = ["device-a", "device-b", "device-c"];
     private static readonly long[] ExpectedVersions = [1, 2, 3];
     private static readonly string[] ExpectedSources = ["device-a", "device-b", "device-a"];
     private static readonly string[] ExpectedTargets = ["device-b", "device-a", "device-b"];
 
     [TestMethod]
-    public async Task SameLineageGenerationSupportsABv1ThenBAv2ThenABv3WithoutDeletingDurableState()
+    public async Task DistributedDeviceLocalCursorsSupportABv1ThenBAv2ThenABv3WithoutSharedSafetyLedger()
     {
         using var fixture = new Fixture();
         var lineage = Guid.NewGuid().ToString("D");
-        var ledger = new DirectedLifecycleLedgerStore(fixture.LedgerPath);
-        var lifecycle = new DirectedContinuousLifecycleCoordinator(ledger, "device-a");
+        var auditLedger = new DirectedLifecycleLedgerStore(fixture.AuditLedgerPath);
 
+        // Leg 1: A -> B v1. B has no source cursor yet, so its exact durable
+        // target acquisition establishes its first local cursor.
         var v1 = new DirectedTransferIdentity(Guid.NewGuid().ToString("D"), lineage, 7, 1, "device-a", "device-b");
-        var v1Source = await fixture.CompleteSourceLegAsync(v1, fixture.SourceAStatePath);
-        var v1Target = new DirectedTargetAcquisitionCoordinator(
-            new DurableTargetAcquisitionStore(fixture.TargetBStatePath), "device-b", PairedWithC, fixture.ConfirmedObserver, ledger);
+        await fixture.CompleteSourceLegAsync(v1, fixture.SourceAStatePath);
+        var v1Target = fixture.CreateTarget("device-b", fixture.TargetBStatePath, fixture.SourceBStatePath);
         Assert.IsFalse(v1Target.MayBusinessWrite(v1));
         var v1Acquired = await v1Target.AcquireAsync(fixture.HandoffDirectory, fixture.SnapshotPath, v1);
         Assert.IsTrue(v1Acquired.Succeeded, v1Acquired.Message);
         Assert.HasCount(3, v1Acquired.SyncObservations!);
-        var v1State = v1Target.Current!;
-        Assert.IsTrue(lifecycle.RecordCompletedTransfer(new DurableAuthorityStateStore(fixture.SourceAStatePath), v1State).Succeeded);
         Assert.IsTrue(v1Target.MayBusinessWrite(v1));
-        Assert.IsFalse(new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceAStatePath), lifecycleLedger: ledger).MayBusinessWrite("device-a"));
-        Assert.IsFalse(new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(fixture.TargetCStatePath), "device-c", PairedWithC, lifecycleLedger: ledger).MayBusinessWrite(v1));
+        Assert.IsFalse(new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceAStatePath)).MayBusinessWrite("device-a"));
+        Assert.IsFalse(fixture.CreateTarget("device-c", fixture.TargetCStatePath, fixture.SourceCStatePath).MayBusinessWrite(v1));
         Assert.AreEqual(1, CountWritable(
-            new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceAStatePath), lifecycleLedger: ledger).MayBusinessWrite("device-a"),
+            new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceAStatePath)).MayBusinessWrite("device-a"),
             v1Target.MayBusinessWrite(v1),
-            new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(fixture.TargetCStatePath), "device-c", PairedWithC, lifecycleLedger: ledger).MayBusinessWrite(v1)));
+            fixture.CreateTarget("device-c", fixture.TargetCStatePath, fixture.SourceCStatePath).MayBusinessWrite(v1)));
+        var v1Revision = v1Target.Current!.Revision;
+        Assert.IsTrue(new DirectedContinuousLifecycleCoordinator(auditLedger, "device-b").RecordCompletedTransfer(v1Target.Current!).Succeeded);
         var targetBBytes = await File.ReadAllBytesAsync(fixture.TargetBStatePath);
 
-        var promoteB = new DirectedContinuousLifecycleCoordinator(ledger, "device-b")
-            .PromoteAcquiredTargetToSource(v1State, fixture.SourceBStatePath, PairedWithC);
+        // Promotion is performed on B using only B's acquired target state.
+        var promoteB = new DirectedContinuousLifecycleCoordinator(null, "device-b")
+            .PromoteAcquiredTargetToSource(v1Target.Current!, fixture.SourceBStatePath, PairedWithC);
         Assert.IsTrue(promoteB.Succeeded, promoteB.Message);
+        Assert.AreEqual(1, new DurableAuthorityStateStore(fixture.SourceBStatePath).Load().AuthorityCursor!.HandoffVersion);
         CollectionAssert.AreEqual(targetBBytes, await File.ReadAllBytesAsync(fixture.TargetBStatePath));
 
+        // Leg 2: B -> A v2. B prepares this exact +1 from B's local cursor;
+        // A acquires using only A's local source/target state and immutable
+        // OneDrive handoff artifacts.
         var v2 = new DirectedTransferIdentity(Guid.NewGuid().ToString("D"), lineage, 7, 2, "device-b", "device-a");
-        var bLifecycle = new DirectedContinuousLifecycleCoordinator(ledger, "device-b");
-        Assert.IsTrue(bLifecycle.ValidateNextTransfer(v2, PairedWithC).Succeeded);
-        var v2Source = await fixture.CompleteSourceLegAsync(v2, fixture.SourceBStatePath);
-        var v2Target = new DirectedTargetAcquisitionCoordinator(
-            new DurableTargetAcquisitionStore(fixture.TargetAStatePath), "device-a", PairedWithC, fixture.ConfirmedObserver, ledger);
+        await fixture.CompleteSourceLegAsync(v2, fixture.SourceBStatePath);
+        var v2Target = fixture.CreateTarget("device-a", fixture.TargetAStatePath, fixture.SourceAStatePath);
+        Assert.IsFalse(v2Target.MayBusinessWrite(v2));
         var v2Acquired = await v2Target.AcquireAsync(fixture.HandoffDirectory, fixture.SnapshotPath, v2);
         Assert.IsTrue(v2Acquired.Succeeded, v2Acquired.Message);
-        var v2State = v2Target.Current!;
-        Assert.IsTrue(bLifecycle.RecordCompletedTransfer(new DurableAuthorityStateStore(fixture.SourceBStatePath), v2State).Succeeded);
         Assert.IsTrue(v2Target.MayBusinessWrite(v2));
-        var oldBTarget = new DirectedTargetAcquisitionCoordinator(
-            new DurableTargetAcquisitionStore(fixture.TargetBStatePath), "device-b", PairedWithC, lifecycleLedger: ledger);
+        Assert.IsTrue(new DirectedContinuousLifecycleCoordinator(auditLedger, "device-a").RecordCompletedTransfer(v2Target.Current!).Succeeded);
+
+        // B has no shared-ledger knowledge here. Its local Released v2 cursor
+        // alone supersedes the historical B target v1 evidence.
+        var oldBTarget = fixture.CreateTarget("device-b", fixture.TargetBStatePath, fixture.SourceBStatePath);
         Assert.IsFalse(oldBTarget.MayBusinessWrite(v1));
-        Assert.IsFalse(new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceBStatePath), lifecycleLedger: ledger).MayBusinessWrite("device-b"));
-        Assert.IsFalse(new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(fixture.TargetCStatePath), "device-c", PairedWithC, lifecycleLedger: ledger).MayBusinessWrite(v2));
+        Assert.IsFalse(new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceBStatePath)).MayBusinessWrite("device-b"));
+        Assert.IsFalse(fixture.CreateTarget("device-c", fixture.TargetCStatePath, fixture.SourceCStatePath).MayBusinessWrite(v2));
         Assert.AreEqual(1, CountWritable(
             v2Target.MayBusinessWrite(v2),
-            new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceBStatePath), lifecycleLedger: ledger).MayBusinessWrite("device-b"),
-            new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(fixture.TargetCStatePath), "device-c", PairedWithC, lifecycleLedger: ledger).MayBusinessWrite(v2)));
+            new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceBStatePath)).MayBusinessWrite("device-b"),
+            fixture.CreateTarget("device-c", fixture.TargetCStatePath, fixture.SourceCStatePath).MayBusinessWrite(v2)));
 
-        var staleV1Promotion = new DirectedContinuousLifecycleCoordinator(ledger, "device-b")
-            .PromoteAcquiredTargetToSource(v1State, Path.Combine(fixture.DirectoryPath, "stale-v1-authority.json"), PairedWithC);
+        // A stale target cannot be promoted through the real local authority
+        // path: B's Released v2 cursor rejects the retained v1 acquisition.
+        var staleV1Promotion = new DirectedContinuousLifecycleCoordinator(null, "device-b")
+            .PromoteAcquiredTargetToSource(v1Target.Current!, fixture.SourceBStatePath, PairedWithC);
         Assert.IsFalse(staleV1Promotion.Succeeded);
         Assert.AreEqual("stale-target-promotion", staleV1Promotion.Code);
 
         var targetABytes = await File.ReadAllBytesAsync(fixture.TargetAStatePath);
-        var promoteA = new DirectedContinuousLifecycleCoordinator(ledger, "device-a")
-            .PromoteAcquiredTargetToSource(v2State, fixture.SourceAStatePath, PairedWithC);
+        var promoteA = new DirectedContinuousLifecycleCoordinator(null, "device-a")
+            .PromoteAcquiredTargetToSource(v2Target.Current!, fixture.SourceAStatePath, PairedWithC);
         Assert.IsTrue(promoteA.Succeeded, promoteA.Message);
+        Assert.AreEqual(2, new DurableAuthorityStateStore(fixture.SourceAStatePath).Load().AuthorityCursor!.HandoffVersion);
         CollectionAssert.AreEqual(targetABytes, await File.ReadAllBytesAsync(fixture.TargetAStatePath));
 
+        // Leg 3: A -> B v3. B advances its retained target cursor using B's
+        // local Released v2 source cursor; no shared ledger is provided.
         var v3 = new DirectedTransferIdentity(Guid.NewGuid().ToString("D"), lineage, 7, 3, "device-a", "device-b");
-        var aLifecycle = new DirectedContinuousLifecycleCoordinator(ledger, "device-a");
-        Assert.IsTrue(aLifecycle.ValidateNextTransfer(v3, PairedWithC).Succeeded);
-        var v3Source = await fixture.CompleteSourceLegAsync(v3, fixture.SourceAStatePath);
-        var v3Target = new DirectedTargetAcquisitionCoordinator(
-            new DurableTargetAcquisitionStore(fixture.TargetBStatePath), "device-b", PairedWithC, fixture.ConfirmedObserver, ledger);
+        await fixture.CompleteSourceLegAsync(v3, fixture.SourceAStatePath);
+        var v3Target = fixture.CreateTarget("device-b", fixture.TargetBStatePath, fixture.SourceBStatePath);
+        Assert.IsFalse(v3Target.MayBusinessWrite(v1));
         var v3Acquired = await v3Target.AcquireAsync(fixture.HandoffDirectory, fixture.SnapshotPath, v3);
         Assert.IsTrue(v3Acquired.Succeeded, v3Acquired.Message);
-        var v3State = v3Target.Current!;
-        Assert.AreEqual(v1State.Revision + 1, v3State.Revision);
-        Assert.IsTrue(aLifecycle.RecordCompletedTransfer(new DurableAuthorityStateStore(fixture.SourceAStatePath), v3State).Succeeded);
+        Assert.AreEqual(v1Revision + 1, v3Target.Current!.Revision);
+        Assert.IsTrue(v3Target.MayBusinessWrite(v3));
+        Assert.IsTrue(new DirectedContinuousLifecycleCoordinator(auditLedger, "device-b").RecordCompletedTransfer(v3Target.Current!).Succeeded);
 
-        var currentBTarget = new DirectedTargetAcquisitionCoordinator(
-            new DurableTargetAcquisitionStore(fixture.TargetBStatePath), "device-b", PairedWithC, lifecycleLedger: ledger);
-        var currentATarget = new DirectedTargetAcquisitionCoordinator(
-            new DurableTargetAcquisitionStore(fixture.TargetAStatePath), "device-a", PairedWithC, lifecycleLedger: ledger);
-        var currentASource = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceAStatePath), lifecycleLedger: ledger);
+        var currentASource = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceAStatePath));
+        var currentATarget = fixture.CreateTarget("device-a", fixture.TargetAStatePath, fixture.SourceAStatePath);
+        var currentBTarget = fixture.CreateTarget("device-b", fixture.TargetBStatePath, fixture.SourceBStatePath);
         Assert.IsFalse(currentASource.MayBusinessWrite("device-a"));
-        Assert.IsTrue(currentBTarget.MayBusinessWrite(v3));
         Assert.IsFalse(currentATarget.MayBusinessWrite(v2));
-        Assert.IsFalse(oldBTarget.MayBusinessWrite(v1));
-        Assert.IsFalse(new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(fixture.TargetCStatePath), "device-c", PairedWithC, lifecycleLedger: ledger).MayBusinessWrite(v3));
+        Assert.IsTrue(currentBTarget.MayBusinessWrite(v3));
+        Assert.IsFalse(fixture.CreateTarget("device-c", fixture.TargetCStatePath, fixture.SourceCStatePath).MayBusinessWrite(v3));
         Assert.AreEqual(1, CountWritable(
             currentASource.MayBusinessWrite("device-a"),
+            currentATarget.MayBusinessWrite(v2),
             currentBTarget.MayBusinessWrite(v3),
-            new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(fixture.TargetCStatePath), "device-c", PairedWithC, lifecycleLedger: ledger).MayBusinessWrite(v3)));
+            fixture.CreateTarget("device-c", fixture.TargetCStatePath, fixture.SourceCStatePath).MayBusinessWrite(v3)));
 
-        var entries = ledger.Load();
-        CollectionAssert.AreEqual(ExpectedVersions, entries.Select(entry => entry.HandoffVersion).ToArray());
-        CollectionAssert.AreEqual(ExpectedSources, entries.Select(entry => entry.SourceDeviceId).ToArray());
-        CollectionAssert.AreEqual(ExpectedTargets, entries.Select(entry => entry.TargetDeviceId).ToArray());
+        // Delayed-knowledge proof: omit the audit ledger entirely. Local B's
+        // Released v2 cursor blocks old v1, and local A's Released v3 cursor
+        // blocks old v2, regardless of any hypothetical global update.
+        Assert.IsFalse(fixture.CreateTarget("device-b", fixture.TargetBStatePath, fixture.SourceBStatePath).MayBusinessWrite(v1));
+        Assert.IsFalse(fixture.CreateTarget("device-a", fixture.TargetAStatePath, fixture.SourceAStatePath).MayBusinessWrite(v2));
 
-        var replayV1 = v1 with { TransferId = Guid.NewGuid().ToString("D"), SourceDeviceId = "device-b", TargetDeviceId = "device-a" };
-        Assert.AreEqual("stale-or-replayed-version", bLifecycle.ValidateNextTransfer(replayV1, PairedWithC).Code);
-        Assert.AreEqual("stale-or-replayed-version", bLifecycle.ValidateNextTransfer(v2, PairedWithC).Code);
+        // Replay/equal/conflicting progression is rejected from local state.
         var conflictingV3 = v3 with { TransferId = Guid.NewGuid().ToString("D") };
         var conflictingAcquire = await v3Target.AcquireAsync(fixture.HandoffDirectory, fixture.SnapshotPath, conflictingV3);
         Assert.IsFalse(conflictingAcquire.Succeeded);
         Assert.AreEqual("stale-target-state", conflictingAcquire.Code);
-        var wrongV4 = new DirectedTransferIdentity(Guid.NewGuid().ToString("D"), lineage, 7, 4, "device-a", "device-b");
-        Assert.IsFalse(new DirectedContinuousLifecycleCoordinator(ledger, "device-a").ValidateNextTransfer(wrongV4, PairedWithC).Succeeded);
-        Assert.IsFalse(currentATarget.MayBusinessWrite(v2));
-        var staleV2Promotion = new DirectedContinuousLifecycleCoordinator(ledger, "device-a")
-            .PromoteAcquiredTargetToSource(v2State, Path.Combine(fixture.DirectoryPath, "stale-v2-authority.json"), PairedWithC);
-        Assert.IsFalse(staleV2Promotion.Succeeded);
-        Assert.AreEqual("stale-target-promotion", staleV2Promotion.Code);
-        Assert.IsFalse(new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceAStatePath), lifecycleLedger: ledger).MayBusinessWrite("device-a"));
+        var wrongV4 = new DirectedTransferIdentity(Guid.NewGuid().ToString("D"), lineage, 7, 4, "device-b", "device-a");
+        Assert.IsFalse(new DirectedLifecycleAuthorityGate(
+            "device-a",
+            sourceStateStore: new DurableAuthorityStateStore(fixture.SourceAStatePath),
+            targetStateStore: new DurableTargetAcquisitionStore(fixture.TargetAStatePath))
+            .Evaluate(wrongV4, new DurableAuthorityStateStore(fixture.SourceAStatePath).Load(), currentATarget.Current).MayWrite);
 
-        var restartedBSource = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceBStatePath));
-        Assert.AreEqual(DirectedAuthorityMode.Released, restartedBSource.Current.Mode);
-        Assert.IsFalse(restartedBSource.MayBusinessWrite("device-b"));
+        var entries = auditLedger.Load();
+        CollectionAssert.AreEqual(ExpectedVersions, entries.Select(entry => entry.HandoffVersion).ToArray());
+        CollectionAssert.AreEqual(ExpectedSources, entries.Select(entry => entry.SourceDeviceId).ToArray());
+        CollectionAssert.AreEqual(ExpectedTargets, entries.Select(entry => entry.TargetDeviceId).ToArray());
+        Assert.AreEqual(DirectedAuthorityMode.Released, new DurableAuthorityStateStore(fixture.SourceBStatePath).Load().Mode);
+        Assert.IsFalse(new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceBStatePath)).MayBusinessWrite("device-b"));
         Assert.IsTrue(File.Exists(fixture.TargetBStatePath));
-        _ = v1Source;
-        _ = v2Source;
-        _ = v3Source;
     }
 
     [TestMethod]
@@ -159,31 +160,51 @@ public sealed class ContinuousAuthorityLifecycleTests
     {
         public Fixture()
         {
-            DirectoryPath = Path.Combine(Path.GetTempPath(), "Sushi81-M02-lifecycle-tests", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(DirectoryPath);
-            HandoffDirectory = Path.Combine(DirectoryPath, "handoff");
-            LedgerPath = Path.Combine(DirectoryPath, "lifecycle.jsonl");
-            SourceAStatePath = Path.Combine(DirectoryPath, "source-a.json");
-            SourceBStatePath = Path.Combine(DirectoryPath, "source-b.json");
-            TargetAStatePath = Path.Combine(DirectoryPath, "target-a.json");
-            TargetBStatePath = Path.Combine(DirectoryPath, "target-b.json");
-            TargetCStatePath = Path.Combine(DirectoryPath, "target-c.json");
+            RootDirectory = Path.Combine(Path.GetTempPath(), "Sushi81-M02-distributed-lifecycle", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(RootDirectory);
+            DeviceADirectory = Path.Combine(RootDirectory, "device-a");
+            DeviceBDirectory = Path.Combine(RootDirectory, "device-b");
+            DeviceCDirectory = Path.Combine(RootDirectory, "device-c");
+            Directory.CreateDirectory(DeviceADirectory);
+            Directory.CreateDirectory(DeviceBDirectory);
+            Directory.CreateDirectory(DeviceCDirectory);
+            HandoffDirectory = Path.Combine(RootDirectory, "onedrive-handoff");
+            SourceAStatePath = Path.Combine(DeviceADirectory, "source-authority.json");
+            SourceBStatePath = Path.Combine(DeviceBDirectory, "source-authority.json");
+            SourceCStatePath = Path.Combine(DeviceCDirectory, "source-authority.json");
+            TargetAStatePath = Path.Combine(DeviceADirectory, "target-device-a.json");
+            TargetBStatePath = Path.Combine(DeviceBDirectory, "target-device-b.json");
+            TargetCStatePath = Path.Combine(DeviceCDirectory, "target-device-c.json");
+            AuditLedgerPath = Path.Combine(RootDirectory, "diagnostic-audit.jsonl");
         }
 
-        public string DirectoryPath { get; }
+        public string RootDirectory { get; }
+        public string DeviceADirectory { get; }
+        public string DeviceBDirectory { get; }
+        public string DeviceCDirectory { get; }
         public string HandoffDirectory { get; }
-        public string LedgerPath { get; }
+        public string AuditLedgerPath { get; }
         public string SourceAStatePath { get; }
         public string SourceBStatePath { get; }
+        public string SourceCStatePath { get; }
         public string TargetAStatePath { get; }
         public string TargetBStatePath { get; }
         public string TargetCStatePath { get; }
         public string SnapshotPath { get; private set; } = string.Empty;
         public IArtifactSyncObserver ConfirmedObserver { get; } = new FixedSyncObserver(ArtifactSyncStatus.ConfirmedInSync);
 
+        public DirectedTargetAcquisitionCoordinator CreateTarget(string device, string targetStatePath, string localSourceStatePath) =>
+            new(
+                new DurableTargetAcquisitionStore(targetStatePath),
+                device,
+                PairedWithC,
+                ConfirmedObserver,
+                lifecycleLedger: null,
+                sourceStateStore: new DurableAuthorityStateStore(localSourceStatePath));
+
         public async Task<DirectedTransferIdentity> CompleteSourceLegAsync(DirectedTransferIdentity transfer, string sourceStatePath)
         {
-            var source = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(sourceStatePath), lifecycleLedger: new DirectedLifecycleLedgerStore(LedgerPath));
+            var source = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(sourceStatePath));
             if (File.Exists(sourceStatePath))
             {
                 Assert.AreEqual(DirectedAuthorityMode.Authoritative, source.Current.Mode);
@@ -193,20 +214,24 @@ public sealed class ContinuousAuthorityLifecycleTests
             {
                 Assert.IsTrue(source.InitializeAuthoritative(transfer.SourceDeviceId, PairedWithC).Succeeded);
             }
-            Assert.IsTrue(source.PrepareTransfer(transfer).Succeeded);
+
+            var prepared = source.PrepareTransfer(transfer);
+            Assert.IsTrue(prepared.Succeeded, prepared.Message);
             SnapshotPath = Path.Combine(HandoffDirectory, "directed-" + transfer.TransferId + ".snapshot.db");
             await DirectedSnapshotEvidence.CreateSyntheticAsync(SnapshotPath);
             var evidence = await DirectedSnapshotEvidence.CaptureAsync(transfer, SnapshotPath, true);
             Assert.IsTrue((await source.DurablyRelinquishAsync(evidence)).Succeeded);
+            Assert.IsFalse(source.MayBusinessWrite(transfer.SourceDeviceId));
             Assert.IsTrue((await source.PublishReleaseMarkersAsync(HandoffDirectory, SnapshotPath)).Succeeded);
+            Assert.AreEqual(DirectedAuthorityMode.Released, source.Current.Mode);
             return transfer;
         }
 
         public void Dispose()
         {
-            if (!Directory.Exists(DirectoryPath)) return;
-            foreach (var file in Directory.EnumerateFiles(DirectoryPath, "*", SearchOption.AllDirectories)) File.SetAttributes(file, FileAttributes.Normal);
-            Directory.Delete(DirectoryPath, true);
+            if (!Directory.Exists(RootDirectory)) return;
+            foreach (var file in Directory.EnumerateFiles(RootDirectory, "*", SearchOption.AllDirectories)) File.SetAttributes(file, FileAttributes.Normal);
+            Directory.Delete(RootDirectory, true);
         }
     }
 }

@@ -47,6 +47,28 @@ public sealed record DirectedMarkerEvidence(
         && GrantSyncConfirmed;
 }
 
+/// <summary>
+/// Device-local authority cursor.  It is deliberately independent from the
+/// optional append-only audit ledger: a device can decide whether it may write
+/// using only this cursor and its local target cursor.
+/// </summary>
+public sealed record DirectedLocalAuthorityCursor(
+    [property: JsonPropertyName("lineageId")] string LineageId,
+    [property: JsonPropertyName("generation")] long Generation,
+    [property: JsonPropertyName("handoffVersion")] long HandoffVersion)
+{
+    public bool IsValid => Guid.TryParse(LineageId, out _)
+        && Generation >= 0
+        && HandoffVersion >= 1;
+
+    public bool Matches(DirectedTransferIdentity transfer) =>
+        IsValid
+        && transfer.IsValid
+        && LineageId == transfer.LineageId
+        && Generation == transfer.Generation
+        && HandoffVersion == transfer.HandoffVersion;
+}
+
 public sealed record DurableAuthorityState(
     [property: JsonPropertyName("formatVersion")] int FormatVersion,
     [property: JsonPropertyName("revision")] long Revision,
@@ -57,7 +79,8 @@ public sealed record DurableAuthorityState(
     [property: JsonPropertyName("updatedAtUtc")] DateTimeOffset UpdatedAtUtc,
     [property: JsonPropertyName("closedWithAuthority")] bool ClosedWithAuthority,
     [property: JsonPropertyName("snapshotEvidence")] DirectedSnapshotEvidence? SnapshotEvidence = null,
-    [property: JsonPropertyName("markerEvidence")] DirectedMarkerEvidence? MarkerEvidence = null)
+    [property: JsonPropertyName("markerEvidence")] DirectedMarkerEvidence? MarkerEvidence = null,
+    [property: JsonPropertyName("authorityCursor")] DirectedLocalAuthorityCursor? AuthorityCursor = null)
 {
     public const int CurrentFormatVersion = 1;
 
@@ -75,6 +98,8 @@ public sealed record DurableAuthorityState(
                 return false;
             }
 
+            if (AuthorityCursor is { IsValid: false }) return false;
+
             if (Mode is DirectedAuthorityMode.Authoritative or DirectedAuthorityMode.Uninitialized)
             {
                 return Transfer is null && SnapshotEvidence is null && MarkerEvidence is null;
@@ -88,7 +113,11 @@ public sealed record DurableAuthorityState(
 
             if (Mode == DirectedAuthorityMode.TransferPrepared)
             {
-                return SnapshotEvidence is null && MarkerEvidence is null;
+                return SnapshotEvidence is null && MarkerEvidence is null
+                    && (AuthorityCursor is null
+                        || AuthorityCursor.LineageId == transfer.LineageId
+                        && AuthorityCursor.Generation == transfer.Generation
+                        && AuthorityCursor.HandoffVersion < transfer.HandoffVersion);
             }
 
             if (SnapshotEvidence is not { IsValid: true } evidence || evidence.Transfer != transfer)
@@ -98,13 +127,17 @@ public sealed record DurableAuthorityState(
 
             if (Mode == DirectedAuthorityMode.RelinquishedBlocked)
             {
-                return MarkerEvidence is null;
+                return MarkerEvidence is null
+                    && AuthorityCursor is { } relinquishedCursor
+                    && relinquishedCursor.Matches(transfer);
             }
 
             return Mode == DirectedAuthorityMode.Released
                 && MarkerEvidence is { IsValid: true } marker
                 && marker.SnapshotChecksum == evidence.SnapshotChecksum
-                && marker.SnapshotByteLength == evidence.SnapshotByteLength;
+                && marker.SnapshotByteLength == evidence.SnapshotByteLength
+                && AuthorityCursor is { } releasedCursor
+                && releasedCursor.Matches(transfer);
         }
     }
 }

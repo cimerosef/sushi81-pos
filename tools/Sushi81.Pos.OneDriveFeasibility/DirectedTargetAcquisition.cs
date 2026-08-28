@@ -157,6 +157,7 @@ public sealed class DirectedTargetAcquisitionCoordinator(
         ? throw new ArgumentException("A local target device ID is required.", nameof(localDeviceId))
         : localDeviceId;
     public IReadOnlySet<string>? PairedDeviceIds { get; } = pairedDeviceIds?.ToHashSet(StringComparer.Ordinal);
+    /// <summary>Optional diagnostic history; never consulted for write authority.</summary>
     public DirectedLifecycleLedgerStore? LifecycleLedger { get; } = lifecycleLedger;
     public DurableAuthorityStateStore? SourceStateStore { get; } = sourceStateStore;
     private IArtifactSyncObserver? SyncObserver { get; } = syncObserver;
@@ -178,8 +179,11 @@ public sealed class DirectedTargetAcquisitionCoordinator(
         {
             var state = Current;
             if (state is null) return false;
-            return new DirectedLifecycleAuthorityGate(LocalDeviceId, LifecycleLedger, SourceStateStore, StateStore)
-                .Evaluate(transfer, SourceStateStore is null ? null : SourceStateStore.Load(), state)
+            var sourceState = SourceStateStore is not null && File.Exists(SourceStateStore.StatePath)
+                ? SourceStateStore.Load()
+                : null;
+            return new DirectedLifecycleAuthorityGate(LocalDeviceId, sourceStateStore: SourceStateStore, targetStateStore: StateStore)
+                .Evaluate(transfer, sourceState, state)
                 .MayWrite;
         }
         catch (InvalidDataException)
@@ -217,7 +221,7 @@ public sealed class DirectedTargetAcquisitionCoordinator(
             }
 
             if (existing.Matches(expectedTransfer, LocalDeviceId)
-                && !IsSupersededByLifecycle(expectedTransfer))
+                && IsCurrentLocalCursor(expectedTransfer, existing))
             {
                 return new(true, "already-acquired", "The exact target acquisition is already durably recorded.", TargetState: existing);
             }
@@ -277,6 +281,23 @@ public sealed class DirectedTargetAcquisitionCoordinator(
 
         try
         {
+            var sourceState = SourceStateStore is not null && File.Exists(SourceStateStore.StatePath)
+                ? SourceStateStore.Load()
+                : null;
+            var localDecision = new DirectedLifecycleAuthorityGate(LocalDeviceId, sourceStateStore: SourceStateStore, targetStateStore: StateStore)
+                .Evaluate(expectedTransfer, sourceState, next);
+            if (!localDecision.MayWrite)
+            {
+                return new(false, localDecision.Code, localDecision.Message, TargetState: next, Validation: validation, SyncObservations: syncObservations);
+            }
+        }
+        catch (InvalidDataException exception)
+        {
+            return new(false, "local-state-unresolved", exception.Message, Validation: validation, SyncObservations: syncObservations);
+        }
+
+        try
+        {
             StateStore.Save(next);
             return new(true, "target-acquired", "Exact target validation and durable acquisition completed.", Validation: validation, TargetState: next, SyncObservations: syncObservations);
         }
@@ -292,14 +313,21 @@ public sealed class DirectedTargetAcquisitionCoordinator(
         && PairedDeviceIds.Contains(transfer.TargetDeviceId)
         && PairedDeviceIds.Contains(LocalDeviceId);
 
-    private bool IsSupersededByLifecycle(DirectedTransferIdentity transfer)
+    private bool IsCurrentLocalCursor(DirectedTransferIdentity transfer, DurableTargetAcquisitionState state)
     {
-        if (LifecycleLedger is null || !File.Exists(LifecycleLedger.LedgerPath)) return false;
-        var latest = LifecycleLedger.Load()
-            .Where(entry => entry.LineageId == transfer.LineageId && entry.Generation == transfer.Generation)
-            .OrderByDescending(entry => entry.HandoffVersion)
-            .FirstOrDefault();
-        return latest is not null && !latest.Matches(transfer);
+        try
+        {
+            var sourceState = SourceStateStore is not null && File.Exists(SourceStateStore.StatePath)
+                ? SourceStateStore.Load()
+                : null;
+            return new DirectedLifecycleAuthorityGate(LocalDeviceId, sourceStateStore: SourceStateStore, targetStateStore: StateStore)
+                .Evaluate(transfer, sourceState, state)
+                .MayWrite;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
     }
 
     private bool CanAdvanceCursor(
@@ -308,34 +336,41 @@ public sealed class DirectedTargetAcquisitionCoordinator(
         out string failureCode)
     {
         failureCode = "stale-target-state";
-        if (LifecycleLedger is null || !File.Exists(LifecycleLedger.LedgerPath)) return false;
         if (existing.LineageId != expectedTransfer.LineageId || existing.Generation != expectedTransfer.Generation)
         {
             return false;
         }
 
-        IReadOnlyList<DirectedLifecycleLedgerEntry> entries;
-        try { entries = LifecycleLedger.Load(); }
+        if (existing.DeviceId != LocalDeviceId || expectedTransfer.TargetDeviceId != LocalDeviceId
+            || expectedTransfer.HandoffVersion <= existing.HandoffVersion
+            || expectedTransfer.TransferId == existing.TransferId)
+        {
+            failureCode = "stale-target-state";
+            return false;
+        }
+
+        if (SourceStateStore is null || !File.Exists(SourceStateStore.StatePath))
+        {
+            failureCode = "local-source-cursor-missing";
+            return false;
+        }
+
+        DurableAuthorityState source;
+        try { source = SourceStateStore.Load(); }
         catch (InvalidDataException)
         {
-            failureCode = "lifecycle-state-unresolved";
+            failureCode = "local-source-state-unresolved";
             return false;
         }
 
-        var latest = entries
-            .Where(entry => entry.LineageId == expectedTransfer.LineageId && entry.Generation == expectedTransfer.Generation)
-            .OrderByDescending(entry => entry.HandoffVersion)
-            .FirstOrDefault();
-        if (latest is null)
-        {
-            failureCode = "lifecycle-position-unresolved";
-            return false;
-        }
-
-        if (expectedTransfer.HandoffVersion != latest.HandoffVersion + 1
-            || expectedTransfer.SourceDeviceId != latest.TargetDeviceId
-            || existing.DeviceId != LocalDeviceId
-            || expectedTransfer.TargetDeviceId != LocalDeviceId)
+        if (source.Mode != DirectedAuthorityMode.Released
+            || source.Transfer is not { IsValid: true } releasedTransfer
+            || source.AuthorityCursor is not { } cursor
+            || !cursor.Matches(releasedTransfer)
+            || releasedTransfer.LineageId != expectedTransfer.LineageId
+            || releasedTransfer.Generation != expectedTransfer.Generation
+            || cursor.HandoffVersion + 1 != expectedTransfer.HandoffVersion
+            || releasedTransfer.TargetDeviceId != expectedTransfer.SourceDeviceId)
         {
             failureCode = "stale-target-state";
             return false;

@@ -135,7 +135,7 @@ internal static class Program
         var snapshotPath = Path.Combine(handoffDirectory, "directed-" + transfer.TransferId + ".snapshot.db");
         var statePath = Path.Combine(stateDirectory, "source-authority.json");
         var observer = new CloudFileArtifactSyncObserver(new CloudFileStateReader());
-        var coordinator = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(statePath), syncObserver: observer, lifecycleLedger: OptionalLifecycleLedger(args));
+        var coordinator = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(statePath), syncObserver: observer);
 
         var initialized = coordinator.InitializeAuthoritative(source, [source, target]);
         if (!initialized.Succeeded && initialized.Code != "already-initialized") return new CommandResult(false, initialized.Code, initialized.Message, initialized);
@@ -203,10 +203,20 @@ internal static class Program
         var snapshotPath = Value(args, "--snapshot") ?? Path.Combine(handoffDirectory, "directed-" + transfer.TransferId + ".snapshot.db");
         var statePath = Path.Combine(stateDirectory, "target-" + localDevice + ".json");
         var observer = new CloudFileArtifactSyncObserver(new CloudFileStateReader());
-        var ledger = OptionalLifecycleLedger(args);
-        var coordinator = new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(statePath), localDevice, [source, target], observer, ledger);
+        var localSourceStore = new DurableAuthorityStateStore(Path.Combine(stateDirectory, "source-authority.json"));
+        var coordinator = new DirectedTargetAcquisitionCoordinator(
+            new DurableTargetAcquisitionStore(statePath),
+            localDevice,
+            [source, target],
+            observer,
+            lifecycleLedger: null,
+            sourceStateStore: localSourceStore);
         var result = await coordinator.AcquireAsync(handoffDirectory, snapshotPath, transfer);
-        var restarted = new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(statePath), localDevice, [source, target], lifecycleLedger: ledger);
+        var restarted = new DirectedTargetAcquisitionCoordinator(
+            new DurableTargetAcquisitionStore(statePath),
+            localDevice,
+            [source, target],
+            sourceStateStore: localSourceStore);
         var mayWrite = restarted.MayBusinessWrite(transfer);
         return new CommandResult(result.Succeeded, result.Code, result.Message, new
         {
@@ -218,8 +228,8 @@ internal static class Program
     private static CommandResult DirectedLifecycleComplete(string[] args)
     {
         var ledgerPath = RequiredSyntheticLedger(args);
-        var sourceStateDirectory = SyntheticStateDirectoryOption(args, "--source-state-dir");
-        var targetStateDirectory = SyntheticStateDirectoryOption(args, "--target-state-dir");
+        var stateDirectory = SyntheticStateDirectory(args);
+        var localDevice = RequiredOption(args, "--device", "local target device ID");
         var source = RequiredOption(args, "--source", "source device ID");
         var target = RequiredOption(args, "--target", "target device ID");
         var lineage = RequiredOption(args, "--lineage", "lineage ID");
@@ -229,20 +239,18 @@ internal static class Program
         var transfer = new DirectedTransferIdentity(transferId, lineage, generation, version, source, target);
         if (!transfer.IsValid) throw new ArgumentException("The directed lifecycle transfer identity is invalid.");
 
-        var sourceStatePath = Path.Combine(sourceStateDirectory, "source-authority.json");
-        var targetStatePath = Path.Combine(targetStateDirectory, "target-" + target + ".json");
+        var targetStatePath = Path.Combine(stateDirectory, "target-" + localDevice + ".json");
         try
         {
-            var sourceStore = new DurableAuthorityStateStore(sourceStatePath);
             var targetState = new DurableTargetAcquisitionStore(targetStatePath).Load();
-            if (!targetState.Matches(transfer, target))
+            if (!targetState.Matches(transfer, localDevice))
                 return new CommandResult(false, "target-state-mismatch", "The durable target cursor does not match the requested immutable transfer.", targetState);
 
-            var result = new DirectedContinuousLifecycleCoordinator(new DirectedLifecycleLedgerStore(ledgerPath), source)
-                .RecordCompletedTransfer(sourceStore, targetState);
+            var result = new DirectedContinuousLifecycleCoordinator(new DirectedLifecycleLedgerStore(ledgerPath), localDevice)
+                .RecordCompletedTransfer(targetState);
             return new CommandResult(result.Succeeded, result.Code, result.Message, new
             {
-                transfer, ledgerPath, sourceStatePath, targetStatePath, result.State,
+                transfer, ledgerPath, targetStatePath, localDeviceId = localDevice, result.State,
                 currentLifecycleEntry = result.Succeeded
                     ? new DirectedLifecycleLedgerStore(ledgerPath).Load().LastOrDefault(entry => entry.TransferId == transfer.TransferId)
                     : null
@@ -257,7 +265,7 @@ internal static class Program
     private static CommandResult DirectedTargetPromote(string[] args)
     {
         var stateDirectory = SyntheticStateDirectory(args);
-        var ledgerPath = RequiredSyntheticLedger(args);
+        var ledger = OptionalLifecycleLedger(args);
         var localDevice = RequiredOption(args, "--device", "target device ID");
         var source = RequiredOption(args, "--source", "source device ID");
         var target = RequiredOption(args, "--target", "target device ID");
@@ -278,11 +286,11 @@ internal static class Program
             if (!acquisition.Matches(transfer, localDevice))
                 return new CommandResult(false, "target-state-mismatch", "The durable target cursor does not match the requested immutable transfer.", acquisition);
 
-            var result = new DirectedContinuousLifecycleCoordinator(new DirectedLifecycleLedgerStore(ledgerPath), localDevice)
+            var result = new DirectedContinuousLifecycleCoordinator(ledger, localDevice)
                 .PromoteAcquiredTargetToSource(acquisition, authorityStatePath, [source, target]);
             return new CommandResult(result.Succeeded, result.Code, result.Message, new
             {
-                transfer, ledgerPath, targetStatePath, authorityStatePath, durableTargetState = acquisition, authorityState = result.State
+                transfer, ledgerPath = ledger?.LedgerPath, targetStatePath, authorityStatePath, durableTargetState = acquisition, authorityState = result.State
             });
         }
         catch (InvalidDataException exception)
@@ -312,7 +320,7 @@ internal static class Program
         var snapshotPath = Value(args, "--snapshot") ?? Path.Combine(handoffDirectory, "directed-" + transfer.TransferId + ".snapshot.db");
         var observer = new CloudFileArtifactSyncObserver(new CloudFileStateReader());
         var statePath = Path.Combine(stateDirectory, "source-authority.json");
-        var coordinator = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(statePath), syncObserver: observer, lifecycleLedger: OptionalLifecycleLedger(args));
+        var coordinator = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(statePath), syncObserver: observer);
         DurableAuthorityState state;
         try
         {
@@ -364,7 +372,7 @@ internal static class Program
         try
         {
             var state = new DurableAuthorityStateStore(path).Load();
-            var mayWrite = state.Mode == DirectedAuthorityMode.Authoritative && !state.ClosedWithAuthority && state.DeviceId == device;
+            var mayWrite = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(path)).MayBusinessWrite(device);
             return new CommandResult(true, "source-state", "Durable source state loaded.", new { state, deviceId = device, mayBusinessWrite = mayWrite });
         }
         catch (InvalidDataException exception) { return new CommandResult(false, "state-unresolved", exception.Message); }
@@ -493,14 +501,14 @@ internal static class Program
         inspect <handoff-directory> [--snapshot path] [--marker path]
         claim <claims-directory> --lineage guid [--device id] [--generation n] [--version n]
         observe-claims <claims-directory> --lineage guid [--generation n] [--version n]
-        directed-source-run <registered-OneDrive-root> --state-dir <synthetic-dir> --device <source> --target <target> --lineage <guid> --generation <n> --version <n> [--transfer-id <guid>] [--ledger path] [--timeout-seconds n] [--poll-ms n] [--json]
-        directed-source-resume <registered-OneDrive-root> --state-dir <synthetic-dir> --device <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> [--snapshot path] [--ledger path] [--timeout-seconds n] [--poll-ms n] [--json]
-        directed-target-acquire <registered-OneDrive-root> --state-dir <synthetic-dir> --device <local> --source <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> [--snapshot path] [--ledger path] [--json]
-        directed-lifecycle-complete --source-state-dir <synthetic-dir> --target-state-dir <synthetic-dir> --ledger <synthetic-ledger> --source <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> [--json]
-        directed-target-promote --state-dir <synthetic-dir> --ledger <synthetic-ledger> --device <target> --source <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> [--json]
+        directed-source-run <registered-OneDrive-root> --state-dir <synthetic-dir> --device <source> --target <target> --lineage <guid> --generation <n> --version <n> [--transfer-id <guid>] [--timeout-seconds n] [--poll-ms n] [--json]
+        directed-source-resume <registered-OneDrive-root> --state-dir <synthetic-dir> --device <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> [--snapshot path] [--timeout-seconds n] [--poll-ms n] [--json]
+        directed-target-acquire <registered-OneDrive-root> --state-dir <synthetic-dir> --device <local> --source <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> [--snapshot path] [--json]
+        directed-lifecycle-complete --state-dir <synthetic-dir> --device <target> --ledger <diagnostic-ledger> --source <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> [--json]
+        directed-target-promote --state-dir <synthetic-dir> --device <target> --source <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> [--ledger <diagnostic-ledger>] [--json]
         directed-source-state <source-state-file> --device <source> [--json]
 
-        Directed commands are the M02 Device A/Device B proof flow. They require an explicitly registered sync root and synthetic state directory, and never open or alter live.db or activate POS authority. The older publish/inspect commands remain historical compatibility commands only.
+        Directed commands are the M02 Device A/Device B proof flow. They require an explicitly registered sync root and synthetic state directory, and never open or alter live.db or activate POS authority. The lifecycle-complete command is diagnostic-only and reads one local target state; it is not required for write authority. The older publish/inspect commands remain historical compatibility commands only.
         """);
 
     private sealed record CommandResult(bool Succeeded, string Code, string Message, object? Data = null);

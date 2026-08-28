@@ -48,7 +48,7 @@ public sealed class DirectedHandoffCoordinator(
         if (state is null || !string.Equals(state.DeviceId, deviceId, StringComparison.Ordinal)) return false;
         try
         {
-            return new DirectedLifecycleAuthorityGate(deviceId, LifecycleLedger)
+            return new DirectedLifecycleAuthorityGate(deviceId)
                 .EvaluateSource(state)
                 .MayWrite;
         }
@@ -85,7 +85,10 @@ public sealed class DirectedHandoffCoordinator(
         return Persist(next, "reopened", "Retained source authority reopened after restart.");
     }
 
-    public DirectedTransferOperationResult InitializeAuthoritative(string deviceId, IEnumerable<string> pairedDeviceIds)
+    public DirectedTransferOperationResult InitializeAuthoritative(
+        string deviceId,
+        IEnumerable<string> pairedDeviceIds,
+        DirectedLocalAuthorityCursor? authorityCursor = null)
     {
         if (File.Exists(stateStore.StatePath))
         {
@@ -108,7 +111,9 @@ public sealed class DirectedHandoffCoordinator(
             null,
             DateTimeOffset.UtcNow,
             false,
-            null);
+            null,
+            null,
+            authorityCursor);
         try
         {
             stateStore.Save(state);
@@ -152,6 +157,17 @@ public sealed class DirectedHandoffCoordinator(
         if (state.Transfer is not null && state.Transfer != transfer)
         {
             return Failure("immutable-transfer", "A different transfer cannot replace the prepared transfer.", state);
+        }
+
+        if (state.AuthorityCursor is { } cursor
+            && (cursor.LineageId != transfer.LineageId
+                || cursor.Generation != transfer.Generation
+                || transfer.HandoffVersion != cursor.HandoffVersion + 1))
+        {
+            return Failure(
+                "non-monotonic-transfer",
+                $"The next local transfer must use lineage {cursor.LineageId}, generation {cursor.Generation} and handoff version {cursor.HandoffVersion + 1}.",
+                state);
         }
 
         if (state.Transfer == transfer && state.Mode == DirectedAuthorityMode.TransferPrepared)
@@ -289,6 +305,10 @@ public sealed class DirectedHandoffCoordinator(
             Revision = state.Revision + 1,
             Mode = DirectedAuthorityMode.RelinquishedBlocked,
             ClosedWithAuthority = false,
+            AuthorityCursor = new DirectedLocalAuthorityCursor(
+                verifiedEvidence.Transfer.LineageId,
+                verifiedEvidence.Transfer.Generation,
+                verifiedEvidence.Transfer.HandoffVersion),
             SnapshotEvidence = verifiedEvidence,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };

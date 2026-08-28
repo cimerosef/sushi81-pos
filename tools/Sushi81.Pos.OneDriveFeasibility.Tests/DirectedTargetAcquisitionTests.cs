@@ -124,6 +124,38 @@ public sealed class DirectedTargetAcquisitionTests
         Assert.IsFalse(source.MayBusinessWrite(transfer));
     }
 
+    [TestMethod]
+    public async Task MalformedLocalAuthorityCursorFailsClosedWithoutSharedLedger()
+    {
+        using var fixture = new Fixture();
+        var transfer = Fixture.Transfer("target", 1);
+        var targetState = new DurableTargetAcquisitionState(
+            DurableTargetAcquisitionState.CurrentFormatVersion,
+            1,
+            "target",
+            transfer.LineageId,
+            transfer.Generation,
+            transfer.HandoffVersion,
+            transfer.SourceDeviceId,
+            transfer.TargetDeviceId,
+            transfer.TransferId,
+            Path.Combine(fixture.DirectoryPath, "synthetic.snapshot.db"),
+            new string('A', 64),
+            100,
+            DurableTargetAcquisitionStatus.Acquired,
+            DateTimeOffset.UtcNow);
+        new DurableTargetAcquisitionStore(fixture.TargetStatePath).Save(targetState);
+        await File.WriteAllTextAsync(fixture.SourceStatePath, "{ malformed local cursor");
+
+        var target = new DirectedTargetAcquisitionCoordinator(
+            new DurableTargetAcquisitionStore(fixture.TargetStatePath),
+            "target",
+            ["source", "target"],
+            sourceStateStore: new DurableAuthorityStateStore(fixture.SourceStatePath));
+
+        Assert.IsFalse(target.MayBusinessWrite(transfer));
+    }
+
     private sealed class SaveFailureInjector : IDurableTargetAcquisitionFailureInjector
     {
         public void BeforeCommit(DurableTargetAcquisitionState nextState) => throw new IOException("synthetic target durable write failure");
@@ -136,16 +168,17 @@ public sealed class DirectedTargetAcquisitionTests
             DirectoryPath = Path.Combine(Path.GetTempPath(), "Sushi81-M02-target-tests", Guid.NewGuid().ToString("N"));
             System.IO.Directory.CreateDirectory(DirectoryPath);
             TargetStatePath = Path.Combine(DirectoryPath, "target-acquisition.json");
+            SourceStatePath = Path.Combine(DirectoryPath, "source-authority.json");
         }
 
         public string DirectoryPath { get; }
         public string TargetStatePath { get; }
+        public string SourceStatePath { get; }
         public string SnapshotPath { get; private set; } = string.Empty;
 
         public async Task<DirectedTransferIdentity> CreateReleasedTransferAsync(long version)
         {
-            var sourceStatePath = Path.Combine(DirectoryPath, "source-authority.json");
-            var source = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(sourceStatePath));
+            var source = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(SourceStatePath));
             var transfer = Transfer("target", version);
             Assert.IsTrue(source.InitializeAuthoritative("source", ["source", "target", "third"]).Succeeded);
             Assert.IsTrue(source.PrepareTransfer(transfer).Succeeded);

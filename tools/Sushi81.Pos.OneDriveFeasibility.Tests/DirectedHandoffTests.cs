@@ -54,6 +54,33 @@ public sealed class DirectedHandoffTests
     }
 
     [TestMethod]
+    public void AuthoritativeCursorRequiresExactNextHandoffVersion()
+    {
+        using var fixture = new Fixture();
+        var lineage = Guid.NewGuid().ToString("D");
+        var persisted = new DurableAuthorityState(
+            DurableAuthorityState.CurrentFormatVersion,
+            1,
+            DirectedAuthorityMode.Authoritative,
+            "source",
+            ["source", "target"],
+            null,
+            DateTimeOffset.UtcNow,
+            false,
+            null,
+            null,
+            new DirectedLocalAuthorityCursor(lineage, 7, 1));
+        new DurableAuthorityStateStore(fixture.StatePath).Save(persisted);
+        var coordinator = fixture.CreateCoordinator();
+
+        var wrong = Fixture.Transfer("target", 3) with { LineageId = lineage, Generation = 7 };
+        Assert.AreEqual("non-monotonic-transfer", coordinator.PrepareTransfer(wrong).Code);
+
+        var next = wrong with { HandoffVersion = 2 };
+        Assert.IsTrue(coordinator.PrepareTransfer(next).Succeeded);
+    }
+
+    [TestMethod]
     public async Task FailedDurableRelinquishmentPreservesAuthorityAndCreatesNoMarkers()
     {
         using var fixture = new Fixture();
