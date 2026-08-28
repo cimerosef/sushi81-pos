@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 implementation is in progress; automated repair coverage has been added and Windows/WPF manual re-verification is required.
+**Current state:** Phase 6 M01 has Passed automated and Windows/WPF manual acceptance on `codex/m01-foundation`; PR #1 is ready for merge to `main`. M02 remains Not started until M01 is merged.
 
 ## 1. Status vocabulary
 
@@ -19,8 +19,8 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 
 | Milestone | Status | Authorization / result |
 |---|---|---|
-| M01 — Foundation and safe persistence spine | In progress | Repair validation is in progress on `codex/m01-foundation`; Windows/WPF manual re-verification remains required before milestone acceptance. |
-| M02 — OneDrive feasibility gate | Not started | Pending M01 |
+| M01 — Foundation and safe persistence spine | Passed | Automated verification and Windows/WPF manual re-verification completed successfully on `codex/m01-foundation`; PR #1 is ready for merge. |
+| M02 — OneDrive feasibility gate | Not started | Pending M01 merge to `main` |
 | M03 — Catalogue and settings | Not started | Pending M02 |
 | M04 — Order-entry vertical slice | Not started | Pending M03 |
 | M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
@@ -147,9 +147,10 @@ Do not mark an AC Passed using only a planned test name or an unexecuted checkli
 
 ## 5. M01 implementation and re-verification evidence
 
-**Milestone:** M01 — Executable foundation and safe persistence spine
-**Branch:** `codex/m01-foundation`
-**Latest repair commit:** `2a7e5f9e00ff7356fd9bd2d024e0b9a615b1f4f7`
+**Milestone:** M01 — Executable foundation and safe persistence spine  
+**Branch:** `codex/m01-foundation`  
+**Accepted implementation head before status-only closure commit:** `000d6feb9fd2975784c69661f6362366843b682a`  
+**Latest repair commit:** `2a7e5f9e00ff7356fd9bd2d024e0b9a615b1f4f7`  
 **Environment:** Windows 10.0.26200 x64; .NET SDK 10.0.400; .NET/WindowsDesktop runtime 10.0.11.
 
 ### Delivered structure and dependencies
@@ -164,6 +165,7 @@ Do not mark an AC Passed using only a planned test name or an unexecuted checkli
 - `dotnet build Sushi81.Pos.sln -c Release --no-restore`: Passed, 0 warnings and 0 errors.
 - `dotnet test Sushi81.Pos.sln -c Release --no-build`: Passed: Domain 3/0/0, Application 2/0/0, Infrastructure integration 16/0/0, Architecture/localization 8/0/0 (passed/failed/skipped), 29 total.
 - `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false`: Passed; output is generated under the ignored Desktop `bin/Release/net10.0-windows/win-x64/publish/` path.
+- GitHub Actions Continuous integration for the accepted implementation head completed successfully; restore, build and test steps all passed.
 
 ### Acceptance and safety evidence
 
@@ -174,9 +176,9 @@ Do not mark an AC Passed using only a planned test name or an unexecuted checkli
 
 ### Windows/WPF manual verification
 
-- The first interactive Windows/WPF check launched the application and showed the French default interface correctly.
-- Selecting Simplified Chinese then caused a repeatable UI hang on two attempts. M01 is therefore not Passed.
-- The root cause was synchronous waiting on asynchronous local-configuration persistence from the WPF language-selection path. The implementation now uses an explicit awaitable language-change operation; persistence completes before localized resources are refreshed, and failed persistence leaves the previous selection intact.
-- Automated regression coverage includes isolated temporary-directory use of `JsonLocalConfigurationService` with the production culture store, restart persistence, an awaitable synchronization-context path, failed-save state preservation, and French/Chinese resource refresh behavior.
-- A second interactive Windows/WPF check is still required. Do not record Windows manual verification as passed until that check completes.
-
+- First interactive check: application launched and French default interface displayed correctly, but selecting Simplified Chinese caused a repeatable UI hang on two attempts. M01 remained blocked at that point.
+- Confirmed root cause: synchronous waiting on asynchronous local-configuration persistence from the WPF language-selection path.
+- Repair: explicit awaitable language-change operation; persistence completes before localized resources are refreshed, failed persistence preserves the previous selection, and regression tests cover real configuration persistence and synchronization-context behavior.
+- Second interactive Windows/WPF check on 2026-08-28: application launched normally; default French interface displayed correctly; the language selector opened normally; switching to Simplified Chinese completed successfully and displayed the Chinese interface without hanging or becoming unresponsive.
+- The application was then closed and relaunched; the previously selected Simplified Chinese culture remained selected and the Chinese interface was restored successfully.
+- This second manual check closes the previously observed WPF localization blocker. Together with the passing automated suite and CI, M01 is accepted as `Passed`.
