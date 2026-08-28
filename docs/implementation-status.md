@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 has Passed automated and Windows/WPF manual acceptance on `codex/m01-foundation`; PR #1 is ready for merge to `main`. M02 remains Not started until M01 is merged.
+**Current state:** Phase 6 M01 is Passed and merged to `main` via PR #1. M02 — OneDrive single-writer feasibility gate is explicitly authorized by `docs/implementation/milestone-02-onedrive-feasibility.md` and has not started implementation yet.
 
 ## 1. Status vocabulary
 
@@ -19,9 +19,9 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 
 | Milestone | Status | Authorization / result |
 |---|---|---|
-| M01 — Foundation and safe persistence spine | Passed | Automated verification and Windows/WPF manual re-verification completed successfully on `codex/m01-foundation`; PR #1 is ready for merge. |
-| M02 — OneDrive feasibility gate | Not started | Pending M01 merge to `main` |
-| M03 — Catalogue and settings | Not started | Pending M02 |
+| M01 — Foundation and safe persistence spine | Passed | Merged to `main` via PR #1 after automated verification and successful Windows/WPF manual re-verification. |
+| M02 — OneDrive feasibility gate | Not started | Explicitly authorized by `docs/implementation/milestone-02-onedrive-feasibility.md`; implementation may begin from latest `main`. |
+| M03 — Catalogue and settings | Not started | Pending successful M02 feasibility gate and explicit M03 authorization |
 | M04 — Order-entry vertical slice | Not started | Pending M03 |
 | M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
 | M06 — Local recovery/read-only enforcement | Not started | Pending M05 |
@@ -148,9 +148,11 @@ Do not mark an AC Passed using only a planned test name or an unexecuted checkli
 ## 5. M01 implementation and re-verification evidence
 
 **Milestone:** M01 — Executable foundation and safe persistence spine  
-**Branch:** `codex/m01-foundation`  
+**Implementation branch:** `codex/m01-foundation`  
 **Accepted implementation head before status-only closure commit:** `000d6feb9fd2975784c69661f6362366843b682a`  
 **Latest repair commit:** `2a7e5f9e00ff7356fd9bd2d024e0b9a615b1f4f7`  
+**PR #1 final head:** `8a21b137d354f02a8ac2649c78b11c136dda8567`  
+**Merged to `main`:** `b8590d1d0a2aee4ec6554ddee43587a257cedc47`  
 **Environment:** Windows 10.0.26200 x64; .NET SDK 10.0.400; .NET/WindowsDesktop runtime 10.0.11.
 
 ### Delivered structure and dependencies
@@ -166,6 +168,7 @@ Do not mark an AC Passed using only a planned test name or an unexecuted checkli
 - `dotnet test Sushi81.Pos.sln -c Release --no-build`: Passed: Domain 3/0/0, Application 2/0/0, Infrastructure integration 16/0/0, Architecture/localization 8/0/0 (passed/failed/skipped), 29 total.
 - `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false`: Passed; output is generated under the ignored Desktop `bin/Release/net10.0-windows/win-x64/publish/` path.
 - GitHub Actions Continuous integration for the accepted implementation head completed successfully; restore, build and test steps all passed.
+- The final documentation-only PR head also completed CI successfully before merge.
 
 ### Acceptance and safety evidence
 
@@ -182,3 +185,18 @@ Do not mark an AC Passed using only a planned test name or an unexecuted checkli
 - Second interactive Windows/WPF check on 2026-08-28: application launched normally; default French interface displayed correctly; the language selector opened normally; switching to Simplified Chinese completed successfully and displayed the Chinese interface without hanging or becoming unresponsive.
 - The application was then closed and relaunched; the previously selected Simplified Chinese culture remained selected and the Chinese interface was restored successfully.
 - This second manual check closes the previously observed WPF localization blocker. Together with the passing automated suite and CI, M01 is accepted as `Passed`.
+
+## 6. M02 authorization
+
+**Milestone:** M02 — OneDrive single-writer feasibility gate  
+**Authorized task definition:** `docs/implementation/milestone-02-onedrive-feasibility.md`  
+**Task-definition commit:** `a158e6a49faff831c6236df06e285056410e6225`  
+**Implementation status:** Not started.
+
+M02 must end in exactly one gate conclusion defined by the task contract:
+
+- `FEASIBLE — evidence sufficient`;
+- `PARTIAL — real multi-device evidence still required`;
+- `BLOCKED — specification/architecture amendment required`.
+
+M02 is a feasibility proof only. It does not itself close the final M06/M07/M08-owned storage/read-only/printing acceptance criteria and does not authorize M03 until the gate has been evaluated and the next milestone is explicitly prepared.
