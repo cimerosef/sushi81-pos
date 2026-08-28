@@ -29,6 +29,7 @@ internal static class Program
                 "roots" => Print(await EnumerateRootsAsync(), json),
                 "validate-root" => Print(ValidateRoot(arguments), json),
                 "observe" => Print(Observe(arguments), json),
+                "transport-probe" => Print(await TransportProbeAsync(arguments), json),
                 "publish" => Print(await PublishAsync(arguments), json),
                 "inspect" => Print(await InspectAsync(arguments), json),
                 "directed-source-run" => Print(await DirectedSourceRunAsync(arguments), json),
@@ -70,6 +71,18 @@ internal static class Program
         var path = Required(args, 1, "file path");
         var observation = new CloudFileStateReader().Observe(path);
         return new CommandResult(observation.IsConfirmedInSync, observation.State.ToString(), Describe(observation), observation);
+    }
+
+    private static async Task<CommandResult> TransportProbeAsync(string[] args)
+    {
+        var root = Required(args, 1, "registered OneDrive root");
+        var file = Required(args, 2, "artifact file path");
+        var report = await TransportProbe.InspectAsync(root, file);
+        return new CommandResult(
+            report.IsLocalOnlyConfirmation,
+            report.IsLocalOnlyConfirmation ? "transport-confirmed" : "transport-confirmation-blocked",
+            report.ConfirmationReason,
+            report);
     }
 
     private static async Task<CommandResult> PublishAsync(string[] args)
@@ -509,6 +522,7 @@ internal static class Program
         roots [--json]
         validate-root <path> [--json]
         observe <file> [--json]
+        transport-probe <registered-OneDrive-root> <file> [--json]
         publish <registered-OneDrive-root> [--device id] [--lineage guid] [--generation n] [--version n] [--timeout-seconds n]
         inspect <handoff-directory> [--snapshot path] [--marker path]
         claim <claims-directory> --lineage guid [--device id] [--generation n] [--version n]

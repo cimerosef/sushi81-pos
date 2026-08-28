@@ -47,6 +47,29 @@ public sealed class HarnessTests
     }
 
     [TestMethod]
+    public async Task TransportProbeIsReadOnlyAndNoStatesNeverConfirmsUpload()
+    {
+        using var fixture = new TempFixture();
+        var path = Path.Combine(fixture.DirectoryPath, "directed-synthetic.snapshot.db");
+        var bytes = Enumerable.Range(0, 8192).Select(index => (byte)(index % 251)).ToArray();
+        await File.WriteAllBytesAsync(path, bytes);
+        var beforeAttributes = File.GetAttributes(path);
+
+        var report = await TransportProbe.InspectAsync(fixture.DirectoryPath, path);
+
+        Assert.IsFalse(report.IsLocalOnlyConfirmation);
+        Assert.AreEqual("Blocked", report.LocalOnlyConfirmation);
+        Assert.AreEqual(CloudFilePublicationState.NotCloudPlaceholder, report.CloudFiles.State);
+        Assert.AreEqual(0u, report.CloudFiles.RawPlaceholderState);
+        Assert.AreEqual(8192L, report.SizeBytes);
+        Assert.IsFalse(report.RootValidation.IsAccepted);
+        Assert.AreEqual(beforeAttributes, File.GetAttributes(path));
+        CollectionAssert.AreEqual(bytes, await File.ReadAllBytesAsync(path));
+        Assert.IsTrue(report.StorageProviderProperties.ContainsKey("System.StorageProviderId"));
+        Assert.IsNotNull(report.StorageProviderStatusUi);
+    }
+
+    [TestMethod]
     public async Task ValidSyntheticSnapshotAndMarkerValidate()
     {
         using var fixture = new TempFixture();
