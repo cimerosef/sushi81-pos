@@ -6,12 +6,36 @@ namespace Sushi81.Pos.OneDriveFeasibility.Tests;
 public sealed class HarnessTests
 {
     [TestMethod]
-    [DataRow(0u, CloudFilePublicationState.NotCloudPlaceholder)]
-    [DataRow(0x0001u, CloudFilePublicationState.Pending)]
-    [DataRow(0x0003u, CloudFilePublicationState.InSync)]
-    [DataRow(0x0005u, CloudFilePublicationState.Partial)]
-    [DataRow(0x0009u, CloudFilePublicationState.Partial)]
-    [DataRow(0x1003u, CloudFilePublicationState.Unknown)]
+    public void CloudFilesEnumMatchesDocumentedCfapiValues()
+    {
+        Assert.AreEqual(0x00000000u, ParseEnumValue("NoStates"));
+        Assert.AreEqual(0x00000001u, ParseEnumValue("Placeholder"));
+        Assert.AreEqual(0x00000002u, ParseEnumValue("SyncRoot"));
+        Assert.AreEqual(0x00000004u, ParseEnumValue("EssentialPropPresent"));
+        Assert.AreEqual(0x00000008u, ParseEnumValue("InSync"));
+        Assert.AreEqual(0x00000010u, ParseEnumValue("Partial"));
+        Assert.AreEqual(0x00000020u, ParseEnumValue("PartiallyOnDisk"));
+        Assert.AreEqual(0xFFFFFFFFu, ParseEnumValue("Invalid"));
+    }
+
+    private static uint ParseEnumValue(string name) => (uint)Enum.Parse<CfPlaceholderState>(name);
+
+    [TestMethod]
+    // Numeric literals are copied independently from the documented cfapi.h values.
+    [DataRow(0x00000000u, CloudFilePublicationState.NotCloudPlaceholder)]
+    [DataRow(0x00000001u, CloudFilePublicationState.Pending)]
+    [DataRow(0x00000009u, CloudFilePublicationState.InSync)]
+    [DataRow(0x00000011u, CloudFilePublicationState.Partial)]
+    [DataRow(0x00000021u, CloudFilePublicationState.Partial)]
+    [DataRow(0xFFFFFFFFu, CloudFilePublicationState.Invalid)]
+    // Legal SYNC_ROOT/ESSENTIAL_PROP_PRESENT bits alone are not IN_SYNC proof; with IN_SYNC they are retained.
+    [DataRow(0x00000002u, CloudFilePublicationState.NotCloudPlaceholder)]
+    [DataRow(0x00000004u, CloudFilePublicationState.NotCloudPlaceholder)]
+    [DataRow(0x00000003u, CloudFilePublicationState.Pending)]
+    [DataRow(0x00000005u, CloudFilePublicationState.Pending)]
+    [DataRow(0x0000000Bu, CloudFilePublicationState.InSync)]
+    [DataRow(0x0000000Du, CloudFilePublicationState.InSync)]
+    [DataRow(0x00001009u, CloudFilePublicationState.Unknown)]
     public void CloudFilesStateInterpretationIsFailClosed(uint raw, CloudFilePublicationState expected) =>
         Assert.AreEqual(expected, CloudFileStateReader.Interpret(raw));
 
@@ -191,11 +215,11 @@ public sealed class HarnessTests
                 }
 
                 SnapshotReachedInSync = true;
-                return new(path, CloudFilePublicationState.InSync, 3);
+                return new(path, CloudFilePublicationState.InSync, 0x00000009u);
             }
 
             MarkerWasCreatedAfterSnapshotSync = SnapshotReachedInSync && File.Exists(path);
-            return new(path, CloudFilePublicationState.InSync, 3);
+            return new(path, CloudFilePublicationState.InSync, 0x00000009u);
         }
     }
 
@@ -207,13 +231,13 @@ public sealed class HarnessTests
     private sealed class MarkerPendingProbe : ICloudFileStateReader
     {
         public CloudFileObservation Observe(string path) => path.EndsWith(".snapshot.db", StringComparison.Ordinal)
-            ? new(path, CloudFilePublicationState.InSync, 3)
+            ? new(path, CloudFilePublicationState.InSync, 0x00000009u)
             : new(path, CloudFilePublicationState.Pending, 1);
     }
 
     private sealed class AlwaysInSyncProbe : ICloudFileStateReader
     {
-        public CloudFileObservation Observe(string path) => new(path, CloudFilePublicationState.InSync, 3);
+        public CloudFileObservation Observe(string path) => new(path, CloudFilePublicationState.InSync, 0x00000009u);
     }
 
     private sealed class TempFixture : IDisposable

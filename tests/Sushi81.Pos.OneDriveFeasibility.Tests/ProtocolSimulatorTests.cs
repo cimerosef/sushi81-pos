@@ -59,6 +59,30 @@ public sealed class ProtocolSimulatorTests
     }
 
     [TestMethod]
+    public void EveryTwoDevicePublishDeliverInterleavingExposesUnsafeRaceButNeverSafeDoubleWriter()
+    {
+        var result = ProtocolSimulation.RunAdversarialInterleavingAudit(["device-a", "device-b"]);
+
+        Assert.AreEqual(6, result.ScheduleCount);
+        Assert.IsTrue(result.ClaimOnlyDoubleWriterObserved);
+        Assert.IsFalse(result.FailClosedDoubleWriterObserved);
+        Assert.IsFalse(result.FailClosedWritableObserved);
+        Assert.IsNotEmpty(result.ClaimOnlyWitness);
+        StringAssert.Contains(string.Join(' ', result.ClaimOnlyWitness), "publish:");
+    }
+
+    [TestMethod]
+    public void EveryThreeDeviceInterleavingRemainsNDeviceAndFailClosed()
+    {
+        var result = ProtocolSimulation.RunAdversarialInterleavingAudit(["device-a", "device-b", "device-c"]);
+
+        Assert.AreEqual(90, result.ScheduleCount);
+        Assert.IsTrue(result.ClaimOnlyDoubleWriterObserved);
+        Assert.IsFalse(result.FailClosedDoubleWriterObserved);
+        Assert.IsFalse(result.FailClosedWritableObserved);
+    }
+
+    [TestMethod]
     public void ClaimOnlyBaselineProducesExecutableDoubleWriterCounterexample()
     {
         var transport = NewContentionTransport(TwoDevices);

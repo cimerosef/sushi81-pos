@@ -8,6 +8,15 @@ public sealed record ProtocolAuditResult(
     IReadOnlyList<AcquisitionDecision> FailClosedDecisions,
     string Finding);
 
+public sealed record InterleavingAuditResult(
+    int DeviceCount,
+    int ScheduleCount,
+    bool ClaimOnlyDoubleWriterObserved,
+    bool FailClosedDoubleWriterObserved,
+    bool FailClosedWritableObserved,
+    IReadOnlyList<string> ClaimOnlyWitness,
+    string Finding);
+
 public static class ProtocolSimulation
 {
     /// <summary>
@@ -49,5 +58,121 @@ public static class ProtocolSimulation
             unsafeWritable > 1 && safeWritable == 0
                 ? "file-only claim visibility permits a double writer; fail-closed protocol blocks unresolved N-device contention"
                 : "unexpected protocol result");
+    }
+
+    /// <summary>
+    /// Enumerates every interleaving of per-device PublishClaim then DeliverClaim
+    /// for the supplied devices. The evaluator is run after every operation, not
+    /// only at the final state. This makes the race a deterministic safety proof
+    /// exercise rather than a timing test.
+    /// </summary>
+    public static InterleavingAuditResult RunAdversarialInterleavingAudit(IReadOnlyList<string> deviceIds)
+    {
+        ArgumentNullException.ThrowIfNull(deviceIds);
+        if (deviceIds.Count < 2 || deviceIds.Any(string.IsNullOrWhiteSpace) ||
+            deviceIds.Distinct(StringComparer.Ordinal).Count() != deviceIds.Count)
+        {
+            throw new ArgumentException("At least two distinct non-empty device IDs are required.", nameof(deviceIds));
+        }
+
+        var handoff = new HandoffIdentity("synthetic-lineage", 7, 11);
+        var claims = deviceIds.ToDictionary(
+            id => id,
+            id => new AcquisitionClaim($"claim-{id}", handoff, id),
+            StringComparer.Ordinal);
+        var schedules = 0;
+        var claimOnlyDoubleWriter = false;
+        var failClosedDoubleWriter = false;
+        var failClosedWritable = false;
+        string[] witness = [];
+
+        void Explore(DeterministicSyncTransport transport, HashSet<string> published, HashSet<string> delivered, List<string> schedule)
+        {
+            var claimOnlyDecisions = deviceIds
+                .Select(id => ClaimOnlyAcquisitionProtocol.Evaluate(transport.Observe(id), handoff))
+                .ToArray();
+            var failClosedDecisions = deviceIds
+                .Select(id => FailClosedAcquisitionProtocol.Evaluate(transport.Observe(id), deviceIds, handoff))
+                .ToArray();
+
+            if (claimOnlyDecisions.Count(x => x.IsWritable) > 1)
+            {
+                claimOnlyDoubleWriter = true;
+                if (witness.Length == 0)
+                {
+                    witness = schedule.ToArray();
+                }
+            }
+
+            if (failClosedDecisions.Count(x => x.IsWritable) > 1)
+            {
+                failClosedDoubleWriter = true;
+                if (witness.Length == 0)
+                {
+                    witness = schedule.ToArray();
+                }
+            }
+
+            failClosedWritable |= failClosedDecisions.Any(x => x.IsWritable);
+            if (published.Count == deviceIds.Count && delivered.Count == deviceIds.Count)
+            {
+                schedules++;
+                return;
+            }
+
+            foreach (var id in deviceIds)
+            {
+                if (!published.Contains(id))
+                {
+                    var nextTransport = CloneTransport(transport, deviceIds);
+                    nextTransport.PublishClaim(claims[id]);
+                    var nextPublished = new HashSet<string>(published, StringComparer.Ordinal) { id };
+                    var nextSchedule = new List<string>(schedule) { $"publish:{id}" };
+                    Explore(nextTransport, nextPublished, delivered, nextSchedule);
+                }
+                else if (!delivered.Contains(id))
+                {
+                    var nextTransport = CloneTransport(transport, deviceIds);
+                    nextTransport.DeliverClaim(id, claims[id].ClaimId);
+                    var nextDelivered = new HashSet<string>(delivered, StringComparer.Ordinal) { id };
+                    var nextSchedule = new List<string>(schedule) { $"deliver:{id}" };
+                    Explore(nextTransport, published, nextDelivered, nextSchedule);
+                }
+            }
+        }
+
+        Explore(new DeterministicSyncTransport(deviceIds), [], [], []);
+        return new(
+            deviceIds.Count,
+            schedules,
+            claimOnlyDoubleWriter,
+            failClosedDoubleWriter,
+            failClosedWritable,
+            witness,
+            claimOnlyDoubleWriter && !failClosedDoubleWriter && !failClosedWritable
+                ? "adversarial file-only interleavings produce a double writer; fail-closed protocol preserves safety by refusing N-device writable activation"
+                : "unexpected protocol result");
+    }
+
+    private static DeterministicSyncTransport CloneTransport(DeterministicSyncTransport source, IReadOnlyList<string> deviceIds)
+    {
+        var clone = new DeterministicSyncTransport(deviceIds);
+        foreach (var claim in source.PublishedClaims)
+        {
+            clone.PublishClaim(claim);
+        }
+
+        foreach (var id in deviceIds)
+        {
+            var view = source.Observe(id);
+            clone.SetSyncState(id, view.SyncState);
+            clone.SetParticipantPresent(id, view.ParticipantPresent);
+            foreach (var claim in view.VisibleClaims)
+            {
+                clone.DeliverClaim(id, claim.ClaimId);
+            }
+        }
+
+        return clone;
     }
 }

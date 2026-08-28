@@ -15,6 +15,24 @@ public enum CloudFilePublicationState
     Missing
 }
 
+/// <summary>
+/// The documented Windows Cloud Files <c>CF_PLACEHOLDER_STATE</c> flags from cfapi.h.
+/// Keep these values in one technical source of truth; publication interpretation below requires the
+/// placeholder bit, gives partial states precedence, and rejects unknown bits fail-closed.
+/// </summary>
+[Flags]
+public enum CfPlaceholderState : uint
+{
+    NoStates = 0x00000000,
+    Placeholder = 0x00000001,
+    SyncRoot = 0x00000002,
+    EssentialPropPresent = 0x00000004,
+    InSync = 0x00000008,
+    Partial = 0x00000010,
+    PartiallyOnDisk = 0x00000020,
+    Invalid = 0xFFFFFFFF
+}
+
 public sealed record CloudFileObservation(
     string Path,
     CloudFilePublicationState State,
@@ -43,12 +61,12 @@ public sealed class CloudFileStateReader : ICloudFileStateReader
     private const uint ShareWrite = 0x00000002;
     private const uint ShareDelete = 0x00000004;
 
-    private const uint Placeholder = 0x0001;
-    private const uint InSync = 0x0002;
-    private const uint Partial = 0x0004;
-    private const uint PartiallyOnDisk = 0x0008;
-    private const uint Invalid = 0x0000;
-    private const uint KnownStates = Placeholder | InSync | Partial | PartiallyOnDisk;
+    private const CfPlaceholderState KnownStates = CfPlaceholderState.Placeholder
+        | CfPlaceholderState.SyncRoot
+        | CfPlaceholderState.EssentialPropPresent
+        | CfPlaceholderState.InSync
+        | CfPlaceholderState.Partial
+        | CfPlaceholderState.PartiallyOnDisk;
 
     public CloudFileObservation Observe(string path)
     {
@@ -80,7 +98,7 @@ public sealed class CloudFileStateReader : ICloudFileStateReader
             }
 
             var raw = CfGetPlaceholderStateFromAttributeTag(info.FileAttributes, info.ReparseTag);
-            return new(fullPath, Interpret(raw), raw);
+            return new(fullPath, Interpret((uint)raw), (uint)raw);
         }
         catch (DllNotFoundException exception)
         {
@@ -98,33 +116,41 @@ public sealed class CloudFileStateReader : ICloudFileStateReader
 
     public static CloudFilePublicationState Interpret(uint raw)
     {
-        if (raw == Invalid)
+        var state = (CfPlaceholderState)raw;
+        if (state == CfPlaceholderState.NoStates)
         {
             return CloudFilePublicationState.NotCloudPlaceholder;
         }
 
-        if ((raw & ~KnownStates) != 0)
+        if (state == CfPlaceholderState.Invalid)
+        {
+            return CloudFilePublicationState.Invalid;
+        }
+
+        if ((state & ~KnownStates) != 0)
         {
             return CloudFilePublicationState.Unknown;
         }
 
-        if ((raw & Placeholder) == 0)
+        if ((state & CfPlaceholderState.Placeholder) == 0)
         {
-            return CloudFilePublicationState.Unknown;
+            return CloudFilePublicationState.NotCloudPlaceholder;
         }
 
-        if ((raw & (Partial | PartiallyOnDisk)) != 0)
+        if ((state & (CfPlaceholderState.Partial | CfPlaceholderState.PartiallyOnDisk)) != 0)
         {
             return CloudFilePublicationState.Partial;
         }
 
-        return (raw & InSync) != 0
+        // SYNC_ROOT and ESSENTIAL_PROP_PRESENT are legal auxiliary flags. They do not invalidate
+        // an otherwise valid PLACEHOLDER|IN_SYNC observation; without IN_SYNC the result remains pending.
+        return (state & CfPlaceholderState.InSync) != 0
             ? CloudFilePublicationState.InSync
             : CloudFilePublicationState.Pending;
     }
 
     [DllImport("CldApi.dll", ExactSpelling = true)]
-    private static extern uint CfGetPlaceholderStateFromAttributeTag(uint fileAttributes, uint reparseTag);
+    private static extern CfPlaceholderState CfGetPlaceholderStateFromAttributeTag(uint fileAttributes, uint reparseTag);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern SafeFileHandle CreateFile(
