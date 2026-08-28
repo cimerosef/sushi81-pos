@@ -7,8 +7,8 @@ This report records the revalidation authorized by `docs/implementation/mileston
 ## Branch, commits and amended sources
 
 - Branch: `codex/m02-directed-handoff-revalidation`
-- Verification implementation commit: `c1d717007f6b04ff16fb6b13b92ee60756057059`.
-- Test-complete code head: `c1d717007f6b04ff16fb6b13b92ee60756057059` (the final evidence/status commit follows this code head).
+- Verification implementation commit: `c087235ab2af03506c6544d9ebdffa91a4716276`.
+- Test-complete code head: `c087235ab2af03506c6544d9ebdffa91a4716276` (the final evidence/status commit follows this code head).
 - PR: [#3](https://github.com/cimerosef/sushi81-pos/pull/3), open and not merged.
 - Original feasibility evidence remains in `docs/implementation/milestone-02-feasibility-report.md`; it is not rewritten here.
 - Amended sources: `docs/decisions/target-directed-authority-handoff.md`, `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`, and `docs/implementation-plan.md`.
@@ -30,7 +30,7 @@ The required safety assertion is that no execution can expose a target-releasing
 
 The executable coordinator enforces this with `DirectedSnapshotEvidence.CaptureAsync`: the source must provide a valid same-transfer SQLite file, a successful read-only `PRAGMA integrity_check`, a SHA-256 checksum/byte length and an explicit synchronized observation before the durable state can transition to `RelinquishedBlocked`. The state store writes the transition through a temporary file with `WriteThrough`/`Flush(true)` and atomic replace. Marker publication revalidates the persisted evidence, and source `MayBusinessWrite` remains false after restart. Initialization cannot reset an existing durable state.
 
-The receiving side has an independent `DurableTargetAcquisitionState` and atomic store. It records the local target device, source/target IDs, transfer/lineage/generation/version, canonical snapshot path, checksum/byte length, acquisition status, monotonic revision and UTC update time. `DirectedTargetAcquisitionCoordinator` validates both immutable marker artifacts and SQLite integrity first, then commits this state; the centralized target write gate requires that exact durable state, so an in-memory validation flag, malformed state, failed commit, wrong target, stale generation/version or replay cannot enable writes. A fresh coordinator instance reconstructs the same decision from disk; the source and non-target devices cannot reuse the target state.
+The receiving side has an independent `DurableTargetAcquisitionState` and atomic store. It records the local target device, source/target IDs, transfer/lineage/generation/version, canonical snapshot path, checksum/byte length, acquisition status, monotonic revision and UTC update time. `DirectedTargetAcquisitionCoordinator` validates both immutable marker artifacts and SQLite integrity first, then commits this state; the centralized lifecycle-aware write gate requires that exact durable state plus the current ledger position, so an in-memory validation flag, malformed state, failed commit, wrong target, stale generation/version or replay cannot enable writes. A fresh coordinator instance reconstructs the same decision from disk; the source and non-target devices cannot reuse the target state.
 
 ## Crash and failure matrix
 
@@ -60,18 +60,19 @@ Target acquisition requires exact local target identity, distinct valid paired s
 
 ## Continuous authority-transfer lifecycle proof
 
-`ContinuousAuthorityLifecycleTests.SameLineageGenerationSupportsABv1ThenBAv2WithoutDeletingDurableState` executes the complete synthetic lifecycle in one durable fixture rather than resetting to fresh state for the second leg:
+`ContinuousAuthorityLifecycleTests.SameLineageGenerationSupportsABv1ThenBAv2ThenABv3WithoutDeletingDurableState` executes three complete legs in one durable fixture, with one lineage and generation and no deletion of any durable file:
 
-1. Device A completes the exact A → B handoff at lineage `L`, generation `7`, handoff version `1`. Device B is blocked before acquisition, then observes the snapshot and both target-bound markers as `ConfirmedInSync`, validates the SQLite checksum/length/integrity, and durably records its target acquisition.
-2. The recorded B acquisition is promoted to B's next authoritative source state. The prior B target-acquisition file and the append-only lifecycle ledger remain byte-for-byte present; no durable state is deleted or replaced.
-3. Device B completes the exact B → A handoff at the same lineage `L` and generation `7`, now at monotonic handoff version `2`. Device A independently acquires and durably records the target state. The ledger proves the source/target sequence `[A → B, B → A]` and versions `[1, 2]`.
-4. A replay/stale version `1`, a wrong next source and any mismatched identity are rejected. Restarted B reconstructs `Released` and remains non-writable; restarted A reconstructs the durable acquisition and is the only device allowed through the target write gate. The B acquisition remains on disk after the reverse leg.
+1. **Leg 1 — A → B v1.** A completes the exact handoff. B is blocked before acquisition, then observes the snapshot and both target-bound markers as `ConfirmedInSync`, validates SQLite checksum/length/integrity, durably records its target cursor, and becomes the only writable device. A and C remain blocked; `count(distinct writable devices) == 1`.
+2. **Leg 2 — B → A v2.** B's v1 acquisition is promoted to B's source cursor. B completes the reverse handoff at the same lineage/generation and monotonic version `2`; A acquires and becomes the only writable device. B's v1 target evidence remains on disk but the lifecycle-aware gate classifies it as `target-acquisition-superseded`; B's Released source state and C remain blocked; the writable count remains `1`.
+3. **Leg 3 — A → B v3.** A's v2 acquisition is promoted to A's source cursor. A completes A → B at version `3`; B's existing target cursor is atomically advanced from v1 to v3 (revision increment) after exact successor validation. B is again the only writable device; A's v2 cursor, B's historical v1 evidence, stale/replayed transfers and C are all blocked; the writable count remains `1`.
 
-`DirectedLifecycleLedgerStore` is append-only and durable (`WriteThrough` plus `Flush(true)`); it validates unique revisions/transfers, same lineage/generation, monotonic handoff-version progression, and previous-target → next-source progression. `DirectedContinuousLifecycleCoordinator` owns completion and target-to-next-source promotion, so promotion cannot reset an existing authority file, bypass a missing completion record, or discard the previous target state. The companion regression covers an unpaired target and pending Cloud Files observations; both remain fail-closed.
+The test also verifies stale v1/v2 promotion is blocked, a conflicting v3 transfer ID cannot overwrite the current cursor, version 4 with a wrong next source is rejected, old Released source state cannot authorize writes, and the ledger contains the exact `[A → B, B → A, A → B]` sequence with versions `[1, 2, 3]`. Historical target evidence is retained for audit; only the latest completed lifecycle entry may be promoted, and only a target cursor matching that high-water mark may authorize business writes.
+
+`DirectedLifecycleAuthorityGate` is the centralized lifecycle-aware decision boundary used by both source and target coordinators. It combines local device identity, durable source authority state, durable target acquisition cursor, the append-only lifecycle ledger's current lineage/generation high-water mark, current handoff version and current holder. `DirectedLifecycleLedgerStore` is append-only and durable (`WriteThrough` plus `Flush(true)`); it validates unique revisions/transfers, same lineage/generation, monotonic handoff-version progression, and previous-target → next-source progression. `DirectedContinuousLifecycleCoordinator` owns completion and target-to-next-source promotion, so promotion cannot bypass a missing completion record or discard historical evidence. The companion regression covers an unpaired target and pending Cloud Files observations; both remain fail-closed.
 
 ## N-device safety and liveness
 
-The deterministic model includes at least source A and target/non-target devices B and C with arbitrary artifact visibility order, delayed marker, duplicate/replayed marker, stale versions/generations, malformed identity, source==target, restart/retry and retarget attempts. The target path now requires both `AcquisitionValidated` and `DurableTargetAcquisitionPersisted`; `Restarted=true` without reconstructed durable acquisition remains blocked. The safety invariant is `writable-device-count <= 1` for every modeled interleaving. The valid-path liveness invariant is that, after successful durable relinquishment, complete transport, exact target validation and durable target acquisition, the selected target can become writable. The directed protocol suite passed 32/32 and the durable handoff/target suite passed 50/50, including the continuous two-leg lifecycle and Cloud Files/paired-set fail-closed regressions.
+The deterministic model includes at least source A and target/non-target devices B and C with arbitrary artifact visibility order, delayed marker, duplicate/replayed marker, stale versions/generations, malformed identity, source==target, restart/retry and retarget attempts. The target path now requires both `AcquisitionValidated` and `DurableTargetAcquisitionPersisted`; `Restarted=true` without reconstructed durable acquisition remains blocked. The safety invariant is `writable-device-count <= 1` for every modeled interleaving. The valid-path liveness invariant is that, after successful durable relinquishment, complete transport, exact target validation and durable target acquisition, the selected target can become writable. The directed protocol suite passed 32/32 and the durable handoff/target suite passed 50/50, including the continuous three-leg lifecycle/cursor regression and Cloud Files/paired-set fail-closed regressions.
 
 ## Cloud Files and transport boundary
 
@@ -88,20 +89,34 @@ $project = 'tools\Sushi81.Pos.OneDriveFeasibility\Sushi81.Pos.OneDriveFeasibilit
 $root = '<registered-OneDrive-root>'
 $lineage = '11111111-1111-1111-1111-111111111111'
 $stateA = '<synthetic-state-dir-device-a>'
-dotnet run --project $project -c Release --no-build -- validate-root $root --json
-dotnet run --project $project -c Release --no-build -- directed-source-run $root --state-dir $stateA --device device-a --target device-b --lineage $lineage --generation 1 --version 1 --timeout-seconds 120 --poll-ms 500 --json
-```
-
-Copy the `transferId` from the Device A JSON result, then run independently on Device B against the same registered root (and a separate synthetic state directory):
-
-```powershell
 $stateB = '<synthetic-state-dir-device-b>'
-$transferId = '<transferId-from-device-a-json>'
+$ledger = '<synthetic-shared-lifecycle-ledger.jsonl>'
+$generation = 7
 dotnet run --project $project -c Release --no-build -- validate-root $root --json
-dotnet run --project $project -c Release --no-build -- directed-target-acquire $root --state-dir $stateB --device device-b --source device-a --target device-b --lineage $lineage --generation 1 --version 1 --transfer-id $transferId --json
+$v1 = [guid]::NewGuid().ToString()
+$a1 = dotnet run --project $project -c Release --no-build -- directed-source-run $root --state-dir $stateA --device device-a --target device-b --lineage $lineage --generation $generation --version 1 --transfer-id $v1 --ledger $ledger --timeout-seconds 120 --poll-ms 500 --json | ConvertFrom-Json
+dotnet run --project $project -c Release --no-build -- directed-target-acquire $root --state-dir $stateB --device device-b --source device-a --target device-b --lineage $lineage --generation $generation --version 1 --transfer-id $v1 --ledger $ledger --json
+dotnet run --project $project -c Release --no-build -- directed-lifecycle-complete --source-state-dir $stateA --target-state-dir $stateB --ledger $ledger --source device-a --target device-b --lineage $lineage --generation $generation --version 1 --transfer-id $v1 --json
+dotnet run --project $project -c Release --no-build -- directed-target-promote --state-dir $stateB --ledger $ledger --device device-b --source device-a --target device-b --lineage $lineage --generation $generation --version 1 --transfer-id $v1 --json
+
+# Round 2: B -> A v2, same state directories, lineage and generation.
+$v2 = [guid]::NewGuid().ToString()
+dotnet run --project $project -c Release --no-build -- directed-source-run $root --state-dir $stateB --device device-b --target device-a --lineage $lineage --generation $generation --version 2 --transfer-id $v2 --ledger $ledger --timeout-seconds 120 --poll-ms 500 --json
+dotnet run --project $project -c Release --no-build -- directed-target-acquire $root --state-dir $stateA --device device-a --source device-b --target device-a --lineage $lineage --generation $generation --version 2 --transfer-id $v2 --ledger $ledger --json
+dotnet run --project $project -c Release --no-build -- directed-lifecycle-complete --source-state-dir $stateB --target-state-dir $stateA --ledger $ledger --source device-b --target device-a --lineage $lineage --generation $generation --version 2 --transfer-id $v2 --json
+dotnet run --project $project -c Release --no-build -- directed-target-promote --state-dir $stateA --ledger $ledger --device device-a --source device-b --target device-a --lineage $lineage --generation $generation --version 2 --transfer-id $v2 --json
+
+# Optional Round 3: A -> B v3 proves cursor advancement on the same target.
+$v3 = [guid]::NewGuid().ToString()
+dotnet run --project $project -c Release --no-build -- directed-source-run $root --state-dir $stateA --device device-a --target device-b --lineage $lineage --generation $generation --version 3 --transfer-id $v3 --ledger $ledger --timeout-seconds 120 --poll-ms 500 --json
+dotnet run --project $project -c Release --no-build -- directed-target-acquire $root --state-dir $stateB --device device-b --source device-a --target device-b --lineage $lineage --generation $generation --version 3 --transfer-id $v3 --ledger $ledger --json
+dotnet run --project $project -c Release --no-build -- directed-lifecycle-complete --source-state-dir $stateA --target-state-dir $stateB --ledger $ledger --source device-a --target device-b --lineage $lineage --generation $generation --version 3 --transfer-id $v3 --json
+
+# Restart/resume and stale checks use the same durable paths; no JSON is edited manually.
+dotnet run --project $project -c Release --no-build -- directed-source-resume $root --state-dir $stateA --device device-a --target device-b --lineage $lineage --generation $generation --version 3 --transfer-id $v3 --ledger $ledger --json
 ```
 
-The target command independently validates snapshot/ready/grant identity, checksum/size and SQLite integrity, persists durable acquisition, reloads it, and reports `mayBusinessWrite=true` only for Device B. A Device C check uses the same transfer metadata with `--device device-c` and must return `wrong-target` with no durable state. For a restart/resume check, rerun Device A with the same state directory and immutable transfer identity using `directed-source-resume`; it must report the durable pending/released state and keep `sourceMayBusinessWrite=false`. The continuous two-leg version-2 transition (B → A, same lineage/generation, monotonic version, target promotion and stale/replay rejection) is exercised by the synthetic lifecycle test above; it intentionally retains the durable state directory and ledger rather than resetting them. These real commands have not been executed here because this environment has no registered OneDrive sync root; they cannot replace deterministic safety proof.
+`directed-target-acquire` reports the three Device B Cloud Files observations and persists the target cursor; before `directed-lifecycle-complete`, `mayBusinessWrite` remains false because the lifecycle high-water mark is not yet current. Completion appends the immutable leg, and a repeated acquire/restart observes the centralized gate. `directed-target-promote` advances the exact latest target to the next source without deleting the target cursor or ledger. A Device C check uses the same transfer metadata with `--device device-c` and must return `wrong-target` with no durable state. These real commands have not been executed here because this environment has no registered OneDrive sync root; they cannot replace deterministic safety proof.
 
 ## Build, tests and AC mapping
 
@@ -109,7 +124,7 @@ Verification was run on Windows 10.0.26200 x64 with .NET SDK 10.0.400 (runtime 1
 
 GitHub Actions Continuous Integration for the pushed branch completed successfully; the PR checks are the authoritative per-head CI record.
 
-Final implementation tree is limited to the M02 harness and evidence: `tools/Sushi81.Pos.OneDriveFeasibility` (Cloud Files observation, directed source coordinator, durable source/target state stores, append-only lifecycle ledger, marker/snapshot validation and directed CLI including restart/resume); `tools/Sushi81.Pos.OneDriveFeasibility.Tests` (50 directed durable/source/target/lifecycle tests); `tests/Sushi81.Pos.OneDriveFeasibility.Tests` (32 pure protocol tests); unchanged M01/product projects under `src/` and their existing test projects; and the two M02 evidence documents under `docs/implementation/` and `docs/implementation-status.md`. No Catalogue, BusinessSettings, Order, Cart, Payment, pricing/VAT, printing, export, Hiboutik, pairing, disaster-recovery, archive, installer or legacy emergency-model code was added.
+Final implementation tree is limited to the M02 harness and evidence: `tools/Sushi81.Pos.OneDriveFeasibility` (Cloud Files observation, centralized lifecycle-aware authority gate, directed source coordinator, durable source/target state stores, append-only lifecycle ledger, marker/snapshot validation and directed CLI including completion, promotion and restart/resume); `tools/Sushi81.Pos.OneDriveFeasibility.Tests` (50 directed durable/source/target/lifecycle tests, including the three-leg cursor regression); `tests/Sushi81.Pos.OneDriveFeasibility.Tests` (32 pure protocol tests); unchanged M01/product projects under `src/` and their existing test projects; and the two M02 evidence documents under `docs/implementation/` and `docs/implementation-status.md`. No Catalogue, BusinessSettings, Order, Cart, Payment, pricing/VAT, printing, export, Hiboutik, pairing, disaster-recovery, archive, installer or legacy emergency-model code was added.
 
 No real two-device OneDrive transport run was available: the harness reported zero registered sync roots in this environment. Therefore the deterministic protocol/durable-state evidence is complete, but the gate remains Partial rather than Feasible.
 
