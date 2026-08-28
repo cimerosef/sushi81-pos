@@ -8,7 +8,7 @@ This report records the revalidation authorized by `docs/implementation/mileston
 
 - Branch: `codex/m02-directed-handoff-revalidation`
 - Verification implementation commit: `0e5938d1f3fd7d7bc0af6bf2f25eed31759a01dc`.
-- Test-complete code head: `0e5938d1f3fd7d7bc0af6bf2f25eed31759a01dc` (the final evidence/status commit follows this code head).
+- Latest test-complete code head: `05c59f5bffd9f21f0f9deb52f5c70d0cab033509` (the final evidence/status commit follows this code head).
 - PR: [#3](https://github.com/cimerosef/sushi81-pos/pull/3), open and not merged.
 - Original feasibility evidence remains in `docs/implementation/milestone-02-feasibility-report.md`; it is not rewritten here.
 - Amended sources: `docs/decisions/target-directed-authority-handoff.md`, `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`, and `docs/implementation-plan.md`.
