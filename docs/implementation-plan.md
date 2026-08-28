@@ -1,25 +1,26 @@
 # V1 implementation plan
 
-**Status:** Approved — Phase 6 baseline  
+**Status:** Approved — Phase 6 baseline, amended 2026-08-28  
 **Approval date:** 2026-08-27  
+**Latest amendment:** 2026-08-28  
 **Product:** Sushi81 POS  
-**Purpose:** Define the controlled implementation sequence for the frozen V1 Specification.
+**Purpose:** Define the controlled implementation sequence for the frozen-and-amended V1 Specification.
 
 ## 1. Authority and scope
 
-This plan is subordinate to the frozen V1 Specification in:
+This plan is subordinate to the V1 Specification in:
 
 - `v1-specification-freeze.md`;
-- the Approved Phase 1–4 baseline documents;
+- the Approved Phase 1–4 baseline documents and later approved amendments recorded in them;
 - the Approved records under `decisions/`;
 - `acceptance-criteria.md`;
 - repository instructions in `../AGENTS.md`.
 
-This plan does not amend product behavior, business rules, architecture, logical data semantics, storage safety, printing or export contracts.
+This plan does not independently amend product behavior, business rules, architecture, logical data semantics, storage safety, printing or export contracts.
 
 Implementation must proceed one explicitly authorized milestone at a time. Completion of a milestone is not permission to start the next one.
 
-If implementation exposes a genuine specification conflict or a missing material decision, the affected path stops for an approved specification amendment. Pure technical details that preserve the frozen behavior may be decided under the standing priority order:
+If implementation exposes a genuine specification conflict or a missing material decision, the affected path stops for an approved specification amendment. Pure technical details that preserve the approved behavior may be decided under the standing priority order:
 
 **reliability > simplicity > maintainability > operational clarity > novelty.**
 
@@ -29,9 +30,10 @@ Sushi81 POS uses a hybrid approach:
 
 1. establish a thin but complete technical foundation that cannot safely be retrofitted later;
 2. prove the highest-risk OneDrive single-writer assumptions early;
-3. deliver business functionality as end-to-end vertical slices;
-4. add integrations only after their upstream business state is stable;
-5. complete packaging and whole-V1 acceptance last.
+3. if the feasibility gate reveals a material blocker, amend the specification before broad business implementation and re-verify the amended safety model;
+4. deliver business functionality as end-to-end vertical slices;
+5. add integrations only after their upstream business state is stable;
+6. complete packaging and whole-V1 acceptance last.
 
 The project must not build every technical layer in isolation before exercising real workflows. It must also not build disposable UI/business shortcuts that bypass money, migrations, transactions, snapshots, authority checks or recovery.
 
@@ -47,15 +49,50 @@ Primary acceptance ownership: `AC-ARCH-001` through `AC-ARCH-004`, `AC-STO-001`;
 
 Detailed authorized task definition: `implementation/milestone-01-foundation.md`.
 
-### M02 — OneDrive single-writer feasibility gate
+### M02 — OneDrive single-writer feasibility gate and amendment revalidation
 
-Before broad business implementation, prove that the target Windows/OneDrive environment can support the frozen fail-closed handoff/acquisition requirements, including synchronization-state observation, immutable snapshot/marker publication, lineage/generation/version/checksum validation and deterministic handling of competing acquisition attempts.
+M02 runs before broad business implementation.
 
-This is a technical feasibility gate, not permission to weaken the storage contract. If the frozen guarantees cannot be implemented without a material architecture/workflow change, stop for specification amendment.
+#### Original feasibility result
 
-Primary acceptance preparation: `AC-STO-002` through `AC-STO-005`, `AC-STO-007` through `AC-STO-010`.
+The original generic/competitive acquisition model was tested under `implementation/milestone-02-onedrive-feasibility.md`.
 
-Detailed authorized task definition: `implementation/milestone-02-onedrive-feasibility.md`.
+PR #2 / merge commit `5bacafa0e4ca906d8ff058e34586dee43503bc42` established:
+
+- corrected documented Windows Cloud Files state interpretation;
+- strict synthetic handoff publication/validation primitives;
+- deterministic N-device delayed/reordered simulation;
+- an executable double-writer counterexample for claim-only competitive acquisition;
+- a blocker conclusion because the approved OneDrive/local-filesystem model exposes no documented cross-client atomic exclusive-grant primitive.
+
+The resulting historical evidence is `implementation/milestone-02-feasibility-report.md`.
+
+#### Approved amendment
+
+On 2026-08-28 the user approved `decisions/target-directed-authority-handoff.md`.
+
+Normal authority transfer is now source-directed to one target device; normal close distinguishes retaining authority from explicitly transferring it; the source must durably relinquish business-write authority before a target-releasing marker can exist; non-target devices no longer compete through claims/election.
+
+The amended behavior is folded into `architecture.md`, `storage-strategy.md` and `acceptance-criteria.md`.
+
+#### Required revalidation
+
+Before M03, M02 must re-verify the amended target-directed protocol, including:
+
+- close-and-retain semantics;
+- target binding;
+- durable source relinquishment before target release;
+- crash/restart boundaries;
+- pre/post-relinquishment failures;
+- wrong-target rejection;
+- N-device safety and valid-path liveness;
+- real OneDrive immutable-artifact transport evidence.
+
+Primary acceptance preparation remains: amended `AC-STO-002` through `AC-STO-005`, `AC-STO-007` through `AC-STO-010`.
+
+Detailed authorized revalidation task definition: `implementation/milestone-02-directed-handoff-revalidation.md`.
+
+M03 remains unauthorized until the revalidation gate is successfully closed and M03 receives its own detailed task definition.
 
 ### M03 — In-application catalogue and business settings
 
@@ -77,13 +114,15 @@ Primary acceptance ownership: `AC-LIFE-003` through `AC-LIFE-014` and the live-s
 
 ### M06 — Local recovery and authoritative/read-only enforcement
 
-Connect the M01 recovery and authority primitives to every implemented durable business mutation. Complete recovery scheduling/debounce/flush, five-version retention, persistent non-authoritative/stale presentation and centralized blocking of every authoritative write.
+Connect the M01 recovery and authority primitives to every implemented durable business mutation. Complete recovery scheduling/debounce/flush, five-version retention, persistent non-authoritative/stale/pending-transfer presentation and centralized blocking of every authoritative write.
 
 Primary acceptance ownership: `AC-STO-006`, `AC-STO-010`; partial completion of `AC-PROD-002`.
 
-### M07 — Pairing, formal handoff and disaster recovery
+### M07 — Pairing, target-directed formal handoff and disaster recovery
 
-Implement device/lineage initialization, N-device pairing, formal exit handoff, safe acquisition, immutable versions, checksum/integrity validation, synchronization confirmation, five-version handoff retention, change-triggered recovery-only cloud checkpoints, explicit disaster recovery and generation invalidation.
+Implement device/lineage initialization, N-device pairing, close-and-retain behavior, explicit target selection, target-directed transfer-and-close, durable source relinquishment, safe target acquisition, immutable versions, checksum/integrity validation, synchronization confirmation, five-version handoff retention, change-triggered recovery-only cloud checkpoints, explicit Disaster Recovery and generation invalidation.
+
+Normal M07 acquisition must not reintroduce generic competitive claim/election semantics superseded by the 2026-08-28 amendment.
 
 Primary acceptance ownership: `AC-STO-002` through `AC-STO-005`, `AC-STO-007` through `AC-STO-009`, and `AC-PROD-002`.
 
@@ -143,7 +182,7 @@ A passing build without the required tests and acceptance evidence is not milest
 ## 5. Implementation records
 
 - `implementation-status.md` is the living AC/milestone traceability record.
-- `implementation/` contains the detailed task contract for each milestone when that milestone is prepared and authorized.
+- `implementation/` contains the detailed task contract for each milestone/revalidation when prepared and authorized.
 - Tests should be linked by stable repository path and test name rather than copying test output into specification documents.
 - Manual evidence should record the environment, action and result concisely without storing sensitive production data.
 
@@ -153,4 +192,8 @@ Phase 6 planning remains Approved.
 
 M01 is `Passed` and was merged to `main` through PR #1 at merge commit `b8590d1d0a2aee4ec6554ddee43587a257cedc47` after automated verification and successful Windows/WPF manual re-verification.
 
-M02 is now explicitly authorized by `implementation/milestone-02-onedrive-feasibility.md`. It must be executed as a feasibility gate before M03. M03 and later milestones remain unauthorized until the applicable preceding gate/milestone is completed and a detailed task contract is explicitly prepared.
+M02's original generic acquisition design correctly ended `BLOCKED — specification/architecture amendment required`; its evidence was merged through PR #2 at `5bacafa0e4ca906d8ff058e34586dee43503bc42`.
+
+The target-directed authority-handoff amendment is now Approved and incorporated into the V1 baseline. M02 amendment revalidation is explicitly authorized by `implementation/milestone-02-directed-handoff-revalidation.md`.
+
+M03 and later milestones remain unauthorized until M02 revalidation reaches an acceptable gate result and the next milestone receives its own detailed task contract.
