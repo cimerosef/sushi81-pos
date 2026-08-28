@@ -38,6 +38,10 @@ internal static class Program
                 "directed-lifecycle-complete" => Print(DirectedLifecycleComplete(arguments), json),
                 "directed-target-promote" => Print(DirectedTargetPromote(arguments), json),
                 "directed-source-state" => Print(DirectedSourceState(arguments), json),
+                "github-transport-check" => Print(await GitHubTransportCheckAsync(arguments), json),
+                "github-directed-source-run" => Print(await GitHubDirectedSourceRunAsync(arguments), json),
+                "github-directed-target-acquire" => Print(await GitHubDirectedTargetAcquireAsync(arguments), json),
+                "github-remote-inspect" => Print(await GitHubRemoteInspectAsync(arguments), json),
                 "claim" => Print(await CreateClaimAsync(arguments), json),
                 "observe-claims" => Print(await ObserveClaimsAsync(arguments), json),
                 _ => Print(new CommandResult(false, "unknown-command", "Unknown command. Use 'help' for commands."), json)
@@ -71,6 +75,51 @@ internal static class Program
         var path = Required(args, 1, "file path");
         var observation = new CloudFileStateReader().Observe(path);
         return new CommandResult(observation.IsConfirmedInSync, observation.State.ToString(), Describe(observation), observation);
+    }
+
+    private static async Task<CommandResult> GitHubTransportCheckAsync(string[] args)
+    {
+        using var transport = CreateGitHubTransport(args);
+        var release = await transport.EnsureContainerAsync(args.Contains("--create-release", StringComparer.OrdinalIgnoreCase));
+        return new CommandResult(true, "github-transport-ready", "Private GitHub handoff repository and release are available.", new { release.Id, release.TagName, release.UploadUrl, release.HtmlUrl, repository = Value(args, "--owner") + "/" + Value(args, "--repo"), tokenSource = "SUSHI81_GITHUB_HANDOFF_TOKEN" });
+    }
+
+    private static async Task<CommandResult> GitHubDirectedSourceRunAsync(string[] args)
+    {
+        var stateDirectory = SyntheticStateDirectory(args);
+        var transfer = ParseGitHubTransfer(args, targetCommand: false);
+        using var transport = CreateGitHubTransport(args);
+        var result = await new GitHubDirectedSourceCoordinator(stateDirectory, transport).RunAsync(transfer);
+        return new CommandResult(result.Succeeded, result.Code, result.Message, new { transfer, state = result.State, sourceMayBusinessWrite = result.State is null ? false : new DirectedHandoffCoordinator(new DurableAuthorityStateStore(Path.Combine(stateDirectory, "source-authority.json"))).MayBusinessWrite(transfer.SourceDeviceId) });
+    }
+
+    private static async Task<CommandResult> GitHubDirectedTargetAcquireAsync(string[] args)
+    {
+        var stateDirectory = SyntheticStateDirectory(args);
+        var transfer = ParseGitHubTransfer(args, targetCommand: true);
+        if (!string.Equals(RequiredOption(args, "--device", "local target device ID"), transfer.TargetDeviceId, StringComparison.Ordinal))
+            return new CommandResult(false, "wrong-target", "Only the exact designated target device may acquire this transfer.");
+        using var transport = CreateGitHubTransport(args);
+        var result = await new GitHubDirectedTargetCoordinator(stateDirectory, transport).AcquireAsync(transfer);
+        var targetPath = Path.Combine(stateDirectory, "target-" + transfer.TargetDeviceId + ".json");
+        var mayWrite = result.Succeeded && File.Exists(targetPath) && new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(targetPath), transfer.TargetDeviceId, [transfer.SourceDeviceId, transfer.TargetDeviceId]).MayBusinessWrite(transfer);
+        return new CommandResult(result.Succeeded && mayWrite, result.Succeeded && !mayWrite ? "target-write-gate-failed" : result.Code, result.Succeeded && !mayWrite ? "GitHub target acquisition persisted but the reconstructed write gate remains fail-closed." : result.Message, new { transfer, stateDirectory, acquisitionSucceeded = result.Succeeded, mayBusinessWrite = mayWrite, targetState = File.Exists(targetPath) ? new DurableTargetAcquisitionStore(targetPath).Load() : null });
+    }
+
+    private static async Task<CommandResult> GitHubRemoteInspectAsync(string[] args)
+    {
+        using var transport = CreateGitHubTransport(args); var release = await transport.EnsureContainerAsync(false); var assets = await transport.ListAssetsAsync(release);
+        return new CommandResult(true, "github-remote-assets", "Read-only GitHub handoff asset inspection completed.", assets.Select(asset => new { asset.Id, asset.Name, asset.Size, asset.State, asset.Digest }).ToArray());
+    }
+
+    private static GitHubReleaseAssetTransport CreateGitHubTransport(string[] args) => new(new GitHubHandoffTransportOptions(RequiredOption(args, "--owner", "GitHub handoff repository owner"), RequiredOption(args, "--repo", "GitHub handoff repository"), Value(args, "--release-tag") ?? "sushi81-handoff-v1"));
+
+    private static DirectedTransferIdentity ParseGitHubTransfer(string[] args, bool targetCommand)
+    {
+        var source = targetCommand ? RequiredOption(args, "--source", "source device ID") : RequiredOption(args, "--device", "source device ID");
+        var target = RequiredOption(args, "--target", "target device ID");
+        var transfer = new DirectedTransferIdentity(RequiredOption(args, "--transfer-id", "transfer ID"), RequiredOption(args, "--lineage", "lineage ID"), ParseLong(args, "--generation", 1), ParseLong(args, "--version", 1), source, target);
+        if (!transfer.IsValid) throw new ArgumentException("The GitHub directed transfer identity is invalid."); return transfer;
     }
 
     private static async Task<CommandResult> TransportProbeAsync(string[] args)
@@ -533,6 +582,10 @@ internal static class Program
         directed-lifecycle-complete --state-dir <synthetic-dir> --device <target> --ledger <diagnostic-ledger> --source <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> [--json]
         directed-target-promote --state-dir <synthetic-dir> --device <target> --source <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> [--ledger <diagnostic-ledger>] [--json]
         directed-source-state <source-state-file> --device <source> [--json]
+        github-transport-check --owner <owner> --repo <repo> --release-tag <tag> [--create-release] [--json]
+        github-directed-source-run --state-dir <synthetic-dir> --device <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> --owner <owner> --repo <repo> --release-tag <tag> [--json]
+        github-directed-target-acquire --state-dir <synthetic-dir> --device <target> --source <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> --owner <owner> --repo <repo> --release-tag <tag> [--json]
+        github-remote-inspect --owner <owner> --repo <repo> --release-tag <tag> [--json]
 
         Directed commands are the M02 Device A/Device B proof flow. They require an explicitly registered sync root and synthetic state directory, and never open or alter live.db or activate POS authority. The lifecycle-complete command is diagnostic-only and reads one local target state; it is not required for write authority. The older publish/inspect commands remain historical compatibility commands only.
         """);

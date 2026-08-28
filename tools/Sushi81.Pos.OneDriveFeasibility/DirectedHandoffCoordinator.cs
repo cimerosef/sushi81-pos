@@ -411,11 +411,9 @@ public sealed class DirectedHandoffCoordinator(
         {
             try
             {
-                verifiedEvidence = await DirectedSnapshotEvidence.CaptureAsync(
-                    evidence.Transfer,
-                    evidence.SnapshotPath,
-                    evidence.SyncConfirmed,
-                    cancellationToken);
+                verifiedEvidence = evidence.RemoteReceipt is { } receipt
+                    ? await DirectedSnapshotEvidence.CaptureAsync(evidence.Transfer, evidence.SnapshotPath, evidence.SyncConfirmed, receipt, cancellationToken)
+                    : await DirectedSnapshotEvidence.CaptureAsync(evidence.Transfer, evidence.SnapshotPath, evidence.SyncConfirmed, cancellationToken);
             }
             catch (IOException)
             {
@@ -538,6 +536,24 @@ public sealed class DirectedHandoffCoordinator(
         {
             return Failure("marker-publication-failed", exception.Message, state);
         }
+    }
+
+    /// <summary>Commits GitHub server-acknowledged grant publication without consulting OneDrive.</summary>
+    public DirectedTransferOperationResult CommitGitHubReleased(
+        string snapshotRemoteIdentity,
+        string grantRemoteIdentity,
+        GitHubAssetReceipt grantReceipt)
+    {
+        var state = TryLoad();
+        if (state is null) return Failure("state-unresolved", "Durable authority state cannot be loaded; source remains blocked.");
+        if (state.Mode == DirectedAuthorityMode.Released) return ReconcileCursor(state, DurableLocalAuthorityRole.Released, state.Transfer);
+        if (state.Mode != DirectedAuthorityMode.RelinquishedBlocked || state.Transfer is not { IsValid: true } transfer || state.SnapshotEvidence is not { IsValid: true } evidence)
+            return Failure("relinquishment-required", "GitHub release completion requires durable relinquishment and immutable snapshot evidence.", state);
+        if (!grantReceipt.IsValid) return Failure("invalid-grant-receipt", "Grant completion requires a strict GitHub server receipt.", state);
+        var marker = new DirectedMarkerEvidence(snapshotRemoteIdentity, grantRemoteIdentity, evidence.SnapshotChecksum, evidence.SnapshotByteLength, true, true);
+        var released = state with { Revision = state.Revision + 1, Mode = DirectedAuthorityMode.Released, MarkerEvidence = marker, GrantReceipt = grantReceipt, UpdatedAtUtc = DateTimeOffset.UtcNow };
+        var cursor = ToCursor(released, DurableLocalAuthorityRole.Released, transfer.LineageId, transfer.Generation, transfer.TransferId, transfer.HandoffVersion);
+        return PersistStateThenCursor(released, cursor, "released", "GitHub snapshot and grant server receipts completed the immutable directed transfer.");
     }
 
     private DurableAuthorityState? TryLoad()

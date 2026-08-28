@@ -1,8 +1,18 @@
 # M02 target-directed handoff amendment revalidation report
 
-**Gate conclusion:** `BLOCKED — no documented local-only per-artifact transport confirmation; architecture decision required`
+**Gate conclusion (current):** `PARTIAL — GitHub transport implementation ready; real two-device private-repository evidence required`
 
-This report records the revalidation authorized by `docs/implementation/milestone-02-directed-handoff-revalidation.md`. It does not amend the specification and does not authorize M03 by itself.
+This report records the revalidation authorized by `docs/implementation/milestone-02-directed-handoff-revalidation.md`. It does not amend the specification and does not authorize M03 by itself. Historical OneDrive evidence remains valid but is no longer the normal handoff transport.
+
+## GitHub transport amendment implementation evidence
+
+The approved `docs/decisions/github-handoff-transport.md` changes only the normal target-directed transport/acknowledgement boundary. The implementation adds a small direct .NET `HttpClient` seam (`GitHubReleaseAssetTransport`) for a configurable dedicated private repository and one long-lived release (`sushi81-handoff-v1`, `Sushi81 POS Handoff Transport`, `make_latest=false`). It does not use Git history, LFS, Actions artifacts, Packages, clone/push, filesystem synchronization or the source repository as an operational store.
+
+Snapshot publication is accepted only on HTTP 201 with `state=uploaded`, exact requested filename, exact byte size, positive immutable asset ID and a present `sha256:<64-hex>` digest matching the local hash. Any missing/contradictory status, name, size, digest, authentication/API/network/timeout/cancellation response fails closed. The token is read only from `SUSHI81_GITHUB_HANDOFF_TOKEN`, never serialized or logged; diagnostics contain no authorization header or token.
+
+The source command preserves the exact prepared Home Device A v1 identity (`device-a` → `device-b`, lineage `ca9dfdd4-fa48-4602-b993-23ce5c52a141`, generation 7, version 1, transfer `fc235936-64a6-460b-bcaf-f2f0b212790e`) and resumes only that transfer. It creates a strict `YYYYMMDDHHMMSS.snapshot.db`, validates SQLite/hash/size, uploads and validates the snapshot receipt, durably persists relinquishment, verifies the source write gate is false, then creates/uploads the matching `YYYYMMDDHHMMSS.grant.json`, validates its receipt, persists `Released`, and runs post-completion newest-three cleanup. The target command discovers grants by metadata, validates exact target/lineage/generation/version/transfer and referenced asset identity, downloads/hash-checks/integrity-checks the snapshot, then reuses the crash-safe pending/evidence/final-cursor acquisition ordering.
+
+Automated fake-HTTP/synthetic tests cover strict receipts, missing digest, public repository rejection, token redaction, source ordering, target acquisition, retention grouping and the pre-existing directed lifecycle safety suite. No real GitHub token, repository, business snapshot or live device run is included. Real operator verification remains required: private handoff repository setup, A → B v1, B → A v2, source restart/resume, exact target validation and retention observation.
 
 ## Branch, commits and amended sources
 
@@ -60,7 +70,7 @@ Target acquisition uses the explicit crash ordering: immutable handoff validatio
 | target evidence committed before current cursor | target remains blocked; exact retry finalizes pending cursor |
 | missing/malformed current cursor after prior participation | fail closed; no source reinitialization or historical-target takeover |
 
-The automated tests cover each row with synthetic failure injectors; the corrected full solution result is 119 passed, 0 failed and 0 skipped.
+The automated tests cover each row with synthetic failure injectors; the historical directed evidence result was 119 passed, 0 failed and 0 skipped. The current GitHub transport implementation adds six deterministic synthetic tests, for a current total of 125.
 
 ## Target validation matrix
 
@@ -188,20 +198,20 @@ dotnet run --project $project -c Release --no-build -- directed-source-resume $r
 
 ## Build, tests and AC mapping
 
-Verification was run on Windows 10.0.26200 x64 with .NET SDK 10.0.400 (runtime 10.0.11). Exact package versions are `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0, `MSTest` 4.0.2 and Windows SDK projection `10.0.26100.87`. `dotnet restore Sushi81.Pos.sln` passed; the corrected full solution result is 119 passed, 0 failed and 0 skipped: Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, and directed durable handoff/target/lifecycle plus transport diagnostics 58. `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings and 0 errors. The required self-contained `win-x64` publish with `PublishSingleFile=false` passed and produced the ignored Desktop publish directory. The initial non-escalated restore attempt was blocked only by NuGet network policy; the approved escalated rerun passed.
+Verification was run on Windows 10.0.26200 x64 with .NET SDK 10.0.400 (runtime 10.0.11). Exact package versions are `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0, `MSTest` 4.0.2 and Windows SDK projection `10.0.26100.87`. `dotnet restore Sushi81.Pos.sln` passed with the approved network escalation; `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings and 0 errors; `dotnet test Sushi81.Pos.sln -c Release --no-build` passed 125, 0 failed and 0 skipped (Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, directed durable handoff/target/lifecycle/diagnostic plus GitHub transport 64); the required self-contained `win-x64` publish with `PublishSingleFile=false` passed. No real GitHub transport run was executed.
 
 GitHub Actions Continuous Integration has completed successfully for the pushed branch; the PR checks are the authoritative per-head CI record for the final documentation head.
 
-Final implementation tree is limited to the M02 harness and evidence: `tools/Sushi81.Pos.OneDriveFeasibility` (Cloud Files observation, centralized device-local lifecycle authority gate, persistent `DurableLocalAuthorityCursor` store, durable source/target state stores, optional append-only diagnostic ledger, marker/snapshot validation, read-only `TransportProbe` and directed CLI including promotion and restart/resume); `tools/Sushi81.Pos.OneDriveFeasibility.Tests` (58 directed durable/source/target/lifecycle/diagnostic tests, including the independent-device three-leg cursor regression, missing-state reinitialization block, retained-history virgin-inference block, crash-between-evidence/cursor retry, malformed local-cursor fail-closed checks and read-only transport probe); `tests/Sushi81.Pos.OneDriveFeasibility.Tests` (32 pure protocol tests); unchanged M01/product projects under `src/` and their existing test projects; and the two M02 evidence documents under `docs/implementation/` and `docs/implementation-status.md`. No Catalogue, BusinessSettings, Order, Cart, Payment, pricing/VAT, printing, export, Hiboutik, pairing, disaster-recovery, archive, installer or legacy emergency-model code was added.
+Final implementation tree is limited to the M02 harness and evidence: `tools/Sushi81.Pos.OneDriveFeasibility` (Cloud Files historical observation, centralized device-local lifecycle authority gate, persistent authority cursor, durable source/target stores, marker/snapshot validation, direct `HttpClient` GitHub Release Asset transport, grant schema, source/target GitHub coordinators, newest-three retention and directed CLI including promotion/restart); `tools/Sushi81.Pos.OneDriveFeasibility.Tests` (64 directed durable/source/target/lifecycle/diagnostic/GitHub transport tests, including strict receipt, token redaction, source ordering, exact target and retention tests); `tests/Sushi81.Pos.OneDriveFeasibility.Tests` (32 pure protocol tests); unchanged M01/product projects under `src/` and their existing test projects; and the M02 evidence/status documents. No Catalogue, BusinessSettings, Order, Cart, Payment, pricing/VAT, printing, export, Hiboutik, pairing, disaster-recovery, archive, installer or legacy emergency-model code was added.
 
-The real Home Device A run above supplied transport evidence, but it also demonstrated that the current local observer is a false negative for a remotely-visible regular file (`NO_STATES`). Therefore no documented local-only per-artifact confirmation is available and the technical gate is **Blocked pending an explicit architecture decision**, not Feasible or Partial. The final branch head is `49c9866576dee27b35af62b0e177464b176830eb`; CI run #75 completed successfully for that head.
+The real Home Device A run above supplied historical OneDrive transport evidence, but it also demonstrated that the local observer is a false negative for a remotely-visible regular file (`NO_STATES`). That historical local-only gate remains blocked and is superseded for normal handoff by the approved GitHub transport amendment. CI run #75 verified the prior directed evidence head `49c9866576dee27b35af62b0e177464b176830eb`; the current GitHub verification head and CI run will be recorded after push.
 
 The amended preparation mapping is: AC-STO-002 (N-device target-directed single writer), AC-STO-003 (close and handoff ordering), AC-STO-004 (target validation/acquisition), AC-STO-005 (no silent takeover), AC-STO-007 (target-directed retention), AC-STO-008 (transport/checkpoint assumptions), AC-STO-009 (generation invalidation), and AC-STO-010 (read-only authority boundary). These remain owner-milestone criteria and are not marked Passed by M02 revalidation; the report is preparation evidence for their M07 owner milestone.
 
 ## Final gate
 
-The amended protocol and synthetic persistence proof are conforming. Real transport evidence now exists, but it proves that the current local signals cannot confirm a locally-created non-placeholder upload. The technical conclusion is exactly:
+The original competitive OneDrive design remains historically `BLOCKED`, and the real OneDrive local-acknowledgement observation remains preserved. The approved GitHub transport implementation and automated evidence are conforming for the M02 revalidation contract, but no live private-repository receipt or two-device round-trip has been executed in this environment. The current conclusion is exactly:
 
-`BLOCKED — no documented local-only per-artifact transport confirmation; architecture decision required`
+`PARTIAL — GitHub transport implementation ready; real two-device private-repository evidence required`
 
 M03 has not started. No specification was weakened and no sensitive or real business data was added.

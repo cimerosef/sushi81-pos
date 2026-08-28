@@ -9,7 +9,8 @@ public sealed record DirectedSnapshotEvidence(
     string SnapshotChecksum,
     long SnapshotByteLength,
     bool IntegrityConfirmed,
-    bool SyncConfirmed)
+    bool SyncConfirmed,
+    GitHubAssetReceipt? RemoteReceipt = null)
 {
     public bool IsValid => Transfer.IsValid
         && !string.IsNullOrWhiteSpace(SnapshotPath)
@@ -19,21 +20,37 @@ public sealed record DirectedSnapshotEvidence(
         && IntegrityConfirmed
         && SyncConfirmed;
 
-    public static async Task<DirectedSnapshotEvidence> CaptureAsync(
+    public static Task<DirectedSnapshotEvidence> CaptureAsync(
         DirectedTransferIdentity transfer,
         string snapshotPath,
         bool syncConfirmed,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        CaptureCoreAsync(transfer, snapshotPath, syncConfirmed, null, cancellationToken);
+
+    public static Task<DirectedSnapshotEvidence> CaptureAsync(
+        DirectedTransferIdentity transfer,
+        string snapshotPath,
+        bool syncConfirmed,
+        GitHubAssetReceipt remoteReceipt,
+        CancellationToken cancellationToken = default) =>
+        CaptureCoreAsync(transfer, snapshotPath, syncConfirmed, remoteReceipt, cancellationToken);
+
+    private static async Task<DirectedSnapshotEvidence> CaptureCoreAsync(
+        DirectedTransferIdentity transfer,
+        string snapshotPath,
+        bool syncConfirmed,
+        GitHubAssetReceipt? remoteReceipt,
+        CancellationToken cancellationToken)
     {
         if (!transfer.IsValid || !File.Exists(snapshotPath))
         {
-            return new(transfer, snapshotPath, string.Empty, 0, false, syncConfirmed);
+            return new(transfer, snapshotPath, string.Empty, 0, false, syncConfirmed, remoteReceipt);
         }
 
         var length = new FileInfo(snapshotPath).Length;
         if (length < 1)
         {
-            return new(transfer, snapshotPath, string.Empty, length, false, syncConfirmed);
+            return new(transfer, snapshotPath, string.Empty, length, false, syncConfirmed, remoteReceipt);
         }
 
         var checksum = await ComputeSha256Async(snapshotPath, cancellationToken);
@@ -58,7 +75,7 @@ public sealed record DirectedSnapshotEvidence(
             integrityConfirmed = false;
         }
 
-        return new(transfer, Path.GetFullPath(snapshotPath), checksum, length, integrityConfirmed, syncConfirmed);
+        return new(transfer, Path.GetFullPath(snapshotPath), checksum, length, integrityConfirmed, syncConfirmed, remoteReceipt);
     }
 
     public static async Task CreateSyntheticAsync(string snapshotPath, CancellationToken cancellationToken = default)

@@ -40,3 +40,20 @@ dotnet run --project .\Sushi81.Pos.OneDriveFeasibility.csproj -c Release -- dire
 ```
 
 `directed-lifecycle-complete` is retained only as a target-local diagnostic audit append and is not part of the real two-device authority flow. The optional append-only ledger must never be used as a write-authority or current-holder input.
+
+## GitHub Release Asset transport (current normal-handoff revalidation)
+
+The approved normal handoff transport is a dedicated private GitHub repository (conceptually `cimerosef/sushi81-pos-handoff`) with one long-lived release tag `sushi81-handoff-v1`. The source-code repository is never used as an operational handoff store. The harness uses direct .NET `HttpClient` and no Git CLI, Actions, LFS, Packages or filesystem synchronization. For later operator testing, use a fine-grained PAT restricted to that repository with only the required Contents read/write permission for release bootstrap/assets.
+
+Set the fine-grained token only for the process environment; do not put it in command arguments, files or screenshots:
+
+```powershell
+$env:SUSHI81_GITHUB_HANDOFF_TOKEN = '<temporary-token>'
+$project = '.\Sushi81.Pos.OneDriveFeasibility.csproj'
+dotnet run --project $project -c Release -- github-transport-check --owner cimerosef --repo sushi81-pos-handoff --release-tag sushi81-handoff-v1 --create-release --json
+dotnet run --project $project -c Release -- github-directed-source-run --state-dir <synthetic-state-a> --device device-a --target device-b --lineage <guid> --generation 7 --version 1 --transfer-id <guid> --owner cimerosef --repo sushi81-pos-handoff --release-tag sushi81-handoff-v1 --json
+dotnet run --project $project -c Release -- github-directed-target-acquire --state-dir <synthetic-state-b> --device device-b --source device-a --target device-b --lineage <guid> --generation 7 --version 1 --transfer-id <guid> --owner cimerosef --repo sushi81-pos-handoff --release-tag sushi81-handoff-v1 --json
+dotnet run --project $project -c Release -- github-remote-inspect --owner cimerosef --repo sushi81-pos-handoff --release-tag sushi81-handoff-v1 --json
+```
+
+The source command requires a strict HTTP 201 `uploaded` receipt with exact asset name/size/ID and matching `sha256:<hex>` digest before durable relinquishment; it uploads the same-basename `.grant.json` only afterwards. The target validates the exact grant/snapshot identity and hash before the durable pending/evidence/final-cursor write gate. Existing OneDrive commands remain historical diagnostics and are not consulted by these GitHub commands. CI uses deterministic fake HTTP only; real private-repository A → B v1 and B → A v2 evidence is a separate operator gate.

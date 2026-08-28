@@ -5,7 +5,7 @@
 **Product:** Sushi81 POS  
 **Purpose:** Define the implementation architecture that preserves the approved product, lifecycle and data-model semantics while prioritizing reliability, simplicity and maintainability.
 
-**Approved amendment:** `docs/decisions/target-directed-authority-handoff.md` replaces competitive/generic handoff acquisition with source-directed transfer to one target device.
+**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` replaces competitive/generic handoff acquisition with source-directed transfer to one target device. `docs/decisions/github-handoff-transport.md` replaces OneDrive desktop synchronization acknowledgement for normal handoff with a dedicated private GitHub Release Asset transport; OneDrive remains historical/DR/archive storage where separately approved.
 
 ## 1. Architecture priorities
 
@@ -41,7 +41,7 @@ Recommended internal separation:
 - **Application layer** — order-entry, catalogue, payment, archive, import/export and handoff use cases;
 - **Domain/business-rules layer** — approved pricing, validation, lifecycle and calculation rules;
 - **Persistence layer** — SQLite repositories/queries, migrations and transactional persistence;
-- **Infrastructure services** — printing, Excel import/export, local snapshot generation, OneDrive handoff transport and technical logging.
+- **Infrastructure services** — printing, Excel import/export, local snapshot generation, GitHub Release Asset handoff transport and technical logging. Historical OneDrive diagnostics remain isolated from the normal authority gate.
 
 These are code-organization boundaries, not separate processes or network services.
 
@@ -49,13 +49,13 @@ These are code-organization boundaries, not separate processes or network servic
 
 Each paired Windows computer runs the full application locally and uses its own local working SQLite database.
 
-The application must remain usable on the current authoritative/writable computer even if Internet/OneDrive connectivity is temporarily unavailable, subject to the handoff ownership rules defined in `storage-strategy.md`.
+The application must remain usable on the current authoritative/writable computer even if Internet/GitHub connectivity is temporarily unavailable, subject to the handoff ownership rules defined in `storage-strategy.md`.
 
 The active SQLite working database must **not** be opened directly from a OneDrive-synchronized folder and must not be concurrently written by more than one paired device.
 
 The local working database and local recovery snapshots are application-managed technical data. Normal users are not asked to choose, move, rename or directly manipulate those files.
 
-Cross-device handoff is configured separately through a user-selected OneDrive root folder. Selecting that folder does not move or expose the local working database.
+Cross-device normal handoff is configured separately through a dedicated private GitHub repository and authenticated Release Asset API. Selecting/configuring that repository does not move or expose the local working database. OneDrive folder configuration remains separate for approved recovery/archive and historical diagnostics.
 
 The architecture must not hard-code assumptions such as exactly two devices, `SHOP-PC` plus `HOME-PC`, or two fixed synchronization slots.
 
@@ -109,7 +109,7 @@ Sushi81 POS does **not** implement simultaneous multi-writer database access in 
 
 The architecture supports **an arbitrary number of paired Windows devices by default**. The normal initial deployment may use two computers, but adding a third or later computer must not require redesigning the database, handoff protocol or application architecture.
 
-All paired devices participate in the same authoritative database lineage through controlled handoff of complete, validated SQLite snapshots via a user-configured OneDrive root folder.
+All paired devices participate in the same authoritative database lineage through controlled handoff of complete, validated SQLite snapshots via a dedicated private GitHub Release Asset container. OneDrive is not the normal handoff acknowledgement mechanism.
 
 At any moment:
 
@@ -119,7 +119,7 @@ At any moment:
 - a generic released handoff is never competed for through N-device claims/election;
 - no automatic row-level database merge is performed.
 
-OneDrive is therefore a **handoff transport, recovery and archive medium**, not the live database engine, not a real-time database synchronization service and not a distributed lock provider.
+GitHub Release Assets are therefore the **normal handoff transport/acknowledgement medium**, not the live database engine, not a real-time database synchronization service and not a distributed lock provider. OneDrive remains a recovery/archive medium and historical diagnostic boundary.
 
 ### 7.1 Source-directed authority token
 
@@ -181,7 +181,7 @@ Application-managed local business/technical data uses a fixed per-user applicat
 
 The working `live.db` and local Recovery path are not ordinary user-configurable locations.
 
-The operator configures only the shared OneDrive root used for handoff/recovery/archive functions; the application creates and manages its required subfolders beneath that root.
+The operator configures the dedicated private GitHub handoff repository/release for normal authority transfer. A shared OneDrive root remains separately configured for approved recovery/archive functions and historical diagnostics.
 
 Application update/reinstall logic must not treat local business data, device identity or durable authority/transfer state as disposable program files.
 
@@ -254,7 +254,7 @@ All Phase 3 core technical architecture choices are frozen for V1 implementation
 - SQLite + Microsoft.Data.Sqlite;
 - integer-cent persistence and decimal business calculation;
 - local application-managed live database;
-- N-device single-writer architecture with **target-directed source-arbitrated OneDrive handoff**;
+- N-device single-writer architecture with **target-directed source-arbitrated GitHub Release Asset handoff**;
 - no generic competitive OneDrive acquisition/election;
 - WAL + FULL synchronous durability profile with foreign-key enforcement;
 - self-contained x64 deployment with a simple per-user Inno Setup installer and explicit/manual V1 updates;
@@ -265,7 +265,7 @@ No remaining Phase 3 item requires an unapproved business decision. M02 must re-
 
 ## 13. Approval
 
-This document remains the **Approved — Phase 3 baseline**, amended on 2026-08-28 by `docs/decisions/target-directed-authority-handoff.md`.
+This document remains the **Approved — Phase 3 baseline**, amended on 2026-08-28 by `docs/decisions/target-directed-authority-handoff.md` and `docs/decisions/github-handoff-transport.md`.
 
 Implementation must preserve the approved local-first WPF/SQLite architecture and may not silently replace it with a server, web application, live OneDrive database, simultaneous multi-writer design, fixed two-computer protocol or generic file-claim election.
 

@@ -1,6 +1,6 @@
 # Target-directed authority handoff
 
-**Status:** Approved — V1 specification amendment  
+**Status:** Approved — V1 specification amendment (normal transport further amended by `github-handoff-transport.md`)
 **Decision date:** 2026-08-28  
 **Trigger:** M02 OneDrive single-writer feasibility blocker  
 **Affected documents:** `product-requirements.md` where applicable, `architecture.md`, `storage-strategy.md`, `acceptance-criteria.md`, `v1-specification-freeze.md`, `implementation-plan.md`, `implementation-status.md`
@@ -40,7 +40,7 @@ Closing the window must never silently turn a generic handoff into an N-device e
 
 Only the current authoritative device may create a normal transfer grant.
 
-For one lineage/generation/handoff version, the source durably commits one source/target identity. After the source reaches the irreversible local relinquishment point, restart/retry may only continue the **same** target-bound transfer. It may not choose another target or resume business writes merely because OneDrive publication is delayed.
+For one lineage/generation/handoff version, the source durably commits one source/target identity. After the source reaches the irreversible local relinquishment point, restart/retry may only continue the **same** target-bound transfer. It may not choose another target or resume business writes merely because transport publication is delayed.
 
 This removes the need for cross-client claim arbitration during normal handoff.
 
@@ -53,11 +53,11 @@ A normal transfer follows this safety order:
 3. source creates a SQLite-safe complete snapshot;
 4. source validates SQLite integrity;
 5. source assigns the next immutable handoff version and computes checksum/required metadata;
-6. source publishes the immutable snapshot to OneDrive and waits for the required documented synchronization confirmation;
+6. source publishes the immutable snapshot through the approved normal transport and waits for its documented server acknowledgement (GitHub Release Asset receipt; see `github-handoff-transport.md`);
 7. source **durably records local relinquishment/pending-transfer state** containing at least lineage, generation, handoff version, source device, target device and checksum;
 8. from that durable relinquishment point onward, the source must remain business-read-only across process restart; it may perform only technical work needed to finish/retry the already-fixed transfer;
 9. only after step 7 succeeds may the source create/publish the matching target-bound ready/grant marker;
-10. source waits until that marker is also confirmed synchronized;
+10. source waits for the approved transport acknowledgement of the target-bound grant;
 11. only then may the UI report the normal transfer as completed and finish the close flow.
 
 The target-bound ready/grant marker must not exist before the source has durably relinquished business-write authority.
@@ -123,7 +123,7 @@ Disaster Recovery remains explicit, warning-driven, generation-advancing and res
 
 The current authoritative device is already the one actor entitled to make a normal ownership decision. Binding the next handoff to one target therefore turns authority movement into a directed token transfer instead of a distributed election.
 
-The crucial safety rule is that the source becomes durably non-writable **before** the target-releasing marker can exist. This means OneDrive only transports immutable state/grant artifacts; it is not asked to provide an atomic distributed lock.
+The crucial safety rule is that the source becomes durably non-writable **before** the target-releasing grant can exist. The approved GitHub transport supplies server-side asset acknowledgement; historical OneDrive transport remains outside the normal authority gate and is not asked to provide an atomic distributed lock.
 
 The design preserves the project's priorities:
 

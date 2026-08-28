@@ -3,9 +3,9 @@
 **Status:** Approved — Phase 3 baseline, amended 2026-08-28  
 **Last updated:** 2026-08-28  
 **Product:** Sushi81 POS  
-**Purpose:** Define how live data, local recovery snapshots, OneDrive handoff snapshots, disaster-recovery checkpoints and annual archives are stored and transferred safely across paired Windows devices without silent divergence.
+**Purpose:** Define how live data, local recovery snapshots, GitHub handoff snapshots, disaster-recovery checkpoints and annual archives are stored and transferred safely across paired Windows devices without silent divergence.
 
-**Approved amendment:** `docs/decisions/target-directed-authority-handoff.md` supersedes generic competitive handoff acquisition and automatic authority release on every normal application exit.
+**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` supersedes generic competitive handoff acquisition and automatic authority release on every normal application exit. `docs/decisions/github-handoff-transport.md` supersedes OneDrive desktop publication/synchronization as the normal handoff transport and acknowledgement path; OneDrive remains separately approved for recovery/archive and historical diagnostics.
 
 ## 1. Core storage principle
 
@@ -13,7 +13,7 @@ Each paired Sushi81 POS computer uses its own **local working SQLite database**.
 
 The live database is never directly opened from a OneDrive-synchronized folder and is never intentionally written by more than one device at the same time.
 
-OneDrive is used only for controlled transfer of validated complete snapshots and retained recovery/archive artifacts. It is not used as a distributed lock or live database engine.
+GitHub Release Assets in the configured dedicated private handoff repository are used for controlled transfer of validated complete snapshots and target-bound grants. They are not a distributed lock or live database engine. OneDrive is used only for separately approved recovery/archive artifacts and historical diagnostics.
 
 The architecture supports an arbitrary number of paired devices. The initial deployment may use two computers, but no protocol or data structure may assume exactly two.
 
@@ -114,19 +114,19 @@ When the operator explicitly chooses **Transfer authority and close**, the sourc
 4. assign the next immutable monotonically advancing handoff version;
 5. compute the snapshot checksum/hash and any required size metadata;
 6. bind immutable protocol metadata to the current lineage, generation, source `device_id` and exactly one target `device_id`;
-7. publish the immutable snapshot into the configured OneDrive `Handoff` area;
-8. wait until the required documented synchronization state confirms the snapshot has no pending upload/error and is synchronized for the narrow publication meaning used by the protocol;
+7. publish the immutable `YYYYMMDDHHMMSS.snapshot.db` to the configured private GitHub Release Asset container;
+8. require HTTP 201 plus uploaded state, exact name/size, asset ID and usable `sha256:<hex>` digest matching the local hash; missing/contradictory server evidence fails closed;
 9. **durably persist local relinquishment/pending-transfer state** containing at least lineage, generation, handoff version, source device, target device and checksum;
 10. from the durable relinquishment point onward, block all business-authoritative writes on the source across restart;
-11. only after step 9 succeeds, create/publish the matching immutable target-bound ready/grant marker;
-12. wait until that marker is also confirmed synchronized;
+11. only after step 9 succeeds, create/upload the matching immutable `YYYYMMDDHHMMSS.grant.json` target-bound grant and validate its GitHub receipt;
+12. only after the grant receipt succeeds, persist Released and run post-completion retention cleanup;
 13. only then record/report successful normal authority transfer and complete the transfer-and-close flow.
 
 The target-releasing ready/grant marker must never exist before the source has durably crossed the local relinquishment point.
 
 A snapshot without the matching completed target-bound ready/grant marker is not a released handoff for the target.
 
-OneDrive synchronization state is transport evidence only. It is not treated as a distributed mutex, remote acknowledgement or cross-client compare-and-swap.
+GitHub server receipt is the normal handoff publication acknowledgement. OneDrive synchronization state is not consulted by this authority gate and is not a distributed mutex or cross-client compare-and-swap.
 
 ### 5.1 Failure before relinquishment
 
@@ -149,13 +149,13 @@ This asymmetric failure rule intentionally favors safety over convenience.
 
 ## 6. Immutable handoff versions and retention
 
-Formal handoffs are immutable versioned snapshot+target-bound-ready/grant units, conceptually:
+Formal handoffs are immutable versioned GitHub snapshot+target-bound-grant units, conceptually:
 
 ```text
-handoff-v000157.db
-handoff-v000157.ready
-handoff-v000158.db
-handoff-v000158.ready
+20260827231152.snapshot.db
+20260827231152.grant.json
+20260828231152.snapshot.db
+20260828231152.grant.json
 ```
 
 Exact filenames are technical details, but semantics are fixed:
@@ -165,8 +165,8 @@ Exact filenames are technical details, but semantics are fixed:
 - source and target device IDs must be distinct;
 - target binding is immutable once the source crosses the durable relinquishment point;
 - the pair is one retention unit;
-- latest **five** complete validated handoff versions are retained;
-- cleanup of an older handoff happens only after a newer replacement is validated and, where required, confirmed synchronized.
+- latest **three** complete validated GitHub handoff units are retained;
+- cleanup deletes snapshot+grant by exact remote asset identity only after the newer unit is Released; a temporary fourth unit is allowed and cleanup failure is retryable/non-authority-critical.
 
 ## 7. OneDrive shared root
 
@@ -274,7 +274,7 @@ Before a non-authoritative device enters write mode from a normal handoff it mus
 1. identify the latest formally completed handoff relevant to its known lineage/generation;
 2. confirm that its immutable local `device_id` exactly equals the handoff `target_device_id`;
 3. confirm source and target IDs are distinct and valid members of the paired-device set for the current lineage/generation;
-4. ensure snapshot and matching target-bound ready/grant marker are locally available;
+4. obtain the exact target-bound grant and referenced snapshot from the authenticated private GitHub Release Asset container;
 5. verify lineage/generation/handoff-version/source-device/target-device/checksum consistency and required protocol metadata;
 6. validate SQLite integrity;
 7. compare against durable local generation/version/transfer state and reject stale/replayed acquisition;
@@ -284,11 +284,11 @@ Before a non-authoritative device enters write mode from a normal handoff it mus
 
 A non-target device seeing the same valid handoff remains read-only. It does **not** create a competing acquisition claim and may not acquire the handoff by waiting longer or by being the only currently running device.
 
-A partial snapshot, missing marker, checksum mismatch, source/target mismatch, lineage/generation mismatch, integrity failure, stale/replayed handoff, unknown synchronization state or other unresolved failure must never become a writable live database automatically.
+A partial/starter asset, missing grant/snapshot, checksum or size mismatch, source/target mismatch, lineage/generation mismatch, integrity failure, stale/replayed handoff, authentication/API error or other unresolved failure must never become a writable live database automatically.
 
 ## 11. No normal force takeover or retargeting
 
-If the current authoritative device retained authority when it closed, another device must not begin writing from an older local/OneDrive version.
+If the current authoritative device retained authority when it closed, another device must not begin writing from an older local or GitHub version.
 
 If a target-directed transfer has crossed the durable relinquishment point, neither the former source nor a third device may silently substitute itself for the designated target.
 
@@ -401,13 +401,13 @@ Detailed marking/printing behavior remains in `printing.md` and `docs/decisions/
 
 ## 14. Offline behavior
 
-The authoritative device may continue normal local operation during temporary Internet/OneDrive loss because `live.db` is local.
+The authoritative device may continue normal local operation during temporary Internet/GitHub loss because `live.db` is local.
 
 **Close and retain authority** remains possible as a local close operation; it does not claim to publish or release authority.
 
-A new **Transfer authority and close** cannot complete until required OneDrive snapshot/grant publication and synchronization can be confirmed.
+A new **Transfer authority and close** cannot complete until required GitHub snapshot/grant publication receives strict server receipts (HTTP 201, uploaded state, exact name/size/asset ID/digest).
 
-If a transfer fails before durable relinquishment, it may be safely aborted and authority retained. If synchronization fails after durable relinquishment, the source remains read-only/pending-transfer and may retry the same technical transfer when connectivity returns.
+If a transfer fails before durable relinquishment, it may be safely aborted and authority retained. If GitHub publication fails after durable relinquishment, the source remains read-only/pending-transfer and may retry the same technical transfer when connectivity returns.
 
 Cloud disaster-recovery checkpoints may remain pending/unavailable while offline; ordinary local work remains authoritative only while the device has not relinquished authority.
 
@@ -484,7 +484,7 @@ Exact filenames may be refined technically.
 V1 uses:
 
 - Local Recovery: latest **5** validated snapshots;
-- OneDrive Handoff: latest **5** complete validated target-directed snapshot+ready/grant units;
+- GitHub Handoff: latest **3** complete validated target-directed snapshot+grant units;
 - OneDrive Disaster Recovery: latest **5** validated checkpoints;
 - Annual Archive: permanent/no rolling deletion.
 
@@ -514,11 +514,11 @@ Implementation must preserve all of the following:
 16. Closed and Cancelled orders use their end timestamp year; Open orders remain live.
 17. Archive records leave `live.db` only after validated successful OneDrive archive publication.
 18. Annual archives remain independent permanent historical files.
-19. OneDrive synchronization is transport evidence, not a distributed lock or competitive acquisition primitive.
+19. GitHub Release Asset server acknowledgement is required for normal handoff; OneDrive synchronization is not part of that authority gate and is not a distributed lock or competitive acquisition primitive.
 
 ## 18. Approval
 
-This document remains the **Approved — Phase 3 baseline**, amended on 2026-08-28 by `docs/decisions/target-directed-authority-handoff.md` after the M02 feasibility blocker.
+This document remains the **Approved — Phase 3 baseline**, amended on 2026-08-28 by `docs/decisions/target-directed-authority-handoff.md` after the M02 feasibility blocker and by `docs/decisions/github-handoff-transport.md` for normal handoff transport.
 
 The storage architecture is local SQLite per paired device, N-device single-writer authority, **target-directed source-arbitrated normal handoff**, application-managed local recovery, change-triggered recovery-only cloud checkpoints, explicit generation-changing Disaster Recovery, non-authoritative read-only access, five-version rolling technical protection and independent February natural-year archives.
 

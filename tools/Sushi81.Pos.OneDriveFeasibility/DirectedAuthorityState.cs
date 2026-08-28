@@ -80,7 +80,8 @@ public sealed record DurableAuthorityState(
     [property: JsonPropertyName("closedWithAuthority")] bool ClosedWithAuthority,
     [property: JsonPropertyName("snapshotEvidence")] DirectedSnapshotEvidence? SnapshotEvidence = null,
     [property: JsonPropertyName("markerEvidence")] DirectedMarkerEvidence? MarkerEvidence = null,
-    [property: JsonPropertyName("authorityCursor")] DirectedLocalAuthorityCursor? AuthorityCursor = null)
+    [property: JsonPropertyName("authorityCursor")] DirectedLocalAuthorityCursor? AuthorityCursor = null,
+    [property: JsonPropertyName("grantReceipt")] GitHubAssetReceipt? GrantReceipt = null)
 {
     public const int CurrentFormatVersion = 1;
 
@@ -99,10 +100,11 @@ public sealed record DurableAuthorityState(
             }
 
             if (AuthorityCursor is { IsValid: false }) return false;
+            if (GrantReceipt is { IsValid: false }) return false;
 
             if (Mode is DirectedAuthorityMode.Authoritative or DirectedAuthorityMode.Uninitialized)
             {
-                return Transfer is null && SnapshotEvidence is null && MarkerEvidence is null;
+                return Transfer is null && SnapshotEvidence is null && MarkerEvidence is null && GrantReceipt is null;
             }
 
             if (Transfer is not { IsValid: true } transfer
@@ -113,7 +115,7 @@ public sealed record DurableAuthorityState(
 
             if (Mode == DirectedAuthorityMode.TransferPrepared)
             {
-                return SnapshotEvidence is null && MarkerEvidence is null
+                return SnapshotEvidence is null && MarkerEvidence is null && GrantReceipt is null
                     && (AuthorityCursor is null
                         || AuthorityCursor.LineageId == transfer.LineageId
                         && AuthorityCursor.Generation == transfer.Generation
@@ -127,7 +129,7 @@ public sealed record DurableAuthorityState(
 
             if (Mode == DirectedAuthorityMode.RelinquishedBlocked)
             {
-                return MarkerEvidence is null
+                return MarkerEvidence is null && GrantReceipt is null
                     && AuthorityCursor is { } relinquishedCursor
                     && relinquishedCursor.Matches(transfer);
             }

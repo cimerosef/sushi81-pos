@@ -147,17 +147,17 @@ The user approved the amendment recorded in `docs/decisions/target-directed-auth
 The V1 normal-handoff model is therefore amended as follows:
 
 - N-device support remains;
-- `live.db` remains local to each device and OneDrive remains transport/recovery/archive storage only;
+- `live.db` remains local to each device; normal handoff uses a dedicated private GitHub Release Asset repository, while OneDrive remains recovery/archive storage and historical diagnostic transport only;
 - normal close distinguishes **Close and retain authority** from **Transfer authority and close**;
 - normal transfer is directed by the current authoritative source to exactly one eligible target device;
-- the source must durably relinquish business-write authority before the target-releasing ready/grant marker can exist;
+- the source must durably relinquish business-write authority only after strict GitHub snapshot server receipt, and the target-bound grant can exist only after that durable transition;
 - after relinquishment the source is read-only/pending-transfer across restart and may only retry the same immutable transfer;
 - only the exact designated target may acquire the normal handoff;
 - non-target devices do not compete through claims/election;
 - inability to recover/complete the designated target path uses explicit Disaster Recovery rather than ordinary target substitution;
-- no Graph/OAuth/backend/server is introduced merely to arbitrate normal V1 authority transfer.
+- no Graph/OAuth/backend/server is introduced merely to arbitrate normal V1 authority transfer; GitHub REST is used only as the approved asset transport/acknowledgement boundary.
 
-`architecture.md`, `storage-strategy.md` and `acceptance-criteria.md` are amended to contain these semantics directly.
+`architecture.md`, `storage-strategy.md` and `acceptance-criteria.md` are amended to contain these semantics directly. The approved GitHub transport amendment is recorded in `docs/decisions/github-handoff-transport.md`.
 
 M02 must re-verify the amended protocol before M03 can start.
 
@@ -190,4 +190,4 @@ The 2026-08-28 target-directed authority-handoff amendment is the first post-fre
 
 **Phase 5 remains complete.**
 
-Phase 6 implementation is active. M01 is complete. M02 produced and documented a blocker under the original architecture, that blocker has now received an approved specification amendment, and M02 re-verification of the amended design is required before M03 may be authorized.
+Phase 6 implementation is active. M01 is complete. M02 produced and documented the original OneDrive blocker, then received approved target-directed and GitHub transport amendments. GitHub transport revalidation is in progress and must complete before M03 may be authorized.

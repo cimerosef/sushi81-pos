@@ -11,7 +11,7 @@ The approved V1 product, business, architecture, data, storage, paste-import, pr
 Formal freeze record: `docs/v1-specification-freeze.md`  
 Implementation acceptance contract: `docs/acceptance-criteria.md`
 
-Production implementation has not been started by the freeze work itself. The repository is now ready for explicit Codex implementation tasks against the frozen V1 Specification.
+M01 is complete. M02 GitHub transport revalidation is the only active implementation scope on `codex/m02-directed-handoff-revalidation`; M03 remains unauthorized. Normal target-directed handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. Historical OneDrive feasibility evidence is retained and is not the normal authority gate.
 
 ## Working model
 

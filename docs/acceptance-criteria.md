@@ -5,7 +5,7 @@
 **Product:** Sushi81 POS  
 **Purpose:** Convert the approved V1 product, business, lifecycle, catalogue, data, storage, architecture, paste-import, printing and export specifications into verifiable implementation acceptance criteria.
 
-**Approved amendment:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below.
+**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below. `docs/decisions/github-handoff-transport.md` makes a dedicated private GitHub Release Asset API the normal handoff transport and server acknowledgement path; OneDrive remains separately approved for recovery/archive only.
 
 ## 1. Acceptance principle
 
@@ -38,7 +38,7 @@ Pure visual details remain implementation choices unless a criterion explicitly 
 
 **Given** the authoritative device temporarily has no Internet/OneDrive connectivity,  
 **when** the operator performs normal local order/catalogue/payment/printing work,  
-**then** those core functions remain available against the authoritative local database; only operations that intrinsically require OneDrive handoff/recovery publication may be unavailable.
+**then** those core functions remain available against the authoritative local database; only operations that intrinsically require GitHub handoff or OneDrive recovery/archive publication may be unavailable.
 
 **Evidence:** controlled offline integration/manual test.
 
@@ -609,14 +609,14 @@ When the operator explicitly chooses **Transfer authority and close**, the sourc
 2. blocks new business edits and commits accepted writes;
 3. creates and validates a SQLite-safe complete snapshot;
 4. assigns immutable lineage/generation/version/source/target/checksum metadata;
-5. publishes the snapshot and waits for required documented synchronization confirmation;
+5. publishes `YYYYMMDDHHMMSS.snapshot.db` to the configured private GitHub Release and requires HTTP 201, uploaded state, exact name/size/asset ID and matching `sha256:<hex>` server receipt;
 6. durably records local relinquishment/pending-transfer state that survives restart and blocks further source business writes;
-7. only after that durable relinquishment creates/publishes the matching target-bound ready/grant marker;
-8. waits for required marker synchronization confirmation before reporting successful transfer/close.
+7. only after that durable relinquishment creates/uploads `YYYYMMDDHHMMSS.grant.json` and validates its strict GitHub server receipt;
+8. only after the grant receipt persists `Released`; retention cleanup is post-completion and retryable.
 
 A ready/grant marker must never exist before durable source relinquishment. A snapshot alone does not release authority. A failure before relinquishment may safely abort without releasing authority; a failure after relinquishment leaves the source read-only/pending-transfer and permits only technical retries of the same immutable target-bound transfer.
 
-**Evidence:** deterministic ordering/restart/failure-injection tests + manual close-flow acceptance.
+**Evidence:** deterministic ordering/restart/failure-injection tests + GitHub fake-HTTP receipt tests + manual close-flow acceptance.
 
 ### AC-STO-004 — Target-bound handoff validation and acquisition
 
@@ -632,11 +632,11 @@ A receiving device must not promote a handoff snapshot to writable `live.db` unl
 
 Only after all checks pass may that target enable business writes. A non-target device remains read-only and does not create an acquisition claim.
 
-**Evidence:** corruption/mismatch/wrong-target/replay/restart tests + controlled multi-device test.
+**Evidence:** corruption/mismatch/wrong-target/replay/restart tests + GitHub asset/grant metadata and hash validation + controlled multi-device test.
 
 ### AC-STO-005 — No silent force takeover, source rollback or target substitution
 
-If the authoritative device closed while retaining authority, another device cannot silently start writing from an older local/OneDrive copy.
+If the authoritative device closed while retaining authority, another device cannot silently start writing from an older local copy or GitHub artifact.
 
 After a target-directed handoff crosses durable source relinquishment:
 
@@ -657,7 +657,7 @@ The application retains the latest five successfully generated/validated local r
 
 ### AC-STO-007 — Target-directed handoff retention
 
-OneDrive Handoff retains the latest five complete validated immutable snapshot+target-bound-ready/grant units. Incomplete artifacts are never treated as valid releases; each complete unit preserves matching lineage/generation/version/source/target/checksum metadata.
+GitHub Handoff retains the latest three complete validated immutable snapshot+target-bound-grant units after successful completion. Incomplete/starter/stray assets are never counted; each complete unit preserves matching lineage/generation/version/source/target/checksum metadata and exact remote asset identity.
 
 **Evidence:** retention/integrity/target-binding tests.
 
@@ -814,7 +814,8 @@ Acceptance must confirm that implementation has not introduced mandatory V1 subs
 - live SQLite database synchronization through OneDrive;
 - simultaneous multi-writer database operation;
 - generic competitive OneDrive claim/election for normal authority transfer;
-- hosted/Graph/OAuth coordination merely to arbitrate normal V1 handoff.
+- hosted/Graph/OAuth coordination merely to arbitrate normal V1 handoff;
+- Git history, Git LFS, Actions artifacts, Packages or filesystem synchronization as the normal handoff transport.
 
 ## 13. V1 acceptance gate
 
@@ -826,6 +827,6 @@ V1 may be accepted for production preparation only when:
 4. no unresolved contradiction exists between implementation and the frozen/amended V1 specification;
 5. no test fixture or repository artifact contains unsanitized production customer/business secrets.
 
-This document is the **Approved — Phase 5 acceptance baseline for the frozen V1 Specification, amended 2026-08-28 for target-directed authority handoff**.
+This document is the **Approved — Phase 5 acceptance baseline for the frozen V1 Specification, amended 2026-08-28 for target-directed authority handoff and GitHub Release Asset transport**.
 
 Codex implementation must treat these criteria as the acceptance contract. Any future behavior change that conflicts with them requires an explicit approved specification amendment; implementation must not silently waive a criterion by reproducing legacy VBA behavior that the approved V1 specification intentionally replaced.
