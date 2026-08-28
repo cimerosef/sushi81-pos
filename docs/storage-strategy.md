@@ -1,9 +1,11 @@
 # Storage strategy
 
-**Status:** Approved — Phase 3 baseline  
-**Last updated:** 2026-08-27  
+**Status:** Approved — Phase 3 baseline, amended 2026-08-28  
+**Last updated:** 2026-08-28  
 **Product:** Sushi81 POS  
 **Purpose:** Define how live data, local recovery snapshots, OneDrive handoff snapshots, disaster-recovery checkpoints and annual archives are stored and transferred safely across paired Windows devices without silent divergence.
+
+**Approved amendment:** `docs/decisions/target-directed-authority-handoff.md` supersedes generic competitive handoff acquisition and automatic authority release on every normal application exit.
 
 ## 1. Core storage principle
 
@@ -11,7 +13,7 @@ Each paired Sushi81 POS computer uses its own **local working SQLite database**.
 
 The live database is never directly opened from a OneDrive-synchronized folder and is never intentionally written by more than one device at the same time.
 
-OneDrive is used only for controlled transfer of validated complete snapshots and retained recovery/archive artifacts.
+OneDrive is used only for controlled transfer of validated complete snapshots and retained recovery/archive artifacts. It is not used as a distributed lock or live database engine.
 
 The architecture supports an arbitrary number of paired devices. The initial deployment may use two computers, but no protocol or data structure may assume exactly two.
 
@@ -19,7 +21,8 @@ At any moment:
 
 - at most one paired device is authoritative/writable;
 - every other paired device is non-authoritative/read-only;
-- write authority moves only through a completed formal handoff or explicit disaster recovery;
+- normal write authority moves only by a completed **target-directed** formal handoff from the current authoritative device;
+- explicit Disaster Recovery is the abnormal recovery path;
 - V1 performs no automatic row-level database merge.
 
 The operator does not manually manage `live.db` or local recovery files.
@@ -45,12 +48,12 @@ Semantics:
 - `Recovery\` — rolling validated local recovery snapshots;
 - `Cache\` — disposable local caches, including hydrated read-only archives;
 - `Logs\` — technical diagnostics;
-- `Config\` — local configuration/device identity;
+- `Config\` — local configuration/device identity and durable local authority/transfer state;
 - `Temp\` — safe staging for snapshot/archive/export-related file operations where needed.
 
 The operator is not offered an ordinary setting to relocate the live database or local Recovery directory.
 
-Application binaries/install files remain separate. Update/reinstall must not treat business data or device identity as disposable program content.
+Application binaries/install files remain separate. Update/reinstall must not treat business data, device identity or durable local authority/transfer state as disposable program content.
 
 ## 3. Local recovery snapshots
 
@@ -72,37 +75,81 @@ An older valid snapshot may be removed only after a newer valid replacement exis
 
 These snapshots are application-managed technical data, not an operator-facing business history.
 
-## 4. Formal handoff — normal exit releases authority
+## 4. Closing the application and normal authority transfer
 
-A formal handoff snapshot is the only normal mechanism by which another paired device receives authority to continue editing the same business lineage.
+A normal application close no longer automatically releases authority.
 
-Normal application exit triggers handoff automatically.
+When the current device is authoritative, the close flow distinguishes two explicit intents.
 
-When the operator closes Sushi81 POS, the application enters a closing/handoff state, blocks new business edits and:
+### 4.1 Close and retain authority
 
-1. completes/commits accepted application/database writes;
-2. generates a complete SQLite snapshot using a SQLite-safe mechanism;
-3. validates SQLite integrity locally;
-4. assigns the next immutable monotonically advancing handoff version;
-5. computes a checksum/hash;
-6. associates lineage/generation/source-device metadata;
-7. publishes the snapshot into the configured OneDrive `Handoff` area;
-8. waits until required synchronization status confirms no pending upload/error;
-9. publishes a small matching completion/ready marker containing at least lineage, generation, handoff version and checksum;
-10. waits until that marker is also confirmed synchronized;
-11. only then records/reports a successful release and completes normal exit.
+**Close and retain authority**:
 
-If any required step fails, the application must not report a successful handoff.
+- closes the application without creating a formal authority release;
+- leaves this same device authoritative for the lineage;
+- allows this same device to continue writable operation on its next valid launch;
+- leaves every other paired device non-authoritative/read-only;
+- is the safe/default close meaning when no transfer is explicitly requested.
 
-Normal operator behavior is therefore:
+No other device may infer authority merely because the authoritative application process is not currently running.
 
-**Close POS -> obtain successful handoff confirmation -> leave.**
+### 4.2 Transfer authority and close
 
-If the POS was not closed successfully, another device must not assume authority from an older version.
+**Transfer authority and close** transfers normal write authority to exactly one eligible paired target device.
 
-## 5. Immutable handoff versions and retention
+- With one eligible other paired device, the UI may preselect that device, but transfer remains an explicit operator action.
+- With more than one eligible target, the operator selects one by human-readable device name.
+- The current authoritative device itself is not a valid target.
+- The target must belong to the current paired-device set for the current lineage/generation.
 
-Formal handoffs are immutable versioned snapshot+ready-marker units, conceptually:
+A formal target-directed handoff snapshot is the only normal mechanism by which that selected target receives authority to continue editing the same business lineage.
+
+## 5. Target-directed formal handoff protocol
+
+When the operator explicitly chooses **Transfer authority and close**, the source authoritative device enters a handoff state, blocks new business edits and performs the following sequence:
+
+1. complete/commit all accepted application/database writes;
+2. generate a complete SQLite snapshot using a SQLite-safe mechanism;
+3. validate SQLite integrity locally;
+4. assign the next immutable monotonically advancing handoff version;
+5. compute the snapshot checksum/hash and any required size metadata;
+6. bind immutable protocol metadata to the current lineage, generation, source `device_id` and exactly one target `device_id`;
+7. publish the immutable snapshot into the configured OneDrive `Handoff` area;
+8. wait until the required documented synchronization state confirms the snapshot has no pending upload/error and is synchronized for the narrow publication meaning used by the protocol;
+9. **durably persist local relinquishment/pending-transfer state** containing at least lineage, generation, handoff version, source device, target device and checksum;
+10. from the durable relinquishment point onward, block all business-authoritative writes on the source across restart;
+11. only after step 9 succeeds, create/publish the matching immutable target-bound ready/grant marker;
+12. wait until that marker is also confirmed synchronized;
+13. only then record/report successful normal authority transfer and complete the transfer-and-close flow.
+
+The target-releasing ready/grant marker must never exist before the source has durably crossed the local relinquishment point.
+
+A snapshot without the matching completed target-bound ready/grant marker is not a released handoff for the target.
+
+OneDrive synchronization state is transport evidence only. It is not treated as a distributed mutex, remote acknowledgement or cross-client compare-and-swap.
+
+### 5.1 Failure before relinquishment
+
+Before the durable relinquishment point, a transfer may fail or be cancelled without releasing authority, provided no target-bound ready/grant marker has been published.
+
+The source may remain authoritative and writable after the transfer is safely aborted.
+
+### 5.2 Failure after relinquishment
+
+After the durable relinquishment point:
+
+- the source may not roll back to ordinary writable authority;
+- source restart remains read-only/pending-transfer;
+- the source may perform technical retries needed to finish publication/synchronization of the **same immutable target-bound transfer**;
+- the source may not choose a different target for that handoff version;
+- the source may not create new business writes while retrying;
+- if the designated target cannot be recovered and the handoff cannot be completed, the exceptional path is explicit Disaster Recovery, not ordinary takeover.
+
+This asymmetric failure rule intentionally favors safety over convenience.
+
+## 6. Immutable handoff versions and retention
+
+Formal handoffs are immutable versioned snapshot+target-bound-ready/grant units, conceptually:
 
 ```text
 handoff-v000157.db
@@ -113,13 +160,15 @@ handoff-v000158.ready
 
 Exact filenames are technical details, but semantics are fixed:
 
-- a snapshot without the matching completed ready marker is not a released handoff;
-- marker and database must agree on lineage/generation/version/checksum;
+- a snapshot without the matching completed ready/grant marker is not a released handoff;
+- marker and database must agree on lineage, generation, handoff version, source device, target device and checksum;
+- source and target device IDs must be distinct;
+- target binding is immutable once the source crosses the durable relinquishment point;
 - the pair is one retention unit;
 - latest **five** complete validated handoff versions are retained;
 - cleanup of an older handoff happens only after a newer replacement is validated and, where required, confirmed synchronized.
 
-## 6. OneDrive shared root
+## 7. OneDrive shared root
 
 The operator selects one locally available folder inside the OneDrive tree as the Sushi81 POS shared root.
 
@@ -135,30 +184,30 @@ The application creates/manages:
 
 Semantics:
 
-- `Handoff\` — completed formal handoff versions/markers;
+- `Handoff\` — immutable target-directed formal handoff versions/markers;
 - `DisasterRecovery\` — recovery-only checkpoints;
 - `Archive\` — permanent annual archive databases;
-- `System\` — small lineage/device/coordination metadata required by the protocol.
+- `System\` — small lineage/device/coordination metadata, including the paired-device set required to validate target identities.
 
 The selected root is never the live database location.
 
 Changing the shared root occurs only through application settings. A proposed new root must be validated before adoption and must not silently join/combine an unrelated lineage.
 
-## 7. Device and lineage identity
+## 8. Device and lineage identity
 
 The protocol uses opaque identities rather than fixed roles such as SHOP/HOME.
 
-### 7.1 `device_id`
+### 8.1 `device_id`
 
 Each installation receives an immutable random UUID-like `device_id` when initialized.
 
 It is stored in local application configuration and is not ordinary user-editable business data.
 
-A separate human-readable device display name may be editable without changing `device_id`.
+A separate human-readable device display name may be editable without changing `device_id` and is used to make target selection understandable when more than one eligible paired device exists.
 
 If a complete Windows reinstall loses the local identity, that installation is treated as a new device and receives a new ID.
 
-### 7.2 `lineage_id`
+### 8.2 `lineage_id`
 
 The first authoritative business database establishes a stable opaque `lineage_id` identifying that business-data family.
 
@@ -166,13 +215,13 @@ All valid live/handoff/disaster-recovery metadata belonging to it carries the sa
 
 A device encountering another lineage must not silently merge/adopt it.
 
-### 7.3 `generation`
+### 8.3 `generation`
 
 A lineage has a generation/epoch.
 
-Normal handoffs preserve generation. Confirmed disaster recovery advances it so devices holding pre-recovery state cannot later resume writing silently.
+Normal target-directed handoffs preserve generation. Confirmed Disaster Recovery advances it so devices holding pre-recovery state cannot later resume writing silently.
 
-### 7.4 `handoff_version`
+### 8.4 `handoff_version`
 
 Formal handoffs advance a monotonic handoff version within the current lineage history.
 
@@ -181,24 +230,26 @@ Protocol metadata must identify at least:
 - lineage ID;
 - generation;
 - handoff version;
-- relevant source/current device ID;
-- checksum;
-- required timestamps.
+- source/current device ID;
+- target device ID for normal handoff;
+- checksum and any required size metadata;
+- required timestamps/protocol version.
 
-## 8. Pairing additional devices
+## 9. Pairing additional devices
 
 The design contains no two-device slots or fixed logical maximum.
 
-### 8.1 First device
+### 9.1 First device
 
 On initial setup:
 
 - application creates local live/recovery areas;
 - operator selects/creates the OneDrive shared root;
 - application establishes device/lineage metadata;
-- subsequent formal handoffs use that root.
+- the first device is authoritative;
+- subsequent normal authority transfers use target-directed handoff through that root.
 
-### 8.2 Second, third or later device
+### 9.2 Second, third or later device
 
 To add another computer:
 
@@ -206,47 +257,56 @@ To add another computer:
 2. create its new `device_id`;
 3. select the same existing OneDrive shared root;
 4. validate lineage/generation/shared structure;
-5. locate latest formally completed handoff;
-6. verify snapshot + ready marker + checksum + SQLite integrity;
-7. restore the validated version into that device's own local `live.db`;
-8. join the existing lineage.
+5. register/join the paired-device set using the approved pairing flow;
+6. locate the most recent appropriate formally completed data snapshot available for initialization/read-only hydration;
+7. verify applicable metadata + checksum + SQLite integrity;
+8. restore the validated version into that device's own local `live.db`;
+9. join the lineage in non-authoritative/read-only state unless and until a later formal handoff is specifically targeted to this device.
 
-If another device still holds authority, the new device remains read-only.
+If another device holds or retains authority, the new device remains read-only.
 
-If a released handoff is safely available, authority may be acquired according to the protocol.
+Pairing a device does not itself release or grant authority.
 
-Competing acquisition attempts must never silently activate multiple writers. Write activation remains blocked until one authoritative acquisition is established.
+## 10. Receiving/acquiring a target-directed handoff
 
-## 9. Receiving/acquiring a completed handoff
+Before a non-authoritative device enters write mode from a normal handoff it must:
 
-Before a non-authoritative device enters write mode it must:
+1. identify the latest formally completed handoff relevant to its known lineage/generation;
+2. confirm that its immutable local `device_id` exactly equals the handoff `target_device_id`;
+3. confirm source and target IDs are distinct and valid members of the paired-device set for the current lineage/generation;
+4. ensure snapshot and matching target-bound ready/grant marker are locally available;
+5. verify lineage/generation/handoff-version/source-device/target-device/checksum consistency and required protocol metadata;
+6. validate SQLite integrity;
+7. compare against durable local generation/version/transfer state and reject stale/replayed acquisition;
+8. safely restore the accepted snapshot to local `live.db` when required;
+9. durably establish this device as the local authoritative state for that accepted transfer;
+10. only then enable business writes.
 
-1. identify the latest formally completed handoff;
-2. ensure snapshot and matching ready marker are locally available;
-3. verify lineage/generation/version/checksum consistency;
-4. validate SQLite integrity;
-5. compare with local version/generation;
-6. safely restore the accepted snapshot to local `live.db` when required;
-7. establish exclusive authority for this device;
-8. only then enable writes.
+A non-target device seeing the same valid handoff remains read-only. It does **not** create a competing acquisition claim and may not acquire the handoff by waiting longer or by being the only currently running device.
 
-A partial snapshot, missing marker, checksum mismatch, lineage/generation mismatch, integrity failure or unresolved competing acquisition must never become a writable live database automatically.
+A partial snapshot, missing marker, checksum mismatch, source/target mismatch, lineage/generation mismatch, integrity failure, stale/replayed handoff, unknown synchronization state or other unresolved failure must never become a writable live database automatically.
 
-## 10. No normal force takeover
+## 11. No normal force takeover or retargeting
 
-If the current authoritative device did not complete a formal handoff, another device must not begin writing from an older local/OneDrive version through an ordinary force-takeover path.
+If the current authoritative device retained authority when it closed, another device must not begin writing from an older local/OneDrive version.
 
-If the authoritative device remains available, the normal remedy is to return to it and complete the handoff.
+If a target-directed transfer has crossed the durable relinquishment point, neither the former source nor a third device may silently substitute itself for the designated target.
+
+Normal remedies are:
+
+- return to/start the current authoritative device and explicitly transfer authority;
+- complete/recover the already-designated target handoff and, after the target becomes authoritative, transfer onward if desired; or
+- when the applicable authoritative/target device is genuinely unavailable and normal handoff cannot be completed, use explicit Disaster Recovery.
 
 Reliability and prevention of silent divergence take precedence over convenience.
 
-## 11. Disaster recovery
+## 12. Disaster recovery
 
-Disaster Recovery is reserved for genuine abnormal loss of the authoritative device, such as unrecoverable hardware/disk/OS failure preventing normal handoff.
+Disaster Recovery is reserved for genuine abnormal loss/unavailability that prevents normal target-directed handoff, such as unrecoverable hardware/disk/OS failure.
 
-It is separate from normal handoff.
+It is separate from normal handoff and is never a convenience shortcut for choosing a different target.
 
-### 11.1 Recovery-only cloud checkpoints
+### 12.1 Recovery-only cloud checkpoints
 
 While the authoritative device operates normally:
 
@@ -259,36 +319,44 @@ While the authoritative device operates normally:
 
 These checkpoints do **not** release write authority and are never consumed automatically as ordinary handoffs.
 
-### 11.2 Recovery user flow
+### 12.2 Recovery user flow
 
-If no valid latest formal handoff exists, ordinary acquisition stays blocked.
+If no valid normal authority path is available, ordinary acquisition stays blocked.
 
 A separate Disaster Recovery action displays at least:
 
-- latest completed handoff timestamp/version;
+- latest completed handoff timestamp/version and designated target where applicable;
 - newest validated recovery checkpoint timestamp;
 - checkpoint source device;
-- warning that changes after the checkpoint may be lost.
+- warning that changes after the checkpoint may be lost;
+- warning that Disaster Recovery creates a new generation and invalidates older-generation write eligibility.
 
 After explicit confirmation, the application:
 
 1. validates the selected appropriate checkpoint;
 2. restores it to local `live.db`;
 3. advances the lineage generation;
-4. records the new authoritative generation;
+4. records the new authoritative generation/device;
 5. enables writes only after activation succeeds.
 
-### 11.3 Old-generation invalidation
+### 12.3 Old-generation invalidation
 
-A device later returning with an older generation may not resume writes from its stale local database, regardless of file timestamps.
+A device later returning with an older generation may not resume writes from its stale local database or old handoff grant, regardless of file timestamps.
 
 It must be reinitialized from current authoritative released data before write capability is restored.
 
-Merely forgetting to close the POS is not sufficient reason to use Disaster Recovery while the original device remains recoverable.
+Merely forgetting to transfer authority is not sufficient reason to use Disaster Recovery while the applicable authoritative/designated-target path remains recoverable.
 
-## 12. Non-authoritative read-only mode
+## 13. Non-authoritative read-only mode
 
-A paired device that has not acquired authority may open Sushi81 POS in clearly marked non-authoritative/read-only mode.
+A paired device that is not the current authoritative device may open Sushi81 POS in clearly marked non-authoritative/read-only mode.
+
+This includes:
+
+- ordinary paired devices that were not selected as the target;
+- a former source that has crossed the durable relinquishment point;
+- a designated target before it has fully validated/acquired its handoff;
+- stale/old-generation devices.
 
 It may consult:
 
@@ -297,9 +365,10 @@ It may consult:
 
 The UI must clearly and persistently show:
 
-- read-only/non-authoritative state;
-- that current live data may be stale;
-- the version and/or effective time of the most recently acquired data.
+- read-only/non-authoritative or pending-transfer state;
+- that current live data may be stale where applicable;
+- the version and/or effective time of the most recently acquired data;
+- target/pending-transfer information where operationally useful.
 
 A newer recovery-only checkpoint is not consumed as an ordinary read-only update.
 
@@ -312,11 +381,13 @@ Read-only mode blocks authoritative business writes including:
 - catalogue imports;
 - business-setting changes;
 - annual archive execution;
-- formal handoff publication from the stale copy.
+- creation of a new formal handoff from a stale/non-authoritative copy.
 
-### 12.1 Printing from non-authoritative data — Phase 4 alignment
+A former source in pending-transfer state may perform only technical retries needed to complete its already-fixed immutable transfer; those retries are not business-authoritative writes.
 
-The later Approved printing decision is final for V1: a non-authoritative/read-only device **may print/reprint** from the committed live-data copy currently available on that device.
+### 13.1 Printing from non-authoritative data — Phase 4 alignment
+
+The later Approved printing decision remains final for V1: a non-authoritative/read-only device **may print/reprint** from the committed live-data copy currently available on that device.
 
 It is not hard-blocked, but before/at the print action the application must clearly indicate that:
 
@@ -328,23 +399,27 @@ Printing performs no business write, does not transfer authority and does not cl
 
 Detailed marking/printing behavior remains in `printing.md` and `docs/decisions/non-authoritative-device-printing.md`.
 
-## 13. Offline behavior
+## 14. Offline behavior
 
 The authoritative device may continue normal local operation during temporary Internet/OneDrive loss because `live.db` is local.
 
-It cannot complete a successful formal handoff until required OneDrive publication/synchronization can be confirmed.
+**Close and retain authority** remains possible as a local close operation; it does not claim to publish or release authority.
 
-Cloud disaster-recovery checkpoints may remain pending/unavailable while offline; local work remains authoritative until valid handoff or explicit disaster recovery.
+A new **Transfer authority and close** cannot complete until required OneDrive snapshot/grant publication and synchronization can be confirmed.
 
-A non-authoritative device that cannot verify/acquire the latest handoff cannot enter write mode from an older copy, though read-only use and approved printing remain available.
+If a transfer fails before durable relinquishment, it may be safely aborted and authority retained. If synchronization fails after durable relinquishment, the source remains read-only/pending-transfer and may retry the same technical transfer when connectivity returns.
 
-## 14. Annual archive
+Cloud disaster-recovery checkpoints may remain pending/unavailable while offline; ordinary local work remains authoritative only while the device has not relinquished authority.
+
+A non-authoritative device that cannot validate a handoff specifically targeted to itself cannot enter write mode from an older copy, though read-only use and approved printing remain available.
+
+## 15. Annual archive
 
 Annual archives are separate historical SQLite files stored in OneDrive `Archive`, independent from installed binaries and active local `live.db`.
 
 They are read-only historical databases and not part of normal live handoff lineage.
 
-### 14.1 Schedule and strict calendar-year boundary
+### 15.1 Schedule and strict calendar-year boundary
 
 The authoritative device automatically processes the previous **complete calendar year** on **February 1** each year.
 
@@ -356,7 +431,7 @@ If the POS is not run on February 1, the archive occurs on the first later start
 
 Only the authoritative device may create an annual archive.
 
-### 14.2 Archive-year rules
+### 15.2 Archive-year rules
 
 Archive year is the natural year in which the business order ends:
 
@@ -368,7 +443,7 @@ This rule applies equally to ordinary `POS` and hidden-source `HIBOUTIK_PASTE` o
 
 Example: an order created December 2026 and Closed January 10, 2027 belongs to archive year 2027, stays live through the February 2027 archive and becomes eligible when archive year 2027 is processed in February 2028.
 
-### 14.3 Publication safety
+### 15.3 Publication safety
 
 Archive creation is failure-safe:
 
@@ -382,7 +457,7 @@ Archive creation is failure-safe:
 
 If creation, validation or publication fails, records remain live and archiving is retried later.
 
-### 14.4 Archive independence and retention
+### 15.4 Archive independence and retention
 
 Completed annual archives:
 
@@ -404,12 +479,12 @@ Conceptually:
 
 Exact filenames may be refined technically.
 
-## 15. Rolling retention
+## 16. Rolling retention
 
 V1 uses:
 
 - Local Recovery: latest **5** validated snapshots;
-- OneDrive Handoff: latest **5** complete validated versions;
+- OneDrive Handoff: latest **5** complete validated target-directed snapshot+ready/grant units;
 - OneDrive Disaster Recovery: latest **5** validated checkpoints;
 - Annual Archive: permanent/no rolling deletion.
 
@@ -417,29 +492,34 @@ Cleanup happens after, never before, a newer replacement is safely generated/val
 
 These counts are fixed V1 technical defaults rather than ordinary operator-configurable settings.
 
-## 16. Storage invariants
+## 17. Storage invariants
 
 Implementation must preserve all of the following:
 
 1. `live.db` is local/application-managed, never a live OneDrive database.
 2. Any number of devices may pair; exactly-two-device assumptions are forbidden.
 3. At most one device writes at a time.
-4. Normal write transfer requires a validated completed formal handoff.
-5. No stale normal force takeover.
-6. Disaster Recovery is explicit/recovery-only and creates a new generation.
-7. Old-generation devices cannot resume writes without reinitialization.
-8. Non-authoritative devices use clearly marked stale/read-only state.
-9. Non-authoritative printing is allowed only under the explicit stale-data warning rules already Approved in Phase 4.
-10. Local Recovery/Handoff/Disaster Recovery each retain five valid rolling versions.
-11. Annual archive targets only the previous complete natural year when triggered on/after February 1.
-12. Closed and Cancelled orders use their end timestamp year; Open orders remain live.
-13. Archive records leave `live.db` only after validated successful OneDrive archive publication.
-14. Annual archives remain independent permanent historical files.
+4. Normal application close does not automatically release authority; the operator explicitly chooses retain-versus-transfer behavior.
+5. Normal write transfer is target-directed by the current authoritative device to exactly one eligible paired `target_device_id`.
+6. The source must durably relinquish business-write authority before a target-releasing ready/grant marker can exist.
+7. After durable relinquishment, the source may retry only the same immutable transfer and may not silently resume writes or retarget it.
+8. Only the exact designated target may acquire a normal handoff; non-target devices remain read-only and do not compete through claims/election.
+9. No stale normal force takeover or target substitution is permitted.
+10. Disaster Recovery is explicit/recovery-only and creates a new generation.
+11. Old-generation devices cannot resume writes without reinitialization.
+12. Non-authoritative devices use clearly marked stale/read-only or pending-transfer state.
+13. Non-authoritative printing is allowed only under the explicit stale-data warning rules already Approved in Phase 4.
+14. Local Recovery/Handoff/Disaster Recovery each retain five valid rolling versions.
+15. Annual archive targets only the previous complete natural year when triggered on/after February 1.
+16. Closed and Cancelled orders use their end timestamp year; Open orders remain live.
+17. Archive records leave `live.db` only after validated successful OneDrive archive publication.
+18. Annual archives remain independent permanent historical files.
+19. OneDrive synchronization is transport evidence, not a distributed lock or competitive acquisition primitive.
 
-## 17. Approval
+## 18. Approval
 
-This document is the **Approved — Phase 3 baseline**, aligned during Phase 5 with the later Approved Phase 4 printing/source decisions.
+This document remains the **Approved — Phase 3 baseline**, amended on 2026-08-28 by `docs/decisions/target-directed-authority-handoff.md` after the M02 feasibility blocker.
 
-The storage architecture is local SQLite per paired device, N-device single-writer authority, validated immutable OneDrive handoff, application-managed local recovery, change-triggered recovery-only cloud checkpoints, explicit generation-changing Disaster Recovery, non-authoritative read-only access, five-version rolling technical protection and independent February natural-year archives.
+The storage architecture is local SQLite per paired device, N-device single-writer authority, **target-directed source-arbitrated normal handoff**, application-managed local recovery, change-triggered recovery-only cloud checkpoints, explicit generation-changing Disaster Recovery, non-authoritative read-only access, five-version rolling technical protection and independent February natural-year archives.
 
 Low-level filenames, coordination serialization and similar pure implementation details may be selected during implementation only if every invariant above remains true.
