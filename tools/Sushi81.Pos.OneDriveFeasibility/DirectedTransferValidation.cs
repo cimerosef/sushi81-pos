@@ -101,11 +101,6 @@ public static class DirectedTransferMarkerPublisher
             return new(false, grantResult.Code, grantResult.Message);
         }
 
-        // The synthetic harness models the documented transport observation as
-        // a separate boundary.  A real adapter must wait for both immutable
-        // files to be observed in-sync before reporting completion.
-        failureInjector?.OnFailurePoint(DirectedTransferFailurePoint.BeforeMarkerSynchronization);
-
         return new(true, "markers-published", "Matching ready and grant markers were published after durable relinquishment.", Validation: new(true, "valid", "Markers are present and internally consistent.", ready, grant));
     }
 

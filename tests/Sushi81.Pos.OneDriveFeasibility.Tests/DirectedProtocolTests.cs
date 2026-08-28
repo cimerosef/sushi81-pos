@@ -99,6 +99,7 @@ public sealed class DirectedProtocolTests
             transport.DeliverRelease(id);
             transport.DeliverGrant(id);
             transport.SetAcquisitionValidated(id, true);
+            transport.SetDurableTargetAcquisition(id, id == "device-b");
         }
 
         var views = DeviceIds
@@ -123,6 +124,7 @@ public sealed class DirectedProtocolTests
         transport.DeliverRelease("device-c");
         transport.DeliverGrant("device-c");
         transport.SetAcquisitionValidated("device-c", true);
+        transport.SetDurableTargetAcquisition("device-c", false);
         transport.DeliverSnapshot("device-b");
 
         Assert.IsFalse(DirectedAuthorityProtocol.MayBusinessWrite(transport.Observe("device-c")));
@@ -134,6 +136,7 @@ public sealed class DirectedProtocolTests
         transport.DeliverRelease("device-b");
         transport.DeliverMarker("device-b");
         transport.SetAcquisitionValidated("device-b", true);
+        transport.SetDurableTargetAcquisition("device-b", true);
         Assert.IsTrue(DirectedAuthorityProtocol.MayBusinessWrite(transport.Observe("device-b")));
     }
 
@@ -216,6 +219,29 @@ public sealed class DirectedProtocolTests
     }
 
     [TestMethod]
+    public void InMemoryAcquisitionValidationAloneCannotEnableWrites()
+    {
+        var session = ReleasedSession();
+        var view = View(session, "device-b", DirectedTransferState.TransferReleased, acquisitionValidated: true, durableTargetAcquisitionPersisted: false);
+
+        Assert.IsFalse(DirectedAuthorityProtocol.MayBusinessWrite(view));
+    }
+
+    [TestMethod]
+    public void RestartWithoutReconstructedDurableTargetAcquisitionRemainsBlocked()
+    {
+        var session = ReleasedSession();
+        var view = View(session, "device-b", DirectedTransferState.TransferReleased, acquisitionValidated: true, durableTargetAcquisitionPersisted: false) with
+        {
+            Restarted = true
+        };
+
+        var decision = DirectedAuthorityProtocol.Evaluate(view);
+        Assert.IsFalse(decision.MayWrite);
+        StringAssert.Contains(decision.Reason, "restart");
+    }
+
+    [TestMethod]
     public void RetryIsIdempotentAndRetargetIsRejected()
     {
         var session = ReleasedSession();
@@ -279,7 +305,8 @@ public sealed class DirectedProtocolTests
         DirectedTransferSession session,
         string deviceId,
         DirectedTransferState state,
-        bool acquisitionValidated = true) =>
+        bool acquisitionValidated = true,
+        bool durableTargetAcquisitionPersisted = true) =>
         new(
             deviceId,
             session.Identity,
@@ -295,5 +322,6 @@ public sealed class DirectedProtocolTests
             MetadataValid: true,
             ReleaseVisible: session.State == DirectedTransferState.TransferReleased,
             VisibleGrants: session.Grant is null ? [] : [session.Grant],
-            Restarted: false);
+            Restarted: false,
+            DurableTargetAcquisitionPersisted: durableTargetAcquisitionPersisted);
 }

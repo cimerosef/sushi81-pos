@@ -30,6 +30,23 @@ public sealed record DirectedTransferIdentity(
         && !string.Equals(SourceDeviceId, TargetDeviceId, StringComparison.Ordinal);
 }
 
+public sealed record DirectedMarkerEvidence(
+    [property: JsonPropertyName("readyMarkerPath")] string ReadyMarkerPath,
+    [property: JsonPropertyName("grantMarkerPath")] string GrantMarkerPath,
+    [property: JsonPropertyName("snapshotChecksum")] string SnapshotChecksum,
+    [property: JsonPropertyName("snapshotByteLength")] long SnapshotByteLength,
+    [property: JsonPropertyName("readySyncConfirmed")] bool ReadySyncConfirmed,
+    [property: JsonPropertyName("grantSyncConfirmed")] bool GrantSyncConfirmed)
+{
+    public bool IsValid => !string.IsNullOrWhiteSpace(ReadyMarkerPath)
+        && !string.IsNullOrWhiteSpace(GrantMarkerPath)
+        && SnapshotChecksum is { Length: 64 } checksum
+        && checksum.All(Uri.IsHexDigit)
+        && SnapshotByteLength > 0
+        && ReadySyncConfirmed
+        && GrantSyncConfirmed;
+}
+
 public sealed record DurableAuthorityState(
     [property: JsonPropertyName("formatVersion")] int FormatVersion,
     [property: JsonPropertyName("revision")] long Revision,
@@ -39,26 +56,57 @@ public sealed record DurableAuthorityState(
     [property: JsonPropertyName("transfer")] DirectedTransferIdentity? Transfer,
     [property: JsonPropertyName("updatedAtUtc")] DateTimeOffset UpdatedAtUtc,
     [property: JsonPropertyName("closedWithAuthority")] bool ClosedWithAuthority,
-    [property: JsonPropertyName("snapshotEvidence")] DirectedSnapshotEvidence? SnapshotEvidence = null)
+    [property: JsonPropertyName("snapshotEvidence")] DirectedSnapshotEvidence? SnapshotEvidence = null,
+    [property: JsonPropertyName("markerEvidence")] DirectedMarkerEvidence? MarkerEvidence = null)
 {
     public const int CurrentFormatVersion = 1;
 
-    public bool IsValid => FormatVersion == CurrentFormatVersion
-        && Revision >= 0
-        && !string.IsNullOrWhiteSpace(DeviceId)
-        && PairedDeviceIds is not null
-        && PairedDeviceIds.All(id => !string.IsNullOrWhiteSpace(id))
-        && PairedDeviceIds.Distinct(StringComparer.Ordinal).Count() == PairedDeviceIds.Length
-        && PairedDeviceIds.Contains(DeviceId, StringComparer.Ordinal)
-        && UpdatedAtUtc > DateTimeOffset.UnixEpoch
-        && UpdatedAtUtc.Offset == TimeSpan.Zero
-        && (Mode is DirectedAuthorityMode.Authoritative or DirectedAuthorityMode.Uninitialized
-            ? Transfer is null && SnapshotEvidence is null
-            : Transfer is { IsValid: true } transfer
-                && string.Equals(transfer.SourceDeviceId, DeviceId, StringComparison.Ordinal)
-                && (Mode is DirectedAuthorityMode.TransferPrepared
-                    ? SnapshotEvidence is null
-                    : SnapshotEvidence is { IsValid: true } evidence && evidence.Transfer == transfer));
+    public bool IsValid
+    {
+        get
+        {
+            if (FormatVersion != CurrentFormatVersion || Revision < 0 || string.IsNullOrWhiteSpace(DeviceId)
+                || PairedDeviceIds is null
+                || PairedDeviceIds.Any(id => string.IsNullOrWhiteSpace(id))
+                || PairedDeviceIds.Distinct(StringComparer.Ordinal).Count() != PairedDeviceIds.Length
+                || !PairedDeviceIds.Contains(DeviceId, StringComparer.Ordinal)
+                || UpdatedAtUtc <= DateTimeOffset.UnixEpoch || UpdatedAtUtc.Offset != TimeSpan.Zero)
+            {
+                return false;
+            }
+
+            if (Mode is DirectedAuthorityMode.Authoritative or DirectedAuthorityMode.Uninitialized)
+            {
+                return Transfer is null && SnapshotEvidence is null && MarkerEvidence is null;
+            }
+
+            if (Transfer is not { IsValid: true } transfer
+                || !string.Equals(transfer.SourceDeviceId, DeviceId, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (Mode == DirectedAuthorityMode.TransferPrepared)
+            {
+                return SnapshotEvidence is null && MarkerEvidence is null;
+            }
+
+            if (SnapshotEvidence is not { IsValid: true } evidence || evidence.Transfer != transfer)
+            {
+                return false;
+            }
+
+            if (Mode == DirectedAuthorityMode.RelinquishedBlocked)
+            {
+                return MarkerEvidence is null;
+            }
+
+            return Mode == DirectedAuthorityMode.Released
+                && MarkerEvidence is { IsValid: true } marker
+                && marker.SnapshotChecksum == evidence.SnapshotChecksum
+                && marker.SnapshotByteLength == evidence.SnapshotByteLength;
+        }
+    }
 }
 
 public interface IDurableAuthorityStateFailureInjector

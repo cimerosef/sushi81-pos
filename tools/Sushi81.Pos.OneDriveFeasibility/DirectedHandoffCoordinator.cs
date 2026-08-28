@@ -5,7 +5,8 @@ public enum DirectedTransferFailurePoint
     BeforeMarkerPublication,
     BeforeReadyMarker,
     BeforeGrantMarker,
-    BeforeMarkerSynchronization
+    BeforeMarkerSynchronization,
+    BeforeReleasedCommit
 }
 
 public interface IDirectedTransferFailureInjector
@@ -18,7 +19,8 @@ public sealed record DirectedTransferOperationResult(
     string Code,
     string Message,
     DurableAuthorityState? State = null,
-    DirectedTargetValidationResult? Validation = null);
+    DirectedTargetValidationResult? Validation = null,
+    DurableTargetAcquisitionState? TargetState = null);
 
 /// <summary>
 /// Synthetic directed-transfer state machine. It persists relinquishment before publishing
@@ -26,8 +28,11 @@ public sealed record DirectedTransferOperationResult(
 /// </summary>
 public sealed class DirectedHandoffCoordinator(
     DurableAuthorityStateStore stateStore,
-    IDirectedTransferFailureInjector? failureInjector = null)
+    IDirectedTransferFailureInjector? failureInjector = null,
+    IArtifactSyncObserver? syncObserver = null)
 {
+    private readonly IArtifactSyncObserver syncObserver = syncObserver ?? new DeterministicArtifactSyncObserver();
+
     public DurableAuthorityState Current => stateStore.Load();
 
     /// <summary>
@@ -49,6 +54,11 @@ public sealed class DirectedHandoffCoordinator(
         if (state is null)
         {
             return Failure("state-unresolved", "Durable authority state cannot be loaded; remaining non-writable.");
+        }
+
+        if (state.Mode == DirectedAuthorityMode.Released)
+        {
+            return Success("already-released", "The same directed transfer is already durably released.", state);
         }
 
         if (state.Mode != DirectedAuthorityMode.Authoritative || !state.ClosedWithAuthority)
@@ -146,6 +156,7 @@ public sealed class DirectedHandoffCoordinator(
             Transfer = transfer,
             ClosedWithAuthority = false,
             SnapshotEvidence = null,
+            MarkerEvidence = null,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };
         return Persist(next, "prepared", "Directed transfer prepared; source remains authoritative until durable relinquishment.");
@@ -164,8 +175,24 @@ public sealed class DirectedHandoffCoordinator(
             return Failure("source-blocked", "Retain-close is unavailable after durable relinquishment.", state);
         }
 
-        var next = state with { ClosedWithAuthority = true, UpdatedAtUtc = DateTimeOffset.UtcNow, Revision = state.Revision + 1 };
-        return Persist(next, "retained", "Close retained source authority; no transfer marker was published.");
+        if (state.Mode is not (DirectedAuthorityMode.Authoritative or DirectedAuthorityMode.TransferPrepared))
+        {
+            return Failure("source-not-authoritative", "Only an authoritative source can retain-close.", state);
+        }
+
+        // Retain-close before the irreversible relinquishment point safely
+        // cancels any prepared transfer and leaves a clean reopenable state.
+        var next = state with
+        {
+            Revision = state.Revision + 1,
+            Mode = DirectedAuthorityMode.Authoritative,
+            Transfer = null,
+            SnapshotEvidence = null,
+            MarkerEvidence = null,
+            ClosedWithAuthority = true,
+            UpdatedAtUtc = DateTimeOffset.UtcNow
+        };
+        return Persist(next, "retained", "Close retained source authority; any uncommitted transfer was safely cancelled and no marker was published.");
     }
 
     public DirectedTransferOperationResult AbortBeforeRelinquishment()
@@ -188,6 +215,7 @@ public sealed class DirectedHandoffCoordinator(
             Transfer = null,
             ClosedWithAuthority = false,
             SnapshotEvidence = null,
+            MarkerEvidence = null,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };
         return Persist(next, "aborted", "Transfer safely aborted before durable relinquishment; source remains authoritative.");
@@ -201,6 +229,16 @@ public sealed class DirectedHandoffCoordinator(
         if (state is null)
         {
             return Failure("state-unresolved", "Durable authority state cannot be loaded; remaining non-writable.");
+        }
+
+        if (state.Mode == DirectedAuthorityMode.Released)
+        {
+            return Success("already-released", "The same directed transfer is already durably released; source remains blocked.", state);
+        }
+
+        if (state.Mode == DirectedAuthorityMode.RelinquishedBlocked)
+        {
+            return Success("already-relinquished", "The same durable relinquishment is already recorded; source remains blocked.", state);
         }
 
         DirectedSnapshotEvidence? verifiedEvidence = null;
@@ -229,11 +267,6 @@ public sealed class DirectedHandoffCoordinator(
             || evidence.Transfer != state.Transfer)
         {
             return Failure("invalid-snapshot-evidence", "Relinquishment requires a valid same-transfer SQLite integrity, checksum, length and synchronized-state evidence.", state);
-        }
-
-        if (state.Mode == DirectedAuthorityMode.RelinquishedBlocked)
-        {
-            return Success("already-relinquished", "The same durable relinquishment is already recorded; source remains blocked.", state);
         }
 
         if (state.Mode != DirectedAuthorityMode.TransferPrepared || state.Transfer is not { IsValid: true })
@@ -265,6 +298,11 @@ public sealed class DirectedHandoffCoordinator(
             return Failure("state-unresolved", "Durable authority state cannot be loaded; markers are not published.");
         }
 
+        if (state.Mode == DirectedAuthorityMode.Released)
+        {
+            return Success("already-released", "The same directed transfer is already durably released; source remains blocked.", state);
+        }
+
         if (state.Mode != DirectedAuthorityMode.RelinquishedBlocked || state.Transfer is not { IsValid: true } transfer)
         {
             return Failure("relinquishment-required", "Ready and grant markers require successful durable relinquishment.", state);
@@ -273,14 +311,45 @@ public sealed class DirectedHandoffCoordinator(
         try
         {
             var currentEvidence = await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshotPath, syncConfirmed: true, cancellationToken);
-            if (!currentEvidence.IsValid || state.SnapshotEvidence is null || currentEvidence != state.SnapshotEvidence)
+            if (!currentEvidence.IsValid || state.SnapshotEvidence is not { IsValid: true } snapshotEvidence || currentEvidence != snapshotEvidence)
             {
                 return Failure("snapshot-evidence-mismatch", "The retry snapshot does not match the durably recorded immutable snapshot evidence.", state);
             }
 
             failureInjector?.OnFailurePoint(DirectedTransferFailurePoint.BeforeMarkerPublication);
             var result = await DirectedTransferMarkerPublisher.PublishAsync(transfer, handoffDirectory, snapshotPath, failureInjector, cancellationToken);
-            return result with { State = state };
+            if (!result.Succeeded)
+            {
+                return result with { State = state };
+            }
+
+            var baseName = "directed-" + transfer.TransferId;
+            var readyPath = Path.Combine(handoffDirectory, baseName + ".ready.json");
+            var grantPath = Path.Combine(handoffDirectory, baseName + ".grant.json");
+            failureInjector?.OnFailurePoint(DirectedTransferFailurePoint.BeforeMarkerSynchronization);
+            var readySync = syncObserver.Observe(readyPath);
+            var grantSync = syncObserver.Observe(grantPath);
+            if (!readySync.IsConfirmedInSync || !grantSync.IsConfirmedInSync)
+            {
+                return Failure("marker-not-synchronized", $"Target-bound marker synchronization is incomplete (ready={readySync.Status}, grant={grantSync.Status}).", state);
+            }
+
+            failureInjector?.OnFailurePoint(DirectedTransferFailurePoint.BeforeReleasedCommit);
+            var markerEvidence = new DirectedMarkerEvidence(
+                readyPath,
+                grantPath,
+                snapshotEvidence.SnapshotChecksum,
+                snapshotEvidence.SnapshotByteLength,
+                readySync.IsConfirmedInSync,
+                grantSync.IsConfirmedInSync);
+            var released = state with
+            {
+                Revision = state.Revision + 1,
+                Mode = DirectedAuthorityMode.Released,
+                MarkerEvidence = markerEvidence,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+            return Persist(released, "released", "Target-bound markers are synchronized and source transfer completion is durably recorded.");
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or InvalidOperationException)
         {

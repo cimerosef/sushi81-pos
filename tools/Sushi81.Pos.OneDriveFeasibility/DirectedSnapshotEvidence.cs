@@ -61,6 +61,33 @@ public sealed record DirectedSnapshotEvidence(
         return new(transfer, Path.GetFullPath(snapshotPath), checksum, length, integrityConfirmed, syncConfirmed);
     }
 
+    public static async Task CreateSyntheticAsync(string snapshotPath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(snapshotPath))
+        {
+            throw new ArgumentException("A synthetic snapshot path is required.", nameof(snapshotPath));
+        }
+
+        var fullPath = Path.GetFullPath(snapshotPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        if (File.Exists(fullPath))
+        {
+            throw new IOException("Synthetic snapshot path already exists; refusing to overwrite it.");
+        }
+
+        await using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+        {
+            DataSource = fullPath,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Cache = SqliteCacheMode.Private,
+            Pooling = false
+        }.ToString());
+        await connection.OpenAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE synthetic_snapshot (id INTEGER PRIMARY KEY, value TEXT NOT NULL); INSERT INTO synthetic_snapshot(value) VALUES ('M02 synthetic snapshot payload');";
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     private static async Task<string> ComputeSha256Async(string path, CancellationToken cancellationToken)
     {
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);

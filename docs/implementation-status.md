@@ -217,7 +217,7 @@ This evidence is retained as the rationale for the amendment. It is not erased o
 **Decision record:** `docs/decisions/target-directed-authority-handoff.md`  
 **Amended baseline:** `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`  
 **Revalidation task:** `docs/implementation/milestone-02-directed-handoff-revalidation.md`  
-**Revalidation status:** Authorized; implementation evidence not yet submitted.
+**Revalidation status:** Implemented correction pass; final verification/PR head recorded below. Gate remains Partial pending real multi-device transport evidence.
 
 Approved semantics:
 
@@ -226,6 +226,8 @@ Approved semantics:
 - source durably relinquishes business-write authority before the target-releasing marker can exist;
 - source remains read-only/pending-transfer after that irreversible point and may retry only the same immutable transfer;
 - only the exact target may acquire;
+- target acquisition is durably recorded with exact identity/checksum/snapshot evidence before the centralized write gate can return true;
+- source `RelinquishedBlocked` becomes `Released` only after both target-bound marker artifacts are observer-confirmed `IN_SYNC` and that transition is durably committed;
 - non-target devices do not compete through file claims/election;
 - unrecoverable target path uses explicit Disaster Recovery;
 - no hosted/Graph/OAuth coordinator is introduced for normal transfer.
@@ -238,4 +240,4 @@ M03 must not start until M02 revalidation is accepted and M03 receives an explic
 
 Report: `docs/implementation/milestone-02-directed-handoff-revalidation-report.md`.
 
-The directed protocol and durable synthetic persistence proof are complete on `codex/m02-directed-handoff-revalidation`. Release build passed with 0 warnings and 0 errors; the full solution test run passed 97/97 with 0 failed and 0 skipped; the required self-contained `win-x64` publish passed. The harness observed 0 registered sync roots, so no real two-device OneDrive transport evidence was available. M02 revalidation gate: **Partial — real multi-device evidence still required**. No amended AC-STO criterion is marked Passed; this is preparation evidence for the M07 owner milestone. M03 remains Not started.
+The directed protocol and durable synthetic persistence proof are complete on `codex/m02-directed-handoff-revalidation` at correction commit `28a0dbb`. The correction pass includes an atomic durable target-acquisition store, restart reconstruction, strict wrong-target/stale/replay fail-closed checks, the narrow `IArtifactSyncObserver` boundary, source `Released` transition ordering, and clean `RetainClose` cancellation of an uncommitted transfer. The pure protocol maps `PreparingTransfer` ↔ durable `TransferPrepared`, `RelinquishedPendingGrant` ↔ durable `RelinquishedBlocked`, `TransferReleased` ↔ durable `Released`, and acquired target ↔ durable target state. Release build passed with 0 warnings and 0 errors; the full solution test run passed 109/109 with 0 failed and 0 skipped; the required self-contained `win-x64` publish passed. The harness observed 0 registered sync roots, so no real two-device OneDrive transport evidence was available. M02 revalidation gate: **Partial — real multi-device evidence still required**. No amended AC-STO criterion is marked Passed; this is preparation evidence for the M07 owner milestone. M03 remains Not started.

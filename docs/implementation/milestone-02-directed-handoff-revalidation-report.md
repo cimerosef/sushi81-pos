@@ -7,8 +7,8 @@ This report records the revalidation authorized by `docs/implementation/mileston
 ## Branch, commits and amended sources
 
 - Branch: `codex/m02-directed-handoff-revalidation`
-- Verification implementation commit: `f800b9a2c0760ac930067d3031f14d65b3b694f7`.
-- Test-complete code head: `79b1807268f00d73a434e20928a9d74613e9957b`.
+- Verification implementation commit: `28a0dbb` (full SHA recorded by Git after push).
+- Test-complete code head: `28a0dbb` (full SHA recorded by Git after push).
 - PR: [#3](https://github.com/cimerosef/sushi81-pos/pull/3), open and not merged.
 - Original feasibility evidence remains in `docs/implementation/milestone-02-feasibility-report.md`; it is not rewritten here.
 - Amended sources: `docs/decisions/target-directed-authority-handoff.md`, `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`, and `docs/implementation-plan.md`.
@@ -20,6 +20,8 @@ The pure model distinguishes `Authoritative`, `PreparingTransfer`, `Relinquished
 
 Normal close-and-retain leaves the source authoritative and creates no release marker. A normal transfer fixes exactly one valid, paired, distinct target and cannot be retargeted after commitment. Non-target devices never compete through claims/election.
 
+`RetainClose()` now has one safe durable outcome even when a transfer was prepared but not yet relinquished: it cancels the uncommitted transfer and persists `Authoritative + Transfer=null + SnapshotEvidence=null + ClosedWithAuthority=true`. Restart/reopen restores the source's ability to begin a new transfer; no prepared-transfer trap or marker is left behind.
+
 ## Durable relinquishment and publication ordering
 
 The proof requires this ordering: finish accepted writes; create and integrity-check the immutable SQLite snapshot; publish and confirm the snapshot; durably persist the exact source/target/lineage/generation/version/checksum relinquishment record; then create and synchronize the target-bound ready/grant marker. Once durable relinquishment exists, source business writes remain blocked across restart and only technical retry of the same immutable transfer is permitted.
@@ -27,6 +29,8 @@ The proof requires this ordering: finish accepted writes; create and integrity-c
 The required safety assertion is that no execution can expose a target-releasing marker while the source still evaluates business-writable. A snapshot without its matching marker never releases authority.
 
 The executable coordinator enforces this with `DirectedSnapshotEvidence.CaptureAsync`: the source must provide a valid same-transfer SQLite file, a successful read-only `PRAGMA integrity_check`, a SHA-256 checksum/byte length and an explicit synchronized observation before the durable state can transition to `RelinquishedBlocked`. The state store writes the transition through a temporary file with `WriteThrough`/`Flush(true)` and atomic replace. Marker publication revalidates the persisted evidence, and source `MayBusinessWrite` remains false after restart. Initialization cannot reset an existing durable state.
+
+The receiving side has an independent `DurableTargetAcquisitionState` and atomic store. It records the local target device, source/target IDs, transfer/lineage/generation/version, canonical snapshot path, checksum/byte length, acquisition status, monotonic revision and UTC update time. `DirectedTargetAcquisitionCoordinator` validates both immutable marker artifacts and SQLite integrity first, then commits this state; the centralized target write gate requires that exact durable state, so an in-memory validation flag, malformed state, failed commit, wrong target, stale generation/version or replay cannot enable writes. A fresh coordinator instance reconstructs the same decision from disk; the source and non-target devices cannot reuse the target state.
 
 ## Crash and failure matrix
 
@@ -40,6 +44,7 @@ The executable coordinator enforces this with `DirectedSnapshotEvidence.CaptureA
 | marker synchronization failure | source remains blocked; retry is immutable and idempotent |
 | cancellation before relinquishment | no marker; source may retain authority |
 | crash immediately after durable relinquishment | source remains read-only/pending-transfer after restart; target blocked |
+| crash before durable `Released` commit | source remains `RelinquishedBlocked`; retry of the same transfer reaches `Released` only after both sync observations |
 | marker creation failure | source remains read-only; same transfer only may retry |
 | marker sync pending/timeout/error | source remains read-only; target blocked |
 | restart while pending | durable target/source/version binding is preserved |
@@ -47,7 +52,7 @@ The executable coordinator enforces this with `DirectedSnapshotEvidence.CaptureA
 | source write after relinquishment | rejected |
 | participant disappearance | no substitute writer; target remains blocked |
 
-The automated tests cover each row with synthetic failure injectors; the full solution result is 97 passed, 0 failed and 0 skipped.
+The automated tests cover each row with synthetic failure injectors; the corrected full solution result is 109 passed, 0 failed and 0 skipped.
 
 ## Target validation matrix
 
@@ -55,7 +60,7 @@ Target acquisition requires exact local target identity, distinct valid paired s
 
 ## N-device safety and liveness
 
-The deterministic model includes at least source A and target/non-target devices B and C with arbitrary artifact visibility order, delayed marker, duplicate/replayed marker, stale versions/generations, malformed identity, source==target, restart/retry and retarget attempts. The safety invariant is `writable-device-count <= 1` for every modeled interleaving. The valid-path liveness invariant is that, after successful durable relinquishment, complete transport and exact target validation, the selected target can become writable. The directed protocol suite passed 30/30 and the durable handoff suite passed 38/38.
+The deterministic model includes at least source A and target/non-target devices B and C with arbitrary artifact visibility order, delayed marker, duplicate/replayed marker, stale versions/generations, malformed identity, source==target, restart/retry and retarget attempts. The target path now requires both `AcquisitionValidated` and `DurableTargetAcquisitionPersisted`; `Restarted=true` without reconstructed durable acquisition remains blocked. The safety invariant is `writable-device-count <= 1` for every modeled interleaving. The valid-path liveness invariant is that, after successful durable relinquishment, complete transport, exact target validation and durable target acquisition, the selected target can become writable. The directed protocol suite passed 32/32 and the durable handoff/target suite passed 48/48.
 
 ## Cloud Files and transport boundary
 
@@ -71,20 +76,29 @@ No real Device A/B run was available in this environment. The following commands
 $project = 'tools\Sushi81.Pos.OneDriveFeasibility\Sushi81.Pos.OneDriveFeasibility.csproj'
 $root = '<registered-OneDrive-root>'
 $lineage = '11111111-1111-1111-1111-111111111111'
+$stateA = '<synthetic-state-dir-device-a-v1>'
 dotnet run --project $project -c Release --no-build -- validate-root $root --json
-dotnet run --project $project -c Release --no-build -- publish $root --device device-a --lineage $lineage --generation 1 --version 1 --timeout-seconds 120 --json
-dotnet run --project $project -c Release --no-build -- inspect (Join-Path $root 'Sushi81-M02-Synthetic\Handoff') --json
+dotnet run --project $project -c Release --no-build -- directed-source-run $root --state-dir $stateA --device device-a --target device-b --lineage $lineage --generation 1 --version 1 --timeout-seconds 120 --poll-ms 500 --json
 ```
 
-Device B independently runs `validate-root` and `inspect` against the same registered root, then validates exact target-bound metadata. Repeat with monotonic version 2. These commands have not been executed here; they cannot replace deterministic safety proof.
+Copy the `transferId` from the Device A JSON result, then run independently on Device B against the same registered root (and a separate synthetic state directory):
+
+```powershell
+$stateB = '<synthetic-state-dir-device-b-v1>'
+$transferId = '<transferId-from-device-a-json>'
+dotnet run --project $project -c Release --no-build -- validate-root $root --json
+dotnet run --project $project -c Release --no-build -- directed-target-acquire $root --state-dir $stateB --device device-b --source device-a --target device-b --lineage $lineage --generation 1 --version 1 --transfer-id $transferId --json
+```
+
+The target command independently validates snapshot/ready/grant identity, checksum/size and SQLite integrity, persists durable acquisition, reloads it, and reports `mayBusinessWrite=true` only for Device B. A Device C check uses the same transfer metadata with `--device device-c` and must return `wrong-target` with no durable state. Repeat Device A and Device B with fresh synthetic state directories and monotonic `--version 2`. These real commands have not been executed here because this environment has no registered OneDrive sync root; they cannot replace deterministic safety proof.
 
 ## Build, tests and AC mapping
 
-Verification was run on Windows 10.0.26200 x64 with .NET SDK 10.0.400 (runtime 10.0.11). Central package versions are `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0 and `MSTest` 4.0.2. `dotnet restore Sushi81.Pos.sln` passed with network access; `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings and 0 errors; `dotnet test Sushi81.Pos.sln -c Release --no-build` passed with 97 passed, 0 failed and 0 skipped: Domain 3, Application 2, Infrastructure integration 16, Architecture 8, existing M02 Cloud Files/protocol 30, and directed durable handoff 38. The required self-contained `win-x64` publish with `PublishSingleFile=false` passed and produced the ignored Desktop publish directory. A non-escalated restore/publish attempt was blocked only by NuGet network policy; the escalated reruns passed.
+Verification was run on Windows 10.0.26200 x64 with .NET SDK 10.0.400 (runtime 10.0.11). Central package versions are `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0 and `MSTest` 4.0.2. `dotnet restore Sushi81.Pos.sln` passed with network access; the corrected full solution result is 109 passed, 0 failed and 0 skipped: Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, and directed durable handoff/target 48. `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings and 0 errors. The required self-contained `win-x64` publish with `PublishSingleFile=false` passed and produced the ignored Desktop publish directory. The non-escalated restore/publish attempts were blocked only by NuGet network policy; the escalated reruns passed.
 
 No real two-device OneDrive transport run was available: the harness reported zero registered sync roots in this environment. Therefore the deterministic protocol/durable-state evidence is complete, but the gate remains Partial rather than Feasible.
 
-The amended preparation mapping is: AC-STO-002 (N-device target-directed single writer), AC-STO-003 (close and handoff ordering), AC-STO-004 (target validation/acquisition), AC-STO-005 (no silent takeover), AC-STO-007 (target-directed retention), AC-STO-008 (transport/checkpoint assumptions), AC-STO-009 (generation invalidation), and AC-STO-010 (read-only authority boundary). These remain owner-milestone criteria and are not marked Passed by M02 revalidation.
+The amended preparation mapping is: AC-STO-002 (N-device target-directed single writer), AC-STO-003 (close and handoff ordering), AC-STO-004 (target validation/acquisition), AC-STO-005 (no silent takeover), AC-STO-007 (target-directed retention), AC-STO-008 (transport/checkpoint assumptions), AC-STO-009 (generation invalidation), and AC-STO-010 (read-only authority boundary). These remain owner-milestone criteria and are not marked Passed by M02 revalidation; the report is preparation evidence for their M07 owner milestone.
 
 ## Final gate
 

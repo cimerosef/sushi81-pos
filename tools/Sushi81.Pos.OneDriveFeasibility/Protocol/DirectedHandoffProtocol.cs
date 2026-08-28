@@ -168,7 +168,8 @@ public sealed record DirectedDeviceView(
     bool MetadataValid,
     bool ReleaseVisible,
     IReadOnlyList<DirectedGrantArtifact> VisibleGrants,
-    bool Restarted = false);
+    bool Restarted = false,
+    bool DurableTargetAcquisitionPersisted = false);
 
 /// <summary>
 /// Per-device visibility for the directed handoff artifacts. The session is the
@@ -198,6 +199,8 @@ public sealed class DirectedVisibilityTransport
     public void SetParticipantPresent(string deviceId, bool present) => Get(deviceId).ParticipantPresent = present;
 
     public void SetAcquisitionValidated(string deviceId, bool validated) => Get(deviceId).AcquisitionValidated = validated;
+
+    public void SetDurableTargetAcquisition(string deviceId, bool persisted) => Get(deviceId).DurableTargetAcquisitionPersisted = persisted;
 
     public void Restart(string deviceId) => Get(deviceId).Restarted = true;
 
@@ -261,7 +264,8 @@ public sealed class DirectedVisibilityTransport
             state.SnapshotVisible && state.MarkerVisible,
             state.ReleaseVisible,
             state.VisibleGrants.Values.ToArray(),
-            state.Restarted);
+            state.Restarted,
+            state.DurableTargetAcquisitionPersisted);
     }
 
     private DeviceArtifacts Get(string deviceId) => devices.TryGetValue(deviceId, out var state)
@@ -277,6 +281,7 @@ public sealed class DirectedVisibilityTransport
         public bool MarkerVisible { get; set; }
         public bool ReleaseVisible { get; set; }
         public bool Restarted { get; set; }
+        public bool DurableTargetAcquisitionPersisted { get; set; }
         public Dictionary<string, DirectedGrantArtifact> VisibleGrants { get; } = new(StringComparer.Ordinal);
     }
 }
@@ -331,7 +336,12 @@ public static class DirectedAuthorityProtocol
             return BusinessWriteDecision.Blocked("transfer is source-directed to another target device");
         }
 
-        if (!view.AcquisitionValidated || !view.SnapshotVisible || !view.MarkerVisible ||
+        if (view.Restarted && !view.DurableTargetAcquisitionPersisted)
+        {
+            return BusinessWriteDecision.Blocked("restart requires reconstructed durable target acquisition");
+        }
+
+        if (!view.AcquisitionValidated || !view.DurableTargetAcquisitionPersisted || !view.SnapshotVisible || !view.MarkerVisible ||
             !view.SnapshotInSync || !view.MarkerInSync || !view.SnapshotIntegrityValid || !view.MetadataValid ||
             !view.ReleaseVisible)
         {
