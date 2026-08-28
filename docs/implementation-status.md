@@ -149,19 +149,20 @@ Do not mark an AC Passed using only a planned test name or an unexecuted checkli
 
 **Milestone:** M01 — Executable foundation and safe persistence spine
 **Branch:** `codex/m01-foundation`
+**Latest repair commit:** `2a7e5f9e00ff7356fd9bd2d024e0b9a615b1f4f7`
 **Environment:** Windows 10.0.26200 x64; .NET SDK 10.0.400; .NET/WindowsDesktop runtime 10.0.11.
 
 ### Delivered structure and dependencies
 
 - Production projects: `Sushi81.Pos.Domain` (`net10.0`), `Sushi81.Pos.Application` (`net10.0`), `Sushi81.Pos.Infrastructure` (`net10.0-windows`) and WPF `Sushi81.Pos.Desktop` (`net10.0-windows`).
-- Test projects: Domain (3), Application (2), Infrastructure integration (16) and architecture/localization (5).
+- Test projects: Domain (3), Application (2), Infrastructure integration (16) and architecture/localization (8).
 - Exact NuGet versions: `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0 and `MSTest` 4.0.2. Central package management pins all direct dependencies.
 
 ### Verification
 
 - `dotnet restore Sushi81.Pos.sln`: Passed.
 - `dotnet build Sushi81.Pos.sln -c Release --no-restore`: Passed, 0 warnings and 0 errors.
-- `dotnet test Sushi81.Pos.sln -c Release --no-build`: Passed: Domain 3/0/0, Application 2/0/0, Infrastructure integration 16/0/0, Architecture 5/0/0 (passed/failed/skipped).
+- `dotnet test Sushi81.Pos.sln -c Release --no-build`: Passed: Domain 3/0/0, Application 2/0/0, Infrastructure integration 16/0/0, Architecture/localization 8/0/0 (passed/failed/skipped), 29 total.
 - `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false`: Passed; output is generated under the ignored Desktop `bin/Release/net10.0-windows/win-x64/publish/` path.
 
 ### Acceptance and safety evidence
