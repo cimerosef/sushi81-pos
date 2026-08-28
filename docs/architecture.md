@@ -1,9 +1,11 @@
 # Architecture
 
-**Status:** Approved — Phase 3 baseline  
-**Last updated:** 2026-08-27  
+**Status:** Approved — Phase 3 baseline, amended 2026-08-28  
+**Last updated:** 2026-08-28  
 **Product:** Sushi81 POS  
 **Purpose:** Define the implementation architecture that preserves the approved product, lifecycle and data-model semantics while prioritizing reliability, simplicity and maintainability.
+
+**Approved amendment:** `docs/decisions/target-directed-authority-handoff.md` replaces competitive/generic handoff acquisition with source-directed transfer to one target device.
 
 ## 1. Architecture priorities
 
@@ -101,9 +103,9 @@ Local recovery, handoff and disaster-recovery snapshots use SQLite's supported c
 
 No exotic SQLite tuning, custom page-size scheme, manual vacuum schedule or speculative performance pragma is part of the V1 baseline unless profiling later demonstrates a concrete need.
 
-## 7. Multi-device principle — approved Phase 3 baseline
+## 7. Multi-device principle — amended target-directed single-writer model
 
-Sushi81 POS does **not** implement simultaneous multi-writer database access in v1.
+Sushi81 POS does **not** implement simultaneous multi-writer database access in V1.
 
 The architecture supports **an arbitrary number of paired Windows devices by default**. The normal initial deployment may use two computers, but adding a third or later computer must not require redesigning the database, handoff protocol or application architecture.
 
@@ -112,17 +114,40 @@ All paired devices participate in the same authoritative database lineage throug
 At any moment:
 
 - at most one paired device may hold authoritative write access;
-- the current authoritative device may work locally and later publish a formal handoff;
-- every other paired device is non-authoritative and may only use the approved read-only mode until it safely acquires a released formal handoff;
+- every other paired device is non-authoritative/read-only unless it is the exact designated target completing a valid handoff;
+- the current authoritative device may close while **retaining** authority, or may explicitly transfer authority to one selected paired target device;
+- a generic released handoff is never competed for through N-device claims/election;
 - no automatic row-level database merge is performed.
 
-OneDrive is therefore a **handoff transport, recovery and archive medium**, not the live database engine and not a real-time database synchronization service.
+OneDrive is therefore a **handoff transport, recovery and archive medium**, not the live database engine, not a real-time database synchronization service and not a distributed lock provider.
 
-Each participating device keeps its own local working database outside OneDrive and reconstructs/updates that local database only from a formally completed and validated handoff snapshot or an explicit approved disaster-recovery action.
+### 7.1 Source-directed authority token
 
-Each installation has its own opaque `device_id`; all devices in the same business data family share a stable `lineage_id`. The exact identity and generation rules are defined in `storage-strategy.md`.
+The current authoritative device is the arbiter of every normal transfer.
 
-Exact handoff, integrity, release/acquisition, pairing, multi-device authority and failure behavior is defined in `storage-strategy.md`.
+A formal handoff carries immutable source and target `device_id` values. The source must durably relinquish business-write authority before the target-releasing ready/grant marker can be created. After that point, the former source is read-only/pending-transfer across restart and may only retry completion of the same already-fixed transfer.
+
+Only the exact target device may acquire that handoff. Other paired devices remain read-only and do not attempt to win ownership through file claims, waiting periods or conflict-file behavior.
+
+This design deliberately removes the cross-client atomic-claim requirement that M02 proved unavailable in the approved OneDrive/local-filesystem transport model.
+
+### 7.2 Close semantics
+
+Normal application close has two distinct intents governed in detail by `storage-strategy.md`:
+
+- **Close and retain authority** — no formal release; this device remains authoritative for the next valid launch.
+- **Transfer authority and close** — explicitly select/preselect one eligible target and run the target-directed formal handoff.
+
+The application must not silently infer authority transfer merely because the current process exits.
+
+### 7.3 Local reconstruction
+
+Each participating device keeps its own local working database outside OneDrive and reconstructs/updates that local database only from:
+
+- a formally completed handoff specifically targeted to that device; or
+- an explicit approved Disaster Recovery action.
+
+Each installation has its own opaque `device_id`; all devices in the same business data family share a stable `lineage_id`. Exact target selection, durable relinquishment, identity, generation, failure and acquisition rules are defined in `storage-strategy.md` and `docs/decisions/target-directed-authority-handoff.md`.
 
 ## 8. Maintainability principle
 
@@ -135,6 +160,7 @@ Do not introduce:
 - microservices;
 - a remote database server;
 - distributed-database merge logic;
+- Microsoft Graph/OAuth or a hosted coordinator merely to arbitrate normal authority transfer;
 - a complex dependency-injection/framework stack unless it materially simplifies testing or maintenance;
 - speculative extensibility that is not needed by approved requirements.
 
@@ -150,14 +176,14 @@ Application-managed local business/technical data uses a fixed per-user applicat
 - `Recovery\` — local rolling recovery snapshots;
 - `Cache\` — disposable local caches, including archive read-only hydration where needed;
 - `Logs\` — technical logs;
-- `Config\` — local machine/application configuration including device identity;
+- `Config\` — local machine/application configuration including device identity and durable authority/transfer state;
 - `Temp\` — staging files used for safe snapshot/archive operations.
 
 The working `live.db` and local Recovery path are not ordinary user-configurable locations.
 
 The operator configures only the shared OneDrive root used for handoff/recovery/archive functions; the application creates and manages its required subfolders beneath that root.
 
-Application update/reinstall logic must not treat local business data as disposable program files.
+Application update/reinstall logic must not treat local business data, device identity or durable authority/transfer state as disposable program files.
 
 ### 9.1 Packaging and updates — frozen technical choice
 
@@ -172,7 +198,7 @@ V1 deliberately does **not** include a background/self-updating subsystem. Updat
 Upgrade rules:
 
 - the application must be closed before binaries are replaced;
-- the installer must preserve local business data, local device identity and configuration;
+- the installer must preserve local business data, local device identity, configuration and durable authority/transfer state;
 - database migration runs under application control on first start of the new version, not by deleting/recreating `live.db`;
 - a failed migration must leave the previous durable data recoverable rather than silently resetting it;
 - rollback of application binaries must never silently downgrade an already-upgraded schema without an explicit compatible path.
@@ -222,24 +248,25 @@ The exact ticket contents, automatic-print sequence, selective reprint behavior,
 
 ## 12. Phase 3 completion
 
-All Phase 3 core technical architecture choices are now frozen for V1 planning:
+All Phase 3 core technical architecture choices are frozen for V1 implementation, including the 2026-08-28 authority-handoff amendment:
 
 - .NET 10 LTS + WPF;
 - SQLite + Microsoft.Data.Sqlite;
 - integer-cent persistence and decimal business calculation;
 - local application-managed live database;
-- N-device single-writer OneDrive handoff architecture;
+- N-device single-writer architecture with **target-directed source-arbitrated OneDrive handoff**;
+- no generic competitive OneDrive acquisition/election;
 - WAL + FULL synchronous durability profile with foreign-key enforcement;
 - self-contained x64 deployment with a simple per-user Inno Setup installer and explicit/manual V1 updates;
 - ClosedXML for `.xlsx` handling behind an application-owned service boundary;
 - Windows Print Spooler / print-queue integration behind an application-owned print-document boundary.
 
-No remaining Phase 3 item requires a business decision.
+No remaining Phase 3 item requires an unapproved business decision. M02 must re-verify the amended handoff protocol before M03 is authorized.
 
 ## 13. Approval
 
-This document is the **Approved — Phase 3 baseline**.
+This document remains the **Approved — Phase 3 baseline**, amended on 2026-08-28 by `docs/decisions/target-directed-authority-handoff.md`.
 
-Implementation must preserve the approved local-first WPF/SQLite architecture and may not silently replace it with a server, web application, live OneDrive database, simultaneous multi-writer design or fixed two-computer protocol.
+Implementation must preserve the approved local-first WPF/SQLite architecture and may not silently replace it with a server, web application, live OneDrive database, simultaneous multi-writer design, fixed two-computer protocol or generic file-claim election.
 
 Pure implementation details that do not change approved business behavior may continue to be selected during implementation according to the project priority order: reliability > simplicity > maintainability > operational clarity > novelty.
