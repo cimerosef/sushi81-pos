@@ -2,13 +2,13 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed and merged to `main` via PR #1. M02 — OneDrive single-writer feasibility gate is blocked pending a specification/architecture amendment: the approved OneDrive/local-filesystem model has no documented cross-client atomic exclusive-grant primitive.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The user approved the target-directed authority-handoff specification amendment on 2026-08-28; amended baseline documents are now authoritative and M02 directed-handoff revalidation is explicitly authorized. M03 remains Not started.
 
 ## 1. Status vocabulary
 
 - `Not started` — no conforming implementation evidence yet.
-- `In progress` — the explicitly authorized milestone is being implemented.
-- `Partial` — some evidence exists, but the complete acceptance criterion is not yet satisfied.
+- `In progress` — the explicitly authorized milestone is being implemented/revalidated or still has an open gate.
+- `Partial` — some evidence exists, but the complete acceptance criterion/gate is not yet satisfied.
 - `Passed` — automated/manual evidence required by the criterion is recorded and passes on the applicable build.
 - `Blocked — amendment required` — a genuine material specification conflict prevents conforming implementation.
 - `Not applicable — amended` — allowed only when an approved specification amendment explicitly makes the criterion inapplicable.
@@ -20,12 +20,12 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 | Milestone | Status | Authorization / result |
 |---|---|---|
 | M01 — Foundation and safe persistence spine | Passed | Merged to `main` via PR #1 after automated verification and successful Windows/WPF manual re-verification. |
-| M02 — OneDrive feasibility gate | Blocked — amendment required | Deterministic evidence distinguishes transport observation from mutual-exclusion proof; no documented cross-client atomic exclusive-grant primitive is available in the approved model. See `docs/implementation/milestone-02-feasibility-report.md`. |
-| M03 — Catalogue and settings | Not started | Pending successful M02 feasibility gate and explicit M03 authorization |
+| M02 — OneDrive feasibility gate | In progress | Original generic-acquisition model: Blocked with evidence merged via PR #2. Approved target-directed amendment is now incorporated; revalidation explicitly authorized by `docs/implementation/milestone-02-directed-handoff-revalidation.md`. |
+| M03 — Catalogue and settings | Not started | Pending successful M02 amended-protocol feasibility gate and explicit M03 authorization |
 | M04 — Order-entry vertical slice | Not started | Pending M03 |
 | M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
 | M06 — Local recovery/read-only enforcement | Not started | Pending M05 |
-| M07 — Handoff and disaster recovery | Not started | Pending M06 |
+| M07 — Handoff and disaster recovery | Not started | Pending M06; must implement amended target-directed protocol |
 | M08 — Printing and reprinting | Not started | Pending M07 |
 | M09 — Hiboutik paste fallback | Not started | Pending M08 |
 | M10 — Catalogue `.xlsx` | Not started | Pending M09 |
@@ -35,14 +35,14 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 
 ## 3. Acceptance ownership matrix
 
-The owner milestone is responsible for closing the criterion. Earlier milestones may provide foundations and later M13 performs the final production-target regression.
+The owner milestone is responsible for closing the criterion. Earlier milestones may provide foundations/feasibility evidence and later M13 performs the final production-target regression.
 
 ### Product
 
 | Criterion | Owner | Status | Evidence |
 |---|---:|---|---|
 | AC-PROD-001 | M13 | Not started | — |
-| AC-PROD-002 | M07 | Not started | — |
+| AC-PROD-002 | M07 | Not started | M02 revalidation prepares amended handoff/offline boundaries |
 | AC-PROD-003 | M13 | Not started | — |
 | AC-PROD-004 | M13 | Not started | — |
 
@@ -105,10 +105,10 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 | Criterion | Owner | Status | Evidence |
 |---|---:|---|---|
 | AC-STO-001 | M01 | Passed | `tests/Sushi81.Pos.Infrastructure.IntegrationTests/InfrastructureIntegrationTests.cs` covers local paths, SQLite PRAGMAs, migrations, transactional rollback and validated local recovery snapshots. |
-| AC-STO-002 through AC-STO-005 | M07 | Not started | Feasibility proof in M02 |
+| AC-STO-002 through AC-STO-005 | M07 | Not started | Original M02 blocker evidence preserved; amended target-directed feasibility revalidation now authorized |
 | AC-STO-006 | M06 | Not started | Snapshot primitive begins in M01 |
-| AC-STO-007 through AC-STO-009 | M07 | Not started | Feasibility proof in M02 |
-| AC-STO-010 | M06 | Not started | Printing exception cross-check in M08 |
+| AC-STO-007 through AC-STO-009 | M07 | Not started | M02 revalidation prepares target-binding/transport/failure evidence |
+| AC-STO-010 | M06 | Not started | M02 revalidation prepares pending-transfer authority-state semantics; printing exception cross-check in M08 |
 | AC-STO-011 through AC-STO-014 | M12 | Not started | — |
 
 ### Architecture and deployment
@@ -118,7 +118,7 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 | AC-ARCH-001 through AC-ARCH-004 | M01 | Passed | `tests/Sushi81.Pos.ArchitectureTests/DependencyBoundaryTests.cs`; Release build and win-x64 self-contained publish evidence in section 5. |
 | AC-ARCH-005 | M11 | Not started | Catalogue half implemented in M10; export half closes in M11 |
 | AC-ARCH-006 | M08 | Not started | — |
-| AC-ARCH-007 | M13 | Not started | — |
+| AC-ARCH-007 | M13 | Not started | Durable authority/transfer state preservation added by 2026-08-28 amendment |
 
 ### Reliability, security and performance
 
@@ -127,7 +127,7 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 | AC-NFR-001 | M13 | Not started | Enforced continuously from M01 |
 | AC-NFR-002 | M13 | Not started | Test suite grows each milestone |
 | AC-NFR-003 | M13 | Not started | Targeted checks begin in M04/M08 |
-| AC-NFR-004 | M13 | Not started | Failure paths added each milestone |
+| AC-NFR-004 | M13 | Not started | Failure paths added each milestone; amended handoff failure paths begin in M02 revalidation |
 
 ## 4. Milestone evidence template
 
@@ -186,21 +186,50 @@ Do not mark an AC Passed using only a planned test name or an unexecuted checkli
 - The application was then closed and relaunched; the previously selected Simplified Chinese culture remained selected and the Chinese interface was restored successfully.
 - This second manual check closes the previously observed WPF localization blocker. Together with the passing automated suite and CI, M01 is accepted as `Passed`.
 
-## 6. M02 authorization
+## 6. M02 original feasibility evidence
 
 **Milestone:** M02 — OneDrive single-writer feasibility gate  
-**Authorized task definition:** `docs/implementation/milestone-02-onedrive-feasibility.md`  
+**Original task definition:** `docs/implementation/milestone-02-onedrive-feasibility.md`  
 **Task-definition commit:** `a158e6a49faff831c6236df06e285056410e6225`  
-**Implementation status:** Blocked — amendment required; correction code/tests are verified at commit `5f44e34ec4a98b767d01a35846deec75e6d29825`; current gate conclusion is `BLOCKED — specification/architecture amendment required`.
+**Original final gate:** `BLOCKED — specification/architecture amendment required`  
+**Correction code/tests verified at:** `5f44e34ec4a98b767d01a35846deec75e6d29825`  
+**PR #2 final head:** `21a88d51b558ceabe563ddfb80752a37d1dccae4`  
+**Merged to `main`:** `5bacafa0e4ca906d8ff058e34586dee43503bc42`.
 
-### M02 evidence record
+### Original M02 evidence record
 
-The evidence report is `docs/implementation/milestone-02-feasibility-report.md`. It records the fail-closed interpretation, strict handoff validation, publication ordering, deterministic N-device contention simulation, and the distinction between transport evidence and mutual-exclusion proof. The correction-pass Release verification is 67 passed, 0 failed, 0 skipped: Domain 3, Application 2, Infrastructure 16, Architecture/localization 8, M02 protocol 13, and M02 Windows/SQLite harness 25; build completed with 0 warnings/errors and the existing desktop win-x64 self-contained publish passed. M02 does not mark any M06/M07/M08-owned acceptance criterion Passed and does not authorize M03.
+`docs/implementation/milestone-02-feasibility-report.md` records:
 
-M02 must end in exactly one gate conclusion defined by the task contract:
+- corrected Microsoft `CF_PLACEHOLDER_STATE` values and fail-closed interpretation;
+- strict synthetic snapshot/marker metadata, checksum and SQLite validation;
+- publication-order tests;
+- deterministic N-device delayed/reordered claim simulation;
+- executable double-writer counterexample for competitive claim-only acquisition;
+- fail-closed protocol safety only by refusing N-device write activation without an external atomic grant;
+- Release verification of 67 passed / 0 failed / 0 skipped with 0 build warnings/errors;
+- CI success;
+- no business/sensitive data committed.
 
-- `FEASIBLE — evidence sufficient`;
-- `PARTIAL — real multi-device evidence still required`;
-- `BLOCKED — specification/architecture amendment required`.
+This evidence is retained as the rationale for the amendment. It is not erased or reclassified as a successful proof of the superseded competitive-acquisition model.
 
-M02 is a feasibility proof only. It does not itself close the final M06/M07/M08-owned storage/read-only/printing acceptance criteria and does not authorize M03 until the gate has been evaluated and the next milestone is explicitly prepared.
+## 7. Approved 2026-08-28 M02 specification amendment
+
+**Decision record:** `docs/decisions/target-directed-authority-handoff.md`  
+**Amended baseline:** `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`  
+**Revalidation task:** `docs/implementation/milestone-02-directed-handoff-revalidation.md`  
+**Revalidation status:** Authorized; implementation evidence not yet submitted.
+
+Approved semantics:
+
+- normal close distinguishes retain authority from transfer authority;
+- normal transfer is bound to one selected paired target;
+- source durably relinquishes business-write authority before the target-releasing marker can exist;
+- source remains read-only/pending-transfer after that irreversible point and may retry only the same immutable transfer;
+- only the exact target may acquire;
+- non-target devices do not compete through file claims/election;
+- unrecoverable target path uses explicit Disaster Recovery;
+- no hosted/Graph/OAuth coordinator is introduced for normal transfer.
+
+M02 remains open until the amended deterministic safety/liveness proof and required real OneDrive transport evidence reach one of the authorized gate conclusions.
+
+M03 must not start until M02 revalidation is accepted and M03 receives an explicit detailed task definition.
