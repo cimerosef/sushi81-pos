@@ -218,10 +218,22 @@ internal static class Program
             [source, target],
             sourceStateStore: localSourceStore);
         var mayWrite = restarted.MayBusinessWrite(transfer);
-        return new CommandResult(result.Succeeded, result.Code, result.Message, new
+        var commandSucceeded = result.Succeeded && mayWrite;
+        var commandCode = commandSucceeded
+            ? result.Code
+            : result.Succeeded
+                ? "target-write-gate-failed"
+                : result.Code;
+        var commandMessage = commandSucceeded
+            ? result.Message
+            : result.Succeeded
+                ? "Target acquisition was persisted, but the restarted local authority gate remains fail-closed."
+                : result.Message;
+        return new CommandResult(commandSucceeded, commandCode, commandMessage, new
         {
             transfer, localDeviceId = localDevice, sourceDeviceId = source, targetDeviceId = target, handoffDirectory, snapshotPath, statePath,
-            validation = result.Validation, syncObservations = result.SyncObservations, durableTargetState = restarted.Current, restarted = true, mayBusinessWrite = mayWrite
+            validation = result.Validation, syncObservations = result.SyncObservations, durableTargetState = restarted.Current, restarted = true,
+            acquisitionSucceeded = result.Succeeded, mayBusinessWrite = mayWrite
         });
     }
 
