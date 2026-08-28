@@ -29,3 +29,14 @@ dotnet run --project .\Sushi81.Pos.OneDriveFeasibility.csproj -c Release -- obse
 `roots` calls the documented `StorageProviderSyncRootManager.GetCurrentSyncRoots()` API and prints only path, provider identifier and technical identity. A root is accepted only when it is beneath a registered root whose metadata identifier starts with `OneDrive!`; a local folder named `OneDrive` is rejected. `observe` calls the documented Cloud Files `CfGetPlaceholderStateFromAttributeTag` function after reading `FileAttributeTagInfo` through `GetFileInformationByHandleEx`. Only a real `IN_SYNC` placeholder state is accepted for the narrow publication wait; missing, local, pending, partial, invalid, API-error and unknown states fail closed.
 
 `publish` creates a closed synthetic SQLite database in a temporary local staging directory, verifies `PRAGMA integrity_check`, computes SHA-256, moves the immutable snapshot into the requested synthetic `Handoff` directory, waits for confirmed `IN_SYNC`, and only then creates and waits for its matching ready marker. If the snapshot or marker cannot be confirmed synchronized, the unit is not reported as released. The command is expected to remain blocked on an ordinary local directory, which is evidence that file existence is not treated as cloud publication.
+
+The M02 directed proof uses only local authority/target state plus immutable handoff artifacts; it does not require a shared mutable lifecycle coordinator:
+
+```powershell
+dotnet run --project .\Sushi81.Pos.OneDriveFeasibility.csproj -c Release -- directed-source-run <registered-OneDrive-root> --state-dir <device-local-synthetic-dir> --device <source> --target <target> --lineage <guid> --generation <n> --version <n> --json
+dotnet run --project .\Sushi81.Pos.OneDriveFeasibility.csproj -c Release -- directed-target-acquire <registered-OneDrive-root> --state-dir <device-local-synthetic-dir> --device <target> --source <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> --json
+dotnet run --project .\Sushi81.Pos.OneDriveFeasibility.csproj -c Release -- directed-target-promote --state-dir <device-local-synthetic-dir> --device <target> --source <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> --json
+dotnet run --project .\Sushi81.Pos.OneDriveFeasibility.csproj -c Release -- directed-source-resume <registered-OneDrive-root> --state-dir <device-local-synthetic-dir> --device <source> --target <target> --lineage <guid> --generation <n> --version <n> --transfer-id <guid> --json
+```
+
+`directed-lifecycle-complete` is retained only as a target-local diagnostic audit append and is not part of the real two-device authority flow. The optional append-only ledger must never be used as a write-authority or current-holder input.
