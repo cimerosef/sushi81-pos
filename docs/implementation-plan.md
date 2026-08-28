@@ -55,6 +55,8 @@ This is a technical feasibility gate, not permission to weaken the storage contr
 
 Primary acceptance preparation: `AC-STO-002` through `AC-STO-005`, `AC-STO-007` through `AC-STO-010`.
 
+Detailed authorized task definition: `implementation/milestone-02-onedrive-feasibility.md`.
+
 ### M03 — In-application catalogue and business settings
 
 Implement Category, Product, OptionGroup, Option and BusinessSettings persistence, domain validation and WPF maintenance workflows. Excel batch import/export remains out of scope.
@@ -147,7 +149,8 @@ A passing build without the required tests and acceptance evidence is not milest
 
 ## 6. Current implementation state
 
-Phase 6 planning is Approved.
+Phase 6 planning remains Approved.
 
-M01 has a detailed task definition but production implementation has not yet started. No later milestone is authorized merely because its scope appears in this plan.
+M01 is `Passed` and was merged to `main` through PR #1 at merge commit `b8590d1d0a2aee4ec6554ddee43587a257cedc47` after automated verification and successful Windows/WPF manual re-verification.
 
+M02 is now explicitly authorized by `implementation/milestone-02-onedrive-feasibility.md`. It must be executed as a feasibility gate before M03. M03 and later milestones remain unauthorized until the applicable preceding gate/milestone is completed and a detailed task contract is explicitly prepared.
