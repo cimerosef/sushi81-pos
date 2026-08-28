@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 plan Approved; production implementation not started
+**Current state:** Phase 6 M01 has Passed automated and Windows/WPF manual acceptance on `codex/m01-foundation`; PR #1 is ready for merge to `main`. M02 remains Not started until M01 is merged.
 
 ## 1. Status vocabulary
 
@@ -19,8 +19,8 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 
 | Milestone | Status | Authorization / result |
 |---|---|---|
-| M01 — Foundation and safe persistence spine | Not started | Detailed task prepared; execution requires an explicit Codex implementation instruction |
-| M02 — OneDrive feasibility gate | Not started | Pending M01 |
+| M01 — Foundation and safe persistence spine | Passed | Automated verification and Windows/WPF manual re-verification completed successfully on `codex/m01-foundation`; PR #1 is ready for merge. |
+| M02 — OneDrive feasibility gate | Not started | Pending M01 merge to `main` |
 | M03 — Catalogue and settings | Not started | Pending M02 |
 | M04 — Order-entry vertical slice | Not started | Pending M03 |
 | M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
@@ -104,7 +104,7 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 
 | Criterion | Owner | Status | Evidence |
 |---|---:|---|---|
-| AC-STO-001 | M01 | Not started | — |
+| AC-STO-001 | M01 | Passed | `tests/Sushi81.Pos.Infrastructure.IntegrationTests/InfrastructureIntegrationTests.cs` covers local paths, SQLite PRAGMAs, migrations, transactional rollback and validated local recovery snapshots. |
 | AC-STO-002 through AC-STO-005 | M07 | Not started | Feasibility proof in M02 |
 | AC-STO-006 | M06 | Not started | Snapshot primitive begins in M01 |
 | AC-STO-007 through AC-STO-009 | M07 | Not started | Feasibility proof in M02 |
@@ -115,7 +115,7 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 
 | Criterion | Owner | Status | Evidence |
 |---|---:|---|---|
-| AC-ARCH-001 through AC-ARCH-004 | M01 | Not started | Record individual tests/inspection |
+| AC-ARCH-001 through AC-ARCH-004 | M01 | Passed | `tests/Sushi81.Pos.ArchitectureTests/DependencyBoundaryTests.cs`; Release build and win-x64 self-contained publish evidence in section 5. |
 | AC-ARCH-005 | M11 | Not started | Catalogue half implemented in M10; export half closes in M11 |
 | AC-ARCH-006 | M08 | Not started | — |
 | AC-ARCH-007 | M13 | Not started | — |
@@ -145,3 +145,40 @@ For each completed milestone append a short record containing:
 
 Do not mark an AC Passed using only a planned test name or an unexecuted checklist.
 
+## 5. M01 implementation and re-verification evidence
+
+**Milestone:** M01 — Executable foundation and safe persistence spine  
+**Branch:** `codex/m01-foundation`  
+**Accepted implementation head before status-only closure commit:** `000d6feb9fd2975784c69661f6362366843b682a`  
+**Latest repair commit:** `2a7e5f9e00ff7356fd9bd2d024e0b9a615b1f4f7`  
+**Environment:** Windows 10.0.26200 x64; .NET SDK 10.0.400; .NET/WindowsDesktop runtime 10.0.11.
+
+### Delivered structure and dependencies
+
+- Production projects: `Sushi81.Pos.Domain` (`net10.0`), `Sushi81.Pos.Application` (`net10.0`), `Sushi81.Pos.Infrastructure` (`net10.0-windows`) and WPF `Sushi81.Pos.Desktop` (`net10.0-windows`).
+- Test projects: Domain (3), Application (2), Infrastructure integration (16) and architecture/localization (8).
+- Exact NuGet versions: `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0 and `MSTest` 4.0.2. Central package management pins all direct dependencies.
+
+### Verification
+
+- `dotnet restore Sushi81.Pos.sln`: Passed.
+- `dotnet build Sushi81.Pos.sln -c Release --no-restore`: Passed, 0 warnings and 0 errors.
+- `dotnet test Sushi81.Pos.sln -c Release --no-build`: Passed: Domain 3/0/0, Application 2/0/0, Infrastructure integration 16/0/0, Architecture/localization 8/0/0 (passed/failed/skipped), 29 total.
+- `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false`: Passed; output is generated under the ignored Desktop `bin/Release/net10.0-windows/win-x64/publish/` path.
+- GitHub Actions Continuous integration for the accepted implementation head completed successfully; restore, build and test steps all passed.
+
+### Acceptance and safety evidence
+
+- **Passed:** AC-ARCH-001 through AC-ARCH-004 and AC-STO-001. Evidence is in the project-specific test files above, notably dependency/WPF-SQLite boundary checks, path/configuration/authority tests, active SQLite PRAGMA checks, migration failure/rollback/history checks, transaction atomicity, validated WAL-safe recovery snapshots, retention and recovery scheduler tests.
+- **Partial:** AC-STO-006 (safe snapshot and scheduler primitives are implemented/tested; business mutation triggers are deferred to M06); AC-PROD-004, AC-NFR-001, AC-NFR-002 and AC-NFR-004 (M01 foundations only; their owner milestones remain unchanged).
+- No Catalogue, BusinessSettings, Order, Payment, pricing/VAT, printing, Hiboutik parsing, ClosedXML, export, OneDrive handoff, pairing/disaster-recovery, archive, installer or legacy emergency-model code was added.
+- Tests use only synthetic data. No database, log, local configuration, build output, credentials or business data is committed.
+
+### Windows/WPF manual verification
+
+- First interactive check: application launched and French default interface displayed correctly, but selecting Simplified Chinese caused a repeatable UI hang on two attempts. M01 remained blocked at that point.
+- Confirmed root cause: synchronous waiting on asynchronous local-configuration persistence from the WPF language-selection path.
+- Repair: explicit awaitable language-change operation; persistence completes before localized resources are refreshed, failed persistence preserves the previous selection, and regression tests cover real configuration persistence and synchronization-context behavior.
+- Second interactive Windows/WPF check on 2026-08-28: application launched normally; default French interface displayed correctly; the language selector opened normally; switching to Simplified Chinese completed successfully and displayed the Chinese interface without hanging or becoming unresponsive.
+- The application was then closed and relaunched; the previously selected Simplified Chinese culture remained selected and the Chinese interface was restored successfully.
+- This second manual check closes the previously observed WPF localization blocker. Together with the passing automated suite and CI, M01 is accepted as `Passed`.

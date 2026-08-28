@@ -1,0 +1,23 @@
+name: Continuous integration
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - codex/**
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore Sushi81.Pos.sln
+      - name: Build
+        run: dotnet build Sushi81.Pos.sln -c Release --no-restore
+      - name: Test
+        run: dotnet test Sushi81.Pos.sln -c Release --no-build
