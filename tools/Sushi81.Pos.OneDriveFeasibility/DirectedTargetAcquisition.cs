@@ -150,7 +150,8 @@ public sealed class DirectedTargetAcquisitionCoordinator(
     IEnumerable<string>? pairedDeviceIds = null,
     IArtifactSyncObserver? syncObserver = null,
     DirectedLifecycleLedgerStore? lifecycleLedger = null,
-    DurableAuthorityStateStore? sourceStateStore = null)
+    DurableAuthorityStateStore? sourceStateStore = null,
+    DurableLocalAuthorityCursorStore? localCursorStore = null)
 {
     public DurableTargetAcquisitionStore StateStore { get; } = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
     public string LocalDeviceId { get; } = string.IsNullOrWhiteSpace(localDeviceId)
@@ -160,6 +161,10 @@ public sealed class DirectedTargetAcquisitionCoordinator(
     /// <summary>Optional diagnostic history; never consulted for write authority.</summary>
     public DirectedLifecycleLedgerStore? LifecycleLedger { get; } = lifecycleLedger;
     public DurableAuthorityStateStore? SourceStateStore { get; } = sourceStateStore;
+    public DurableLocalAuthorityCursorStore LocalCursorStore { get; } = localCursorStore
+        ?? new DurableLocalAuthorityCursorStore(Path.Combine(
+            Path.GetDirectoryName(stateStore.StatePath) ?? ".",
+            "local-authority-cursor.json"));
     private IArtifactSyncObserver? SyncObserver { get; } = syncObserver;
 
     public DurableTargetAcquisitionState? Current
@@ -182,8 +187,9 @@ public sealed class DirectedTargetAcquisitionCoordinator(
             var sourceState = SourceStateStore is not null && File.Exists(SourceStateStore.StatePath)
                 ? SourceStateStore.Load()
                 : null;
-            return new DirectedLifecycleAuthorityGate(LocalDeviceId, sourceStateStore: SourceStateStore, targetStateStore: StateStore)
-                .Evaluate(transfer, sourceState, state)
+            var localCursor = LocalCursorStore.Exists ? LocalCursorStore.Load() : null;
+            return new DirectedLifecycleAuthorityGate(LocalDeviceId, sourceStateStore: SourceStateStore, targetStateStore: StateStore, localCursorStore: LocalCursorStore)
+                .Evaluate(transfer, sourceState, state, localCursor)
                 .MayWrite;
         }
         catch (InvalidDataException)
@@ -207,6 +213,16 @@ public sealed class DirectedTargetAcquisitionCoordinator(
             return new(false, "unpaired-target", "The source and target are not both present in the target's paired device set.");
         }
 
+        DurableLocalAuthorityCursorState? localCursor = null;
+        if (LocalCursorStore.Exists)
+        {
+            try { localCursor = LocalCursorStore.Load(); }
+            catch (InvalidDataException exception)
+            {
+                return new(false, "local-authority-unresolved", exception.Message);
+            }
+        }
+
         DurableTargetAcquisitionState? existing = null;
         if (File.Exists(StateStore.StatePath))
         {
@@ -221,15 +237,44 @@ public sealed class DirectedTargetAcquisitionCoordinator(
             }
 
             if (existing.Matches(expectedTransfer, LocalDeviceId)
-                && IsCurrentLocalCursor(expectedTransfer, existing))
+                && localCursor is { CurrentRole: DurableLocalAuthorityRole.AcquiredTarget }
+                && localCursor.Matches(expectedTransfer)
+                && localCursor.HighWaterHandoffVersion == existing.HandoffVersion
+                && IsCurrentLocalCursor(expectedTransfer, existing, localCursor))
             {
                 return new(true, "already-acquired", "The exact target acquisition is already durably recorded.", TargetState: existing);
             }
 
-            if (!CanAdvanceCursor(existing, expectedTransfer, out var cursorFailure))
+            if (existing.Matches(expectedTransfer, LocalDeviceId)
+                && localCursor is not { CurrentRole: DurableLocalAuthorityRole.AcquisitionPending }
+                && localCursor is not { CurrentRole: DurableLocalAuthorityRole.AcquiredTarget })
+            {
+                return new(false, "local-authority-cursor-missing", "The target evidence exists without a complete current local cursor; retry cannot infer a virgin device.");
+            }
+
+            var pendingExactRetry = existing.Matches(expectedTransfer, LocalDeviceId)
+                && localCursor is { CurrentRole: DurableLocalAuthorityRole.AcquisitionPending }
+                && localCursor.Matches(expectedTransfer);
+            if (!pendingExactRetry && !CanAdvanceCursor(existing, expectedTransfer, out var cursorFailure))
             {
                 return new(false, cursorFailure, "A different or stale durable target acquisition cannot replace the current cursor.");
             }
+        }
+        else if (localCursor is not null)
+        {
+            var releasedPredecessor = SourceStateStore is not null && File.Exists(SourceStateStore.StatePath)
+                ? TryLoadReleasedPredecessor(SourceStateStore, localCursor, expectedTransfer)
+                : false;
+            if (localCursor.CurrentRole != DurableLocalAuthorityRole.AcquisitionPending
+                && !releasedPredecessor
+                && !(localCursor.CurrentRole == DurableLocalAuthorityRole.AcquiredTarget && localCursor.Matches(expectedTransfer)))
+            {
+                return new(false, "local-authority-unresolved", "Existing local participation state cannot be replaced by a new target acquisition.");
+            }
+        }
+        else if (expectedTransfer.HandoffVersion != 1)
+        {
+            return new(false, "local-authority-cursor-missing", "A first target acquisition must establish local handoff version 1.");
         }
 
         IReadOnlyList<ArtifactSyncObservation>? syncObservations = null;
@@ -284,8 +329,38 @@ public sealed class DirectedTargetAcquisitionCoordinator(
             var sourceState = SourceStateStore is not null && File.Exists(SourceStateStore.StatePath)
                 ? SourceStateStore.Load()
                 : null;
+            var previousHighWater = localCursor?.HighWaterHandoffVersion ?? 0;
+            var pendingCursor = localCursor is { CurrentRole: DurableLocalAuthorityRole.AcquisitionPending }
+                ? localCursor
+                : new DurableLocalAuthorityCursorState(
+                    DurableLocalAuthorityCursorState.CurrentFormatVersion,
+                    (localCursor?.Revision ?? 0) + 1,
+                    LocalDeviceId,
+                    expectedTransfer.LineageId,
+                    expectedTransfer.Generation,
+                    previousHighWater,
+                    DurableLocalAuthorityRole.AcquisitionPending,
+                    expectedTransfer.TransferId,
+                    DateTimeOffset.UtcNow);
+            if (!pendingCursor.Matches(expectedTransfer) || pendingCursor.DeviceId != LocalDeviceId)
+            {
+                return new(false, "local-authority-cursor-inconsistent", "The pending local cursor does not match the exact target transfer.", TargetState: next, Validation: validation, SyncObservations: syncObservations);
+            }
+            if (!LocalCursorStore.Exists || localCursor?.CurrentRole != DurableLocalAuthorityRole.AcquisitionPending)
+            {
+                LocalCursorStore.Save(pendingCursor);
+                localCursor = pendingCursor;
+            }
+
+            var finalCursor = pendingCursor with
+            {
+                Revision = pendingCursor.Revision + 1,
+                HighWaterHandoffVersion = expectedTransfer.HandoffVersion,
+                CurrentRole = DurableLocalAuthorityRole.AcquiredTarget,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
             var localDecision = new DirectedLifecycleAuthorityGate(LocalDeviceId, sourceStateStore: SourceStateStore, targetStateStore: StateStore)
-                .Evaluate(expectedTransfer, sourceState, next);
+                .Evaluate(expectedTransfer, sourceState, next, finalCursor);
             if (!localDecision.MayWrite)
             {
                 return new(false, localDecision.Code, localDecision.Message, TargetState: next, Validation: validation, SyncObservations: syncObservations);
@@ -299,11 +374,28 @@ public sealed class DirectedTargetAcquisitionCoordinator(
         try
         {
             StateStore.Save(next);
-            return new(true, "target-acquired", "Exact target validation and durable acquisition completed.", Validation: validation, TargetState: next, SyncObservations: syncObservations);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or InvalidOperationException)
         {
             return new(false, "target-durable-write-failed", exception.Message, Validation: validation, SyncObservations: syncObservations);
+        }
+
+        try
+        {
+            var pending = LocalCursorStore.Load();
+            var finalCursor = pending with
+            {
+                Revision = pending.Revision + 1,
+                HighWaterHandoffVersion = expectedTransfer.HandoffVersion,
+                CurrentRole = DurableLocalAuthorityRole.AcquiredTarget,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+            LocalCursorStore.Save(finalCursor);
+            return new(true, "target-acquired", "Exact target validation and durable acquisition completed with a durable local cursor.", Validation: validation, TargetState: next, SyncObservations: syncObservations);
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or InvalidOperationException)
+        {
+            return new(false, "local-authority-cursor-failed", exception.Message, Validation: validation, TargetState: next, SyncObservations: syncObservations);
         }
     }
 
@@ -313,15 +405,19 @@ public sealed class DirectedTargetAcquisitionCoordinator(
         && PairedDeviceIds.Contains(transfer.TargetDeviceId)
         && PairedDeviceIds.Contains(LocalDeviceId);
 
-    private bool IsCurrentLocalCursor(DirectedTransferIdentity transfer, DurableTargetAcquisitionState state)
+    private bool IsCurrentLocalCursor(
+        DirectedTransferIdentity transfer,
+        DurableTargetAcquisitionState state,
+        DurableLocalAuthorityCursorState? localCursor = null)
     {
         try
         {
             var sourceState = SourceStateStore is not null && File.Exists(SourceStateStore.StatePath)
                 ? SourceStateStore.Load()
                 : null;
-            return new DirectedLifecycleAuthorityGate(LocalDeviceId, sourceStateStore: SourceStateStore, targetStateStore: StateStore)
-                .Evaluate(transfer, sourceState, state)
+            localCursor ??= LocalCursorStore.Exists ? LocalCursorStore.Load() : null;
+            return new DirectedLifecycleAuthorityGate(LocalDeviceId, sourceStateStore: SourceStateStore, targetStateStore: StateStore, localCursorStore: LocalCursorStore)
+                .Evaluate(transfer, sourceState, state, localCursor)
                 .MayWrite;
         }
         catch (InvalidDataException)
@@ -349,9 +445,9 @@ public sealed class DirectedTargetAcquisitionCoordinator(
             return false;
         }
 
-        if (SourceStateStore is null || !File.Exists(SourceStateStore.StatePath))
+        if (SourceStateStore is null || !File.Exists(SourceStateStore.StatePath) || !LocalCursorStore.Exists)
         {
-            failureCode = "local-source-cursor-missing";
+            failureCode = "local-authority-cursor-missing";
             return false;
         }
 
@@ -363,13 +459,23 @@ public sealed class DirectedTargetAcquisitionCoordinator(
             return false;
         }
 
+        DurableLocalAuthorityCursorState cursor;
+        try { cursor = LocalCursorStore.Load(); }
+        catch (InvalidDataException)
+        {
+            failureCode = "local-authority-cursor-unresolved";
+            return false;
+        }
+
         if (source.Mode != DirectedAuthorityMode.Released
             || source.Transfer is not { IsValid: true } releasedTransfer
-            || source.AuthorityCursor is not { } cursor
+            || source.AuthorityCursor is not { } releasedCursor
+            || !releasedCursor.Matches(releasedTransfer)
+            || cursor.CurrentRole != DurableLocalAuthorityRole.Released
             || !cursor.Matches(releasedTransfer)
             || releasedTransfer.LineageId != expectedTransfer.LineageId
             || releasedTransfer.Generation != expectedTransfer.Generation
-            || cursor.HandoffVersion + 1 != expectedTransfer.HandoffVersion
+            || cursor.HighWaterHandoffVersion + 1 != expectedTransfer.HandoffVersion
             || releasedTransfer.TargetDeviceId != expectedTransfer.SourceDeviceId)
         {
             failureCode = "stale-target-state";
@@ -378,5 +484,30 @@ public sealed class DirectedTargetAcquisitionCoordinator(
 
         failureCode = "target-cursor-advance-allowed";
         return true;
+    }
+
+    private static bool TryLoadReleasedPredecessor(
+        DurableAuthorityStateStore sourceStateStore,
+        DurableLocalAuthorityCursorState cursor,
+        DirectedTransferIdentity expectedTransfer)
+    {
+        try
+        {
+            var source = sourceStateStore.Load();
+            return source.Mode == DirectedAuthorityMode.Released
+                && source.Transfer is { IsValid: true } releasedTransfer
+                && source.AuthorityCursor is { } releasedCursor
+                && releasedCursor.Matches(releasedTransfer)
+                && cursor.CurrentRole == DurableLocalAuthorityRole.Released
+                && cursor.Matches(releasedTransfer)
+                && releasedTransfer.LineageId == expectedTransfer.LineageId
+                && releasedTransfer.Generation == expectedTransfer.Generation
+                && releasedTransfer.HandoffVersion + 1 == expectedTransfer.HandoffVersion
+                && releasedTransfer.TargetDeviceId == expectedTransfer.SourceDeviceId;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
     }
 }

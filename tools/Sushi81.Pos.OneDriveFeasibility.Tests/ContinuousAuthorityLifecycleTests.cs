@@ -149,6 +149,40 @@ public sealed class ContinuousAuthorityLifecycleTests
         Assert.IsFalse(observerBlocked.MayBusinessWrite(transfer));
     }
 
+    [TestMethod]
+    public async Task MissingLocalSourceStateAfterPriorParticipationFailsClosedAndCannotReinitialize()
+    {
+        using var fixture = new Fixture();
+        var lineage = Guid.NewGuid().ToString("D");
+        var v1 = new DirectedTransferIdentity(Guid.NewGuid().ToString("D"), lineage, 7, 1, "device-a", "device-b");
+        await fixture.CompleteSourceLegAsync(v1, fixture.SourceAStatePath);
+        var bTarget = fixture.CreateTarget("device-b", fixture.TargetBStatePath, fixture.SourceBStatePath);
+        Assert.IsTrue((await bTarget.AcquireAsync(fixture.HandoffDirectory, fixture.SnapshotPath, v1)).Succeeded);
+        Assert.IsTrue(new DirectedContinuousLifecycleCoordinator(null, "device-b")
+            .PromoteAcquiredTargetToSource(bTarget.Current!, fixture.SourceBStatePath, PairedWithC).Succeeded);
+
+        var v2 = new DirectedTransferIdentity(Guid.NewGuid().ToString("D"), lineage, 7, 2, "device-b", "device-a");
+        await fixture.CompleteSourceLegAsync(v2, fixture.SourceBStatePath);
+        var aTarget = fixture.CreateTarget("device-a", fixture.TargetAStatePath, fixture.SourceAStatePath);
+        Assert.IsTrue((await aTarget.AcquireAsync(fixture.HandoffDirectory, fixture.SnapshotPath, v2)).Succeeded);
+        Assert.IsTrue(new DirectedContinuousLifecycleCoordinator(null, "device-a")
+            .PromoteAcquiredTargetToSource(aTarget.Current!, fixture.SourceAStatePath, PairedWithC).Succeeded);
+
+        File.Delete(fixture.SourceBStatePath);
+        File.Delete(fixture.CursorBPath);
+        var missingStateB = fixture.CreateTarget("device-b", fixture.TargetBStatePath, fixture.SourceBStatePath);
+        Assert.IsFalse(missingStateB.MayBusinessWrite(v1));
+        var blockedRetry = await missingStateB.AcquireAsync(fixture.HandoffDirectory, fixture.SnapshotPath, v1);
+        Assert.IsFalse(blockedRetry.Succeeded);
+        Assert.AreEqual("local-authority-cursor-missing", blockedRetry.Code);
+        Assert.IsTrue(new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceAStatePath)).MayBusinessWrite("device-a"));
+
+        var reinitialize = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(fixture.SourceBStatePath))
+            .InitializeAuthoritative("device-b", PairedWithC);
+        Assert.IsFalse(reinitialize.Succeeded);
+        Assert.AreEqual("local-authority-unresolved", reinitialize.Code);
+    }
+
     private static int CountWritable(params bool[] decisions) => decisions.Count(decision => decision);
 
     private sealed class FixedSyncObserver(ArtifactSyncStatus status) : IArtifactSyncObserver
@@ -187,6 +221,7 @@ public sealed class ContinuousAuthorityLifecycleTests
         public string SourceAStatePath { get; }
         public string SourceBStatePath { get; }
         public string SourceCStatePath { get; }
+        public string CursorBPath => Path.Combine(DeviceBDirectory, "local-authority-cursor.json");
         public string TargetAStatePath { get; }
         public string TargetBStatePath { get; }
         public string TargetCStatePath { get; }

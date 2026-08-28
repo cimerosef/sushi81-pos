@@ -31,10 +31,15 @@ public sealed class DirectedHandoffCoordinator(
     DurableAuthorityStateStore stateStore,
     IDirectedTransferFailureInjector? failureInjector = null,
     IArtifactSyncObserver? syncObserver = null,
-    DirectedLifecycleLedgerStore? lifecycleLedger = null)
+    DirectedLifecycleLedgerStore? lifecycleLedger = null,
+    DurableLocalAuthorityCursorStore? localCursorStore = null)
 {
     private readonly IArtifactSyncObserver syncObserver = syncObserver ?? new DeterministicArtifactSyncObserver();
     public DirectedLifecycleLedgerStore? LifecycleLedger { get; } = lifecycleLedger;
+    public DurableLocalAuthorityCursorStore LocalCursorStore { get; } = localCursorStore
+        ?? new DurableLocalAuthorityCursorStore(Path.Combine(
+            Path.GetDirectoryName(stateStore.StatePath) ?? ".",
+            "local-authority-cursor.json"));
 
     public DurableAuthorityState Current => stateStore.Load();
 
@@ -48,7 +53,7 @@ public sealed class DirectedHandoffCoordinator(
         if (state is null || !string.Equals(state.DeviceId, deviceId, StringComparison.Ordinal)) return false;
         try
         {
-            return new DirectedLifecycleAuthorityGate(deviceId)
+            return new DirectedLifecycleAuthorityGate(deviceId, localCursorStore: LocalCursorStore)
                 .EvaluateSource(state)
                 .MayWrite;
         }
@@ -68,7 +73,13 @@ public sealed class DirectedHandoffCoordinator(
 
         if (state.Mode == DirectedAuthorityMode.Released)
         {
-            return Success("already-released", "The same directed transfer is already durably released.", state);
+            return ReconcileCursor(state, DurableLocalAuthorityRole.Released, state.Transfer);
+        }
+
+        if (state.Mode == DirectedAuthorityMode.Authoritative && !state.ClosedWithAuthority
+            && TryLoadCursor() is { CurrentRole: DurableLocalAuthorityRole.Authoritative or DurableLocalAuthorityRole.InitialAuthoritative })
+        {
+            return Success("already-open", "Retained source authority is already reopened.", state);
         }
 
         if (state.Mode != DirectedAuthorityMode.Authoritative || !state.ClosedWithAuthority)
@@ -82,7 +93,11 @@ public sealed class DirectedHandoffCoordinator(
             ClosedWithAuthority = false,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };
-        return Persist(next, "reopened", "Retained source authority reopened after restart.");
+        var cursor = TryLoadCursor();
+        var role = cursor is { HighWaterHandoffVersion: 0 } ? DurableLocalAuthorityRole.InitialAuthoritative : DurableLocalAuthorityRole.Authoritative;
+        var lineage = cursor is { HighWaterHandoffVersion: 0 } ? Guid.Empty.ToString("D") : cursor?.LineageId;
+        var generation = cursor is { HighWaterHandoffVersion: 0 } ? 0 : cursor?.Generation;
+        return PersistStateThenCursor(next, ToCursor(next, role, lineage, generation, null, cursor?.HighWaterHandoffVersion ?? 0), "reopened", "Retained source authority reopened after restart.");
     }
 
     public DirectedTransferOperationResult InitializeAuthoritative(
@@ -101,7 +116,45 @@ public sealed class DirectedHandoffCoordinator(
                     "Durable authority state already exists; initialization cannot reset or replace it.", existing);
         }
 
+        var existingCursor = TryLoadCursor();
+        if (LocalCursorStore.Exists && existingCursor is null)
+        {
+            return Failure("local-authority-unresolved", "The local participation/current-authority cursor is malformed; initialization is blocked.");
+        }
+        if (existingCursor is not null && existingCursor.CurrentRole != DurableLocalAuthorityRole.InitializationPending)
+        {
+            return Failure("local-authority-unresolved", "This device has prior local participation evidence; missing source state cannot reinitialize authority.");
+        }
+        if (HasLocalTargetEvidence())
+        {
+            return Failure("local-authority-unresolved", "Target/history evidence exists in this device directory; missing source state cannot reinitialize authority.");
+        }
+
         var paired = pairedDeviceIds?.ToArray() ?? throw new ArgumentNullException(nameof(pairedDeviceIds));
+        var pendingCursor = existingCursor ?? new DurableLocalAuthorityCursorState(
+            DurableLocalAuthorityCursorState.CurrentFormatVersion,
+            1,
+            deviceId,
+            Guid.Empty.ToString("D"),
+            0,
+            0,
+            DurableLocalAuthorityRole.InitializationPending,
+            null,
+            DateTimeOffset.UtcNow);
+        if (!string.Equals(pendingCursor.DeviceId, deviceId, StringComparison.Ordinal))
+        {
+            return Failure("local-authority-unresolved", "The local participation cursor belongs to another device; initialization is blocked.");
+        }
+
+        try
+        {
+            if (existingCursor is null) LocalCursorStore.Save(pendingCursor);
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or InvalidOperationException)
+        {
+            return Failure("initialize-cursor-failed", exception.Message);
+        }
+
         var state = new DurableAuthorityState(
             DurableAuthorityState.CurrentFormatVersion,
             0,
@@ -117,11 +170,18 @@ public sealed class DirectedHandoffCoordinator(
         try
         {
             stateStore.Save(state);
-            return Success("initialized", "Synthetic authority state initialized.", state);
+            var initializedCursor = pendingCursor with
+            {
+                Revision = pendingCursor.Revision + 1,
+                CurrentRole = DurableLocalAuthorityRole.InitialAuthoritative,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+            LocalCursorStore.Save(initializedCursor);
+            return Success("initialized", "Synthetic authority state initialized with a durable local participation cursor.", state);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or InvalidOperationException)
         {
-            return Failure("initialize-failed", exception.Message);
+            return Failure("initialize-failed", exception.Message, TryLoad());
         }
     }
 
@@ -131,6 +191,33 @@ public sealed class DirectedHandoffCoordinator(
         if (state is null)
         {
             return Failure("state-unresolved", "Durable authority state cannot be loaded; remaining non-writable.");
+        }
+
+        var cursor = TryLoadCursor();
+        if (LocalCursorStore.Exists && cursor is null)
+        {
+            return Failure("local-authority-unresolved", "The local participation/current-authority cursor is malformed; transfer preparation is blocked.", state);
+        }
+        if (cursor is null)
+        {
+            return Failure("local-authority-cursor-missing", "The local participation/current-authority cursor is missing; transfer preparation is blocked.", state);
+        }
+        if (state.Mode == DirectedAuthorityMode.Authoritative
+            && cursor.CurrentRole == DurableLocalAuthorityRole.InitializationPending
+            && state.Transfer is null
+            && !state.ClosedWithAuthority)
+        {
+            var repaired = cursor with
+            {
+                Revision = cursor.Revision + 1,
+                CurrentRole = DurableLocalAuthorityRole.InitialAuthoritative,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+            try { LocalCursorStore.Save(repaired); cursor = repaired; }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or InvalidOperationException)
+            {
+                return Failure("local-authority-cursor-failed", exception.Message, state);
+            }
         }
 
         if (!transfer.IsValid || !string.Equals(transfer.SourceDeviceId, state.DeviceId, StringComparison.Ordinal)
@@ -159,20 +246,42 @@ public sealed class DirectedHandoffCoordinator(
             return Failure("immutable-transfer", "A different transfer cannot replace the prepared transfer.", state);
         }
 
-        if (state.AuthorityCursor is { } cursor
+        if (state.Mode == DirectedAuthorityMode.Authoritative
+            && cursor.CurrentRole == DurableLocalAuthorityRole.InitialAuthoritative
+            && (transfer.HandoffVersion != 1 || !cursor.IsVirginLineage))
+        {
+            return Failure("non-monotonic-transfer", "The initial local authority cursor permits only handoff version 1.", state);
+        }
+
+        if (state.Mode == DirectedAuthorityMode.Authoritative
+            && cursor.CurrentRole == DurableLocalAuthorityRole.Authoritative
             && (cursor.LineageId != transfer.LineageId
                 || cursor.Generation != transfer.Generation
-                || transfer.HandoffVersion != cursor.HandoffVersion + 1))
+                || transfer.HandoffVersion != cursor.HighWaterHandoffVersion + 1))
         {
             return Failure(
                 "non-monotonic-transfer",
-                $"The next local transfer must use lineage {cursor.LineageId}, generation {cursor.Generation} and handoff version {cursor.HandoffVersion + 1}.",
+                $"The next local transfer must use lineage {cursor.LineageId}, generation {cursor.Generation} and handoff version {cursor.HighWaterHandoffVersion + 1}.",
                 state);
         }
 
         if (state.Transfer == transfer && state.Mode == DirectedAuthorityMode.TransferPrepared)
         {
-            return Success("already-prepared", "The same immutable transfer is already prepared.", state);
+            if (cursor.CurrentRole == DurableLocalAuthorityRole.TransferPrepared && cursor.Matches(transfer))
+            {
+                return Success("already-prepared", "The same immutable transfer is already prepared.", state);
+            }
+
+            var preparedCursor = ToCursor(state, DurableLocalAuthorityRole.TransferPrepared, transfer.LineageId, transfer.Generation, transfer.TransferId, cursor.HighWaterHandoffVersion);
+            try
+            {
+                LocalCursorStore.Save(preparedCursor);
+                return Success("already-prepared", "The same immutable transfer is already prepared.", state);
+            }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or InvalidOperationException)
+            {
+                return Failure("local-authority-cursor-failed", exception.Message, state);
+            }
         }
 
         var next = state with
@@ -185,7 +294,14 @@ public sealed class DirectedHandoffCoordinator(
             MarkerEvidence = null,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };
-        return Persist(next, "prepared", "Directed transfer prepared; source remains authoritative until durable relinquishment.");
+        var nextCursor = ToCursor(
+            next,
+            DurableLocalAuthorityRole.TransferPrepared,
+            transfer.LineageId,
+            transfer.Generation,
+            transfer.TransferId,
+            cursor.HighWaterHandoffVersion);
+        return PersistStateThenCursor(next, nextCursor, "prepared", "Directed transfer prepared; source remains authoritative until durable relinquishment.");
     }
 
     public DirectedTransferOperationResult RetainClose()
@@ -218,7 +334,19 @@ public sealed class DirectedHandoffCoordinator(
             ClosedWithAuthority = true,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };
-        return Persist(next, "retained", "Close retained source authority; any uncommitted transfer was safely cancelled and no marker was published.");
+        var cursor = TryLoadCursor();
+        if (cursor is null)
+        {
+            return Failure("local-authority-cursor-missing", "The local participation/current-authority cursor is missing; retain-close is blocked.", state);
+        }
+        var retainedCursor = ToCursor(
+            next,
+            DurableLocalAuthorityRole.ClosedWithRetainedAuthority,
+            cursor.LineageId,
+            cursor.Generation,
+            null,
+            cursor.HighWaterHandoffVersion);
+        return PersistStateThenCursor(next, retainedCursor, "retained", "Close retained source authority; any uncommitted transfer was safely cancelled and no marker was published.");
     }
 
     public DirectedTransferOperationResult AbortBeforeRelinquishment()
@@ -244,7 +372,18 @@ public sealed class DirectedHandoffCoordinator(
             MarkerEvidence = null,
             UpdatedAtUtc = DateTimeOffset.UtcNow
         };
-        return Persist(next, "aborted", "Transfer safely aborted before durable relinquishment; source remains authoritative.");
+        var cursor = TryLoadCursor();
+        if (cursor is null)
+        {
+            return Failure("local-authority-cursor-missing", "The local participation/current-authority cursor is missing; abort is blocked.", state);
+        }
+        var role = cursor.HighWaterHandoffVersion == 0
+            ? DurableLocalAuthorityRole.InitialAuthoritative
+            : DurableLocalAuthorityRole.Authoritative;
+        var abortedLineage = cursor.HighWaterHandoffVersion == 0 ? Guid.Empty.ToString("D") : cursor.LineageId;
+        var abortedGeneration = cursor.HighWaterHandoffVersion == 0 ? 0 : cursor.Generation;
+        var abortedCursor = ToCursor(next, role, abortedLineage, abortedGeneration, null, cursor.HighWaterHandoffVersion);
+        return PersistStateThenCursor(next, abortedCursor, "aborted", "Transfer safely aborted before durable relinquishment; source remains authoritative.");
     }
 
     public async Task<DirectedTransferOperationResult> DurablyRelinquishAsync(
@@ -259,12 +398,12 @@ public sealed class DirectedHandoffCoordinator(
 
         if (state.Mode == DirectedAuthorityMode.Released)
         {
-            return Success("already-released", "The same directed transfer is already durably released; source remains blocked.", state);
+            return ReconcileCursor(state, DurableLocalAuthorityRole.Released, state.Transfer);
         }
 
         if (state.Mode == DirectedAuthorityMode.RelinquishedBlocked)
         {
-            return Success("already-relinquished", "The same durable relinquishment is already recorded; source remains blocked.", state);
+            return ReconcileCursor(state, DurableLocalAuthorityRole.RelinquishedBlocked, state.Transfer);
         }
 
         DirectedSnapshotEvidence? verifiedEvidence = null;
@@ -314,7 +453,14 @@ public sealed class DirectedHandoffCoordinator(
         };
         // Save is the durable relinquishment boundary. If it fails, the prior authoritative state remains.
         await Task.CompletedTask.WaitAsync(cancellationToken);
-        return Persist(next, "relinquished", "Source authority is durably relinquished and permanently blocked.");
+        var relinquishedCursor = ToCursor(
+            next,
+            DurableLocalAuthorityRole.RelinquishedBlocked,
+            verifiedEvidence.Transfer.LineageId,
+            verifiedEvidence.Transfer.Generation,
+            verifiedEvidence.Transfer.TransferId,
+            verifiedEvidence.Transfer.HandoffVersion);
+        return PersistStateThenCursor(next, relinquishedCursor, "relinquished", "Source authority is durably relinquished and permanently blocked.");
     }
 
     public async Task<DirectedTransferOperationResult> PublishReleaseMarkersAsync(
@@ -330,7 +476,7 @@ public sealed class DirectedHandoffCoordinator(
 
         if (state.Mode == DirectedAuthorityMode.Released)
         {
-            return Success("already-released", "The same directed transfer is already durably released; source remains blocked.", state);
+            return ReconcileCursor(state, DurableLocalAuthorityRole.Released, state.Transfer);
         }
 
         if (state.Mode != DirectedAuthorityMode.RelinquishedBlocked || state.Transfer is not { IsValid: true } transfer)
@@ -379,7 +525,14 @@ public sealed class DirectedHandoffCoordinator(
                 MarkerEvidence = markerEvidence,
                 UpdatedAtUtc = DateTimeOffset.UtcNow
             };
-            return Persist(released, "released", "Target-bound markers are synchronized and source transfer completion is durably recorded.");
+            var releasedCursor = ToCursor(
+                released,
+                DurableLocalAuthorityRole.Released,
+                transfer.LineageId,
+                transfer.Generation,
+                transfer.TransferId,
+                transfer.HandoffVersion);
+            return PersistStateThenCursor(released, releasedCursor, "released", "Target-bound markers are synchronized and source transfer completion is durably recorded.");
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or InvalidOperationException)
         {
@@ -394,17 +547,114 @@ public sealed class DirectedHandoffCoordinator(
         catch (IOException) { return null; }
     }
 
-    private DirectedTransferOperationResult Persist(DurableAuthorityState next, string code, string message)
+    private DirectedTransferOperationResult PersistStateThenCursor(
+        DurableAuthorityState next,
+        DurableLocalAuthorityCursorState nextCursor,
+        string code,
+        string message)
     {
         try
         {
             stateStore.Save(next);
-            return Success(code, message, next);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException)
         {
             return Failure("durable-write-failed", exception.Message, TryLoad());
         }
+
+        try
+        {
+            LocalCursorStore.Save(nextCursor);
+            return Success(code, message, next);
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or InvalidOperationException)
+        {
+            return Failure("local-authority-cursor-failed", exception.Message, next);
+        }
+    }
+
+    private DirectedTransferOperationResult ReconcileCursor(
+        DurableAuthorityState state,
+        DurableLocalAuthorityRole role,
+        DirectedTransferIdentity? transfer)
+    {
+        var cursor = TryLoadCursor();
+        if (cursor is null)
+        {
+            return Failure("local-authority-cursor-missing", "The local participation/current-authority cursor is missing; durable source state remains blocked.", state);
+        }
+        if (!string.Equals(cursor.DeviceId, state.DeviceId, StringComparison.Ordinal))
+        {
+            return Failure("local-authority-cursor-inconsistent", "The local participation cursor belongs to another device.", state);
+        }
+        if (transfer is null || !transfer.IsValid)
+        {
+            return Failure("local-authority-cursor-inconsistent", "Durable source state has no valid transfer for cursor recovery.", state);
+        }
+
+        var expected = ToCursor(state, role, transfer.LineageId, transfer.Generation, transfer.TransferId, transfer.HandoffVersion);
+        if (cursor == expected || cursor.Matches(transfer) && cursor.CurrentRole == role && cursor.HighWaterHandoffVersion == transfer.HandoffVersion)
+        {
+            return Success(role == DurableLocalAuthorityRole.Released ? "already-released" : "already-relinquished", "The same durable source transition is already recorded; source remains blocked.", state);
+        }
+
+        var recoverable = role switch
+        {
+            DurableLocalAuthorityRole.RelinquishedBlocked => cursor.CurrentRole is DurableLocalAuthorityRole.TransferPrepared or DurableLocalAuthorityRole.RelinquishedBlocked,
+            DurableLocalAuthorityRole.Released => cursor.CurrentRole is DurableLocalAuthorityRole.RelinquishedBlocked or DurableLocalAuthorityRole.Released,
+            _ => false
+        };
+        if (!recoverable)
+        {
+            return Failure("local-authority-cursor-inconsistent", "The local participation cursor cannot be reconciled with durable source state.", state);
+        }
+
+        try
+        {
+            LocalCursorStore.Save(expected with { Revision = cursor.Revision + 1 });
+            return Success(role == DurableLocalAuthorityRole.Released ? "already-released" : "already-relinquished", "Durable source state was reconciled with its local participation cursor; source remains blocked.", state);
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or InvalidOperationException)
+        {
+            return Failure("local-authority-cursor-failed", exception.Message, state);
+        }
+    }
+
+    private DurableLocalAuthorityCursorState? TryLoadCursor()
+    {
+        if (!LocalCursorStore.Exists) return null;
+        try { return LocalCursorStore.Load(); }
+        catch (InvalidDataException) { return null; }
+        catch (IOException) { return null; }
+    }
+
+    private bool HasLocalTargetEvidence()
+    {
+        var directory = Path.GetDirectoryName(stateStore.StatePath);
+        return directory is not null
+            && Directory.Exists(directory)
+            && Directory.EnumerateFiles(directory, "target*.json", SearchOption.TopDirectoryOnly).Any();
+    }
+
+    private DurableLocalAuthorityCursorState ToCursor(
+        DurableAuthorityState state,
+        DurableLocalAuthorityRole role,
+        string? lineageId,
+        long? generation,
+        string? transferId,
+        long highWater)
+    {
+        var cursor = TryLoadCursor();
+        return new DurableLocalAuthorityCursorState(
+            DurableLocalAuthorityCursorState.CurrentFormatVersion,
+            (cursor?.Revision ?? 0) + 1,
+            state.DeviceId,
+            lineageId ?? Guid.Empty.ToString("D"),
+            generation ?? 0,
+            highWater,
+            role,
+            transferId,
+            DateTimeOffset.UtcNow);
     }
 
     private static DirectedTransferOperationResult Success(string code, string message, DurableAuthorityState state) => new(true, code, message, state);

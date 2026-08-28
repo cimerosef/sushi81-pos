@@ -125,6 +125,66 @@ public sealed class DirectedTargetAcquisitionTests
     }
 
     [TestMethod]
+    public async Task TrueVirginTargetEstablishesItsFirstLocalCursor()
+    {
+        using var fixture = new Fixture();
+        var transfer = await fixture.CreateReleasedTransferAsync(1);
+        Assert.IsFalse(File.Exists(fixture.LocalCursorPath));
+
+        var target = new DirectedTargetAcquisitionCoordinator(
+            new DurableTargetAcquisitionStore(fixture.TargetStatePath),
+            "target");
+        var acquired = await target.AcquireAsync(fixture.DirectoryPath, fixture.SnapshotPath, transfer);
+
+        Assert.IsTrue(acquired.Succeeded, acquired.Message);
+        Assert.IsTrue(File.Exists(fixture.LocalCursorPath));
+        var cursor = new DurableLocalAuthorityCursorStore(fixture.LocalCursorPath).Load();
+        Assert.AreEqual(DurableLocalAuthorityRole.AcquiredTarget, cursor.CurrentRole);
+        Assert.AreEqual(1, cursor.HighWaterHandoffVersion);
+        Assert.IsTrue(target.MayBusinessWrite(transfer));
+    }
+
+    [TestMethod]
+    public async Task CrashAfterTargetEvidenceBeforeCursorCommitStaysBlockedAndExactRetryCompletes()
+    {
+        using var fixture = new Fixture();
+        var transfer = await fixture.CreateReleasedTransferAsync(1);
+        var target = new DirectedTargetAcquisitionCoordinator(
+            new DurableTargetAcquisitionStore(fixture.TargetStatePath),
+            "target",
+            localCursorStore: new DurableLocalAuthorityCursorStore(fixture.LocalCursorPath, new CursorFailureInjector()));
+
+        var failed = await target.AcquireAsync(fixture.DirectoryPath, fixture.SnapshotPath, transfer);
+
+        Assert.IsFalse(failed.Succeeded);
+        Assert.AreEqual("local-authority-cursor-failed", failed.Code);
+        Assert.IsTrue(File.Exists(fixture.TargetStatePath));
+        Assert.AreEqual(DurableLocalAuthorityRole.AcquisitionPending, new DurableLocalAuthorityCursorStore(fixture.LocalCursorPath).Load().CurrentRole);
+        Assert.IsFalse(target.MayBusinessWrite(transfer));
+
+        var restarted = new DirectedTargetAcquisitionCoordinator(
+            new DurableTargetAcquisitionStore(fixture.TargetStatePath),
+            "target");
+        var retried = await restarted.AcquireAsync(fixture.DirectoryPath, fixture.SnapshotPath, transfer);
+        Assert.IsTrue(retried.Succeeded, retried.Message);
+        Assert.IsTrue(restarted.MayBusinessWrite(transfer));
+    }
+
+    [TestMethod]
+    public async Task MalformedCurrentLocalCursorFailsClosed()
+    {
+        using var fixture = new Fixture();
+        var transfer = await fixture.CreateReleasedTransferAsync(1);
+        var target = new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(fixture.TargetStatePath), "target");
+        Assert.IsTrue((await target.AcquireAsync(fixture.DirectoryPath, fixture.SnapshotPath, transfer)).Succeeded);
+        await File.WriteAllTextAsync(fixture.LocalCursorPath, "{ malformed cursor");
+
+        Assert.IsFalse(target.MayBusinessWrite(transfer));
+        var restarted = new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(fixture.TargetStatePath), "target");
+        Assert.IsFalse(restarted.MayBusinessWrite(transfer));
+    }
+
+    [TestMethod]
     public async Task MalformedLocalAuthorityCursorFailsClosedWithoutSharedLedger()
     {
         using var fixture = new Fixture();
@@ -161,25 +221,42 @@ public sealed class DirectedTargetAcquisitionTests
         public void BeforeCommit(DurableTargetAcquisitionState nextState) => throw new IOException("synthetic target durable write failure");
     }
 
+    private sealed class CursorFailureInjector : IDurableLocalAuthorityCursorFailureInjector
+    {
+        public void BeforeCommit(DurableLocalAuthorityCursorState nextState)
+        {
+            if (nextState.CurrentRole == DurableLocalAuthorityRole.AcquiredTarget)
+            {
+                throw new IOException("synthetic local cursor durable write failure");
+            }
+        }
+    }
+
     private sealed class Fixture : IDisposable
     {
         public Fixture()
         {
             DirectoryPath = Path.Combine(Path.GetTempPath(), "Sushi81-M02-target-tests", Guid.NewGuid().ToString("N"));
             System.IO.Directory.CreateDirectory(DirectoryPath);
-            TargetStatePath = Path.Combine(DirectoryPath, "target-acquisition.json");
-            SourceStatePath = Path.Combine(DirectoryPath, "source-authority.json");
+            var sourceDirectory = Path.Combine(DirectoryPath, "source-device");
+            var targetDirectory = Path.Combine(DirectoryPath, "target-device");
+            System.IO.Directory.CreateDirectory(sourceDirectory);
+            System.IO.Directory.CreateDirectory(targetDirectory);
+            TargetStatePath = Path.Combine(targetDirectory, "target-acquisition.json");
+            SourceStatePath = Path.Combine(sourceDirectory, "source-authority.json");
+            LocalCursorPath = Path.Combine(targetDirectory, "local-authority-cursor.json");
         }
 
         public string DirectoryPath { get; }
         public string TargetStatePath { get; }
         public string SourceStatePath { get; }
+        public string LocalCursorPath { get; }
         public string SnapshotPath { get; private set; } = string.Empty;
 
         public async Task<DirectedTransferIdentity> CreateReleasedTransferAsync(long version)
         {
             var source = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(SourceStatePath));
-            var transfer = Transfer("target", version);
+            var transfer = Transfer("target", 1);
             Assert.IsTrue(source.InitializeAuthoritative("source", ["source", "target", "third"]).Succeeded);
             Assert.IsTrue(source.PrepareTransfer(transfer).Succeeded);
             SnapshotPath = Path.Combine(DirectoryPath, "synthetic-" + version + ".snapshot.db");

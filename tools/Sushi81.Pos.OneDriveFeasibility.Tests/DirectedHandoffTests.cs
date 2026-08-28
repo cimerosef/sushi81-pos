@@ -24,7 +24,8 @@ public sealed class DirectedHandoffTests
         Assert.AreEqual(DirectedAuthorityMode.Authoritative, restarted.Current.Mode);
         Assert.IsNull(restarted.Current.Transfer);
         Assert.IsFalse(restarted.MayBusinessWrite("target"));
-        Assert.IsTrue(restarted.ReopenRetainedAuthority().Succeeded);
+        var reopened = restarted.ReopenRetainedAuthority();
+        Assert.IsTrue(reopened.Succeeded, $"{reopened.Code}: {reopened.Message}");
         Assert.IsTrue(restarted.MayBusinessWrite("source"));
         Assert.IsFalse(Directory.EnumerateFiles(fixture.DirectoryPath, "directed-*.json").Any());
     }
@@ -47,9 +48,10 @@ public sealed class DirectedHandoffTests
         Assert.IsTrue(coordinator.Current.ClosedWithAuthority);
 
         var restarted = fixture.CreateCoordinator();
-        Assert.IsTrue(restarted.ReopenRetainedAuthority().Succeeded);
+        var reopened = restarted.ReopenRetainedAuthority();
+        Assert.IsTrue(reopened.Succeeded, $"{reopened.Code}: {reopened.Message}");
         Assert.IsTrue(restarted.MayBusinessWrite("source"));
-        Assert.IsTrue(restarted.PrepareTransfer(Fixture.Transfer("target", 17)).Succeeded);
+        Assert.IsTrue(restarted.PrepareTransfer(Fixture.Transfer("target", 1)).Succeeded);
         Assert.IsFalse(Directory.EnumerateFiles(fixture.DirectoryPath, "directed-*.json").Any());
     }
 
@@ -71,6 +73,16 @@ public sealed class DirectedHandoffTests
             null,
             new DirectedLocalAuthorityCursor(lineage, 7, 1));
         new DurableAuthorityStateStore(fixture.StatePath).Save(persisted);
+        new DurableLocalAuthorityCursorStore(fixture.LocalCursorPath).Save(new DurableLocalAuthorityCursorState(
+            DurableLocalAuthorityCursorState.CurrentFormatVersion,
+            1,
+            "source",
+            lineage,
+            7,
+            1,
+            DurableLocalAuthorityRole.Authoritative,
+            null,
+            DateTimeOffset.UtcNow));
         var coordinator = fixture.CreateCoordinator();
 
         var wrong = Fixture.Transfer("target", 3) with { LineageId = lineage, Generation = 7 };
@@ -87,7 +99,7 @@ public sealed class DirectedHandoffTests
         var injector = new SaveFailureInjector();
         var coordinator = fixture.CreateCoordinator(injector);
         Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target"]).Succeeded);
-        var transfer = Fixture.Transfer("target", 2);
+        var transfer = Fixture.Transfer("target", 1);
         Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
 
         injector.FailNext = true;
@@ -107,7 +119,7 @@ public sealed class DirectedHandoffTests
         using var fixture = new Fixture();
         var coordinator = fixture.CreateCoordinator();
         Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target"]).Succeeded);
-        var transfer = Fixture.Transfer("target", 3);
+        var transfer = Fixture.Transfer("target", 1);
         Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
         var snapshot = fixture.CreateSnapshot();
 
@@ -123,7 +135,7 @@ public sealed class DirectedHandoffTests
         using var fixture = new Fixture();
         var coordinator = fixture.CreateCoordinator();
         Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target"]).Succeeded);
-        var transfer = Fixture.Transfer("target", 31);
+        var transfer = Fixture.Transfer("target", 1);
         Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
         var snapshot = fixture.CreateSnapshot();
 
@@ -149,7 +161,7 @@ public sealed class DirectedHandoffTests
         var injector = new MarkerFailureInjector(DirectedTransferFailurePoint.BeforeMarkerPublication);
         var coordinator = fixture.CreateCoordinator(markerFailureInjector: injector);
         Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target", "other"]).Succeeded);
-        var transfer = Fixture.Transfer("target", 4);
+        var transfer = Fixture.Transfer("target", 1);
         Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
         var snapshot = fixture.CreateSnapshot();
         var relinquished = await coordinator.DurablyRelinquishAsync(await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshot, true));
@@ -180,7 +192,7 @@ public sealed class DirectedHandoffTests
         using var fixture = new Fixture();
         var coordinator = fixture.CreateCoordinator();
         Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target", "other"]).Succeeded);
-        var transfer = Fixture.Transfer("target", 6);
+        var transfer = Fixture.Transfer("target", 1);
         Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
         var snapshot = fixture.CreateSnapshot();
         Assert.IsTrue((await coordinator.DurablyRelinquishAsync(await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshot, true))).Succeeded);
@@ -222,7 +234,7 @@ public sealed class DirectedHandoffTests
         using var fixture = new Fixture();
         var coordinator = fixture.CreateCoordinator();
         Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target"]).Succeeded);
-        var transfer = Fixture.Transfer("target", 13);
+        var transfer = Fixture.Transfer("target", 1);
         Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
         var snapshot = fixture.CreateSnapshot();
         var evidence = await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshot, true);
@@ -241,7 +253,7 @@ public sealed class DirectedHandoffTests
         using var fixture = new Fixture();
         var coordinator = fixture.CreateCoordinator();
         Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target", "other"]).Succeeded);
-        var transfer = Fixture.Transfer("target", 14);
+        var transfer = Fixture.Transfer("target", 1);
         Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
         var snapshot = fixture.CreateSnapshot();
         Assert.IsTrue((await coordinator.DurablyRelinquishAsync(await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshot, true))).Succeeded);
@@ -287,7 +299,7 @@ public sealed class DirectedHandoffTests
         using var fixture = new Fixture();
         var coordinator = fixture.CreateCoordinator();
         Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target", "other"]).Succeeded);
-        var transfer = Fixture.Transfer("target", 10);
+        var transfer = Fixture.Transfer("target", 1);
         Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
         var snapshot = fixture.CreateSnapshot();
         Assert.IsTrue((await coordinator.DurablyRelinquishAsync(await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshot, true))).Succeeded);
@@ -308,7 +320,7 @@ public sealed class DirectedHandoffTests
         var injector = new MarkerFailureInjector(DirectedTransferFailurePoint.BeforeMarkerSynchronization);
         var coordinator = fixture.CreateCoordinator(markerFailureInjector: injector);
         Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target"]).Succeeded);
-        var transfer = Fixture.Transfer("target", 12);
+        var transfer = Fixture.Transfer("target", 1);
         Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
         var snapshot = fixture.CreateSnapshot();
         Assert.IsTrue((await coordinator.DurablyRelinquishAsync(await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshot, true))).Succeeded);
@@ -337,7 +349,7 @@ public sealed class DirectedHandoffTests
             var injector = new MarkerFailureInjector(failurePoint);
             var coordinator = fixture.CreateCoordinator(markerFailureInjector: injector);
             Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target"]).Succeeded);
-            var transfer = Fixture.Transfer("target", failurePoint == DirectedTransferFailurePoint.BeforeReadyMarker ? 15 : 16);
+            var transfer = Fixture.Transfer("target", 1);
             Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
             var snapshot = fixture.CreateSnapshot();
             Assert.IsTrue((await coordinator.DurablyRelinquishAsync(await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshot, true))).Succeeded);
@@ -361,7 +373,7 @@ public sealed class DirectedHandoffTests
         var sync = new DeterministicArtifactSyncObserver();
         var coordinator = fixture.CreateCoordinator(syncObserver: sync);
         Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target"]).Succeeded);
-        var transfer = Fixture.Transfer("target", 18);
+        var transfer = Fixture.Transfer("target", 1);
         Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
         var snapshot = fixture.CreateSnapshot();
         Assert.IsTrue((await coordinator.DurablyRelinquishAsync(await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshot, true))).Succeeded);
@@ -388,7 +400,7 @@ public sealed class DirectedHandoffTests
         var injector = new MarkerFailureInjector(DirectedTransferFailurePoint.BeforeReleasedCommit);
         var coordinator = fixture.CreateCoordinator(markerFailureInjector: injector);
         Assert.IsTrue(coordinator.InitializeAuthoritative("source", ["source", "target"]).Succeeded);
-        var transfer = Fixture.Transfer("target", 19);
+        var transfer = Fixture.Transfer("target", 1);
         Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
         var snapshot = fixture.CreateSnapshot();
         Assert.IsTrue((await coordinator.DurablyRelinquishAsync(await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshot, true))).Succeeded);
@@ -441,6 +453,7 @@ public sealed class DirectedHandoffTests
 
         public string DirectoryPath { get; }
         public string StatePath { get; }
+        public string LocalCursorPath => Path.Combine(DirectoryPath, "local-authority-cursor.json");
         public string SnapshotPath { get; private set; } = string.Empty;
 
         public DirectedHandoffCoordinator CreateCoordinator(IDurableAuthorityStateFailureInjector? stateFailureInjector = null, IDirectedTransferFailureInjector? markerFailureInjector = null, IArtifactSyncObserver? syncObserver = null) =>
