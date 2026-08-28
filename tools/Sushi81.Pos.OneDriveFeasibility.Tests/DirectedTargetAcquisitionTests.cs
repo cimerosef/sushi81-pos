@@ -185,6 +185,25 @@ public sealed class DirectedTargetAcquisitionTests
     }
 
     [TestMethod]
+    public async Task MissingCursorCannotTreatRetainedTargetHistoryAsVirgin()
+    {
+        using var fixture = new Fixture();
+        var transfer = await fixture.CreateReleasedTransferAsync(1);
+        var first = new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(fixture.TargetStatePath), "target");
+        Assert.IsTrue((await first.AcquireAsync(fixture.DirectoryPath, fixture.SnapshotPath, transfer)).Succeeded);
+
+        var historyPath = Path.Combine(Path.GetDirectoryName(fixture.TargetStatePath)!, "target-history.json");
+        File.Move(fixture.TargetStatePath, historyPath);
+        File.Delete(fixture.LocalCursorPath);
+
+        var restarted = new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(fixture.TargetStatePath), "target");
+        Assert.IsFalse(restarted.MayBusinessWrite(transfer));
+        var retry = await restarted.AcquireAsync(fixture.DirectoryPath, fixture.SnapshotPath, transfer);
+        Assert.IsFalse(retry.Succeeded);
+        Assert.AreEqual("local-authority-unresolved", retry.Code);
+    }
+
+    [TestMethod]
     public async Task MalformedLocalAuthorityCursorFailsClosedWithoutSharedLedger()
     {
         using var fixture = new Fixture();

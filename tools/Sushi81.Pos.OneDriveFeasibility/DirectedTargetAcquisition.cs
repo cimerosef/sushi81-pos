@@ -272,6 +272,10 @@ public sealed class DirectedTargetAcquisitionCoordinator(
                 return new(false, "local-authority-unresolved", "Existing local participation state cannot be replaced by a new target acquisition.");
             }
         }
+        else if (HasLocalParticipationEvidence())
+        {
+            return new(false, "local-authority-unresolved", "Local source or target history exists without a current cursor; target acquisition is blocked.");
+        }
         else if (expectedTransfer.HandoffVersion != 1)
         {
             return new(false, "local-authority-cursor-missing", "A first target acquisition must establish local handoff version 1.");
@@ -509,5 +513,13 @@ public sealed class DirectedTargetAcquisitionCoordinator(
         {
             return false;
         }
+    }
+
+    private bool HasLocalParticipationEvidence()
+    {
+        var directory = Path.GetDirectoryName(StateStore.StatePath);
+        if (directory is null || !Directory.Exists(directory)) return false;
+        if (SourceStateStore is not null && File.Exists(SourceStateStore.StatePath)) return true;
+        return Directory.EnumerateFiles(directory, "target*.json", SearchOption.TopDirectoryOnly).Any();
     }
 }
