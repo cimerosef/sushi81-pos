@@ -84,6 +84,34 @@ The Windows observation boundary uses documented registered sync-root metadata a
 
 No real Device A/B run was available in this environment. The following commands are the reproducible future boundary; use only a registered sync root and synthetic IDs/data, and return technical states only. `$stateA` and `$stateB` are separate local directories on their respective devices. No command below requires the other device's authority JSON or a shared mutable lifecycle ledger. The optional `directed-lifecycle-complete` command is diagnostic-only and is intentionally omitted from this operator flow.
 
+### Device A — setup and A → B v1
+
+Device A owns `$stateA` and runs `validate-root` plus `directed-source-run`; it reads only its local source cursor and publishes immutable handoff artifacts.
+
+### Device B — acquire v1
+
+Device B owns `$stateB` and runs `directed-target-acquire`, then `directed-target-promote`; it reads only its local target/source cursor and the immutable handoff artifacts.
+
+### Device B — promote and B → A v2
+
+After promotion, Device B reuses `$stateB` for `directed-source-run` at exact version 2. Device A's local state is not read.
+
+### Device A — acquire v2
+
+Device A reuses `$stateA` for `directed-target-acquire` and `directed-target-promote`; Device B's local authority JSON is not copied or inspected.
+
+### Optional Device A — promote and A → B v3
+
+Device A reuses `$stateA` for `directed-source-run` at exact version 3.
+
+### Device B — acquire v3
+
+Device B reuses `$stateB` for `directed-target-acquire`; its retained v1 target cursor advances atomically from its local released v2 cursor.
+
+### Device A — restart/resume
+
+Device A may rerun `directed-source-resume` for the same immutable v3 transfer using only `$stateA`; no JSON is edited manually.
+
 ```powershell
 $project = 'tools\Sushi81.Pos.OneDriveFeasibility\Sushi81.Pos.OneDriveFeasibility.csproj'
 $root = '<registered-OneDrive-root>'
