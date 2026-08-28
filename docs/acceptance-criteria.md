@@ -1,9 +1,11 @@
 # V1 acceptance criteria
 
-**Status:** Approved — Phase 5 baseline (V1 Specification)  
-**Last updated:** 2026-08-27  
+**Status:** Approved — Phase 5 baseline (V1 Specification), amended 2026-08-28  
+**Last updated:** 2026-08-28  
 **Product:** Sushi81 POS  
 **Purpose:** Convert the approved V1 product, business, lifecycle, catalogue, data, storage, architecture, paste-import, printing and export specifications into verifiable implementation acceptance criteria.
+
+**Approved amendment:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below.
 
 ## 1. Acceptance principle
 
@@ -589,31 +591,61 @@ Each paired device has its own application-managed `%LOCALAPPDATA%\Sushi81 POS\D
 
 **Evidence:** installation/path review.
 
-### AC-STO-002 — N-device single writer
+### AC-STO-002 — N-device single writer and target-directed normal transfer
 
-The design supports more than two paired devices without fixed SHOP/HOME slots. At most one device is authoritative/writable at any moment; all others are non-authoritative/read-only until valid authority acquisition.
+The design supports more than two paired devices without fixed SHOP/HOME slots. At most one device is authoritative/writable at any moment; all others are non-authoritative/read-only.
 
-**Evidence:** three-device protocol test/design inspection.
+Normal transfer is directed by the current authoritative source to exactly one eligible paired `target_device_id`. Non-target devices never compete for the same handoff through file claims/election and cannot become writable merely because they are running or observe the handoff.
 
-### AC-STO-003 — Formal handoff on normal exit
+**Evidence:** three-device protocol tests + design inspection.
 
-Normal application exit blocks new business edits, commits accepted writes, produces a SQLite-safe validated snapshot, versions/checksums it, publishes snapshot plus matching ready marker through the configured OneDrive Handoff area, waits for required synchronization confirmation and only then reports successful handoff/finishes normal exit.
+### AC-STO-003 — Close semantics and safe target-directed handoff ordering
 
-An incomplete/failed handoff must never be reported as successful.
+When the authoritative operator chooses **Close and retain authority**, the application closes without releasing write authority; the same device remains authoritative for its next valid launch and all other devices remain read-only.
 
-**Evidence:** handoff integration/failure tests.
+When the operator explicitly chooses **Transfer authority and close**, the source:
 
-### AC-STO-004 — Handoff validation
+1. selects/preselects exactly one eligible paired target;
+2. blocks new business edits and commits accepted writes;
+3. creates and validates a SQLite-safe complete snapshot;
+4. assigns immutable lineage/generation/version/source/target/checksum metadata;
+5. publishes the snapshot and waits for required documented synchronization confirmation;
+6. durably records local relinquishment/pending-transfer state that survives restart and blocks further source business writes;
+7. only after that durable relinquishment creates/publishes the matching target-bound ready/grant marker;
+8. waits for required marker synchronization confirmation before reporting successful transfer/close.
 
-A receiving device must not promote a handoff snapshot to writable `live.db` unless snapshot/ready marker/lineage/generation/version/checksum/SQLite integrity checks pass and exclusive write acquisition succeeds.
+A ready/grant marker must never exist before durable source relinquishment. A snapshot alone does not release authority. A failure before relinquishment may safely abort without releasing authority; a failure after relinquishment leaves the source read-only/pending-transfer and permits only technical retries of the same immutable target-bound transfer.
 
-**Evidence:** corruption/mismatch/concurrent-acquisition tests.
+**Evidence:** deterministic ordering/restart/failure-injection tests + manual close-flow acceptance.
 
-### AC-STO-005 — No silent force takeover
+### AC-STO-004 — Target-bound handoff validation and acquisition
 
-If the latest authoritative device did not release a valid handoff, another device cannot silently start writing from an older local/OneDrive copy through an ordinary force-takeover path.
+A receiving device must not promote a handoff snapshot to writable `live.db` unless:
 
-**Evidence:** protocol/UI test.
+- its immutable `device_id` exactly equals `target_device_id`;
+- source/target are distinct valid paired devices for the lineage/generation;
+- snapshot and matching target-bound ready/grant marker are available;
+- lineage/generation/version/source/target/checksum and required metadata match;
+- SQLite integrity passes;
+- stale/replayed local transfer state is rejected;
+- the snapshot is safely restored and authoritative local state is durably established.
+
+Only after all checks pass may that target enable business writes. A non-target device remains read-only and does not create an acquisition claim.
+
+**Evidence:** corruption/mismatch/wrong-target/replay/restart tests + controlled multi-device test.
+
+### AC-STO-005 — No silent force takeover, source rollback or target substitution
+
+If the authoritative device closed while retaining authority, another device cannot silently start writing from an older local/OneDrive copy.
+
+After a target-directed handoff crosses durable source relinquishment:
+
+- the former source cannot silently resume ordinary writes;
+- the handoff cannot be retargeted to another device through normal flow;
+- a third device cannot substitute itself for the target;
+- the designated target must complete/recover the handoff, or genuine inability to do so requires explicit Disaster Recovery.
+
+**Evidence:** protocol/restart/UI tests including target-unavailable paths.
 
 ### AC-STO-006 — Local recovery generation and retention
 
@@ -623,11 +655,11 @@ The application retains the latest five successfully generated/validated local r
 
 **Evidence:** save-trigger + debounce + recovery-retention tests.
 
-### AC-STO-007 — Handoff retention
+### AC-STO-007 — Target-directed handoff retention
 
-OneDrive Handoff retains the latest five complete validated snapshot+ready-marker units; incomplete artifacts are never treated as valid handoffs.
+OneDrive Handoff retains the latest five complete validated immutable snapshot+target-bound-ready/grant units. Incomplete artifacts are never treated as valid releases; each complete unit preserves matching lineage/generation/version/source/target/checksum metadata.
 
-**Evidence:** retention/integrity test.
+**Evidence:** retention/integrity/target-binding tests.
 
 ### AC-STO-008 — Change-triggered disaster-recovery checkpoints
 
@@ -639,17 +671,26 @@ The latest five validated disaster-recovery checkpoints are retained. Recovery-o
 
 ### AC-STO-009 — Explicit disaster recovery creates new generation
 
-Using Disaster Recovery requires explicit operator confirmation of possible data loss, validates the selected checkpoint and creates a new lineage generation before writes are enabled. Devices returning with an older generation cannot resume writing without reinitialization.
+Using Disaster Recovery requires explicit operator confirmation of possible data loss, validates the selected checkpoint and creates a new lineage generation before writes are enabled. It is reserved for genuine abnormal inability to complete/recover the normal authoritative or target-directed path, not ordinary target substitution.
 
-**Evidence:** multi-device recovery test.
+Devices returning with an older generation cannot resume writing or consume an old target-bound grant without reinitialization.
 
-### AC-STO-010 — Non-authoritative read-only mode
+**Evidence:** multi-device recovery/generation tests.
+
+### AC-STO-010 — Non-authoritative and pending-transfer read-only mode
 
 A non-authoritative device clearly displays that live data may be stale and blocks authoritative business writes such as creating/modifying orders, payments, lifecycle changes, catalogue imports/edits, business-setting changes and archive execution.
 
-Printing remains governed by AC-PRINT-010.
+The same write block applies to:
 
-**Evidence:** permissions/state UI test.
+- non-target paired devices;
+- a former source after durable relinquishment;
+- a designated target before acquisition validation completes;
+- stale/old-generation devices.
+
+A former source in pending-transfer state may perform only technical retries needed to finish the same immutable already-fixed handoff. Printing remains governed by AC-PRINT-010.
+
+**Evidence:** authority-state/pending-transfer UI + centralized write-guard tests.
 
 ### AC-STO-011 — Annual archive trigger
 
@@ -721,7 +762,7 @@ Printing uses application-owned deterministic print data/document generation fol
 
 ### AC-ARCH-007 — Installation/update separation
 
-V1 is delivered as a self-contained Windows x64 WPF application using the approved per-user Inno Setup approach. Updating/reinstalling binaries preserves `%LOCALAPPDATA%\Sushi81 POS` business data, device identity and configuration.
+V1 is delivered as a self-contained Windows x64 WPF application using the approved per-user Inno Setup approach. Updating/reinstalling binaries preserves `%LOCALAPPDATA%\Sushi81 POS` business data, device identity, configuration and durable authority/transfer state.
 
 V1 does not require a background self-update service.
 
@@ -749,7 +790,7 @@ Common product search, add/quantity changes, order lookup, payment update and na
 
 ### AC-NFR-004 — Clear failure behavior
 
-Operational failures such as parser failure, print submission failure, invalid catalogue import, failed handoff, invalid snapshot, migration failure and export generation failure produce actionable operator feedback and do not silently corrupt/replace authoritative business data.
+Operational failures such as parser failure, print submission failure, invalid catalogue import, failed/partial target-directed handoff, invalid snapshot, migration failure and export generation failure produce actionable operator feedback and do not silently corrupt/replace authoritative business data or re-enable a relinquished source.
 
 **Evidence:** failure-path acceptance tests.
 
@@ -771,7 +812,9 @@ Acceptance must confirm that implementation has not introduced mandatory V1 subs
 - operator-facing payment-event ledger;
 - special Hiboutik emergency-order UI/reconciliation model;
 - live SQLite database synchronization through OneDrive;
-- simultaneous multi-writer database operation.
+- simultaneous multi-writer database operation;
+- generic competitive OneDrive claim/election for normal authority transfer;
+- hosted/Graph/OAuth coordination merely to arbitrate normal V1 handoff.
 
 ## 13. V1 acceptance gate
 
@@ -780,9 +823,9 @@ V1 may be accepted for production preparation only when:
 1. every criterion above is either demonstrably passed or explicitly marked not applicable by an approved specification amendment;
 2. all required automated tests pass on the production-target build;
 3. installer/update/recovery/export/printing critical paths have controlled acceptance evidence;
-4. no unresolved contradiction exists between implementation and the frozen V1 specification;
+4. no unresolved contradiction exists between implementation and the frozen/amended V1 specification;
 5. no test fixture or repository artifact contains unsanitized production customer/business secrets.
 
-This document is the **Approved — Phase 5 acceptance baseline for the frozen V1 Specification**.
+This document is the **Approved — Phase 5 acceptance baseline for the frozen V1 Specification, amended 2026-08-28 for target-directed authority handoff**.
 
 Codex implementation must treat these criteria as the acceptance contract. Any future behavior change that conflicts with them requires an explicit approved specification amendment; implementation must not silently waive a criterion by reproducing legacy VBA behavior that the approved V1 specification intentionally replaced.
