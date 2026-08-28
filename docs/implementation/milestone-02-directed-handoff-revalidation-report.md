@@ -7,7 +7,7 @@ This report records the revalidation authorized by `docs/implementation/mileston
 ## Branch, commits and amended sources
 
 - Branch: `codex/m02-directed-handoff-revalidation`
-- Final commit: recorded after the verification commit on this branch (see the PR and final status record).
+- Verification implementation commit: `f800b9a2c0760ac930067d3031f14d65b3b694f7`.
 - Original feasibility evidence remains in `docs/implementation/milestone-02-feasibility-report.md`; it is not rewritten here.
 - Amended sources: `docs/decisions/target-directed-authority-handoff.md`, `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`, and `docs/implementation-plan.md`.
 - Evidence uses synthetic data only. No business database, customer/order/payment data, credential, account identifier or personal file listing is included.
