@@ -4,7 +4,7 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation plan Approved (2026-08-27); M01 complete; M02 GitHub transport revalidation active; M03 not started.**
+**Phase 6 implementation plan Approved (2026-08-27); M01 complete; M02 Passed and merged; M03 detailed implementation contract prepared, implementation not yet authorized.**
 
 The V1 Specification remains frozen. The formal freeze record is `v1-specification-freeze.md`; the implementation acceptance contract is `acceptance-criteria.md`; the approved implementation sequence is `implementation-plan.md`.
 
@@ -46,7 +46,8 @@ A separate `sync-and-backup.md` is not part of V1 because live storage, local re
 - `implementation-plan.md` — Approved — Phase 6 baseline; ordered implementation milestones and gates.
 - `implementation-status.md` — living acceptance/milestone traceability record.
 - `implementation/milestone-01-foundation.md` — detailed M01 task contract; M01 implementation is complete.
-- `implementation/milestone-02-github-transport-revalidation.md` — authorized GitHub Release Asset transport/revalidation contract.
+- `implementation/milestone-02-github-transport-revalidation.md` — M02 GitHub Release Asset transport/revalidation contract; M02 is Passed and merged through PR #3.
+- `implementation/milestone-03-catalogue-settings.md` — prepared detailed M03 Catalogue/BusinessSettings contract; implementation requires a separate explicit user authorization before Codex starts.
 
 Normal target-directed handoff uses the configured dedicated private GitHub repository (`sushi81-pos-handoff` conceptually), one long-lived Release and immutable snapshot/grant assets. OneDrive references in this documentation remain only for approved recovery/archive or historical M02 evidence.
 
