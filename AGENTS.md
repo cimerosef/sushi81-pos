@@ -98,7 +98,7 @@ Implement the requested milestone only. Do not add speculative product features 
 
 Do not reintroduce superseded complexity, especially the former Hiboutik emergency-order UI/original-total/discrepancy/reconciliation model. Hiboutik paste-created orders use the normal order model plus only the hidden anti-double-counting source discriminator defined by the frozen specification.
 
-## ChatGPT ↔ Codex collaboration handoff protocol v2.2
+## ChatGPT ↔ Codex collaboration handoff protocol v2.3
 
 This section is the durable collaboration protocol for implementation/review relay between the ChatGPT project lead and Codex. It **supersedes the earlier browser-polling rule** in which one long-running Codex task repeatedly opened the ChatGPT conversation and waited for a new marker.
 
@@ -124,6 +124,8 @@ This gate controls **Codex execution only**. It does not restrict ChatGPT discus
 
 Therefore ChatGPT may continue to publish new `CODEX_HANDOFF_READY: <id>` tasks while issue #4 is closed. Those tasks remain queued in GitHub and must not be executed until the gate is reopened.
 
+**Closed-gate sequencing rule:** when issue #4 is closed and ChatGPT determines that new Codex work is needed, ChatGPT must first complete all ChatGPT-side review/design/documentation work that can be done without Codex, update the authoritative GitHub material as appropriate, and publish the complete queued `CODEX_HANDOFF_READY: <id>` task while the gate remains closed. Only after that durable preparation is complete should ChatGPT ask the operator to reopen issue #4. The operator must not be asked to reopen the gate merely so ChatGPT can prepare documentation, commands, or the handoff itself.
+
 Closing issue #4 is not an interrupt mechanism. If Codex is already executing an authorized handoff when the gate is closed, that already-running task should finish safely, push its work and publish its matching `CODEX_DONE`; no additional queued handoff may start afterward. Emergency cancellation of an already-running task is a separate explicit manual action.
 
 Reopening issue #4 resumes queued work. Queued handoffs must be processed **serially in publication order, oldest unprocessed first**, never concurrently and never newest-first.
@@ -139,7 +141,7 @@ When ChatGPT has completed review/design work, no user decision is required, and
 2. include the complete executable Codex instruction in that same PR comment, or an unambiguous pointer to an authoritative committed implementation contract;
 3. optionally repeat the same marker at the end of the ChatGPT conversation response for human visibility.
 
-Every handoff ID is single-use. Codex must never process the same `CODEX_HANDOFF_READY` ID twice.
+Every handoff ID is single-use. Codex must never process the same `CODEX_HANDOFF_READY` ID twice. Each distinct handoff ID must receive its own durable matching `CODEX_DONE: <same-id>` completion record; an older `CODEX_DONE` must not be edited or reused to represent a newer handoff.
 
 The Execution Gate does not prevent ChatGPT from publishing handoffs. A handoff published while issue #4 is closed is queued, not cancelled.
 
@@ -208,6 +210,8 @@ During that stop state:
 For known multi-hour/manual waits (for example real-device testing at another location), there is no requirement to keep a Codex browser session or long-running task alive.
 
 The operator may simply close issue #4 to pause new Codex execution and reopen it later. ChatGPT may continue discussion and may queue future handoffs while the gate is closed. The durable PR mailbox preserves all relay state.
+
+If the operator has closed issue #4 and ChatGPT later reaches a point where Codex work should resume, ChatGPT follows the closed-gate sequencing rule above: prepare/update/publish first while still closed, then ask the operator to reopen the gate only when Codex can immediately consume the queued work.
 
 ### Safety and governance
 
