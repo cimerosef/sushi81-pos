@@ -244,6 +244,97 @@ dotnet run --project $project -c Release --no-build -- directed-source-resume $r
 
 `directed-source-run` reports the source cursor, snapshot checksum/path, marker paths and technical sync states; it persists `Released` only after both markers are observer-confirmed `IN_SYNC`. `directed-target-acquire` reports the three Device B Cloud Files observations, validates the exact directed grant and persists the target cursor; after that local durable commit, `mayBusinessWrite=true` without any completion command. `directed-target-promote` reads only the exact local target state and advances that same device's local authority cursor without deleting target evidence. A Device C check uses the same immutable transfer metadata with `--device device-c` and must return `wrong-target` with no durable state. The complete multi-device sequence remains an operator procedure, not a claim of execution from the single Home Device A run; it cannot replace the deterministic safety proof or the transport gate.
 
+## Isolated live-retention preparation (not executed)
+
+This section is an operator plan only. No live GitHub handoff, retention cleanup, asset deletion, or device test was executed for this preparation pass. The current gate remains `PARTIAL` and retention is still outstanding.
+
+### Safety decision and isolation boundary
+
+The current CLI has a safe same-home sequence without copying or forging another device's durable authority state: `github-directed-target-acquire` writes the target's own cursor, then the existing transport-independent `directed-target-promote` advances that same local cursor to source authority. `github-directed-source-run` then performs the next exact target-directed transfer and runs post-completion retention. Each synthetic device uses a separate state directory; no command below may reference `C:\Users\zshu\Documents\Sushi81-M02-Test\device-a`, `C:\Users\zshu\Documents\Sushi81-M02-Test\device-b`, `live.db`, application data, or a copied authority JSON.
+
+The drill must use a **new disposable GitHub Release** (for example, a unique `sushi81-retention-prep-<date>` tag) in the already-approved private handoff repository, or another separately approved disposable private handoff repository. Do not use the real `sushi81-handoff-v1` release. Retention is release-wide: adding four disposable units to the current release would make the known real v1 pair (`snapshot asset 534990583`, `grant asset 534990601`) an eligible old-unit candidate and could also make the real v2 pair eligible. Those real evidence assets are never in the deletion scope of this plan. If the preflight release is not empty or cannot be proven disposable, stop before the first source command.
+
+The CLI performs cleanup inside the source command immediately after `Released`; therefore the transient fourth-unit count is an expected internal transition (eight complete assets before cleanup) rather than a separately inspectable remote state. The externally verifiable result is the exact pre-v4 six-asset set followed by a post-v4 six-asset set in which only the recorded oldest disposable pair is absent. This limitation must be stated in the evidence; it must not be “proved” by pausing or bypassing cleanup.
+
+### One-step-at-a-time operator sequence
+
+Run each step only after inspecting the previous JSON result. Within a grouped code block, execute each command as a separate invocation and wait for its result before continuing. Use a fresh disposable tag and fresh synthetic state directories; never paste the token into a command or evidence. The token is supplied only in the process environment as `SUSHI81_GITHUB_HANDOFF_TOKEN`.
+
+```powershell
+$project = 'tools\Sushi81.Pos.OneDriveFeasibility\Sushi81.Pos.OneDriveFeasibility.csproj'
+$owner = 'cimerosef'
+$repo = 'sushi81-pos-handoff'
+$tag = 'sushi81-retention-prep-<unique-date>'
+$lineage = [guid]::NewGuid().ToString()
+$generation = 1
+$prep = Join-Path $env:TEMP ('Sushi81-M02-RetentionPrep-' + $lineage)
+$stateA = Join-Path $prep 'device-a'
+$stateB = Join-Path $prep 'device-b'
+```
+
+1. Bootstrap/check only the disposable release. Expect the release to be newly created or otherwise explicitly confirmed empty; stop on any unexpected pre-existing asset.
+
+   ```powershell
+   dotnet run --project $project -c Release -- github-transport-check --owner $owner --repo $repo --release-tag $tag --create-release --json
+   ```
+
+2. Record the initial read-only remote inspection. Expected complete-asset count: `0`.
+
+   ```powershell
+   dotnet run --project $project -c Release -- github-remote-inspect --owner $owner --repo $repo --release-tag $tag --json
+   ```
+
+3. Create disposable A → B v1. Use the same `$v1` value for every v1 command.
+
+   ```powershell
+   $v1 = [guid]::NewGuid().ToString()
+   dotnet run --project $project -c Release -- github-directed-source-run --state-dir $stateA --device device-a --target device-b --lineage $lineage --generation $generation --version 1 --transfer-id $v1 --owner $owner --repo $repo --release-tag $tag --json
+   ```
+
+   Expect source `Released`, `sourceMayBusinessWrite=false`, and two complete assets (one snapshot plus one grant); retention deletes nothing.
+
+4. Inspect and record the two v1 asset IDs, then acquire and promote v1 in the separate B directory.
+
+   ```powershell
+   dotnet run --project $project -c Release -- github-remote-inspect --owner $owner --repo $repo --release-tag $tag --json
+   dotnet run --project $project -c Release -- github-directed-target-acquire --state-dir $stateB --device device-b --source device-a --target device-b --lineage $lineage --generation $generation --version 1 --transfer-id $v1 --owner $owner --repo $repo --release-tag $tag --json
+   dotnet run --project $project -c Release -- directed-target-promote --state-dir $stateB --device device-b --source device-a --target device-b --lineage $lineage --generation $generation --version 1 --transfer-id $v1 --json
+   ```
+
+5. Create B → A v2 with the same lineage/generation and `$v2` used for both v2 commands. Expect the remote count to move from `2` to `4`, with no deletion.
+
+   ```powershell
+   $v2 = [guid]::NewGuid().ToString()
+   dotnet run --project $project -c Release -- github-directed-source-run --state-dir $stateB --device device-b --target device-a --lineage $lineage --generation $generation --version 2 --transfer-id $v2 --owner $owner --repo $repo --release-tag $tag --json
+   dotnet run --project $project -c Release -- github-directed-target-acquire --state-dir $stateA --device device-a --source device-b --target device-a --lineage $lineage --generation $generation --version 2 --transfer-id $v2 --owner $owner --repo $repo --release-tag $tag --json
+   dotnet run --project $project -c Release -- directed-target-promote --state-dir $stateA --device device-a --source device-b --target device-a --lineage $lineage --generation $generation --version 2 --transfer-id $v2 --json
+   ```
+
+6. Create A → B v3 and acquire it in B. Before starting v4, inspect and preserve the exact six-asset list; this is the proof that the first three complete units caused no retention deletion.
+
+   ```powershell
+   $v3 = [guid]::NewGuid().ToString()
+   dotnet run --project $project -c Release -- github-directed-source-run --state-dir $stateA --device device-a --target device-b --lineage $lineage --generation $generation --version 3 --transfer-id $v3 --owner $owner --repo $repo --release-tag $tag --json
+   dotnet run --project $project -c Release -- github-directed-target-acquire --state-dir $stateB --device device-b --source device-a --target device-b --lineage $lineage --generation $generation --version 3 --transfer-id $v3 --owner $owner --repo $repo --release-tag $tag --json
+   dotnet run --project $project -c Release -- directed-target-promote --state-dir $stateB --device device-b --source device-a --target device-b --lineage $lineage --generation $generation --version 3 --transfer-id $v3 --json
+   dotnet run --project $project -c Release -- github-remote-inspect --owner $owner --repo $repo --release-tag $tag --json
+   ```
+
+7. Create B → A v4. The source command first completes the fourth unit (logical count `8`) and then performs its post-completion cleanup. Record the v1 disposable snapshot/grant IDs from step 4 before running this command.
+
+   ```powershell
+   $v4 = [guid]::NewGuid().ToString()
+   dotnet run --project $project -c Release -- github-directed-source-run --state-dir $stateB --device device-b --target device-a --lineage $lineage --generation $generation --version 4 --transfer-id $v4 --owner $owner --repo $repo --release-tag $tag --json
+   ```
+
+8. Perform a final read-only inspection. Expected result: exactly six complete assets (three snapshot/grant units), the recorded disposable v1 pair is absent, every v2/v3/v4 pair remains, and no unrelated asset was deleted. Record the source `Released` state and all four transfer identities. Leave this disposable release and its synthetic state directories intact for audit; do not manually delete or edit JSON.
+
+   ```powershell
+   dotnet run --project $project -c Release -- github-remote-inspect --owner $owner --repo $repo --release-tag $tag --json
+   ```
+
+If any command reports a mismatched identity, stale/replayed version, unexpected asset, incomplete receipt, non-empty preflight release, or count other than the expected transition, stop and preserve the durable synthetic state for review. Do not retry with changed IDs and do not touch the real release. A successful sequence would provide the missing live retention observation but would not by itself change the gate wording until the evidence is reviewed.
+
 ## Build, tests and AC mapping
 
 Verification was run on Windows 10.0.26200 x64 with .NET SDK 10.0.400 (runtime 10.0.11). Exact package versions are `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0, `MSTest` 4.0.2 and Windows SDK projection `10.0.26100.87`. `dotnet restore Sushi81.Pos.sln` passed with the approved network escalation; `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings and 0 errors; `dotnet test Sushi81.Pos.sln -c Release --no-build` passed 153, 0 failed and 0 skipped (Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, GitHub wrapper/harness 92); the required self-contained `win-x64` publish with `PublishSingleFile=false` passed. The preceding automated verification is synthetic/fake-HTTP; the real private-repository run is recorded in the operator-evidence section above.
