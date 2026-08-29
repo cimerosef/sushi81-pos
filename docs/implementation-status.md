@@ -279,7 +279,7 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 **Implementation branch:** `codex/m03-catalogue-settings`
 **Handoff authorization:** `CODEX_HANDOFF_READY: M03-IMPLEMENT-01` on the active M03 implementation PR
 **Implementation/evidence commits:** `466dd06e5f9e7d1e2ea7d75b8a02d14d5f569a64`, `5a36bf9e6e656db842c4bebc464289ade3e1b436`, `80647b131d7a52b410675ba2802d68be29f3d891`
-**Remediation handoffs:** `CODEX_HANDOFF_READY: M03-REVIEW-FIX-02`; post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run **#133** (success). Follow-up `CODEX_HANDOFF_READY: M03-MANUAL-UI-FILTER-FIX-03` is implemented at head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` and passed CI run **#137** (success; durable completion records include check URLs). The category-binding remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-BINDING-FIX-04` is implemented at head `1053c9b210cac15343959aac8f9ffa2c13ccd9b8`; its final CI result is recorded in the matching PR completion evidence.
+**Remediation handoffs:** `CODEX_HANDOFF_READY: M03-REVIEW-FIX-02`; post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run **#133** (success). Follow-up `CODEX_HANDOFF_READY: M03-MANUAL-UI-FILTER-FIX-03` is implemented at head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` and passed CI run **#137** (success; durable completion records include check URLs). The category-binding remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-BINDING-FIX-04` is implemented at head `1053c9b210cac15343959aac8f9ffa2c13ccd9b8`; its final CI result is recorded in the matching PR completion evidence. The status-binding remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-STATUS-BINDING-FIX-05` is implemented at head `e56ec77b4d13898c40d57be600652309d77938df`; its final CI result is recorded in the matching PR completion evidence.
 **Status:** Partial pending the operator's interactive Windows/WPF checklist; no automated blocker remains.
 
 ### Delivered scope
@@ -302,8 +302,8 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 - Environment: Windows x64, .NET SDK 10.0.400 (runtime 10.0.11).
 - `dotnet restore Sushi81.Pos.sln`: passed.
 - `dotnet build Sushi81.Pos.sln -c Release --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test Sushi81.Pos.sln -c Release --no-build`: **193 passed, 0 failed, 0 skipped** (Domain 10; Application 9;
-  Infrastructure integration 30; Architecture/localization 20; protocol 32; GitHub wrapper/harness 92, including the
+- `dotnet test Sushi81.Pos.sln -c Release --no-build`: **195 passed, 0 failed, 0 skipped** (Domain 10; Application 9;
+  Infrastructure integration 30; Architecture/localization 22; protocol 32; GitHub wrapper/harness 92, including the
   solution's existing wrapper test project instance).
 - `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true
   -p:PublishSingleFile=false`: passed; output remains under the ignored Desktop publish directory.
@@ -320,8 +320,11 @@ across language/refresh, deterministic missing-category fallback, and no-selecti
 `M03-MANUAL-UI-CATEGORY-BINDING-FIX-04` remediation replaces object-instance category selection with the stable
 `SelectedCategoryId`/`SelectedValuePath="Id"` binding shape, tolerates transient null writes during collection replacement, and
 adds binding-facing regressions for empty-state All selection, localized label replacement, real-category preservation and
-removal fallback. M03 remains Partial solely because the operator's full Windows/WPF checklist must be rerun after this fix.
-M04 is not started and is not authorized.
+removal fallback. The `M03-MANUAL-UI-STATUS-BINDING-FIX-05` remediation applies the same stable-key approach to status filters:
+`SelectedStatusKey`/`SelectedValuePath="Key"` preserves All/Active/Inactive through localized collection replacement, ignores
+transient null writes while empty, and deterministically falls back to All. Binding-facing tests cover All round trips plus
+Active/Inactive localization and refresh preservation. M03 remains Partial solely because the operator's full Windows/WPF
+checklist must be rerun after this fix. M04 is not started and is not authorized.
 
 ### Acceptance mapping and remaining checks
 
@@ -333,10 +336,10 @@ M04 is not started and is not authorized.
 - **Partial by design:** AC-CAT-001 awaits interactive catalogue-screen verification; AC-CAT-003 current-product
   maintenance is implemented, while historical-order independence remains the M04 snapshot regression; AC-ORD-011
   pricing-consumer integration is re-exercised by M04.
-- **Manual Windows/WPF verification:** not performed after `M03-MANUAL-UI-CATEGORY-BINDING-FIX-04` in this non-interactive
+- **Manual Windows/WPF verification:** not performed after `M03-MANUAL-UI-STATUS-BINDING-FIX-05` in this non-interactive
   automation run. The operator must launch the newly published self-contained artifact and rerun the M03 checklist (including
-  visual `Tous`/`全部` category All selection on first render, French/Chinese switch, category/product/group/option CRUD and
-  ordering, activation/deletion/code reuse, settings restart round-trip, and confirmation that no future features appear).
-  This is intentionally not marked Passed.
+  visual `Tous`/`全部` category and status All selections on first render, both language-switch directions, category/product/
+  group/option CRUD and ordering, activation/deletion/code reuse, settings restart round-trip, and confirmation that no future
+  features appear). This is intentionally not marked Passed.
 - **M04:** not started and not authorized by this handoff. **Blockers:** none for the automated M03 implementation; only
   the explicitly outstanding manual WPF acceptance remains.
