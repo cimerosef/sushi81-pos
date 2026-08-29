@@ -78,8 +78,8 @@ After v4 cleanup, A exact-target acquisition returned `code=target-acquired`, `a
 
 - Branch: `codex/m02-directed-handoff-revalidation`
 - Correction-pass implementation head: `edc7fdc5ccdd75f8d97f9cb0d6c2bb239a95dea8` (recovery-hardening code/tests).
-- Current documentation-preparation head: `da30ad7ae1961f8bb6a05e4dd537b473d742c461`.
-- Current CI status: GitHub Actions Continuous integration run `#104` succeeded for `da30ad7`; restore, build and test steps completed on `windows-latest`.
+- Evidence-closure documentation head: `b78fd34465f8ae49df52c43e2428eea3337512fb`.
+- Current CI status: local restore/build/test/publish verification is complete; the GitHub Actions check for this pushed head is awaiting connector exposure.
 - PR: [#3](https://github.com/cimerosef/sushi81-pos/pull/3), open and not merged.
 - Original feasibility evidence remains in `docs/implementation/milestone-02-feasibility-report.md`; it is not rewritten here.
 - Amended sources: `docs/decisions/target-directed-authority-handoff.md`, `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`, and `docs/implementation-plan.md`.
@@ -360,7 +360,7 @@ If any command reports a mismatched identity, stale/replayed version, unexpected
 
 Verification was run on Windows 10.0.26200 x64 with .NET SDK 10.0.400 (runtime 10.0.11). Exact package versions are `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0, `MSTest` 4.0.2 and Windows SDK projection `10.0.26100.87`. `dotnet restore Sushi81.Pos.sln` passed with the approved network escalation; `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings and 0 errors; `dotnet test Sushi81.Pos.sln -c Release --no-build` passed 153, 0 failed and 0 skipped (Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, GitHub wrapper/harness 92); the required self-contained `win-x64` publish with `PublishSingleFile=false` passed. The preceding automated verification is synthetic/fake-HTTP; the real private-repository run is recorded in the operator-evidence section above.
 
-GitHub Actions Continuous integration run `#104` is green for the current documentation-preparation head `da30ad7ae1961f8bb6a05e4dd537b473d742c461`; the PR checks remain the authoritative per-head CI record.
+GitHub Actions Continuous integration remains the authoritative per-head CI record. The closure head `b78fd34465f8ae49df52c43e2428eea3337512fb` was pushed successfully; at the time of this update its run number/conclusion was not yet exposed by the connected checks API.
 
 Final implementation tree is limited to the M02 harness and evidence: `tools/Sushi81.Pos.OneDriveFeasibility` (Cloud Files historical observation, centralized device-local lifecycle authority gate, persistent authority cursor, durable source/target stores, marker/snapshot validation, direct `HttpClient` GitHub Release Asset transport, grant schema, source/target GitHub coordinators, release-wide newest-three retention and directed CLI including promotion/restart); `tools/Sushi81.Pos.OneDriveFeasibility.Tests` (92 directed durable/source/target/lifecycle/diagnostic/GitHub wrapper and transport tests, including strict receipt, token redaction, source ordering, exact target, continuous A→B→A→B→A→B lifecycle, upload-retry, exact-ID starter recovery, crash-atomic artifacts, strict grant validation, download-integrity and retention reconvergence tests); `tests/Sushi81.Pos.OneDriveFeasibility.Tests` (32 pure protocol tests); unchanged M01/product projects under `src/` and their existing test projects; and the M02 evidence/status documents. No Catalogue, BusinessSettings, Order, Cart, Payment, pricing/VAT, printing, export, Hiboutik, pairing, disaster-recovery, archive, installer or legacy emergency-model code was added.
 
