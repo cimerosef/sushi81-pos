@@ -97,3 +97,84 @@ Do not add a paid service or dependency that creates recurring operational cost 
 Implement the requested milestone only. Do not add speculative product features merely because they seem useful.
 
 Do not reintroduce superseded complexity, especially the former Hiboutik emergency-order UI/original-total/discrepancy/reconciliation model. Hiboutik paste-created orders use the normal order model plus only the hidden anti-double-counting source discriminator defined by the frozen specification.
+
+## ChatGPT ↔ Codex collaboration handoff protocol v2
+
+This section is the durable collaboration protocol for implementation/review relay between the ChatGPT project lead and Codex. It **supersedes the earlier browser-polling rule** in which one long-running Codex task repeatedly opened the ChatGPT conversation and waited for a new marker.
+
+### Durable mailbox
+
+The active GitHub implementation pull request is the durable inter-agent mailbox.
+
+- GitHub PR comments are the authoritative relay channel between ChatGPT and Codex.
+- ChatGPT browser access may be used as a convenience/fast notification path, but it is not the durable source of relay state.
+- A Codex run must not remain alive merely to poll a ChatGPT browser tab.
+- Ending one Codex run must not be interpreted as cancelling the recurring relay automation.
+
+### ChatGPT → Codex handoff
+
+When ChatGPT has completed review/design work, no user decision is required, and Codex should execute the next task, ChatGPT must:
+
+1. leave a top-level comment on the active implementation PR containing a unique marker:
+
+   `CODEX_HANDOFF_READY: <unique-id>`
+
+2. include the complete executable Codex instruction in that same PR comment, or an unambiguous pointer to an authoritative committed implementation contract;
+3. optionally repeat the same marker at the end of the ChatGPT conversation response for human visibility.
+
+Every handoff ID is single-use. Codex must never process the same `CODEX_HANDOFF_READY` ID twice.
+
+### Codex recurring wake-up behavior
+
+Codex should use a recurring Thread Automation / Scheduled Task, when available, to wake periodically and inspect the active PR rather than keeping one task alive in a browser-polling loop.
+
+Recommended default cadence during active implementation is approximately 5 minutes unless the operator chooses another cadence.
+
+On each automation wake-up:
+
+1. inspect the active Sushi81 POS implementation PR comments;
+2. find the newest `CODEX_HANDOFF_READY: <id>` that has not already been completed;
+3. if none exists, make no repository changes and end that automation run normally;
+4. if a new handoff exists, execute only the associated authorized task;
+5. never infer a new milestone or continue work merely because the automation woke up.
+
+The recurring automation itself may continue to exist after an individual run ends. A no-work run should end quickly rather than sleeping/polling inside the same run.
+
+### Codex → ChatGPT completion
+
+After completing an authorized handoff, Codex must:
+
+1. push the implementation/evidence to the authorized branch/PR;
+2. leave a top-level comment on the same PR beginning with:
+
+   `CODEX_DONE: <same-id>`
+
+3. include at least the implementation/pushed SHA, tests/build/CI status, gate status, and any blocker or unresolved finding;
+4. stop implementation and wait for the next distinct `CODEX_HANDOFF_READY` ID unless the current task contract explicitly authorizes another step.
+
+Codex may additionally send the same `CODEX_DONE` message through the ChatGPT browser as a convenience notification, but the PR comment is the durable completion record.
+
+### User-decision stop state
+
+When ChatGPT requires a business/product/architecture decision or other explicit user intervention, ChatGPT will begin its user-facing response with:
+
+`🔔 USER_ACTION_REQUIRED: <short description>`
+
+During that stop state:
+
+- ChatGPT must not issue a new `CODEX_HANDOFF_READY` marker;
+- Codex automation wake-ups must make no changes and end normally if there is no new handoff marker;
+- Codex must not guess the user's decision, start another milestone, or continue implementation speculatively;
+- after the user decides, ChatGPT updates authoritative documentation if needed and only then issues a new unique handoff marker when Codex work is appropriate.
+
+### Long human delays
+
+For known multi-hour/manual waits (for example real-device testing at another location), there is no requirement to keep a Codex browser session or long-running task alive. The recurring automation may be paused by the operator or left at a low-cost cadence. The durable PR mailbox preserves the relay state.
+
+### Safety and governance
+
+- A relay marker authorizes only the task attached to that marker; it never authorizes PR merge by itself.
+- Existing milestone merge gates and explicit user-approval requirements remain unchanged.
+- Codex must not merge an implementation PR unless the user has explicitly approved the merge under the project process.
+- Codex must not start the next milestone merely because the current implementation completed.
+- If a PR comment conflicts with approved GitHub specification, approved specification wins and the conflict must be surfaced.
