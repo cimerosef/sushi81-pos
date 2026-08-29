@@ -39,12 +39,16 @@ public sealed class GitHubHandoffRetention(IGitHubHandoffTransport transport, st
                 var units = await EnumerateCompleteUnitsAsync(release, cancellationToken);
                 // Authority ordering is protocol metadata: active generation first,
                 // then monotonic handoff version. Filename timestamps never enter.
+                // Retention is release-wide: keep exactly the newest three
+                // complete handoff units, even when more than one lineage is
+                // present.  Protocol generation/version are authoritative;
+                // filename timestamps are only names and never ordering.
                 var keep = units
-                    .GroupBy(x => x.Grant.LineageId, StringComparer.Ordinal)
-                    .SelectMany(group => group
-                        .OrderByDescending(x => x.Grant.Generation)
-                        .ThenByDescending(x => x.Grant.HandoffVersion)
-                        .Skip(3))
+                    .OrderByDescending(x => x.Grant.Generation)
+                    .ThenByDescending(x => x.Grant.HandoffVersion)
+                    .ThenByDescending(x => x.Grant.GrantPublishedAtUtc)
+                    .ThenBy(x => x.Grant.TransferId, StringComparer.Ordinal)
+                    .Skip(3)
                     .Where(x => protectedAssetIds is null
                         || !protectedAssetIds.Contains(x.GrantAsset.Id)
                         && !protectedAssetIds.Contains(x.SnapshotAsset.Id))
@@ -69,7 +73,7 @@ public sealed class GitHubHandoffRetention(IGitHubHandoffTransport transport, st
             }
 
             await ClearPlanAsync(cancellationToken);
-            return new(true, deleted, "Retention cleanup retained the newest three complete units per lineage and is idempotently complete.");
+            return new(true, deleted, "Retention cleanup retained exactly the newest three complete handoff units and is idempotently complete.");
         }
         catch (Exception exception) when (exception is IOException or GitHubTransportException or HttpRequestException or TaskCanceledException)
         {

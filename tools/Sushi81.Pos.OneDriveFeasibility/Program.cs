@@ -102,7 +102,12 @@ internal static class Program
         using var transport = CreateGitHubTransport(args);
         var result = await new GitHubDirectedTargetCoordinator(stateDirectory, transport).AcquireAsync(transfer);
         var targetPath = Path.Combine(stateDirectory, "target-" + transfer.TargetDeviceId + ".json");
-        var mayWrite = result.Succeeded && File.Exists(targetPath) && new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(targetPath), transfer.TargetDeviceId, [transfer.SourceDeviceId, transfer.TargetDeviceId]).MayBusinessWrite(transfer);
+        var localSourceStore = new DurableAuthorityStateStore(Path.Combine(stateDirectory, "source-authority.json"));
+        var mayWrite = result.Succeeded && File.Exists(targetPath) && new DirectedTargetAcquisitionCoordinator(
+            new DurableTargetAcquisitionStore(targetPath),
+            transfer.TargetDeviceId,
+            [transfer.SourceDeviceId, transfer.TargetDeviceId],
+            sourceStateStore: localSourceStore).MayBusinessWrite(transfer);
         return new CommandResult(result.Succeeded && mayWrite, result.Succeeded && !mayWrite ? "target-write-gate-failed" : result.Code, result.Succeeded && !mayWrite ? "GitHub target acquisition persisted but the reconstructed write gate remains fail-closed." : result.Message, new { transfer, stateDirectory, acquisitionSucceeded = result.Succeeded, mayBusinessWrite = mayWrite, targetState = File.Exists(targetPath) ? new DurableTargetAcquisitionStore(targetPath).Load() : null });
     }
 
