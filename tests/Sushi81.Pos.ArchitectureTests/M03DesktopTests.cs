@@ -303,6 +303,38 @@ public sealed class M03DesktopTests
         foreach (var key in required) { Assert.IsTrue(fr.Localized.ContainsKey(key)); Assert.IsTrue(zh.Localized.ContainsKey(key)); }
     }
 
+    [TestMethod]
+    public void CategoryManagerLayoutUsesContentSizedEditorAndActionRows()
+    {
+        var sourcePath = Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml.cs");
+        var source = File.ReadAllText(sourcePath);
+        var start = source.IndexOf("private sealed class CategoryManagerDialog", StringComparison.Ordinal);
+        var end = source.IndexOf("private sealed class ProductEditorDialog", start, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, start);
+        Assert.IsGreaterThan(start, end);
+
+        var dialog = source[start..end];
+        StringAssert.Contains(dialog, "var root = new Grid");
+        StringAssert.Contains(dialog, "GridUnitType.Star");
+        Assert.IsGreaterThanOrEqualTo(4, dialog.Split("Height = GridLength.Auto", StringSplitOptions.None).Length - 1);
+        StringAssert.Contains(dialog, "var buttons = new WrapPanel");
+        StringAssert.Contains(dialog, "VerticalAlignment = VerticalAlignment.Top");
+        StringAssert.Contains(dialog, "MinWidth = 172");
+        Assert.IsFalse(dialog.Contains("new DockPanel", StringComparison.Ordinal));
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Sushi81.Pos.sln"))) return directory.FullName;
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Repository root was not found.");
+    }
+
     private sealed class FakeCatalogueStore(CategorySummary? category = null) : ICatalogueStore
     {
         private readonly CategorySummary? category = category;

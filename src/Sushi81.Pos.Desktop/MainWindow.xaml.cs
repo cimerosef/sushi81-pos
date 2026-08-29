@@ -129,20 +129,25 @@ public partial class MainWindow : Window
         public CategoryManagerDialog(Window owner, M03ShellViewModel admin)
         {
             this.admin = admin; Owner = owner; Width = 440; Height = 460; WindowStartupLocation = WindowStartupLocation.CenterOwner; Title = LocalizedText(owner, "ManageCategories", "Categories");
-            var root = new DockPanel { Margin = new Thickness(14) };
-            list = new ListBox { ItemsSource = admin.Categories, DisplayMemberPath = "Name", Height = 220 };
+            var root = new Grid { Margin = new Thickness(14) };
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 120 });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            list = new ListBox { ItemsSource = admin.Categories, DisplayMemberPath = "Name", MinHeight = 120, VerticalAlignment = VerticalAlignment.Stretch };
             list.SelectionChanged += (_, _) => { if (!edit.IsEditing && list.SelectedItem is CategorySummary category) name.Text = category.Name; };
-            DockPanel.SetDock(list, Dock.Top); root.Children.Add(list);
-            var heading = new TextBlock { Text = LocalizedText(owner, "CategoryEdit", "Category edit"), Margin = new Thickness(0, 10, 0, 2) }; DockPanel.SetDock(heading, Dock.Top); root.Children.Add(heading);
-            name = new TextBox { Margin = new Thickness(0, 0, 0, 4) }; name.TextChanged += (_, _) => validation.Text = string.Empty; DockPanel.SetDock(name, Dock.Top); root.Children.Add(name);
-            validation = new TextBlock { Foreground = System.Windows.Media.Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }; DockPanel.SetDock(validation, Dock.Top); root.Children.Add(validation);
-            var buttons = new StackPanel { Orientation = Orientation.Horizontal };
-            var create = new Button { Content = LocalizedText(owner, "CreateCategory", "New"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 0) }; create.Click += (_, _) => { edit.BeginCreate(); name.Clear(); validation.Text = string.Empty; UpdateButtons(); };
-            var rename = new Button { Content = LocalizedText(owner, "RenameCategory", "Rename"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 0) }; rename.Click += (_, _) => { if (list.SelectedItem is CategorySummary category) { edit.BeginRename(category.Id, category.Name); name.Text = category.Name; validation.Text = string.Empty; UpdateButtons(); } };
-            save = new Button { Content = LocalizedText(owner, "Save", "Save"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 0), IsEnabled = false }; save.Click += Save;
-            cancel = new Button { Content = LocalizedText(owner, "CategoryEditCancel", "Cancel"), Padding = new Thickness(10, 4, 10, 4), IsEnabled = false }; cancel.Click += (_, _) => { edit.Cancel(); name.Clear(); validation.Text = string.Empty; UpdateButtons(); };
-            var close = new Button { Content = LocalizedText(owner, "Close", "Close"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(6, 0, 0, 0) }; close.Click += (_, _) => { closeAllowed = true; DialogResult = true; Close(); };
-            buttons.Children.Add(create); buttons.Children.Add(rename); buttons.Children.Add(save); buttons.Children.Add(cancel); buttons.Children.Add(close); root.Children.Add(buttons); Content = root;
+            Grid.SetRow(list, 0); root.Children.Add(list);
+            var heading = new TextBlock { Text = LocalizedText(owner, "CategoryEdit", "Category edit"), Margin = new Thickness(0, 10, 0, 2) }; Grid.SetRow(heading, 1); root.Children.Add(heading);
+            name = new TextBox { Margin = new Thickness(0, 0, 0, 4) }; name.TextChanged += (_, _) => validation.Text = string.Empty; Grid.SetRow(name, 2); root.Children.Add(name);
+            validation = new TextBlock { Foreground = System.Windows.Media.Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }; Grid.SetRow(validation, 3); root.Children.Add(validation);
+            var buttons = new WrapPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Top };
+            var create = new Button { Content = LocalizedText(owner, "CreateCategory", "New"), MinWidth = 84, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; create.Click += (_, _) => { edit.BeginCreate(); name.Clear(); validation.Text = string.Empty; UpdateButtons(); };
+            var rename = new Button { Content = LocalizedText(owner, "RenameCategory", "Rename"), MinWidth = 96, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; rename.Click += (_, _) => { if (list.SelectedItem is CategorySummary category) { edit.BeginRename(category.Id, category.Name); name.Text = category.Name; validation.Text = string.Empty; UpdateButtons(); } };
+            save = new Button { Content = LocalizedText(owner, "Save", "Save"), MinWidth = 112, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; save.Click += Save;
+            cancel = new Button { Content = LocalizedText(owner, "CategoryEditCancel", "Cancel"), MinWidth = 172, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; cancel.Click += (_, _) => { edit.Cancel(); name.Clear(); validation.Text = string.Empty; UpdateButtons(); };
+            var close = new Button { Content = LocalizedText(owner, "Close", "Close"), MinWidth = 84, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; close.Click += (_, _) => { closeAllowed = true; DialogResult = true; Close(); };
+            buttons.Children.Add(create); buttons.Children.Add(rename); buttons.Children.Add(save); buttons.Children.Add(cancel); buttons.Children.Add(close); Grid.SetRow(buttons, 4); root.Children.Add(buttons); Content = root;
             Closing += (_, _) => { if (!closeAllowed && edit.IsEditing) edit.Cancel(); };
         }
 

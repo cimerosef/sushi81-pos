@@ -23,8 +23,8 @@ Authorization: `milestone-03-authorization.md`.
 
 - .NET SDK 10.0.400, Windows x64.
 - Release restore/build passed (0 warnings, 0 errors).
-- Release solution tests: **196 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
-  Architecture/localization 23, OneDrive protocol 32, and GitHub wrapper/harness 92.
+- Release solution tests: **197 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
+  Architecture/localization 24, OneDrive protocol 32, and GitHub wrapper/harness 92.
 - Self-contained `win-x64` publish passed with `PublishSingleFile=false`.
 - Post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run
   **#133** (success). The follow-up filter-state remediation head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` passed
@@ -33,7 +33,9 @@ Authorization: `milestone-03-authorization.md`.
   is recorded in the matching PR completion evidence. The status binding remediation head
   `e56ec77b4d13898c40d57be600652309d77938df` passed local Release verification; its CI result is recorded in the matching
   PR completion evidence. The status lifecycle remediation head `a3bab3de2b43e14a415f4251ab1b6dd77cf61aa0` passed local
-  Release verification; its CI result is recorded in the matching PR completion evidence.
+  Release verification; its CI result is recorded in the matching PR completion evidence. The category-manager layout
+  remediation in the final evidence head also passed local Release verification; its final CI result is recorded in the
+  matching PR completion evidence.
 
 ## Remediation handoff `M03-REVIEW-FIX-02`
 
@@ -100,11 +102,24 @@ three option objects, verifies identity/position and labels across fr/zh localiz
 semantic selection preservation plus invalid/null fallback. M03 remains Partial pending the operator rerun of the full WPF
 checklist after this fix.
 
+## Manual-test remediation handoff `M03-MANUAL-UI-CATEGORY-LAYOUT-FIX-07`
+
+The operator's post-lifecycle WPF pass confirmed the filter round-trip, then exposed a category-manager layout defect: the
+previous `DockPanel` made its last child (the horizontal action area) fill all remaining height, and the default-stretching
+buttons became tall narrow blocks when the dialog was resized or maximized. The narrow remediation replaces that root with a
+five-row `Grid`: the category list alone uses the resizable star row, while the editor heading, text box, validation message and
+action area use content-sized `Auto` rows. The action area is a top-aligned `WrapPanel` with explicit minimum button sizes so
+French and Chinese labels remain readable and wrap naturally at the default dialog width or when resized. Category Create,
+Rename, Save, Cancel, close-safety and localization semantics are unchanged. A deterministic desktop structural regression
+asserts the star/Auto row contract, content-sized action panel, non-stretching alignment and removal of the old DockPanel root.
+M03 remains Partial pending the operator rerun of the category-manager checklist and the remaining manual WPF checks.
+
 ## Outstanding
 
 - Operator must rerun the manual M03 Windows/WPF checklist from the contract against the newly published artifact, including
   visual confirmation that both category and status ComboBoxes show `Tous`/`全部` on first render and remain selected through
-  either language-switch direction and refresh. This run did not claim interactive verification after the lifecycle binding fix.
+  either language-switch direction and refresh, plus the category-manager resize/maximize layout and readable French/Chinese
+  action buttons. This run did not claim interactive verification after the category layout fix.
 - AC-CAT-003 historical-order independence and pricing-consumer cross-check in AC-ORD-011 remain intentionally
   deferred to M04, which is not started or authorized.
 
