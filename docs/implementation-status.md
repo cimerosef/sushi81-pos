@@ -278,6 +278,7 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 **Milestone:** M03 — Catalogue and business settings
 **Implementation branch:** `codex/m03-catalogue-settings`
 **Handoff authorization:** `CODEX_HANDOFF_READY: M03-IMPLEMENT-01` on the active M03 implementation PR
+**Implementation/evidence commits:** `466dd06e5f9e7d1e2ea7d75b8a02d14d5f569a64`, `5a36bf9e6e656db842c4bebc464289ade3e1b436`, `80647b131d7a52b410675ba2802d68be29f3d891`
 **Status:** Partial pending the operator's interactive Windows/WPF checklist; no automated blocker remains.
 
 ### Delivered scope
