@@ -98,7 +98,7 @@ Implement the requested milestone only. Do not add speculative product features 
 
 Do not reintroduce superseded complexity, especially the former Hiboutik emergency-order UI/original-total/discrepancy/reconciliation model. Hiboutik paste-created orders use the normal order model plus only the hidden anti-double-counting source discriminator defined by the frozen specification.
 
-## ChatGPT ↔ Codex collaboration handoff protocol v2
+## ChatGPT ↔ Codex collaboration handoff protocol v2.1
 
 This section is the durable collaboration protocol for implementation/review relay between the ChatGPT project lead and Codex. It **supersedes the earlier browser-polling rule** in which one long-running Codex task repeatedly opened the ChatGPT conversation and waited for a new marker.
 
@@ -110,6 +110,23 @@ The active GitHub implementation pull request is the durable inter-agent mailbox
 - ChatGPT browser access may be used as a convenience/fast notification path, but it is not the durable source of relay state.
 - A Codex run must not remain alive merely to poll a ChatGPT browser tab.
 - Ending one Codex run must not be interpreted as cancelling the recurring relay automation.
+
+### Codex Execution Gate — daily master switch
+
+GitHub issue **#4 — `Codex execution gate — Sushi81 POS`** is the single daily execution switch for the recurring Codex mailbox automation.
+
+Its issue state has exactly this meaning:
+
+- **OPEN = Codex execution ACTIVE.**
+- **CLOSED = Codex execution PAUSED.**
+
+This gate controls **Codex execution only**. It does not restrict ChatGPT discussion, specification work, code review, GitHub documentation updates, or publication of future handoff tasks.
+
+Therefore ChatGPT may continue to publish new `CODEX_HANDOFF_READY: <id>` tasks while issue #4 is closed. Those tasks remain queued in GitHub and must not be executed until the gate is reopened.
+
+Closing issue #4 is not an interrupt mechanism. If Codex is already executing an authorized handoff when the gate is closed, that already-running task should finish safely, push its work and publish its matching `CODEX_DONE`; no additional queued handoff may start afterward. Emergency cancellation of an already-running task is a separate explicit manual action.
+
+Reopening issue #4 resumes queued work. Queued handoffs must be processed **serially in publication order, oldest unprocessed first**, never concurrently and never newest-first.
 
 ### ChatGPT → Codex handoff
 
@@ -124,21 +141,25 @@ When ChatGPT has completed review/design work, no user decision is required, and
 
 Every handoff ID is single-use. Codex must never process the same `CODEX_HANDOFF_READY` ID twice.
 
+The Execution Gate does not prevent ChatGPT from publishing handoffs. A handoff published while issue #4 is closed is queued, not cancelled.
+
 ### Codex recurring wake-up behavior
 
-Codex should use a recurring Thread Automation / Scheduled Task, when available, to wake periodically and inspect the active PR rather than keeping one task alive in a browser-polling loop.
+Codex should use a recurring Thread Automation / Scheduled Task, when available, to wake periodically and inspect GitHub rather than keeping one task alive in a browser-polling loop.
 
-Recommended default cadence during active implementation is approximately 5 minutes unless the operator chooses another cadence.
+Recommended default cadence is approximately 5 minutes unless the operator chooses another cadence.
 
-On each automation wake-up:
+On each automation wake-up, Codex must perform these checks in order:
 
-1. inspect the active Sushi81 POS implementation PR comments;
-2. find the newest `CODEX_HANDOFF_READY: <id>` that has not already been completed;
-3. if none exists, make no repository changes and end that automation run normally;
-4. if a new handoff exists, execute only the associated authorized task;
-5. never infer a new milestone or continue work merely because the automation woke up.
+1. read GitHub issue #4;
+2. if issue #4 is **CLOSED**, make no repository/project changes and end that automation run immediately;
+3. if issue #4 is **OPEN**, inspect the active Sushi81 POS implementation PR comments;
+4. find the **oldest** `CODEX_HANDOFF_READY: <id>` that has not already been completed by a matching `CODEX_DONE: <id>`;
+5. if none exists, make no repository changes and end that automation run normally;
+6. if a handoff exists, execute only that one associated authorized task;
+7. never infer a new milestone or continue work merely because the automation woke up.
 
-The recurring automation itself may continue to exist after an individual run ends. A no-work run should end quickly rather than sleeping/polling inside the same run.
+The recurring automation itself remains enabled after an individual run ends. A no-work or gate-closed run should end quickly rather than sleeping/polling inside the same run.
 
 ### Codex → ChatGPT completion
 
@@ -150,9 +171,11 @@ After completing an authorized handoff, Codex must:
    `CODEX_DONE: <same-id>`
 
 3. include at least the implementation/pushed SHA, tests/build/CI status, gate status, and any blocker or unresolved finding;
-4. stop implementation and wait for the next distinct `CODEX_HANDOFF_READY` ID unless the current task contract explicitly authorizes another step.
+4. stop implementation and wait for the next distinct handoff unless the current task contract explicitly authorizes another step.
 
-Codex may additionally send the same `CODEX_DONE` message through the ChatGPT browser as a convenience notification, but the PR comment is the durable completion record.
+After the durable GitHub `CODEX_DONE` comment exists, Codex should make a **best-effort** notification through the already-open Sushi81 POS ChatGPT browser conversation when that browser session is available. The convenience message should contain only the same handoff ID plus a short request to review the corresponding PR/evidence. It must not include secrets, tokens, large logs or code dumps.
+
+Failure of the browser notification does not make the implementation fail and does not authorize re-execution of the handoff. GitHub remains the durable completion record. A later recurring wake-up may retry the convenience notification if the automation can distinguish that the same handoff has already been implemented; it must never implement the handoff twice.
 
 ### User-decision stop state
 
@@ -162,14 +185,16 @@ When ChatGPT requires a business/product/architecture decision or other explicit
 
 During that stop state:
 
-- ChatGPT must not issue a new `CODEX_HANDOFF_READY` marker;
-- Codex automation wake-ups must make no changes and end normally if there is no new handoff marker;
+- ChatGPT must not issue a new Codex implementation handoff that depends on the unresolved user decision;
+- unrelated already-approved handoffs may still exist in the mailbox and are governed by issue #4;
 - Codex must not guess the user's decision, start another milestone, or continue implementation speculatively;
 - after the user decides, ChatGPT updates authoritative documentation if needed and only then issues a new unique handoff marker when Codex work is appropriate.
 
 ### Long human delays
 
-For known multi-hour/manual waits (for example real-device testing at another location), there is no requirement to keep a Codex browser session or long-running task alive. The recurring automation may be paused by the operator or left at a low-cost cadence. The durable PR mailbox preserves the relay state.
+For known multi-hour/manual waits (for example real-device testing at another location), there is no requirement to keep a Codex browser session or long-running task alive.
+
+The operator may simply close issue #4 to pause new Codex execution and reopen it later. ChatGPT may continue discussion and may queue future handoffs while the gate is closed. The durable PR mailbox preserves all relay state.
 
 ### Safety and governance
 
