@@ -23,12 +23,14 @@ Authorization: `milestone-03-authorization.md`.
 
 - .NET SDK 10.0.400, Windows x64.
 - Release restore/build passed (0 warnings, 0 errors).
-- Release solution tests: **191 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
-  Architecture/localization 18, OneDrive protocol 32, and GitHub wrapper/harness 92.
+- Release solution tests: **193 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
+  Architecture/localization 20, OneDrive protocol 32, and GitHub wrapper/harness 92.
 - Self-contained `win-x64` publish passed with `PublishSingleFile=false`.
 - Post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run
   **#133** (success). The follow-up filter-state remediation head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` passed
-  Continuous integration run **#137** (success; check URL is recorded in the PR completion evidence).
+  Continuous integration run **#137** (success; check URL is recorded in the PR completion evidence). The category
+  binding remediation head `1053c9b210cac15343959aac8f9ffa2c13ccd9b8` passed local Release verification; its CI result
+  is recorded in the matching PR completion evidence.
 
 ## Remediation handoff `M03-REVIEW-FIX-02`
 
@@ -63,10 +65,23 @@ category disappears, and binds Edit/Delete to the same selected-product capabili
 regressions cover French/zh-CN round trips, Active/Inactive preservation, category identity preservation, refresh/fallback and
 no-selection action state. M03 remains Partial pending resumption and completion of the full operator checklist.
 
+## Manual-test remediation handoff `M03-MANUAL-UI-CATEGORY-BINDING-FIX-04`
+
+The operator's resumed Windows/WPF pass confirmed that the persisted Chinese language and status filter were correct, but the
+category ComboBox still rendered blank on first display of an empty catalogue. The root cause was binding the rebuilt
+`CategoryFilters` collection through object-instance `SelectedItem` identity while WPF transiently cleared selection during
+collection replacement. The narrow remediation exposes the stable semantic `SelectedCategoryId` key (with `Guid.Empty` for the
+localized All item), binds the ComboBox through `SelectedValuePath="Id"`, and preserves the key through localization, refresh and
+missing-category fallback. The setter tolerates transient null writes while the collection is empty and deterministically falls
+back to All once the rebuilt collection is available. Two desktop regressions exercise this binding-facing property shape for
+fresh empty state, FR/zh-CN All-label replacement, real-category persistence and removal fallback; existing status-filter and
+no-selection action tests remain green. M03 remains Partial pending the operator rerun of the full WPF checklist after this fix.
+
 ## Outstanding
 
-- Operator must run the manual M03 Windows/WPF checklist from the contract against the published artifact. This run did
-  not claim interactive verification.
+- Operator must rerun the manual M03 Windows/WPF checklist from the contract against the newly published artifact, including
+  visual confirmation that the category ComboBox shows `Tous`/`全部` on first render and remains selected through language
+  switch and refresh. This run did not claim interactive verification after the binding fix.
 - AC-CAT-003 historical-order independence and pricing-consumer cross-check in AC-ORD-011 remain intentionally
   deferred to M04, which is not started or authorized.
 
