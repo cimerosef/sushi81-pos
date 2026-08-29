@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Domain;
 using DomainSelectionMode = Sushi81.Pos.Domain.SelectionMode;
@@ -121,8 +122,11 @@ public partial class MainWindow : Window
         private readonly ListBox list = null!;
         private readonly TextBox name = null!;
         private readonly TextBlock validation = null!;
+        private readonly Button create = null!;
+        private readonly Button rename = null!;
         private readonly Button save = null!;
         private readonly Button cancel = null!;
+        private readonly Button close = null!;
         private readonly CategoryEditBuffer edit = new();
         private bool closeAllowed;
 
@@ -136,28 +140,45 @@ public partial class MainWindow : Window
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             list = new ListBox { ItemsSource = admin.Categories, DisplayMemberPath = "Name", MinHeight = 120, VerticalAlignment = VerticalAlignment.Stretch };
-            list.SelectionChanged += (_, _) => { if (!edit.IsEditing && list.SelectedItem is CategorySummary category) name.Text = category.Name; };
+            list.SelectionChanged += (_, _) => { if (!edit.IsEditing && list.SelectedItem is CategorySummary category) name.Text = category.Name; UpdateButtons(); };
             Grid.SetRow(list, 0); root.Children.Add(list);
             var heading = new TextBlock { Text = LocalizedText(owner, "CategoryEdit", "Category edit"), Margin = new Thickness(0, 10, 0, 2) }; Grid.SetRow(heading, 1); root.Children.Add(heading);
-            name = new TextBox { Margin = new Thickness(0, 0, 0, 4) }; name.TextChanged += (_, _) => validation.Text = string.Empty; Grid.SetRow(name, 2); root.Children.Add(name);
+            name = new TextBox { Margin = new Thickness(0, 0, 0, 4), IsEnabled = false }; name.TextChanged += (_, _) => validation.Text = string.Empty; Grid.SetRow(name, 2); root.Children.Add(name);
             validation = new TextBlock { Foreground = System.Windows.Media.Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }; Grid.SetRow(validation, 3); root.Children.Add(validation);
             var buttons = new WrapPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Top };
-            var create = new Button { Content = LocalizedText(owner, "CreateCategory", "New"), MinWidth = 84, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; create.Click += (_, _) => { edit.BeginCreate(); name.Clear(); validation.Text = string.Empty; UpdateButtons(); };
-            var rename = new Button { Content = LocalizedText(owner, "RenameCategory", "Rename"), MinWidth = 96, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; rename.Click += (_, _) => { if (list.SelectedItem is CategorySummary category) { edit.BeginRename(category.Id, category.Name); name.Text = category.Name; validation.Text = string.Empty; UpdateButtons(); } };
+            create = new Button { Content = LocalizedText(owner, "CreateCategory", "New"), MinWidth = 84, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; create.Click += (_, _) => { edit.BeginCreate(); name.IsEnabled = true; name.Clear(); validation.Text = string.Empty; UpdateButtons(); FocusName(selectAll: false); };
+            rename = new Button { Content = LocalizedText(owner, "RenameCategory", "Rename"), MinWidth = 96, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; rename.Click += (_, _) => { if (list.SelectedItem is CategorySummary category) { edit.BeginRename(category.Id, category.Name); name.IsEnabled = true; name.Text = category.Name; validation.Text = string.Empty; UpdateButtons(); FocusName(selectAll: true); } };
             save = new Button { Content = LocalizedText(owner, "Save", "Save"), MinWidth = 112, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; save.Click += Save;
             cancel = new Button { Content = LocalizedText(owner, "CategoryEditCancel", "Cancel"), MinWidth = 172, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; cancel.Click += (_, _) => { edit.Cancel(); name.Clear(); validation.Text = string.Empty; UpdateButtons(); };
-            var close = new Button { Content = LocalizedText(owner, "Close", "Close"), MinWidth = 84, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; close.Click += (_, _) => { closeAllowed = true; DialogResult = true; Close(); };
+            close = new Button { Content = LocalizedText(owner, "Close", "Close"), MinWidth = 84, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; close.Click += (_, _) => { closeAllowed = true; DialogResult = true; Close(); };
             buttons.Children.Add(create); buttons.Children.Add(rename); buttons.Children.Add(save); buttons.Children.Add(cancel); buttons.Children.Add(close); Grid.SetRow(buttons, 4); root.Children.Add(buttons); Content = root;
+            UpdateButtons();
             Closing += (_, _) => { if (!closeAllowed && edit.IsEditing) edit.Cancel(); };
         }
 
-        private void UpdateButtons() { save.IsEnabled = edit.IsEditing; cancel.IsEnabled = edit.IsEditing; }
+        private void UpdateButtons()
+        {
+            var editing = edit.IsEditing;
+            create.IsEnabled = edit.CanBeginEdit;
+            rename.IsEnabled = edit.CanBeginEdit && list.SelectedItem is CategorySummary;
+            name.IsEnabled = editing;
+            save.IsEnabled = edit.CanSave;
+            cancel.IsEnabled = edit.CanCancel;
+        }
+
+        private void FocusName(bool selectAll)
+        {
+            name.Focus();
+            Keyboard.Focus(name);
+            if (selectAll) name.SelectAll(); else name.CaretIndex = name.Text.Length;
+        }
+
         private async void Save(object sender, RoutedEventArgs e)
         {
             edit.SetName(name.Text);
             var result = edit.CategoryId is { } id ? await admin.RenameCategoryAsync(id, edit.Name) : await admin.CreateCategoryAsync(edit.Name);
             if (!result.Succeeded) { validation.Text = M03Presentation.FormatIssues(result, ((ShellViewModel)Owner.DataContext).Localized); return; }
-            await admin.RefreshAsync(); edit.Cancel(); name.Clear(); validation.Text = string.Empty; UpdateButtons();
+            await admin.RefreshAsync(); edit.CompleteSave(); name.Clear(); validation.Text = string.Empty; UpdateButtons(); list.Focus();
         }
     }
 

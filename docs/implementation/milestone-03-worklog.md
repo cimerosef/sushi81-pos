@@ -23,8 +23,8 @@ Authorization: `milestone-03-authorization.md`.
 
 - .NET SDK 10.0.400, Windows x64.
 - Release restore/build passed (0 warnings, 0 errors).
-- Release solution tests: **197 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
-  Architecture/localization 24, OneDrive protocol 32, and GitHub wrapper/harness 92.
+- Release solution tests: **198 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
+  Architecture/localization 25, OneDrive protocol 32, and GitHub wrapper/harness 92.
 - Self-contained `win-x64` publish passed with `PublishSingleFile=false`.
 - Post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run
   **#133** (success). The follow-up filter-state remediation head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` passed
@@ -113,6 +113,20 @@ French and Chinese labels remain readable and wrap naturally at the default dial
 Rename, Save, Cancel, close-safety and localization semantics are unchanged. A deterministic desktop structural regression
 asserts the star/Auto row contract, content-sized action panel, non-stretching alignment and removal of the old DockPanel root.
 M03 remains Partial pending the operator rerun of the category-manager checklist and the remaining manual WPF checks.
+
+## Manual-test remediation handoff `M03-MANUAL-UI-CATEGORY-CREATE-ACTION-FIX-08`
+
+The operator's next WPF checklist step showed no visible reaction when clicking `Créer`, even though the prior handler only
+flipped the edit buffer and toggled Save/Cancel. The interaction was not operationally clear because the editable name field
+did not receive focus, the edit field remained enabled outside edit mode, and Create/Rename stayed available to compete with an
+active edit. The narrow remediation now exposes actionable state on the pure `CategoryEditBuffer` (`CanBeginEdit`, `CanSave`,
+`CanCancel`, and explicit `CompleteSave`), disables the name field until Create/Rename begins an edit, focuses the field with a
+caret (or selects the existing name for Rename), enables Save/Cancel immediately, and disables Create/Rename while editing.
+Selection updates re-enable Rename only when a category is selected; Cancel and successful Save restore the non-edit state,
+refresh the catalogue, clear the field and return focus to the list. No keystroke persists data, no category-delete action was
+added, and close still abandons unpersisted edits. Deterministic presentation tests cover the create/rename/action-state
+lifecycle; the FIX-07 layout structural regression and existing business tests remain green. M03 remains Partial pending the
+operator rerun of category creation/rename and the remaining WPF checklist.
 
 ## Outstanding
 

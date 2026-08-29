@@ -286,6 +286,47 @@ public sealed class M03DesktopTests
     }
 
     [TestMethod]
+    public void CategoryEditBufferExposesClearCreateRenameActionLifecycle()
+    {
+        var edit = new CategoryEditBuffer();
+        Assert.IsTrue(edit.CanBeginEdit);
+        Assert.IsFalse(edit.CanSave);
+        Assert.IsFalse(edit.CanCancel);
+
+        edit.BeginCreate();
+        Assert.IsTrue(edit.IsEditing);
+        Assert.IsNull(edit.CategoryId);
+        Assert.AreEqual(string.Empty, edit.Name);
+        Assert.IsFalse(edit.CanBeginEdit);
+        Assert.IsTrue(edit.CanSave);
+        Assert.IsTrue(edit.CanCancel);
+
+        edit.SetName("Plats");
+        edit.Cancel();
+        Assert.IsFalse(edit.IsEditing);
+        Assert.IsTrue(edit.CanBeginEdit);
+        Assert.IsFalse(edit.CanSave);
+        Assert.IsFalse(edit.CanCancel);
+        Assert.AreEqual(string.Empty, edit.Name);
+
+        var categoryId = Guid.NewGuid();
+        edit.BeginRename(categoryId, "Desserts");
+        Assert.IsTrue(edit.IsEditing);
+        Assert.AreEqual(categoryId, edit.CategoryId);
+        Assert.AreEqual("Desserts", edit.Name);
+        Assert.IsFalse(edit.CanBeginEdit);
+        Assert.IsTrue(edit.CanSave);
+        Assert.IsTrue(edit.CanCancel);
+
+        edit.CompleteSave();
+        Assert.IsFalse(edit.IsEditing);
+        Assert.IsTrue(edit.CanBeginEdit);
+        Assert.IsFalse(edit.CanSave);
+        Assert.IsFalse(edit.CanCancel);
+        Assert.IsNull(edit.CategoryId);
+    }
+
+    [TestMethod]
     public void ProductEditCancelAndDirtyCloseStateAreExplicit()
     {
         var session = new ProductEditSession<string>("saved");

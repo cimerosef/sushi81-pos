@@ -113,11 +113,15 @@ public sealed class CategoryEditBuffer
     public Guid? CategoryId { get; private set; }
     public string Name { get; private set; } = string.Empty;
     public bool IsEditing => editing;
+    public bool CanBeginEdit => !editing;
+    public bool CanSave => editing;
+    public bool CanCancel => editing;
 
     public void BeginCreate() { editing = true; CategoryId = null; Name = string.Empty; }
     public void BeginRename(Guid id, string name) { editing = true; CategoryId = id; Name = name; }
     public void SetName(string? name) => Name = name ?? string.Empty;
-    public void Cancel() { editing = false; CategoryId = null; Name = string.Empty; }
+    public void CompleteSave() { editing = false; CategoryId = null; Name = string.Empty; }
+    public void Cancel() => CompleteSave();
 }
 
 /// <summary>Minimal state machine used by tests and dialogs to prevent silent dirty-edit loss.</summary>
