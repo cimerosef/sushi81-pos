@@ -299,7 +299,7 @@ public sealed class GitHubTransportTests
     [TestMethod]
     public async Task GrantUploadFailureAfterRelinquishmentIsRetryable()
     {
-        var transport = new FakeTransport { FailGrantUploadOnce = true };
+        var transport = new FakeTransport { GrantUploadFailuresRemaining = 2 };
         var directory = NewDirectory();
         var transfer = new DirectedTransferIdentity(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), 1, 1, "device-a", "device-b");
         var first = await new GitHubDirectedSourceCoordinator(directory, transport, () => new DateTimeOffset(2026, 8, 29, 12, 0, 10, TimeSpan.Zero)).RunAsync(transfer);
@@ -309,6 +309,7 @@ public sealed class GitHubTransportTests
         var retry = await new GitHubDirectedSourceCoordinator(directory, transport).RunAsync(transfer);
         Assert.IsTrue(retry.Succeeded, retry.Code + ": " + retry.Message);
         Assert.HasCount(2, transport.UploadedNames);
+        Assert.IsFalse(Directory.EnumerateFiles(directory, "*.tmp-*", SearchOption.TopDirectoryOnly).Any());
     }
 
     [TestMethod]
@@ -325,6 +326,35 @@ public sealed class GitHubTransportTests
         var retry = await new GitHubDirectedSourceCoordinator(directory, transport).RunAsync(transfer);
         Assert.IsTrue(retry.Succeeded, retry.Code + ": " + retry.Message);
         Assert.HasCount(2, transport.UploadedNames);
+        Assert.IsFalse(Directory.EnumerateFiles(directory, "*.tmp-*", SearchOption.TopDirectoryOnly).Any());
+    }
+
+    [TestMethod]
+    public async Task StarterAssetFrom502IsDeletedByExactIdAndUploadIsRetried()
+    {
+        var transport = new FakeTransport { FailGrantWithStarterOnce = true };
+        var directory = NewDirectory();
+        var transfer = new DirectedTransferIdentity(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), 1, 1, "device-a", "device-b");
+        var result = await new GitHubDirectedSourceCoordinator(directory, transport).RunAsync(transfer);
+        Assert.IsTrue(result.Succeeded, result.Code + ": " + result.Message);
+        Assert.HasCount(1, transport.DeletedAssetIds);
+        Assert.IsFalse((await transport.ListAssetsAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false))).Any(x => x.State == "starter"));
+        Assert.HasCount(2, transport.UploadedNames);
+    }
+
+    [TestMethod]
+    public async Task MalformedExistingGrantIsRejectedBeforeUpload()
+    {
+        var transport = new FakeTransport();
+        var directory = NewDirectory();
+        var transfer = new DirectedTransferIdentity(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), 1, 1, "device-a", "device-b");
+        var first = await new GitHubDirectedSourceCoordinator(directory, transport, stateFailureInjector: new ReleaseCommitFailureInjector()).RunAsync(transfer);
+        Assert.IsFalse(first.Succeeded);
+        var grantPath = Directory.EnumerateFiles(directory, "*.grant.json").Single();
+        await File.WriteAllTextAsync(grantPath, "{ malformed grant");
+        var retry = await new GitHubDirectedSourceCoordinator(directory, transport).RunAsync(transfer);
+        Assert.IsFalse(retry.Succeeded);
+        Assert.AreEqual("grant-file-invalid", retry.Code);
     }
 
     [TestMethod]
@@ -381,6 +411,21 @@ public sealed class GitHubTransportTests
         using var transport = new GitHubReleaseAssetTransport(new GitHubHandoffTransportOptions("acme", "handoff", ApiBaseUri: client.BaseAddress), client, "secret-token");
         var exception = await ExpectTransportFailureAsync(() => transport.UploadAssetAsync(new GitHubReleaseContainer(9, "tag", "https://uploads.example/assets", "", false, false), Path.GetFileName(path), path));
         Assert.AreEqual(HttpStatusCode.BadGateway, exception.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task RetentionReenumeratesAfterOldPlanCompletionWhenNewUnitArrives()
+    {
+        var transport = new FakeTransport { FailSnapshotDeletionOnce = true };
+        for (var version = 1; version <= 4; version++) await transport.SeedUnitAsync(version);
+        var planPath = Path.Combine(NewDirectory(), "retention-plan.json");
+        var retention = new GitHubHandoffRetention(transport, planPath);
+        var first = await retention.CleanupAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false));
+        Assert.IsFalse(first.Succeeded);
+        await transport.SeedUnitAsync(5);
+        var second = await retention.CleanupAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false));
+        Assert.IsTrue(second.Succeeded, second.Message);
+        Assert.HasCount(6, await transport.ListAssetsAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false)));
     }
 
     [TestMethod]
@@ -524,8 +569,11 @@ public sealed class GitHubTransportTests
         private readonly string lineageId = Guid.NewGuid().ToString();
         private long nextId = 100;
         public List<string> UploadedNames { get; } = [];
+        public List<long> DeletedAssetIds { get; } = [];
         public bool FailSnapshotDeletionOnce { get; set; }
         public bool FailGrantUploadOnce { get; set; }
+        public int GrantUploadFailuresRemaining { get; set; }
+        public bool FailGrantWithStarterOnce { get; set; }
         public void CorruptDigest(string name)
         {
             var item = assets.Values.FirstOrDefault(x => x.Asset.Name == name);
@@ -557,9 +605,19 @@ public sealed class GitHubTransportTests
         public Task<GitHubReleaseContainer> EnsureContainerAsync(bool createIfMissing, CancellationToken cancellationToken = default) => Task.FromResult(release);
         public async Task<GitHubAssetReceipt> UploadAssetAsync(GitHubReleaseContainer release, string name, string filePath, CancellationToken cancellationToken = default)
         {
-            if (GitHubSnapshotName.IsGrant(name) && FailGrantUploadOnce)
+            if (GitHubSnapshotName.IsGrant(name) && FailGrantWithStarterOnce)
+            {
+                FailGrantWithStarterOnce = false;
+                var starterBytes = await File.ReadAllBytesAsync(filePath, cancellationToken);
+                var starterDigest = "sha256:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(starterBytes)).ToLowerInvariant();
+                var starterId = ++nextId;
+                assets[starterId] = (new GitHubRemoteAsset(starterId, name, starterBytes.LongLength, "starter", starterDigest, "", DateTimeOffset.UtcNow), starterBytes);
+                throw new GitHubTransportException("synthetic upstream 502 left starter asset", HttpStatusCode.BadGateway);
+            }
+            if (GitHubSnapshotName.IsGrant(name) && (FailGrantUploadOnce || GrantUploadFailuresRemaining > 0))
             {
                 FailGrantUploadOnce = false;
+                if (GrantUploadFailuresRemaining > 0) GrantUploadFailuresRemaining--;
                 throw new GitHubTransportException("synthetic grant upload failure", HttpStatusCode.BadGateway);
             }
             var bytes = await File.ReadAllBytesAsync(filePath, cancellationToken); var id = ++nextId; var digest = "sha256:" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
@@ -580,7 +638,7 @@ public sealed class GitHubTransportTests
                 FailSnapshotDeletionOnce = false;
                 throw new GitHubTransportException("synthetic deletion failure", HttpStatusCode.BadGateway);
             }
-            assets.Remove(assetId); return Task.CompletedTask;
+            assets.Remove(assetId); DeletedAssetIds.Add(assetId); return Task.CompletedTask;
         }
 
         public async Task<DirectedTransferIdentity> SeedUnitAsync(long version, long generation = 1, string? lineage = null, string source = "a", string target = "b", string? timestamp = null)

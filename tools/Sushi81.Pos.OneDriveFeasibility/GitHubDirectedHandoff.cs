@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -8,6 +9,12 @@ namespace Sushi81.Pos.OneDriveFeasibility;
 public sealed class GitHubDirectedSourceCoordinator
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.General) { WriteIndented = true };
+    private static readonly JsonSerializerOptions GrantJsonOptions = new(JsonSerializerDefaults.General)
+    {
+        WriteIndented = true,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+        PropertyNameCaseInsensitive = false
+    };
     private readonly DurableAuthorityStateStore stateStore;
     private readonly DirectedHandoffCoordinator coordinator;
     private readonly IGitHubHandoffTransport transport;
@@ -112,9 +119,13 @@ public sealed class GitHubDirectedSourceCoordinator
         var grant = new GitHubHandoffGrant(1, transfer.TransferId, transfer.LineageId, transfer.Generation, transfer.HandoffVersion, transfer.SourceDeviceId, transfer.TargetDeviceId, snapshotReceipt.ReleaseId, snapshotReceipt.AssetId, snapshotReceipt.Name, snapshotReceipt.Size, snapshotReceipt.Digest[7..].ToLowerInvariant(), evidence.RemoteReceipt?.CreatedAtUtc ?? DateTimeOffset.UtcNow, state.UpdatedAtUtc, clock().ToUniversalTime());
         if (!File.Exists(grantPath))
         {
-            await using var stream = new FileStream(grantPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 4096, useAsync: true);
-            await JsonSerializer.SerializeAsync(stream, grant, JsonOptions, cancellationToken);
-            await stream.FlushAsync(cancellationToken); stream.Flush(true);
+            try { await WriteAtomicJsonAsync(grantPath, grant, GrantJsonOptions, cancellationToken); }
+            catch (IOException) when (File.Exists(grantPath)) { }
+        }
+        var persistedGrant = await ReadGrantAsync(grantPath, cancellationToken);
+        if (persistedGrant is null || !MatchesGrant(persistedGrant, grant))
+        {
+            return new(false, "grant-file-invalid", "The local grant artifact is malformed or does not match the immutable transfer; source remains blocked.", state);
         }
         var grantReceipt = state.GrantReceipt;
         if (grantReceipt is null)
@@ -161,41 +172,98 @@ public sealed class GitHubDirectedSourceCoordinator
         string path,
         CancellationToken cancellationToken)
     {
+        var bytes = await File.ReadAllBytesAsync(path, cancellationToken);
+        var digest = GitHubDigest.FromHex(Convert.ToHexString(SHA256.HashData(bytes)));
+        GitHubTransportException? lastFailure = null;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            try { return await transport.UploadAssetAsync(release, name, path, cancellationToken); }
+            catch (GitHubTransportException uploadFailure)
+            {
+                lastFailure = uploadFailure;
+                IReadOnlyList<GitHubRemoteAsset> assets;
+                try { assets = await transport.ListAssetsAsync(release, cancellationToken); }
+                catch (GitHubTransportException) { throw uploadFailure; }
+                var matches = assets.Where(asset => asset.Name.Equals(name, StringComparison.Ordinal)).ToArray();
+                var exact = matches.FirstOrDefault(asset => asset.IsComplete
+                    && asset.Size == bytes.LongLength
+                    && asset.Digest.Equals(digest, StringComparison.OrdinalIgnoreCase));
+                if (exact is { })
+                    return new GitHubAssetReceipt(release.Id, exact.Id, exact.Name, exact.Size, exact.Digest, exact.CreatedAtUtc);
+
+                var starters = matches.Where(asset => asset.State.Equals("starter", StringComparison.OrdinalIgnoreCase)).ToArray();
+                foreach (var starter in starters)
+                {
+                    try { await transport.DeleteAssetAsync(starter.Id, cancellationToken); }
+                    catch (GitHubTransportException deleteFailure) when (deleteFailure.StatusCode == HttpStatusCode.NotFound) { }
+                }
+
+                // A 502 may leave a starter asset behind; delete only those
+                // exact IDs and retry once. Other failures remain fail-closed
+                // unless an exact complete asset was already acknowledged.
+                if (starters.Length == 0 && uploadFailure.StatusCode is not HttpStatusCode.BadGateway and not HttpStatusCode.GatewayTimeout)
+                    throw;
+                if (attempt == 1) throw;
+            }
+        }
+
+        throw lastFailure ?? new GitHubTransportException("GitHub asset upload did not complete.");
+    }
+
+    private static async Task WriteAtomicJsonAsync<T>(string path, T value, JsonSerializerOptions options, CancellationToken cancellationToken)
+    {
+        var fullPath = Path.GetFullPath(path);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        var temporaryPath = fullPath + ".tmp-" + Guid.NewGuid().ToString("N");
         try
         {
-            return await transport.UploadAssetAsync(release, name, path, cancellationToken);
+            await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough | FileOptions.Asynchronous))
+            {
+                await JsonSerializer.SerializeAsync(stream, value, options, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
+            }
+            if (File.Exists(fullPath)) File.Replace(temporaryPath, fullPath, null, ignoreMetadataErrors: true);
+            else File.Move(temporaryPath, fullPath);
         }
-        catch (GitHubTransportException uploadFailure)
+        finally
         {
-            // A transport timeout/502 may occur after GitHub accepted the
-            // immutable asset.  Re-read the exact name and digest before
-            // surfacing failure so a restart can resume without a duplicate.
-            var assets = await transport.ListAssetsAsync(release, cancellationToken);
-            var matches = assets.Where(asset => asset.Name.Equals(name, StringComparison.Ordinal)).ToArray();
-            var bytes = await File.ReadAllBytesAsync(path, cancellationToken);
-            var digest = GitHubDigest.FromHex(Convert.ToHexString(SHA256.HashData(bytes)));
-            var exact = matches.FirstOrDefault(asset => asset.IsComplete
-                && asset.Size == bytes.LongLength
-                && asset.Digest.Equals(digest, StringComparison.OrdinalIgnoreCase));
-            if (exact is { })
-            {
-                return new GitHubAssetReceipt(release.Id, exact.Id, exact.Name, exact.Size, exact.Digest, exact.CreatedAtUtc);
-            }
-
-            if (matches.Length > 0)
-            {
-                throw new GitHubTransportException("GitHub asset upload failed and an existing same-name asset has contradictory metadata.", uploadFailure.StatusCode, uploadFailure);
-            }
-
-            throw;
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
     }
+
+    private static async Task<GitHubHandoffGrant?> ReadGrantAsync(string path, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+            return await JsonSerializer.DeserializeAsync<GitHubHandoffGrant>(stream, GrantJsonOptions, cancellationToken);
+        }
+        catch (Exception exception) when (exception is JsonException or IOException)
+        {
+            return null;
+        }
+    }
+
+    private static bool MatchesGrant(GitHubHandoffGrant actual, GitHubHandoffGrant expected) =>
+        actual.IsValid
+        && actual.TransferId == expected.TransferId
+        && actual.LineageId == expected.LineageId
+        && actual.Generation == expected.Generation
+        && actual.HandoffVersion == expected.HandoffVersion
+        && actual.SourceDeviceId == expected.SourceDeviceId
+        && actual.TargetDeviceId == expected.TargetDeviceId
+        && actual.SnapshotReleaseId == expected.SnapshotReleaseId
+        && actual.SnapshotAssetId == expected.SnapshotAssetId
+        && actual.SnapshotAssetName == expected.SnapshotAssetName
+        && actual.SnapshotByteLength == expected.SnapshotByteLength
+        && actual.SnapshotSha256.Equals(expected.SnapshotSha256, StringComparison.OrdinalIgnoreCase);
+
     private DurableAuthorityState? TryLoad() { try { return stateStore.Load(); } catch (InvalidDataException) { return null; } catch (IOException) { return null; } }
     private sealed record SnapshotReceiptEnvelope(string TransferId, GitHubAssetReceipt Receipt);
     private static async Task WriteReceiptAsync(string path, string transferId, GitHubAssetReceipt receipt, CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true);
-        await JsonSerializer.SerializeAsync(stream, new SnapshotReceiptEnvelope(transferId, receipt), JsonOptions, cancellationToken); await stream.FlushAsync(cancellationToken); stream.Flush(true);
+        await WriteAtomicJsonAsync(path, new SnapshotReceiptEnvelope(transferId, receipt), JsonOptions, cancellationToken);
     }
     private sealed record ReceiptReadResult(GitHubAssetReceipt? Receipt, bool Exists, string? Error);
     private static async Task<ReceiptReadResult> ReadReceiptAsync(string path, string transferId, CancellationToken cancellationToken)

@@ -22,7 +22,7 @@ public sealed class GitHubHandoffRetention(IGitHubHandoffTransport transport, st
     private List<PlannedDeletion>? inMemoryPlan;
 
     private sealed record PlannedDeletion(long GrantAssetId, long SnapshotAssetId);
-    private sealed record RetentionPlan(long ReleaseId, IReadOnlyList<PlannedDeletion> Deletions);
+    private sealed record RetentionPlan(long ReleaseId, PlannedDeletion[] Deletions);
     private sealed record Unit(GitHubHandoffGrant Grant, GitHubRemoteAsset GrantAsset, GitHubRemoteAsset SnapshotAsset);
 
     public async Task<GitHubHandoffRetentionResult> CleanupAsync(
@@ -33,52 +33,64 @@ public sealed class GitHubHandoffRetention(IGitHubHandoffTransport transport, st
         var deleted = new List<long>();
         try
         {
-            var plan = await LoadPlanAsync(release.Id, cancellationToken);
-            if (plan is null)
+            while (true)
             {
-                var units = await EnumerateCompleteUnitsAsync(release, cancellationToken);
-                // Authority ordering is protocol metadata: active generation first,
-                // then monotonic handoff version. Filename timestamps never enter.
-                // Retention is release-wide: keep exactly the newest three
-                // complete handoff units, even when more than one lineage is
-                // present.  Protocol generation/version are authoritative;
-                // filename timestamps are only names and never ordering.
-                var keep = units
-                    .OrderByDescending(x => x.Grant.Generation)
-                    .ThenByDescending(x => x.Grant.HandoffVersion)
-                    .ThenByDescending(x => x.Grant.GrantPublishedAtUtc)
-                    .ThenBy(x => x.Grant.TransferId, StringComparer.Ordinal)
-                    .Skip(3)
-                    .Where(x => protectedAssetIds is null
-                        || !protectedAssetIds.Contains(x.GrantAsset.Id)
-                        && !protectedAssetIds.Contains(x.SnapshotAsset.Id))
-                    .Select(x => new PlannedDeletion(x.GrantAsset.Id, x.SnapshotAsset.Id))
-                    .ToList();
-                plan = new RetentionPlan(release.Id, keep);
-                await SavePlanAsync(plan, cancellationToken);
-            }
+                var plan = await LoadPlanAsync(release.Id, cancellationToken);
+                if (plan is null)
+                {
+                    var units = await EnumerateCompleteUnitsAsync(release, cancellationToken);
+                    plan = BuildPlan(release.Id, units, protectedAssetIds);
+                    await SavePlanAsync(plan, cancellationToken);
+                }
 
-            foreach (var item in plan.Deletions.ToArray())
-            {
-                if (protectedAssetIds?.Contains(item.GrantAssetId) == true || protectedAssetIds?.Contains(item.SnapshotAssetId) == true)
-                    continue;
-                await DeleteIdempotentAsync(item.GrantAssetId, cancellationToken);
-                deleted.Add(item.GrantAssetId);
-                // Keep both IDs in the plan when this call fails: on retry the
-                // already-deleted grant is a safe 404 and snapshot is retried.
-                await DeleteIdempotentAsync(item.SnapshotAssetId, cancellationToken);
-                deleted.Add(item.SnapshotAssetId);
-                plan = plan with { Deletions = plan.Deletions.Where(x => x != item).ToArray() };
-                await SavePlanAsync(plan, cancellationToken);
-            }
+                foreach (var item in plan.Deletions.ToArray())
+                {
+                    if (protectedAssetIds?.Contains(item.GrantAssetId) == true || protectedAssetIds?.Contains(item.SnapshotAssetId) == true)
+                        continue;
+                    await DeleteIdempotentAsync(item.GrantAssetId, cancellationToken);
+                    deleted.Add(item.GrantAssetId);
+                    // Keep both IDs in the plan when this call fails: on retry the
+                    // already-deleted grant is a safe 404 and snapshot is retried.
+                    await DeleteIdempotentAsync(item.SnapshotAssetId, cancellationToken);
+                    deleted.Add(item.SnapshotAssetId);
+                    plan = plan with { Deletions = plan.Deletions.Where(x => x != item).ToArray() };
+                    await SavePlanAsync(plan, cancellationToken);
+                }
 
-            await ClearPlanAsync(cancellationToken);
-            return new(true, deleted, "Retention cleanup retained exactly the newest three complete handoff units and is idempotently complete.");
+                await ClearPlanAsync(cancellationToken);
+                // A newer handoff may have completed while an older persisted
+                // plan was being retried. Re-enumerate before returning so a
+                // v5 completion after a v4 partial cleanup still converges to
+                // exactly three complete units in this invocation.
+                var remaining = await EnumerateCompleteUnitsAsync(release, cancellationToken);
+                var followUp = BuildPlan(release.Id, remaining, protectedAssetIds);
+                if (followUp.Deletions.Length == 0)
+                    return new(true, deleted, "Retention cleanup retained exactly the newest three complete handoff units and is idempotently complete.");
+                await SavePlanAsync(followUp, cancellationToken);
+            }
         }
         catch (Exception exception) when (exception is IOException or GitHubTransportException or HttpRequestException or TaskCanceledException)
         {
             return new(false, deleted, "Retention cleanup is incomplete and will be retried; completed authority is unchanged.");
         }
+    }
+
+    private static RetentionPlan BuildPlan(long releaseId, IReadOnlyList<Unit> units, IReadOnlySet<long>? protectedAssetIds)
+    {
+        // Authority ordering is protocol metadata: active generation first,
+        // then monotonic handoff version. Filename timestamps never enter.
+        var deletions = units
+            .OrderByDescending(x => x.Grant.Generation)
+            .ThenByDescending(x => x.Grant.HandoffVersion)
+            .ThenByDescending(x => x.Grant.GrantPublishedAtUtc)
+            .ThenBy(x => x.Grant.TransferId, StringComparer.Ordinal)
+            .Skip(3)
+            .Where(x => protectedAssetIds is null
+                || !protectedAssetIds.Contains(x.GrantAsset.Id)
+                && !protectedAssetIds.Contains(x.SnapshotAsset.Id))
+            .Select(x => new PlannedDeletion(x.GrantAsset.Id, x.SnapshotAsset.Id))
+            .ToList();
+        return new RetentionPlan(releaseId, deletions.ToArray());
     }
 
     private async Task<IReadOnlyList<Unit>> EnumerateCompleteUnitsAsync(GitHubReleaseContainer release, CancellationToken cancellationToken)
@@ -112,7 +124,7 @@ public sealed class GitHubHandoffRetention(IGitHubHandoffTransport transport, st
     private async Task<RetentionPlan?> LoadPlanAsync(long releaseId, CancellationToken cancellationToken)
     {
         if (planPath is null)
-            return inMemoryPlan is null ? null : new RetentionPlan(releaseId, inMemoryPlan);
+            return inMemoryPlan is null ? null : new RetentionPlan(releaseId, inMemoryPlan.ToArray());
         if (!File.Exists(planPath)) return null;
         try
         {
