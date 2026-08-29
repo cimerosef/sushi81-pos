@@ -35,7 +35,7 @@ The correction-pass fake-HTTP matrix includes release payload/422, repository/to
 
 - Branch: `codex/m02-directed-handoff-revalidation`
 - Correction-pass implementation head: `5402c50cc528d70297946e2281bb86eeef6c0ea6`.
-- Correction-pass CI head: pending push for this correction; the prior pushed head/CI remains historical until the new branch head completes.
+- Correction-pass CI status: the final pushed branch-head result is recorded in PR #3 checks.
 - PR: [#3](https://github.com/cimerosef/sushi81-pos/pull/3), open and not merged.
 - Original feasibility evidence remains in `docs/implementation/milestone-02-feasibility-report.md`; it is not rewritten here.
 - Amended sources: `docs/decisions/target-directed-authority-handoff.md`, `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`, and `docs/implementation-plan.md`.
