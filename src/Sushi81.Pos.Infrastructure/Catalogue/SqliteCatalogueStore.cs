@@ -23,7 +23,7 @@ public sealed class SqliteCatalogueStore(
 
     public async Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default)
     {
-        await using var connection = await connectionFactory.OpenLiveConnectionAsync(cancellationToken);
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT category_id, name FROM categories ORDER BY name COLLATE NOCASE, category_id;";
         var result = new List<CategorySummary>();
@@ -37,7 +37,7 @@ public sealed class SqliteCatalogueStore(
 
     public async Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default)
     {
-        await using var connection = await connectionFactory.OpenLiveConnectionAsync(cancellationToken);
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT p.product_id, p.code, p.name, p.category_id, c.name, p.price_ttc_cents, p.vat_rate,
@@ -66,7 +66,7 @@ public sealed class SqliteCatalogueStore(
     public async Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default)
     {
         if (productId == Guid.Empty) return null;
-        await using var connection = await connectionFactory.OpenLiveConnectionAsync(cancellationToken);
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
         await using var productCommand = connection.CreateCommand();
         productCommand.CommandText = "SELECT product_id, code, name, category_id, price_ttc_cents, vat_rate, is_active, discount_eligible, options_enabled FROM products WHERE product_id = $id;";
         productCommand.Parameters.AddWithValue("$id", productId.ToString());
@@ -93,7 +93,7 @@ public sealed class SqliteCatalogueStore(
     public async Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default)
     {
         var display = CatalogueNormalization.Display(name);
-        if (display.Length == 0) return OperationResult<CategorySummary>.Failure(new ValidationIssue("name", "Category name is required."));
+        if (display.Length == 0) return OperationResult<CategorySummary>.Failure(new ValidationIssue("name", "Category name is required.", ValidationCodes.Required));
         var id = idGenerator.NewId();
         var now = clock.UtcNow;
         try
@@ -108,15 +108,15 @@ public sealed class SqliteCatalogueStore(
         }
         catch (SqliteException exception) when (IsConstraint(exception))
         {
-            return OperationResult<CategorySummary>.Failure(new ValidationIssue("name", "A category with that name already exists."));
+            return OperationResult<CategorySummary>.Failure(new ValidationIssue("name", "A category with that name already exists.", ValidationCodes.CategoryDuplicate));
         }
     }
 
     public async Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default)
     {
-        if (categoryId == Guid.Empty) return OperationResult<CategorySummary>.Failure(new ValidationIssue("category", "The category no longer exists."));
+        if (categoryId == Guid.Empty) return OperationResult<CategorySummary>.Failure(new ValidationIssue("category", "The category no longer exists.", ValidationCodes.CategoryMissing));
         var display = CatalogueNormalization.Display(name);
-        if (display.Length == 0) return OperationResult<CategorySummary>.Failure(new ValidationIssue("name", "Category name is required."));
+        if (display.Length == 0) return OperationResult<CategorySummary>.Failure(new ValidationIssue("name", "Category name is required.", ValidationCodes.Required));
         var now = clock.UtcNow;
         try
         {
@@ -126,17 +126,18 @@ public sealed class SqliteCatalogueStore(
                 return await ExecuteAsync(sqlite, "UPDATE categories SET name=$name, normalized_name=$normalized, updated_at_utc=$updated WHERE category_id=$id;", token,
                     ("$name", display), ("$normalized", CatalogueNormalization.Key(display)), ("$updated", Format(now)), ("$id", categoryId.ToString()));
             }, cancellationToken);
-            return updated == 0 ? OperationResult<CategorySummary>.Failure(new ValidationIssue("category", "The category no longer exists.")) : OperationResult<CategorySummary>.Success(new CategorySummary(categoryId, display));
+            return updated == 0 ? OperationResult<CategorySummary>.Failure(new ValidationIssue("category", "The category no longer exists.", ValidationCodes.CategoryMissing)) : OperationResult<CategorySummary>.Success(new CategorySummary(categoryId, display));
         }
         catch (SqliteException exception) when (IsConstraint(exception))
         {
-            return OperationResult<CategorySummary>.Failure(new ValidationIssue("name", "A category with that name already exists."));
+            return OperationResult<CategorySummary>.Failure(new ValidationIssue("name", "A category with that name already exists.", ValidationCodes.CategoryDuplicate));
         }
     }
 
     public async Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default)
     {
-        var productId = draft.Id == Guid.Empty ? idGenerator.NewId() : draft.Id;
+        // A create operation always allocates a fresh opaque identity at the persistence boundary.
+        var productId = idGenerator.NewId();
         draft = draft with
         {
             Id = productId,
@@ -157,7 +158,7 @@ public sealed class SqliteCatalogueStore(
             }, cancellationToken);
             return OperationResult<Guid>.Success(productId);
         }
-        catch (CatalogueConflictException exception) { return OperationResult<Guid>.Failure(new ValidationIssue("product", exception.Message)); }
+        catch (CatalogueConflictException exception) { return OperationResult<Guid>.Failure(new ValidationIssue("product", exception.Message, ValidationCodes.CategoryMissing)); }
         catch (SqliteException exception) when (IsConstraint(exception)) { return OperationResult<Guid>.Failure(MapConstraint(exception)); }
     }
 
@@ -177,31 +178,31 @@ public sealed class SqliteCatalogueStore(
             }, cancellationToken);
             return OperationResult.Success();
         }
-        catch (CatalogueConflictException exception) { return OperationResult.Failure(new ValidationIssue("product", exception.Message)); }
+        catch (CatalogueConflictException exception) { return OperationResult.Failure(new ValidationIssue("product", exception.Message, ValidationCodes.Conflict)); }
         catch (SqliteException exception) when (IsConstraint(exception)) { return OperationResult.Failure(MapConstraint(exception)); }
     }
 
     public async Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default)
     {
-        if (productId == Guid.Empty) return OperationResult.Failure(new ValidationIssue("product", "The product no longer exists."));
+        if (productId == Guid.Empty) return OperationResult.Failure(new ValidationIssue("product", "The product no longer exists.", ValidationCodes.ProductMissing));
         try
         {
             var count = await transactionRunner.ExecuteAsync(async (transaction, token) => await ExecuteAsync(RequireSqlite(transaction), "UPDATE products SET is_active=$active, updated_at_utc=$updated WHERE product_id=$id;", token,
                 ("$active", isActive ? 1 : 0), ("$updated", Format(clock.UtcNow)), ("$id", productId.ToString())) , cancellationToken);
-            return count == 0 ? OperationResult.Failure(new ValidationIssue("product", "The product no longer exists.")) : OperationResult.Success();
+            return count == 0 ? OperationResult.Failure(new ValidationIssue("product", "The product no longer exists.", ValidationCodes.ProductMissing)) : OperationResult.Success();
         }
-        catch (SqliteException exception) when (IsConstraint(exception)) { return OperationResult.Failure(new ValidationIssue("product", "The product could not be updated.")); }
+        catch (SqliteException exception) when (IsConstraint(exception)) { return OperationResult.Failure(new ValidationIssue("product", "The product could not be updated.", ValidationCodes.Conflict)); }
     }
 
     public async Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default)
     {
-        if (productId == Guid.Empty) return OperationResult.Failure(new ValidationIssue("product", "The product no longer exists."));
+        if (productId == Guid.Empty) return OperationResult.Failure(new ValidationIssue("product", "The product no longer exists.", ValidationCodes.ProductMissing));
         try
         {
             var count = await transactionRunner.ExecuteAsync(async (transaction, token) => await ExecuteAsync(RequireSqlite(transaction), "DELETE FROM products WHERE product_id=$id;", token, ("$id", productId.ToString())), cancellationToken);
-            return count == 0 ? OperationResult.Failure(new ValidationIssue("product", "The product no longer exists.")) : OperationResult.Success();
+            return count == 0 ? OperationResult.Failure(new ValidationIssue("product", "The product no longer exists.", ValidationCodes.ProductMissing)) : OperationResult.Success();
         }
-        catch (SqliteException exception) when (IsConstraint(exception)) { return OperationResult.Failure(new ValidationIssue("product", "The product could not be deleted.")); }
+        catch (SqliteException exception) when (IsConstraint(exception)) { return OperationResult.Failure(new ValidationIssue("product", "The product could not be deleted.", ValidationCodes.Conflict)); }
     }
 
     private async Task InsertProductAsync(SqliteApplicationTransaction sqlite, Guid id, ProductDraft draft, DateTimeOffset now, CancellationToken token)

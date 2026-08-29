@@ -19,6 +19,9 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     private string activeFilter = "All";
     private bool isBusy;
     private BusinessSettings? loadedSettings;
+    private string activateLabel = "Activate";
+    private string deactivateLabel = "Deactivate";
+    private string settingsValidationMessage = string.Empty;
 
     public M03ShellViewModel(CatalogueService catalogue, BusinessSettingsService settings)
     {
@@ -46,29 +49,38 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     public sealed record FilterOption(string Key, string Label);
 
-    public ProductSummary? SelectedProduct { get => selectedProduct; set { selectedProduct = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanEditProduct)); } }
+    public ProductSummary? SelectedProduct { get => selectedProduct; set { selectedProduct = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanEditProduct)); OnPropertyChanged(nameof(CanToggleProduct)); OnPropertyChanged(nameof(ToggleProductActionLabel)); } }
     public CategorySummary? SelectedCategory { get => selectedCategory; set { selectedCategory = value; OnPropertyChanged(); } }
     public string SearchText { get => searchText; set { searchText = value ?? string.Empty; OnPropertyChanged(); } }
     public string ActiveFilter { get => activeFilter; set { activeFilter = value ?? "All"; OnPropertyChanged(); } }
     public bool CanEditProduct => SelectedProduct is not null && !IsBusy;
+    public bool CanToggleProduct => SelectedProduct is not null && !IsBusy;
+    public string ToggleProductActionLabel => SelectedProduct?.IsActive == true ? deactivateLabel : activateLabel;
     public bool HasProducts => Products.Count > 0;
-    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanEditProduct)); } }
+    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanEditProduct)); OnPropertyChanged(nameof(CanToggleProduct)); OnPropertyChanged(nameof(ToggleProductActionLabel)); } }
 
     public string PickupDiscountRateText { get; set; } = "10";
     public string PickupDiscountMinText { get; set; } = "15.00";
     public string DeliveryMinText { get; set; } = "30.00";
     public bool DeliveryFeeEnabled { get; set; }
     public string DeliveryFeeAmountText { get; set; } = "0.00";
+    public string SettingsValidationMessage { get => settingsValidationMessage; private set { settingsValidationMessage = value ?? string.Empty; OnPropertyChanged(); } }
 
-    public void ApplyLocalization(string all, string active, string inactive)
+    public void SetSettingsValidationMessage(string? message) => SettingsValidationMessage = message ?? string.Empty;
+
+    public void ApplyLocalization(string all, string active, string inactive, string? activate = null, string? deactivate = null)
     {
+        activateLabel = string.IsNullOrWhiteSpace(activate) ? "Activate" : activate;
+        deactivateLabel = string.IsNullOrWhiteSpace(deactivate) ? "Deactivate" : deactivate;
         AllCategoryLabel = string.IsNullOrWhiteSpace(all) ? "All" : all;
         StatusFilters.Clear();
         StatusFilters.Add(new("All", string.IsNullOrWhiteSpace(all) ? "All" : all));
         StatusFilters.Add(new("Active", string.IsNullOrWhiteSpace(active) ? "Active" : active));
         StatusFilters.Add(new("Inactive", string.IsNullOrWhiteSpace(inactive) ? "Inactive" : inactive));
+        if (CategoryFilters.Count > 0) CategoryFilters[0] = new CategorySummary(Guid.Empty, AllCategoryLabel);
         OnPropertyChanged(nameof(AllCategoryLabel));
         OnPropertyChanged(nameof(StatusFilters));
+        OnPropertyChanged(nameof(ToggleProductActionLabel));
     }
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
@@ -108,13 +120,18 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            if (!decimal.TryParse(PickupDiscountRateText, NumberStyles.Number, CultureInfo.InvariantCulture, out var percent)
-                || !decimal.TryParse(PickupDiscountMinText, NumberStyles.Number, CultureInfo.InvariantCulture, out var pickupMin)
-                || !decimal.TryParse(DeliveryMinText, NumberStyles.Number, CultureInfo.InvariantCulture, out var deliveryMin)
-                || !decimal.TryParse(DeliveryFeeAmountText, NumberStyles.Number, CultureInfo.InvariantCulture, out var fee))
-                return OperationResult.Failure(new ValidationIssue("settings", "Enter valid numeric settings."));
+            var issues = new List<ValidationIssue>();
+            var percentOk = M03Presentation.TryParseDecimal(PickupDiscountRateText, "pickup-rate", out var percent, out var percentIssue);
+            if (!percentOk && percentIssue is not null) issues.Add(percentIssue);
+            var pickupOk = M03Presentation.TryParseMoney(PickupDiscountMinText, "pickup-minimum", out var pickupMoney, out var pickupIssue);
+            if (!pickupOk && pickupIssue is not null) issues.Add(pickupIssue);
+            var deliveryOk = M03Presentation.TryParseMoney(DeliveryMinText, "delivery-minimum", out var deliveryMoney, out var deliveryIssue);
+            if (!deliveryOk && deliveryIssue is not null) issues.Add(deliveryIssue);
+            var feeOk = M03Presentation.TryParseMoney(DeliveryFeeAmountText, "delivery-fee", out var feeMoney, out var feeIssue);
+            if (!feeOk && feeIssue is not null) issues.Add(feeIssue);
+            if (issues.Count > 0) return OperationResult.Failure(issues.ToArray());
             var current = loadedSettings ?? await settings.GetAsync(cancellationToken);
-            var updated = current with { PickupDiscountRate = percent / 100m, PickupDiscountMinTotalTtc = Money.FromEuros(pickupMin), DeliveryMinMerchandiseTotalTtc = Money.FromEuros(deliveryMin), DeliveryFeeEnabled = DeliveryFeeEnabled, DeliveryFeeAmountTtc = Money.FromEuros(fee) };
+            var updated = current with { PickupDiscountRate = percent / 100m, PickupDiscountMinTotalTtc = pickupMoney, DeliveryMinMerchandiseTotalTtc = deliveryMoney, DeliveryFeeEnabled = DeliveryFeeEnabled, DeliveryFeeAmountTtc = feeMoney };
             var result = await settings.UpdateAsync(updated, cancellationToken);
             if (result.Succeeded) loadedSettings = updated;
             return result;

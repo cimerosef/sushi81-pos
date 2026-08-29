@@ -58,6 +58,49 @@ public sealed class M03DesktopTests
         Assert.IsTrue((await first).Succeeded);
     }
 
+    [TestMethod]
+    public async Task ToggleActionLabelFollowsSelectedProductStateAndLocalization()
+    {
+        var category = new CategorySummary(Guid.NewGuid(), "Plats");
+        var viewModel = new M03ShellViewModel(new CatalogueService(new FakeCatalogueStore(category)), new BusinessSettingsService(new FakeSettingsStore()));
+        viewModel.ApplyLocalization("Tous", "Actifs", "Inactifs", "Activer", "Désactiver");
+        await viewModel.RefreshAsync();
+        viewModel.SelectedProduct = viewModel.Products[0];
+        Assert.AreEqual("Désactiver", viewModel.ToggleProductActionLabel);
+        viewModel.SelectedProduct = viewModel.Products[0] with { IsActive = false };
+        Assert.AreEqual("Activer", viewModel.ToggleProductActionLabel);
+        Assert.IsTrue(viewModel.CanToggleProduct);
+    }
+
+    [TestMethod]
+    public void PresentationParsingRejectsInvalidNumericInputAndFormatsLocalizedIssues()
+    {
+        Assert.IsFalse(M03Presentation.TryParseMoney("not-a-number", "price", out _, out var issue));
+        Assert.AreEqual("invalid-number", issue!.StableCode);
+        var result = OperationResult.Failure(issue);
+        var labels = new Dictionary<string, string> { ["PriceTtc"] = "Prix TTC", ["ValidationInvalidNumber"] = "Nombre invalide", ["ValidationField"] = "Champ" };
+        StringAssert.Contains(M03Presentation.FormatIssues(result, labels), "Prix TTC");
+        var edit = new CategoryEditBuffer(); edit.BeginCreate(); edit.SetName("Plats"); edit.Cancel(); Assert.IsFalse(edit.IsEditing);
+    }
+
+    [TestMethod]
+    public void ProductEditCancelAndDirtyCloseStateAreExplicit()
+    {
+        var session = new ProductEditSession<string>("saved");
+        session.SetDraft("unsaved"); Assert.IsTrue(session.IsDirty); Assert.IsFalse(session.CanClose);
+        session.Cancel(); Assert.AreEqual("saved", session.Draft); Assert.IsTrue(session.CanClose);
+        session.SetDraft("new"); session.Commit("committed"); Assert.AreEqual("committed", session.Draft); Assert.IsTrue(session.CanClose);
+    }
+
+    [TestMethod]
+    public async Task M03FrenchAndChineseResourcesHaveRequiredVisibleKeys()
+    {
+        var fr = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+        var store = new InMemorySelectedCultureStore(); var zh = new ShellViewModel(store, true); await zh.ChangeLanguageAsync(zh.Languages.Single(language => language.CultureName == "zh-CN"));
+        var required = new[] { "Catalogue", "Settings", "All", "Active", "Inactive", "ValidationInvalidNumber", "ValidationCategoryDuplicate", "OptionName", "OptionActive" };
+        foreach (var key in required) { Assert.IsTrue(fr.Localized.ContainsKey(key)); Assert.IsTrue(zh.Localized.ContainsKey(key)); }
+    }
+
     private sealed class FakeCatalogueStore(CategorySummary? category = null) : ICatalogueStore
     {
         private readonly CategorySummary? category = category;

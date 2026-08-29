@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation is complete on `codex/m03-catalogue-settings`; automated verification is green and the self-contained publish artifact is available. Interactive Windows/WPF M03 acceptance remains an explicit operator check when a desktop session is available.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation plus the `M03-REVIEW-FIX-02` remediation are complete on `codex/m03-catalogue-settings`; automated verification is green and the self-contained publish artifact is available. Interactive Windows/WPF M03 acceptance remains an explicit operator check when a desktop session is available.
 
 ## 1. Status vocabulary
 
@@ -279,6 +279,7 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 **Implementation branch:** `codex/m03-catalogue-settings`
 **Handoff authorization:** `CODEX_HANDOFF_READY: M03-IMPLEMENT-01` on the active M03 implementation PR
 **Implementation/evidence commits:** `466dd06e5f9e7d1e2ea7d75b8a02d14d5f569a64`, `5a36bf9e6e656db842c4bebc464289ade3e1b436`, `80647b131d7a52b410675ba2802d68be29f3d891`
+**Remediation handoff:** `CODEX_HANDOFF_READY: M03-REVIEW-FIX-02`; final post-fix implementation SHA and CI run are recorded in the matching durable `CODEX_DONE` PR comment after push.
 **Status:** Partial pending the operator's interactive Windows/WPF checklist; no automated blocker remains.
 
 ### Delivered scope
@@ -301,13 +302,21 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 - Environment: Windows x64, .NET SDK 10.0.400 (runtime 10.0.11).
 - `dotnet restore Sushi81.Pos.sln`: passed.
 - `dotnet build Sushi81.Pos.sln -c Release --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test Sushi81.Pos.sln -c Release --no-build`: 170 passed, 0 failed, 0 skipped (Domain 8; Application 6;
-  Infrastructure integration 21; Architecture/localization 11; protocol 32; GitHub wrapper/harness 92, including the
+- `dotnet test Sushi81.Pos.sln -c Release --no-build`: **188 passed, 0 failed, 0 skipped** (Domain 10; Application 9;
+  Infrastructure integration 30; Architecture/localization 15; protocol 32; GitHub wrapper/harness 92, including the
   solution's existing wrapper test project instance).
 - `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true
   -p:PublishSingleFile=false`: passed; output remains under the ignored Desktop publish directory.
 - Tests use isolated temporary SQLite paths and synthetic/sanitized catalogue values only. No database, logs, local
   configuration, credentials, tokens, build artifacts or real customer/order/payment data are committed.
+
+### Remediation evidence
+
+The correction pass closes review findings A–I: read-only query paths with no missing-DB creation; strict non-coercing numeric
+parsing; stable localized field validation; dirty product close protection; explicit category Create/Rename Save/Cancel; stateful
+activation action labels; immediate localized All-filter/label refresh; deterministic §16 test inventory; and refreshed worklog/status
+evidence. M03 remains Partial solely because the operator's Windows/WPF checklist is still manual. M04 is not started and is not
+authorized by this handoff.
 
 ### Acceptance mapping and remaining checks
 

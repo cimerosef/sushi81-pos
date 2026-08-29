@@ -1,6 +1,6 @@
 # M03 implementation worklog
 
-**Status:** Implementation complete; automated evidence green; manual WPF acceptance outstanding  
+**Status:** Remediation complete; automated evidence green; manual WPF acceptance outstanding  
 **Milestone:** M03 — In-application catalogue and business settings
 
 This worklog records the implementation/evidence handoff for the active M03 PR. The production scope is limited to
@@ -23,9 +23,33 @@ Authorization: `milestone-03-authorization.md`.
 
 - .NET SDK 10.0.400, Windows x64.
 - Release restore/build passed (0 warnings, 0 errors).
-- Release solution tests: 170 passed, 0 failed, 0 skipped.
+- Release solution tests: **188 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
+  Architecture/localization 15, OneDrive protocol 32, and GitHub wrapper/harness 92.
 - Self-contained `win-x64` publish passed with `PublishSingleFile=false`.
-- GitHub Actions Continuous integration run #127 passed on the final head.
+- Final post-fix CI is required on the pushed head; the PR completion record names the resulting workflow run and check URL.
+
+## Remediation handoff `M03-REVIEW-FIX-02`
+
+The review correction pass is intentionally limited to M03 catalogue/settings behavior and its evidence:
+
+- **A — Read safety:** every M03 read path uses the existing read-only SQLite connection helper; missing-database reads do not
+  create a database.
+- **B — Numeric integrity:** money, VAT, MULTI bounds, option adjustments and settings fields reject invalid input without
+  coercion; Save is blocked and state remains unchanged.
+- **C — Validation UX:** validation carries stable codes and is rendered with localized, field-visible French/zh-CN messages;
+  normal validation does not expose SQL, paths or stack traces.
+- **D — Product close safety:** dirty product edits cannot be silently discarded; title-bar close is blocked with localized
+  guidance and explicit Cancel leaves persistence unchanged.
+- **E — Category edits:** Create/Rename use an explicit edit buffer with Save/Cancel; typing alone never persists and duplicate
+  names are localized.
+- **F — Activation:** the toolbar action reflects active/inactive state (`Deactivate`/`Activate`) and is disabled with no
+  selection.
+- **G — Localization refresh:** language switching immediately refreshes the All filter and visible M03 labels while business
+  values remain unchanged; option fields are visibly labeled.
+- **H — Evidence inventory:** deterministic domain, application, infrastructure (1–18) and desktop/localization coverage is
+  recorded in the M03 test projects; the solution total is 188.
+- **I — Documentation:** this worklog and `docs/implementation-status.md` retain the automated/interactive acceptance boundary
+  and explicitly defer M04.
 
 ## Outstanding
 

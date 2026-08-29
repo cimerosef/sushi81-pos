@@ -10,6 +10,7 @@ using Sushi81.Pos.Infrastructure.Paths;
 using Sushi81.Pos.Infrastructure.Settings;
 using Sushi81.Pos.Infrastructure.Sqlite;
 using Sushi81.Pos.Infrastructure.Time;
+using Sushi81.Pos.Infrastructure.Recovery;
 using Sushi81.Pos.Domain;
 
 namespace Sushi81.Pos.Infrastructure.IntegrationTests;
@@ -28,6 +29,111 @@ public sealed class M03CatalogueIntegrationTests
         var tx = new SqliteTransactionRunner(factory); var clock = new FixedClock();
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM business_settings;"));
+    }
+
+    [TestMethod]
+    public async Task M03QueriesUseReadOnlyPathAndNeverCreateMissingDatabase()
+    {
+        using var paths = new TempPaths();
+        var factory = new SqliteConnectionFactory(paths);
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), new FixedClock());
+        await Assert.ThrowsAsync<SqliteException>(async () => await store.ListCategoriesAsync());
+        Assert.IsFalse(File.Exists(paths.LiveDatabasePath));
+        var settings = new SqliteBusinessSettingsStore(factory, new SqliteTransactionRunner(factory), new FixedClock());
+        await Assert.ThrowsAsync<SqliteException>(async () => await settings.GetAsync());
+        Assert.IsFalse(File.Exists(paths.LiveDatabasePath));
+    }
+
+    [TestMethod]
+    public async Task MigrationOneToTwoPreservesExistingFoundationSentinel()
+    {
+        using var paths = new TempPaths(); var factory = new SqliteConnectionFactory(paths); var clock = new FixedClock();
+        await new SqliteMigrationRunner(factory, M01Migrations.All, clock).InitializeAsync();
+        await using (var connection = await factory.OpenLiveConnectionAsync())
+        {
+            await using var command = connection.CreateCommand(); command.CommandText = "INSERT INTO foundation_metadata(key,value) VALUES ('sentinel','preserved');"; await command.ExecuteNonQueryAsync();
+        }
+        var snapshots = new SqliteLocalRecoverySnapshotService(paths, factory, clock);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, snapshots).InitializeAsync();
+        await using var verify = await factory.OpenLiveConnectionAsync();
+        await using var check = verify.CreateCommand(); check.CommandText = "SELECT value FROM foundation_metadata WHERE key='sentinel';";
+        Assert.AreEqual("preserved", Convert.ToString(await check.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture));
+        Assert.AreEqual(2L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+    }
+
+    [TestMethod]
+    public async Task EditedSettingsRemainAfterCurrentMigrationRerun()
+    {
+        using var paths = new TempPaths(); var factory = await InitializeAsync(paths); var clock = new FixedClock();
+        var store = new SqliteBusinessSettingsStore(factory, new SqliteTransactionRunner(factory), clock);
+        var edited = (await store.GetAsync()) with { PickupDiscountRate = 0.375m, DeliveryFeeAmountTtc = Money.FromCents(777) };
+        Assert.IsTrue((await store.UpdateAsync(edited)).Succeeded);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var reopened = await new SqliteBusinessSettingsStore(factory, new SqliteTransactionRunner(factory), clock).GetAsync();
+        Assert.AreEqual(edited.PickupDiscountRate, reopened.PickupDiscountRate); Assert.AreEqual(edited.DeliveryFeeAmountTtc, reopened.DeliveryFeeAmountTtc);
+    }
+
+    [TestMethod]
+    public async Task ProductForeignKeyRejectsMissingCategory()
+    {
+        using var paths = new TempPaths(); var factory = await InitializeAsync(paths);
+        await using var connection = await factory.OpenLiveConnectionAsync(); await using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO products(product_id,code,normalized_code,name,category_id,price_ttc_cents,vat_rate,is_active,discount_eligible,options_enabled,created_at_utc,updated_at_utc) VALUES ('p','P','P','Product','missing',0,'0',1,1,0,'2026-08-29T00:00:00Z','2026-08-29T00:00:00Z');";
+        await Assert.ThrowsAsync<SqliteException>(async () => await command.ExecuteNonQueryAsync());
+    }
+
+    [TestMethod]
+    public async Task DeactivateReactivatePreservesOptionHierarchy()
+    {
+        using var paths = new TempPaths(); var factory = await InitializeAsync(paths); var clock = new FixedClock(); var service = new CatalogueService(new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock));
+        var category = (await service.CreateCategoryAsync("Plats")).Value!;
+        var draft = new ProductDraft(Guid.Empty, "P", "Product", category.Id, Money.Zero, 10m, true, true, true, [new OptionGroupDraft(Guid.Empty, "Extras", SelectionMode.Multi, false, 0, 2, 0, [new OptionDraft(Guid.Empty, "Plus", Money.FromCents(25), true, 0)])]);
+        var product = (await service.CreateProductAsync(draft)).Value!;
+        Assert.IsTrue((await service.SetProductActiveAsync(product, false)).Succeeded); Assert.IsTrue((await service.SetProductActiveAsync(product, true)).Succeeded);
+        var loaded = await service.GetProductForEditAsync(product); Assert.IsNotNull(loaded); Assert.HasCount(1, loaded!.Groups); Assert.HasCount(1, loaded.Groups[0].Options);
+    }
+
+    [TestMethod]
+    public async Task UpdateAndRenamePreserveOpaqueIdentityAndAssociation()
+    {
+        using var paths = new TempPaths(); var factory = await InitializeAsync(paths); var clock = new FixedClock(); var service = new CatalogueService(new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock));
+        var first = (await service.CreateCategoryAsync("Plats")).Value!; var second = (await service.CreateCategoryAsync("Desserts")).Value!;
+        var created = (await service.CreateProductAsync(new ProductDraft(Guid.NewGuid(), "P", "Product", first.Id, Money.Zero, 0m, true, true, false, []))).Value!;
+        var loaded = (await service.GetProductForEditAsync(created))!;
+        Assert.IsTrue((await service.UpdateProductAsync(created, loaded with { Code = "P2", Name = "Updated", CategoryId = second.Id, PriceTtc = Money.FromCents(345), VatRate = 100m, IsActive = false, DiscountEligible = false, OptionsEnabled = true })).Succeeded);
+        Assert.IsTrue((await service.RenameCategoryAsync(second.Id, "Desserts renommés")).Succeeded);
+        var listed = (await service.ListProductsAsync()).Single(); Assert.AreEqual(created, listed.Id); Assert.AreEqual(second.Id, listed.CategoryId); Assert.AreEqual("Desserts renommés", listed.CategoryName); Assert.IsFalse(listed.IsActive);
+    }
+
+    [TestMethod]
+    public async Task ReorderingAndExplicitChildDeletionPersistExactly()
+    {
+        using var paths = new TempPaths(); var factory = await InitializeAsync(paths); var clock = new FixedClock(); var service = new CatalogueService(new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock));
+        var category = (await service.CreateCategoryAsync("Plats")).Value!;
+        var product = (await service.CreateProductAsync(new ProductDraft(Guid.Empty, "P", "Product", category.Id, Money.Zero, 10m, true, true, true, [new OptionGroupDraft(Guid.Empty, "A", SelectionMode.Single, false, null, null, 0, [new OptionDraft(Guid.Empty, "A1", Money.Zero, true, 0)]), new OptionGroupDraft(Guid.Empty, "B", SelectionMode.Multi, false, 0, 2, 1, [new OptionDraft(Guid.Empty, "B1", Money.Zero, true, 0), new OptionDraft(Guid.Empty, "B2", Money.Zero, true, 1)])]))).Value!;
+        var loaded = (await service.GetProductForEditAsync(product))!; var retained = loaded.Groups[1];
+        var changed = await service.UpdateProductAsync(product, loaded with { Groups = [retained with { DisplayOrder = 0, Options = [retained.Options[1] with { DisplayOrder = 0 }] }] });
+        Assert.IsTrue(changed.Succeeded, changed.ErrorMessage); var reloaded = (await service.GetProductForEditAsync(product))!; Assert.HasCount(1, reloaded.Groups); Assert.AreEqual("B", reloaded.Groups[0].Name); Assert.HasCount(1, reloaded.Groups[0].Options); Assert.AreEqual("B2", reloaded.Groups[0].Options[0].Name);
+    }
+
+    [TestMethod]
+    public async Task DuplicateConflictLeavesExistingCatalogueUnchanged()
+    {
+        using var paths = new TempPaths(); var factory = await InitializeAsync(paths); var clock = new FixedClock(); var service = new CatalogueService(new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock));
+        var first = (await service.CreateCategoryAsync("Plats")).Value!; Assert.IsFalse((await service.CreateCategoryAsync(" plats ")).Succeeded);
+        var draft = new ProductDraft(Guid.Empty, "P", "Product", first.Id, Money.Zero, 10m, true, true, false, []); Assert.IsTrue((await service.CreateProductAsync(draft)).Succeeded); Assert.IsFalse((await service.CreateProductAsync(draft)).Succeeded);
+        Assert.HasCount(1, await service.ListProductsAsync()); Assert.HasCount(1, await service.ListCategoriesAsync());
+    }
+
+    [TestMethod]
+    public async Task FailedM03MigrationPreservesLiveDatabaseWithoutReset()
+    {
+        using var paths = new TempPaths(); var factory = new SqliteConnectionFactory(paths); var clock = new FixedClock();
+        await new SqliteMigrationRunner(factory, [new SqliteMigration(1, "foundation", "CREATE TABLE foundation_metadata(key TEXT NOT NULL PRIMARY KEY,value TEXT NOT NULL); INSERT INTO foundation_metadata VALUES ('k','v');")], clock).InitializeAsync();
+        var failing = new SqliteMigrationRunner(factory, [new SqliteMigration(1, "foundation", "CREATE TABLE foundation_metadata(key TEXT NOT NULL PRIMARY KEY,value TEXT NOT NULL); INSERT INTO foundation_metadata VALUES ('k','v');"), new SqliteMigration(2, "broken", "THIS IS NOT VALID SQL;")], clock, new SqliteLocalRecoverySnapshotService(paths, factory, clock));
+        await Assert.ThrowsAsync<DatabaseMigrationException>(async () => await failing.InitializeAsync());
+        Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM foundation_metadata;"));
+        Assert.AreEqual(0L, await ScalarAsync(factory, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='products';"));
     }
 
     [TestMethod]

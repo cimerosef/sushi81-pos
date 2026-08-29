@@ -72,7 +72,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         RefreshResources();
         _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
         Admin = startupSucceeded && catalogueService is not null && settingsService is not null ? new M03ShellViewModel(catalogueService, settingsService) : null;
-        Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"]);
+        Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -128,7 +128,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
             _culture = requestedCulture;
             RefreshResources();
-            Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"]);
+            Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
             _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
             OnPropertyChanged(nameof(SelectedLanguage));
         }
@@ -154,7 +154,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         Languages.Clear();
         Languages.Add(new LanguageOption("fr-FR", Read("FrenchLanguage")));
         Languages.Add(new LanguageOption("zh-CN", Read("ChineseLanguage")));
-        var keys = new[] { "Catalogue", "Settings", "Search", "Category", "All", "Active", "Inactive", "NewProduct", "Edit", "Save", "Cancel", "Activate", "Deactivate", "DeletePermanently", "ManageCategories", "Code", "Name", "PriceTtc", "Vat", "DiscountEligible", "OptionsEnabled", "OptionGroups", "Options", "Required", "Optional", "Single", "Multi", "Minimum", "Maximum", "AdjustmentTtc", "MoveUp", "MoveDown", "PickupDiscount", "PickupMinimum", "DeliveryMinimum", "DeliveryFee", "DeliveryFeeEnabled", "EmptyCatalogue", "DeleteConfirm", "M03StartupFailure", "DeliveryFeeVatFixed", "CreateCategory", "CreateCategoryFirst", "RenameCategory", "Close", "EnterValidValues", "Saved" };
+        var keys = new[] { "Catalogue", "Settings", "Search", "Category", "All", "Active", "Inactive", "NewProduct", "Edit", "Save", "Cancel", "Activate", "Deactivate", "DeletePermanently", "ManageCategories", "Code", "Name", "PriceTtc", "Vat", "DiscountEligible", "OptionsEnabled", "OptionGroups", "Options", "Required", "Optional", "Single", "Multi", "Minimum", "Maximum", "AdjustmentTtc", "MoveUp", "MoveDown", "PickupDiscount", "PickupMinimum", "DeliveryMinimum", "DeliveryFee", "DeliveryFeeEnabled", "EmptyCatalogue", "DeleteConfirm", "M03StartupFailure", "DeliveryFeeVatFixed", "CreateCategory", "CreateCategoryFirst", "RenameCategory", "Close", "EnterValidValues", "Saved", "ValidationGeneric", "ValidationRequired", "ValidationCategoryDuplicate", "ValidationCategoryMissing", "ValidationProductMissing", "ValidationProductDuplicateCode", "ValidationPriceNegative", "ValidationVatRange", "ValidationRequiredChoices", "ValidationSettingsRange", "ValidationInvalidNumber", "ValidationBusy", "ValidationGroupStructure", "ValidationOptionStructure", "ValidationConflict", "ValidationField", "CategoryEdit", "CategoryCreateSave", "CategoryRenameSave", "CategoryEditCancel", "DirtyEditorClose", "Discard", "KeepEditing", "OptionName", "OptionActive" };
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));

@@ -68,10 +68,44 @@ public sealed class CatalogueApplicationTests
         Assert.AreEqual(valid, store.LastSettings);
     }
 
+    [TestMethod]
+    public async Task CategoryMutationsAndInvalidUpdateStayInApplicationBoundary()
+    {
+        var store = new FakeCatalogueStore();
+        var service = new CatalogueService(store);
+        Assert.IsTrue((await service.CreateCategoryAsync(" Plats ")).Succeeded);
+        Assert.IsTrue((await service.RenameCategoryAsync(Guid.NewGuid(), "Entrées")).Succeeded);
+        var invalid = await service.UpdateProductAsync(Guid.NewGuid(), new ProductDraft(Guid.Empty, " ", "N", Guid.NewGuid(), Money.Zero, 10m, true, true, false, []));
+        Assert.IsFalse(invalid.Succeeded);
+        Assert.AreEqual(0, store.UpdateProductCalls);
+    }
+
+    [TestMethod]
+    public void ValidationIssuesExposeStableCodesForPresentation()
+    {
+        var issue = new ValidationIssue("price", "Product price cannot be negative.");
+        Assert.AreEqual("price-negative", issue.StableCode);
+    }
+
+    [TestMethod]
+    public async Task CompleteAggregateCreateUpdateAndBoundaryCommandsAreMapped()
+    {
+        var store = new FakeCatalogueStore { CreatedProductId = Guid.NewGuid() }; var service = new CatalogueService(store);
+        var category = Guid.NewGuid();
+        var draft = new ProductDraft(Guid.Empty, "P", "Product", category, Money.FromCents(125), 20m, true, false, true,
+            [new OptionGroupDraft(Guid.Empty, "Extras", SelectionMode.Multi, false, 0, 2, 0, [new OptionDraft(Guid.Empty, "Plus", Money.FromCents(-25), true, 1)])]);
+        var created = await service.CreateProductAsync(draft); Assert.IsTrue(created.Succeeded); Assert.AreEqual(draft.Name, store.LastDraft.Name); Assert.AreEqual(1, store.CreateProductCalls); var createdId = created.Value;
+        var update = await service.UpdateProductAsync(createdId, draft with { Id = createdId, Code = "P2" }); Assert.IsTrue(update.Succeeded); Assert.AreEqual(createdId, store.LastDraft.Id);
+        Assert.IsTrue((await service.SetProductActiveAsync(createdId, false)).Succeeded); Assert.IsTrue((await service.DeleteProductAsync(createdId)).Succeeded);
+        Assert.AreEqual(1, store.SetActiveCalls); Assert.AreEqual(1, store.DeleteCalls);
+    }
+
     private sealed class FakeCatalogueStore : ICatalogueStore
     {
         public int CreateProductCalls { get; private set; }
         public int UpdateProductCalls { get; private set; }
+        public int SetActiveCalls { get; private set; }
+        public int DeleteCalls { get; private set; }
         public Guid LastUpdateId { get; private set; }
         public ProductDraft LastDraft { get; private set; } = null!;
         public Guid CreatedProductId { get; init; } = Guid.NewGuid();
@@ -83,8 +117,8 @@ public sealed class CatalogueApplicationTests
         public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(categoryId, name)));
         public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) { CreateProductCalls++; LastDraft = draft; return Task.FromResult(OperationResult<Guid>.Success(CreatedProductId)); }
         public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) { UpdateProductCalls++; LastUpdateId = productId; LastDraft = draft; return Task.FromResult(OperationResult.Success()); }
-        public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
-        public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) { SetActiveCalls++; return Task.FromResult(OperationResult.Success()); }
+        public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) { DeleteCalls++; return Task.FromResult(OperationResult.Success()); }
     }
 
     private sealed class FakeSettingsStore : IBusinessSettingsStore

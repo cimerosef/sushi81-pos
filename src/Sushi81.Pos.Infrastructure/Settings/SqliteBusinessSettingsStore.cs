@@ -20,7 +20,7 @@ public sealed class SqliteBusinessSettingsStore(
 
     public async Task<BusinessSettings> GetAsync(CancellationToken cancellationToken = default)
     {
-        await using var connection = await connectionFactory.OpenLiveConnectionAsync(cancellationToken);
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT pickup_discount_rate,pickup_discount_min_total_ttc_cents,delivery_min_merchandise_total_ttc_cents,delivery_fee_enabled,delivery_fee_amount_ttc_cents,updated_at_utc FROM business_settings WHERE singleton_id=1;";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -31,7 +31,7 @@ public sealed class SqliteBusinessSettingsStore(
     public async Task<OperationResult> UpdateAsync(BusinessSettings settings, CancellationToken cancellationToken = default)
     {
         var error = CatalogueValidation.ValidateSettings(settings);
-        if (error is not null) return OperationResult.Failure(new ValidationIssue("settings", error));
+        if (error is not null) return OperationResult.Failure(new ValidationIssue("settings", error, ValidationCodes.SettingsRange));
         try
         {
             var count = await transactionRunner.ExecuteAsync(async (transaction, token) =>
@@ -48,9 +48,9 @@ public sealed class SqliteBusinessSettingsStore(
                 command.Parameters.AddWithValue("$updated", Format(clock.UtcNow));
                 return await command.ExecuteNonQueryAsync(token);
             }, cancellationToken);
-            return count == 0 ? OperationResult.Failure(new ValidationIssue("settings", "Business settings are unavailable.")) : OperationResult.Success();
+            return count == 0 ? OperationResult.Failure(new ValidationIssue("settings", "Business settings are unavailable.", ValidationCodes.Generic)) : OperationResult.Success();
         }
-        catch (SqliteException) { return OperationResult.Failure(new ValidationIssue("settings", "Business settings could not be saved.")); }
+        catch (SqliteException) { return OperationResult.Failure(new ValidationIssue("settings", "Business settings could not be saved.", ValidationCodes.Conflict)); }
     }
 
     private static string Format(DateTimeOffset value) => value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);

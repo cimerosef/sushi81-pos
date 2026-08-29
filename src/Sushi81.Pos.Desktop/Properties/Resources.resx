@@ -58,4 +58,29 @@
   <data name="Close" xml:space="preserve"><value>Fermer</value></data>
   <data name="EnterValidValues" xml:space="preserve"><value>Saisissez des valeurs valides.</value></data>
   <data name="Saved" xml:space="preserve"><value>Enregistré.</value></data>
+  <data name="ValidationGeneric" xml:space="preserve"><value>La saisie n’est pas valide.</value></data>
+  <data name="ValidationRequired" xml:space="preserve"><value>Ce champ est obligatoire.</value></data>
+  <data name="ValidationCategoryDuplicate" xml:space="preserve"><value>Une catégorie portant ce nom existe déjà.</value></data>
+  <data name="ValidationCategoryMissing" xml:space="preserve"><value>La catégorie n’existe plus.</value></data>
+  <data name="ValidationProductMissing" xml:space="preserve"><value>Le produit n’existe plus.</value></data>
+  <data name="ValidationProductDuplicateCode" xml:space="preserve"><value>Un produit portant ce code existe déjà.</value></data>
+  <data name="ValidationPriceNegative" xml:space="preserve"><value>Le prix ne peut pas être négatif.</value></data>
+  <data name="ValidationVatRange" xml:space="preserve"><value>La TVA doit être comprise entre 0 et 100 %.</value></data>
+  <data name="ValidationRequiredChoices" xml:space="preserve"><value>Ce groupe obligatoire ne contient pas assez de choix actifs.</value></data>
+  <data name="ValidationSettingsRange" xml:space="preserve"><value>Les valeurs des paramètres sont hors limites.</value></data>
+  <data name="ValidationInvalidNumber" xml:space="preserve"><value>Saisissez un nombre valide.</value></data>
+  <data name="ValidationBusy" xml:space="preserve"><value>Une opération est déjà en cours.</value></data>
+  <data name="ValidationGroupStructure" xml:space="preserve"><value>La structure du groupe d’options n’est pas valide.</value></data>
+  <data name="ValidationOptionStructure" xml:space="preserve"><value>La structure du choix n’est pas valide.</value></data>
+  <data name="ValidationConflict" xml:space="preserve"><value>La modification entre en conflit avec les données actuelles.</value></data>
+  <data name="ValidationField" xml:space="preserve"><value>Champ</value></data>
+  <data name="CategoryEdit" xml:space="preserve"><value>Modification de catégorie</value></data>
+  <data name="CategoryCreateSave" xml:space="preserve"><value>Enregistrer la catégorie</value></data>
+  <data name="CategoryRenameSave" xml:space="preserve"><value>Enregistrer le renommage</value></data>
+  <data name="CategoryEditCancel" xml:space="preserve"><value>Annuler la modification</value></data>
+  <data name="DirtyEditorClose" xml:space="preserve"><value>Enregistrez ou annulez vos modifications avant de fermer.</value></data>
+  <data name="Discard" xml:space="preserve"><value>Abandonner</value></data>
+  <data name="KeepEditing" xml:space="preserve"><value>Continuer la modification</value></data>
+  <data name="OptionName" xml:space="preserve"><value>Nom du choix</value></data>
+  <data name="OptionActive" xml:space="preserve"><value>Choix actif</value></data>
 </root>

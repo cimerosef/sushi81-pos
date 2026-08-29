@@ -2,7 +2,46 @@ using Sushi81.Pos.Domain;
 
 namespace Sushi81.Pos.Application.Catalogue;
 
-public sealed record ValidationIssue(string Field, string Message);
+public static class ValidationCodes
+{
+    public const string Generic = "generic";
+    public const string Required = "required";
+    public const string CategoryMissing = "category-missing";
+    public const string CategoryDuplicate = "category-duplicate";
+    public const string ProductMissing = "product-missing";
+    public const string ProductDuplicateCode = "product-duplicate-code";
+    public const string PriceNegative = "price-negative";
+    public const string VatRange = "vat-range";
+    public const string GroupStructure = "group-structure";
+    public const string OptionStructure = "option-structure";
+    public const string RequiredChoices = "required-choices";
+    public const string SettingsRange = "settings-range";
+    public const string InvalidNumber = "invalid-number";
+    public const string Busy = "busy";
+    public const string Conflict = "conflict";
+
+    public static string Infer(string message) => message switch
+    {
+        "Category name is required." or "Product code is required." or "Product name is required." or "Option group name is required." or "Option name is required." => Required,
+        "A category with that name already exists." => CategoryDuplicate,
+        "The category no longer exists." => CategoryMissing,
+        "The product no longer exists." => ProductMissing,
+        "A product with that code already exists." => ProductDuplicateCode,
+        "Product price cannot be negative." => PriceNegative,
+        "VAT rate must be between 0 and 100 percent." => VatRange,
+        "Settings money values cannot be negative." or "Pickup discount rate must be between 0 and 100 percent." => SettingsRange,
+        "A settings save is already in progress." => Busy,
+        _ when message.Contains("Option group", StringComparison.OrdinalIgnoreCase) && message.Contains("active", StringComparison.OrdinalIgnoreCase) => RequiredChoices,
+        _ when message.Contains("Option group", StringComparison.OrdinalIgnoreCase) || message.Contains("Selection", StringComparison.OrdinalIgnoreCase) => GroupStructure,
+        _ when message.Contains("Option", StringComparison.OrdinalIgnoreCase) => OptionStructure,
+        _ => Generic,
+    };
+}
+
+public sealed record ValidationIssue(string Field, string Message, string? Code = null)
+{
+    public string StableCode => string.IsNullOrWhiteSpace(Code) ? ValidationCodes.Infer(Message) : Code;
+}
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1000", Justification = "Factory methods provide concise immutable result construction for generic results.")]
 public class OperationResult(bool succeeded, IReadOnlyList<ValidationIssue> issues)
@@ -106,35 +145,35 @@ public sealed class CatalogueService(ICatalogueStore store)
 
     private async Task<OperationResult> ValidateAndUpdateAsync(Guid id, ProductDraft draft, CancellationToken cancellationToken)
     {
-        if (id == Guid.Empty || draft.Id != Guid.Empty && draft.Id != id) return OperationResult.Failure(new ValidationIssue("product", "The product no longer exists."));
+        if (id == Guid.Empty || draft.Id != Guid.Empty && draft.Id != id) return OperationResult.Failure(new ValidationIssue("product", "The product no longer exists.", ValidationCodes.ProductMissing));
         var validation = ValidateDraft(draft with { Id = id }, requireId: true);
         return validation is not null ? OperationResult.Failure(validation) : await store.UpdateProductAsync(id, draft with { Id = id }, cancellationToken);
     }
 
     private static ValidationIssue? ValidateDraft(ProductDraft draft, bool requireId)
     {
-        if (requireId && draft.Id == Guid.Empty) return new("product", "The product no longer exists.");
+        if (requireId && draft.Id == Guid.Empty) return new("product", "The product no longer exists.", ValidationCodes.ProductMissing);
         var error = CatalogueValidation.ValidateProduct(draft.Code, draft.Name, draft.CategoryId, draft.PriceTtc, draft.VatRate);
-        if (error is not null) return new("product", error);
+        if (error is not null) return new("product", error, ValidationCodes.Infer(error));
         var groups = draft.Groups ?? [];
         var seenGroupOrders = new HashSet<int>();
         var seenGroupIds = new HashSet<Guid>();
         var seenOptionIds = new HashSet<Guid>();
         foreach (var group in groups)
         {
-            if (group.Id != Guid.Empty && !seenGroupIds.Add(group.Id)) return new("groups", "Option group identities must be unique.");
-            if (!seenGroupOrders.Add(group.DisplayOrder)) return new("groups", "Option group order must be unique.");
+            if (group.Id != Guid.Empty && !seenGroupIds.Add(group.Id)) return new("groups", "Option group identities must be unique.", ValidationCodes.GroupStructure);
+            if (!seenGroupOrders.Add(group.DisplayOrder)) return new("groups", "Option group order must be unique.", ValidationCodes.GroupStructure);
             var groupEntity = new OptionGroup(group.Id, draft.Id, group.Name, group.SelectionMode, group.IsRequired, group.MinSelections, group.MaxSelections, group.DisplayOrder, default, default);
             error = CatalogueValidation.ValidateGroup(groupEntity);
-            if (error is not null) return new("groups", error);
+            if (error is not null) return new("groups", error, ValidationCodes.Infer(error));
             var seenOptionOrders = new HashSet<int>();
             foreach (var option in group.Options ?? [])
             {
-                if (option.Id != Guid.Empty && !seenOptionIds.Add(option.Id)) return new("options", "Option identities must be unique.");
-                if (!seenOptionOrders.Add(option.DisplayOrder)) return new("options", "Option order must be unique.");
+                if (option.Id != Guid.Empty && !seenOptionIds.Add(option.Id)) return new("options", "Option identities must be unique.", ValidationCodes.OptionStructure);
+                if (!seenOptionOrders.Add(option.DisplayOrder)) return new("options", "Option order must be unique.", ValidationCodes.OptionStructure);
                 var optionEntity = new ProductOption(option.Id, group.Id, option.Name, option.PriceAdjustmentTtc, option.IsActive, option.DisplayOrder, default, default);
                 error = CatalogueValidation.ValidateOption(optionEntity);
-                if (error is not null) return new("options", error);
+                if (error is not null) return new("options", error, ValidationCodes.Infer(error));
             }
         }
 
@@ -148,7 +187,7 @@ public sealed class CatalogueService(ICatalogueStore store)
         {
             var active = (group.Options ?? []).Count(option => option.IsActive);
             var minimum = group.SelectionMode == SelectionMode.Single ? (group.IsRequired ? 1 : 0) : group.MinSelections ?? 0;
-            if (active < minimum) return new("options", $"Option group '{CatalogueNormalization.Display(group.Name)}' does not have enough active choices.");
+            if (active < minimum) return new("options", $"Option group '{CatalogueNormalization.Display(group.Name)}' does not have enough active choices.", ValidationCodes.RequiredChoices);
         }
 
         return null;

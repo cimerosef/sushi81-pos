@@ -58,4 +58,29 @@
   <data name="Close" xml:space="preserve"><value>关闭</value></data>
   <data name="EnterValidValues" xml:space="preserve"><value>请输入有效值。</value></data>
   <data name="Saved" xml:space="preserve"><value>已保存。</value></data>
+  <data name="ValidationGeneric" xml:space="preserve"><value>输入无效。</value></data>
+  <data name="ValidationRequired" xml:space="preserve"><value>此字段为必填项。</value></data>
+  <data name="ValidationCategoryDuplicate" xml:space="preserve"><value>已存在同名分类。</value></data>
+  <data name="ValidationCategoryMissing" xml:space="preserve"><value>该分类已不存在。</value></data>
+  <data name="ValidationProductMissing" xml:space="preserve"><value>该商品已不存在。</value></data>
+  <data name="ValidationProductDuplicateCode" xml:space="preserve"><value>已存在使用此编码的商品。</value></data>
+  <data name="ValidationPriceNegative" xml:space="preserve"><value>价格不能为负数。</value></data>
+  <data name="ValidationVatRange" xml:space="preserve"><value>增值税必须在 0% 到 100% 之间。</value></data>
+  <data name="ValidationRequiredChoices" xml:space="preserve"><value>必选选项组没有足够的启用选项。</value></data>
+  <data name="ValidationSettingsRange" xml:space="preserve"><value>设置数值超出允许范围。</value></data>
+  <data name="ValidationInvalidNumber" xml:space="preserve"><value>请输入有效数字。</value></data>
+  <data name="ValidationBusy" xml:space="preserve"><value>已有操作正在进行。</value></data>
+  <data name="ValidationGroupStructure" xml:space="preserve"><value>选项组结构无效。</value></data>
+  <data name="ValidationOptionStructure" xml:space="preserve"><value>选项结构无效。</value></data>
+  <data name="ValidationConflict" xml:space="preserve"><value>修改与当前数据冲突。</value></data>
+  <data name="ValidationField" xml:space="preserve"><value>字段</value></data>
+  <data name="CategoryEdit" xml:space="preserve"><value>编辑分类</value></data>
+  <data name="CategoryCreateSave" xml:space="preserve"><value>保存分类</value></data>
+  <data name="CategoryRenameSave" xml:space="preserve"><value>保存重命名</value></data>
+  <data name="CategoryEditCancel" xml:space="preserve"><value>取消编辑</value></data>
+  <data name="DirtyEditorClose" xml:space="preserve"><value>关闭前请保存或取消更改。</value></data>
+  <data name="Discard" xml:space="preserve"><value>放弃</value></data>
+  <data name="KeepEditing" xml:space="preserve"><value>继续编辑</value></data>
+  <data name="OptionName" xml:space="preserve"><value>选项名称</value></data>
+  <data name="OptionActive" xml:space="preserve"><value>启用选项</value></data>
 </root>
