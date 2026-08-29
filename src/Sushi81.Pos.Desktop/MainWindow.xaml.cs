@@ -12,11 +12,13 @@ namespace Sushi81.Pos.Desktop;
 public partial class MainWindow : Window
 {
     private bool loaded;
+    private readonly CatalogueHeaderSet catalogueHeaders = new();
 
     public MainWindow(ShellViewModel viewModel)
     {
         InitializeComponent();
         DataContext = viewModel;
+        ApplyCatalogueHeaders();
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -25,13 +27,22 @@ public partial class MainWindow : Window
         loaded = true;
         try { await admin.RefreshAsync(); await admin.LoadSettingsAsync(); }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+        ApplyCatalogueHeaders();
     }
 
     private async void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (DataContext is not ShellViewModel viewModel || e.AddedItems.OfType<LanguageOption>().SingleOrDefault() is not { } language) return;
-        try { await viewModel.ChangeLanguageAsync(language); }
+        try { await viewModel.ChangeLanguageAsync(language); ApplyCatalogueHeaders(); }
         catch { MessageBox.Show(this, viewModel.LanguageSaveFailure, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private void ApplyCatalogueHeaders()
+    {
+        if (DataContext is not ShellViewModel viewModel || catalogueGrid.Columns.Count < 6) return;
+        catalogueHeaders.Apply(viewModel.Localized);
+        var values = catalogueHeaders.Values;
+        for (var index = 0; index < values.Count; index++) catalogueGrid.Columns[index].Header = values[index];
     }
 
     private async void OnRefreshCatalogue(object sender, RoutedEventArgs e)

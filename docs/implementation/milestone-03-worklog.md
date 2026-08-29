@@ -17,14 +17,17 @@ Authorization: `milestone-03-authorization.md`.
 - Transactional product aggregate persistence with opaque IDs, explicit child deletion and deterministic order.
 - Localized French/zh-CN Catalogue and Settings WPF destinations with category/product/group/option maintenance,
   activation/deactivation, permanent-delete confirmation, filters and settings round-trip editing.
+- Catalogue column headers use a direct presentation seam so all six labels remain visible and localized during live
+  French/zh-CN switching; fixed Code/Price/VAT/Active widths and flexible Name/Category widths keep the grid readable
+  at the minimum, resized and maximized window sizes.
 - Application, domain, infrastructure and desktop-seam tests using only synthetic data.
 
 ## Verification
 
 - .NET SDK 10.0.400, Windows x64.
 - Release restore/build passed (0 warnings, 0 errors).
-- Release solution tests: **198 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
-  Architecture/localization 25, OneDrive protocol 32, and GitHub wrapper/harness 92.
+- Release solution tests: **199 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
+  Architecture/localization 26, OneDrive protocol 32, and GitHub wrapper/harness 92.
 - Self-contained `win-x64` publish passed with `PublishSingleFile=false`.
 - Post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run
   **#133** (success). The follow-up filter-state remediation head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` passed
@@ -128,12 +131,31 @@ added, and close still abandons unpersisted edits. Deterministic presentation te
 lifecycle; the FIX-07 layout structural regression and existing business tests remain green. M03 remains Partial pending the
 operator rerun of category creation/rename and the remaining WPF checklist.
 
+## Manual-test remediation handoff `M03-MANUAL-UI-CATALOGUE-HEADER-FIX-09`
+
+The operator's next WPF pass successfully created and displayed a synthetic product (`TST001`, `Produit test simple`,
+`Entrées`, TTC `8.50`, VAT `10`, Active). Acceptance then stopped because every Catalogue DataGrid header was blank: the
+rows were visible, but there were no Code/Name/Category/TTC/VAT/Active labels. The root cause was binding each
+`DataGridColumn.Header` through `RelativeSource AncestorType=Window`; DataGridColumn is not in the Window visual/logical tree,
+so those bindings cannot resolve.
+
+The narrow fix removes those unsupported column bindings, gives the grid a named presentation seam, and applies a pure
+`CatalogueHeaderSet` from `ShellViewModel.Localized` directly to all six columns during construction, load and every completed
+language change. French and zh-CN values therefore update live without reopening the window or changing product data. Code,
+TTC, VAT and Active columns have fixed readable widths while Name and Category share the remaining space with star sizing,
+including at the minimum, resized and maximized window sizes. A deterministic desktop regression exercises the real French and
+zh-CN resource dictionaries through the seam, round-trips back to French, and verifies the six-column sizing/presentation
+contract without relying on a screenshot or source text alone. M03 remains Partial pending the operator rerun of the full WPF
+checklist with the header labels now visible.
+
 ## Outstanding
 
 - Operator must rerun the manual M03 Windows/WPF checklist from the contract against the newly published artifact, including
-  visual confirmation that both category and status ComboBoxes show `Tous`/`全部` on first render and remain selected through
-  either language-switch direction and refresh, plus the category-manager resize/maximize layout and readable French/Chinese
-  action buttons. This run did not claim interactive verification after the category layout fix.
+  visual confirmation that all six Catalogue headers are populated (`Code`, `Nom`, `Catégorie`, `Prix TTC`, `TVA`, `Actifs` in
+  French and the corresponding zh-CN labels), switch live in both directions, and remain readable at default/resized/maximized
+  sizes. The operator should also confirm both category and status ComboBoxes show `Tous`/`全部` on first render and remain
+  selected through either language-switch direction and refresh, plus the category-manager resize/maximize layout and readable
+  French/Chinese action buttons. Product creation passed in the latest run; acceptance stopped at the blank-header observation.
 - AC-CAT-003 historical-order independence and pricing-consumer cross-check in AC-ORD-011 remain intentionally
   deferred to M04, which is not started or authorized.
 

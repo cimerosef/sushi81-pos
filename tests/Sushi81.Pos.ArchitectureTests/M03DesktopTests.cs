@@ -345,6 +345,41 @@ public sealed class M03DesktopTests
     }
 
     [TestMethod]
+    public async Task CatalogueHeadersStayLocalizedAcrossLanguageRoundTripAndUseReadableWidths()
+    {
+        var fr = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+        var zh = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+        var headerSet = new CatalogueHeaderSet();
+        var keys = new[] { "Code", "Name", "Category", "PriceTtc", "Vat", "Active" };
+
+        headerSet.Apply(fr.Localized);
+        CollectionAssert.AreEqual(keys.Select(key => fr.Localized[key]).ToArray(), headerSet.Values.ToArray());
+
+        await zh.ChangeLanguageAsync(zh.Languages.Single(language => language.CultureName == "zh-CN"));
+        headerSet.Apply(zh.Localized);
+        CollectionAssert.AreEqual(keys.Select(key => zh.Localized[key]).ToArray(), headerSet.Values.ToArray());
+
+        headerSet.Apply(fr.Localized);
+        CollectionAssert.AreEqual(keys.Select(key => fr.Localized[key]).ToArray(), headerSet.Values.ToArray());
+        Assert.IsTrue(headerSet.Values.All(value => !string.IsNullOrWhiteSpace(value)));
+
+        var xamlPath = Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml");
+        var xaml = File.ReadAllText(xamlPath);
+        var gridStart = xaml.IndexOf("<DataGrid x:Name=\"catalogueGrid\"", StringComparison.Ordinal);
+        var gridEnd = xaml.IndexOf("</DataGrid>", gridStart, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, gridStart);
+        Assert.IsGreaterThan(gridStart, gridEnd);
+        var grid = xaml[gridStart..gridEnd];
+        Assert.IsFalse(grid.Contains("RelativeSource={RelativeSource AncestorType=Window}", StringComparison.Ordinal));
+        StringAssert.Contains(grid, "Width=\"2*\"");
+        StringAssert.Contains(grid, "Width=\"1.5*\"");
+
+        var codeBehind = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml.cs"));
+        StringAssert.Contains(codeBehind, "catalogueGrid.Columns[index].Header = values[index]");
+        StringAssert.Contains(codeBehind, "await viewModel.ChangeLanguageAsync(language); ApplyCatalogueHeaders();");
+    }
+
+    [TestMethod]
     public void CategoryManagerLayoutUsesContentSizedEditorAndActionRows()
     {
         var sourcePath = Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml.cs");

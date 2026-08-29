@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation plus the review and manual-UI remediations through `M03-MANUAL-UI-CATEGORY-CREATE-ACTION-FIX-08` are complete on `codex/m03-catalogue-settings`; automated verification is green and the self-contained publish artifact is available. Interactive Windows/WPF M03 acceptance remains an explicit operator check when a desktop session is available.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation plus the review and manual-UI remediations through `M03-MANUAL-UI-CATALOGUE-HEADER-FIX-09` are complete on `codex/m03-catalogue-settings`; automated verification is green and the self-contained publish artifact is available. Interactive Windows/WPF M03 acceptance remains an explicit operator check when a desktop session is available.
 
 ## 1. Status vocabulary
 
@@ -279,7 +279,7 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 **Implementation branch:** `codex/m03-catalogue-settings`
 **Handoff authorization:** `CODEX_HANDOFF_READY: M03-IMPLEMENT-01` on the active M03 implementation PR
 **Implementation/evidence commits:** `466dd06e5f9e7d1e2ea7d75b8a02d14d5f569a64`, `5a36bf9e6e656db842c4bebc464289ade3e1b436`, `80647b131d7a52b410675ba2802d68be29f3d891`
-**Remediation handoffs:** `CODEX_HANDOFF_READY: M03-REVIEW-FIX-02`; post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run **#133** (success). Follow-up `CODEX_HANDOFF_READY: M03-MANUAL-UI-FILTER-FIX-03` is implemented at head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` and passed CI run **#137** (success; durable completion records include check URLs). The category-binding remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-BINDING-FIX-04` is implemented at head `1053c9b210cac15343959aac8f9ffa2c13ccd9b8`; its final CI result is recorded in the matching PR completion evidence. The first status-key remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-STATUS-BINDING-FIX-05` is implemented at head `e56ec77b4d13898c40d57be600652309d77938df`; the follow-up lifecycle remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-STATUS-LIFECYCLE-FIX-06` is implemented at head `a3bab3de2b43e14a415f4251ab1b6dd77cf61aa0`; the category-manager layout remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-LAYOUT-FIX-07` is implemented in the current final head; and `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-CREATE-ACTION-FIX-08` is implemented in the current final head with its final CI result recorded below. Each earlier final CI result is recorded in the matching PR completion evidence.
+**Remediation handoffs:** `CODEX_HANDOFF_READY: M03-REVIEW-FIX-02`; post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run **#133** (success). Follow-up `CODEX_HANDOFF_READY: M03-MANUAL-UI-FILTER-FIX-03` is implemented at head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` and passed CI run **#137** (success; durable completion records include check URLs). The category-binding remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-BINDING-FIX-04` is implemented at head `1053c9b210cac15343959aac8f9ffa2c13ccd9b8`; its final CI result is recorded in the matching PR completion evidence. The first status-key remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-STATUS-BINDING-FIX-05` is implemented at head `e56ec77b4d13898c40d57be600652309d77938df`; the follow-up lifecycle remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-STATUS-LIFECYCLE-FIX-06` is implemented at head `a3bab3de2b43e14a415f4251ab1b6dd77cf61aa0`; the category-manager layout remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-LAYOUT-FIX-07` is implemented in the current final head; `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-CREATE-ACTION-FIX-08` is implemented in the current final head; and `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATALOGUE-HEADER-FIX-09` is implemented in the current final head with its final CI result recorded below. Each earlier final CI result is recorded in the matching PR completion evidence.
 **Status:** Partial pending the operator's interactive Windows/WPF checklist; no automated blocker remains.
 
 ### Delivered scope
@@ -302,8 +302,8 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 - Environment: Windows x64, .NET SDK 10.0.400 (runtime 10.0.11).
 - `dotnet restore Sushi81.Pos.sln`: passed.
 - `dotnet build Sushi81.Pos.sln -c Release --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test Sushi81.Pos.sln -c Release --no-build`: **198 passed, 0 failed, 0 skipped** (Domain 10; Application 9;
-  Infrastructure integration 30; Architecture/localization 25; protocol 32; GitHub wrapper/harness 92, including the
+- `dotnet test Sushi81.Pos.sln -c Release --no-build`: **199 passed, 0 failed, 0 skipped** (Domain 10; Application 9;
+  Infrastructure integration 30; Architecture/localization 26; protocol 32; GitHub wrapper/harness 92, including the
   solution's existing wrapper test project instance).
 - `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true
   -p:PublishSingleFile=false`: passed; output remains under the ignored Desktop publish directory.
@@ -331,8 +331,12 @@ directions and refresh, plus All/Active/Inactive preservation and invalid/null f
 WrapPanel action area with content-sized rows and explicit minimum button sizes; its structural presentation regression is included
 in the architecture suite. The follow-up `M03-MANUAL-UI-CATEGORY-CREATE-ACTION-FIX-08` exposes the category edit action state as
 testable presentation semantics, focuses and enables the name field on Create/Rename, disables conflicting commands while editing,
-and restores the actionable state after Cancel or successful Save. M03 remains Partial solely because the operator's category
-creation/rename and remaining Windows/WPF checklist must be rerun after this fix. M04 is not started and is not authorized.
+and restores the actionable state after Cancel or successful Save. The follow-up `M03-MANUAL-UI-CATALOGUE-HEADER-FIX-09` removes
+the unsupported DataGridColumn-to-Window header bindings, applies all six localized labels through a direct presentation seam on
+construction/load/language change, and gives the grid fixed Code/TTC/VAT/Active widths plus flexible Name/Category star sizing.
+The deterministic regression proves effective French → zh-CN → French labels from the real resource dictionaries and the grid
+presentation contract. M03 remains Partial solely because the operator's latest run stopped after successful product creation at
+the blank-header observation; the full Windows/WPF checklist must be rerun after this fix. M04 is not started and is not authorized.
 
 ### Acceptance mapping and remaining checks
 
@@ -344,11 +348,13 @@ creation/rename and remaining Windows/WPF checklist must be rerun after this fix
 - **Partial by design:** AC-CAT-001 awaits interactive catalogue-screen verification; AC-CAT-003 current-product
   maintenance is implemented, while historical-order independence remains the M04 snapshot regression; AC-ORD-011
   pricing-consumer integration is re-exercised by M04.
-- **Manual Windows/WPF verification:** not performed after `M03-MANUAL-UI-CATEGORY-CREATE-ACTION-FIX-08` in this non-interactive
-  automation run. The operator must launch the newly published self-contained artifact and rerun the M03 checklist (including
-  visual `Tous`/`全部` category and status All selections on first render, both language-switch directions, category-manager
-  resize/maximize proportions with readable French/Chinese action buttons, Create/Rename focus and actionable Save/Cancel state,
-  category/product/group/option CRUD and ordering, activation/deletion/code reuse, settings restart round-trip, and confirmation
-  that no future features appear). This is intentionally not marked Passed.
+- **Manual Windows/WPF verification:** not performed after `M03-MANUAL-UI-CATALOGUE-HEADER-FIX-09` in this non-interactive
+  automation run. The operator's latest run passed synthetic product creation but stopped when all six DataGrid headers were blank.
+  The operator must launch the newly published self-contained artifact and rerun the M03 checklist (including visual French and
+  zh-CN header labels and readability at default/resized/maximized sizes, `Tous`/`全部` category and status All selections on
+  first render, both language-switch directions, category-manager resize/maximize proportions with readable French/Chinese action
+  buttons, Create/Rename focus and actionable Save/Cancel state, category/product/group/option CRUD and ordering,
+  activation/deletion/code reuse, settings restart round-trip, and confirmation that no future features appear). This is
+  intentionally not marked Passed.
 - **M04:** not started and not authorized by this handoff. **Blockers:** none for the automated M03 implementation; only
   the explicitly outstanding manual WPF acceptance remains.

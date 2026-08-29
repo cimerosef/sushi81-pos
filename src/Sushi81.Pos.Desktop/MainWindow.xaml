@@ -23,7 +23,7 @@
             <ComboBox Width="120" Margin="0,0,8,0" ItemsSource="{Binding StatusFilters}" DisplayMemberPath="Label" SelectedValuePath="Key" SelectedValue="{Binding SelectedStatusKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             <Button Padding="12,4" Content="↻" Click="OnRefreshCatalogue" />
           </WrapPanel>
-          <DataGrid Grid.Row="1" ItemsSource="{Binding Products}" SelectedItem="{Binding SelectedProduct}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" MouseDoubleClick="OnEditProduct">
+          <DataGrid x:Name="catalogueGrid" Grid.Row="1" ItemsSource="{Binding Products}" SelectedItem="{Binding SelectedProduct}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" MouseDoubleClick="OnEditProduct">
             <DataGrid.RowStyle>
               <Style TargetType="DataGridRow">
                 <Style.Triggers>
@@ -32,12 +32,12 @@
               </Style>
             </DataGrid.RowStyle>
             <DataGrid.Columns>
-              <DataGridTextColumn Header="{Binding DataContext.Localized[Code], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding Code}" />
-              <DataGridTextColumn Header="{Binding DataContext.Localized[Name], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding Name}" />
-              <DataGridTextColumn Header="{Binding DataContext.Localized[Category], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding CategoryName}" />
-              <DataGridTextColumn Header="{Binding DataContext.Localized[PriceTtc], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding PriceTtc.Euros, StringFormat=F2}" />
-              <DataGridTextColumn Header="{Binding DataContext.Localized[Vat], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding VatRate, StringFormat=F1}" />
-              <DataGridCheckBoxColumn Header="{Binding DataContext.Localized[Active], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding IsActive}" />
+              <DataGridTextColumn Header="" Width="110" Binding="{Binding Code}" />
+              <DataGridTextColumn Header="" Width="2*" Binding="{Binding Name}" />
+              <DataGridTextColumn Header="" Width="1.5*" Binding="{Binding CategoryName}" />
+              <DataGridTextColumn Header="" Width="110" Binding="{Binding PriceTtc.Euros, StringFormat=F2}" />
+              <DataGridTextColumn Header="" Width="90" Binding="{Binding VatRate, StringFormat=F1}" />
+              <DataGridCheckBoxColumn Header="" Width="90" Binding="{Binding IsActive}" />
             </DataGrid.Columns>
           </DataGrid>
           <TextBlock Grid.Row="1" Text="{Binding DataContext.Localized[EmptyCatalogue], RelativeSource={RelativeSource AncestorType=Window}}" HorizontalAlignment="Center" VerticalAlignment="Center" FontStyle="Italic">

@@ -124,6 +124,32 @@ public sealed class CategoryEditBuffer
     public void Cancel() => CompleteSave();
 }
 
+/// <summary>Localized labels applied directly to the catalogue grid's presentation columns.</summary>
+public sealed class CatalogueHeaderSet
+{
+    private static readonly string[] HeaderKeys = ["Code", "Name", "Category", "PriceTtc", "Vat", "Active"];
+    private readonly string[] values = [.. HeaderKeys];
+
+    public string Code => values[0];
+    public string Name => values[1];
+    public string Category => values[2];
+    public string PriceTtc => values[3];
+    public string Vat => values[4];
+    public string Active => values[5];
+
+    public IReadOnlyList<string> Values => values.ToArray();
+
+    public void Apply(IReadOnlyDictionary<string, string> localized)
+    {
+        ArgumentNullException.ThrowIfNull(localized);
+        for (var index = 0; index < HeaderKeys.Length; index++)
+        {
+            var key = HeaderKeys[index];
+            values[index] = localized.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? value : key;
+        }
+    }
+}
+
 /// <summary>Minimal state machine used by tests and dialogs to prevent silent dirty-edit loss.</summary>
 public sealed class ProductEditSession<T>(T original)
 {
