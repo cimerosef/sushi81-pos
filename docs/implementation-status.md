@@ -279,7 +279,7 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 **Implementation branch:** `codex/m03-catalogue-settings`
 **Handoff authorization:** `CODEX_HANDOFF_READY: M03-IMPLEMENT-01` on the active M03 implementation PR
 **Implementation/evidence commits:** `466dd06e5f9e7d1e2ea7d75b8a02d14d5f569a64`, `5a36bf9e6e656db842c4bebc464289ade3e1b436`, `80647b131d7a52b410675ba2802d68be29f3d891`
-**Remediation handoff:** `CODEX_HANDOFF_READY: M03-REVIEW-FIX-02`; post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run **#133** (success; the final durable completion record includes the check URL).
+**Remediation handoff:** `CODEX_HANDOFF_READY: M03-REVIEW-FIX-02`; post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run **#133** (success). Follow-up `CODEX_HANDOFF_READY: M03-MANUAL-UI-FILTER-FIX-03` is implemented at head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` and passed CI run **#137** (success; durable completion records include check URLs).
 **Status:** Partial pending the operator's interactive Windows/WPF checklist; no automated blocker remains.
 
 ### Delivered scope
@@ -302,8 +302,8 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 - Environment: Windows x64, .NET SDK 10.0.400 (runtime 10.0.11).
 - `dotnet restore Sushi81.Pos.sln`: passed.
 - `dotnet build Sushi81.Pos.sln -c Release --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test Sushi81.Pos.sln -c Release --no-build`: **188 passed, 0 failed, 0 skipped** (Domain 10; Application 9;
-  Infrastructure integration 30; Architecture/localization 15; protocol 32; GitHub wrapper/harness 92, including the
+- `dotnet test Sushi81.Pos.sln -c Release --no-build`: **191 passed, 0 failed, 0 skipped** (Domain 10; Application 9;
+  Infrastructure integration 30; Architecture/localization 18; protocol 32; GitHub wrapper/harness 92, including the
   solution's existing wrapper test project instance).
 - `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true
   -p:PublishSingleFile=false`: passed; output remains under the ignored Desktop publish directory.
@@ -315,8 +315,9 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 The correction pass closes review findings A–I: read-only query paths with no missing-DB creation; strict non-coercing numeric
 parsing; stable localized field validation; dirty product close protection; explicit category Create/Rename Save/Cancel; stateful
 activation action labels; immediate localized All-filter/label refresh; deterministic §16 test inventory; and refreshed worklog/status
-evidence. M03 remains Partial solely because the operator's Windows/WPF checklist is still manual. M04 is not started and is not
-authorized by this handoff.
+evidence. The subsequent `M03-MANUAL-UI-FILTER-FIX-03` remediation adds explicit All-filter selection, semantic filter preservation
+across language/refresh, deterministic missing-category fallback, and no-selection guards for Edit/Delete. M03 remains Partial
+solely because the operator's full Windows/WPF checklist is still pending. M04 is not started and is not authorized.
 
 ### Acceptance mapping and remaining checks
 
