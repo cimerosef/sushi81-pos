@@ -14,6 +14,20 @@ The source command preserves the exact prepared Home Device A v1 identity (`devi
 
 Automated fake-HTTP/synthetic tests cover strict receipts, missing digest, public repository rejection, token redaction, source ordering, target acquisition, retention grouping and the pre-existing directed lifecycle safety suite. No real GitHub token, repository, business snapshot or live device run is included. Real operator verification remains required: private handoff repository setup, A → B v1, B → A v2, source restart/resume, exact target validation and retention observation.
 
+## Correction pass — review findings closed
+
+The latest correction pass adds deterministic regression coverage and keeps the gate `PARTIAL — real two-device GitHub evidence required`:
+
+- Create Release sends `make_latest` as the documented JSON string `"false"`; HTTP 201 is accepted and HTTP 422 is fail-closed.
+- Target grant validation now requires the complete immutable identity tuple, including `sourceDeviceId`, before any local durable mutation.
+- A persisted pre-relinquishment snapshot receipt is transfer-bound and restart-safe: the exact GitHub asset is re-read and checked for release, uploaded state, name, size and digest, while the current local SQLite integrity/hash/size is recomputed before relinquishment. Missing, corrupt, stale or changed receipt/snapshot leaves `TransferPrepared` and creates no grant.
+- After relinquishment a fresh coordinator is reconstructed from disk and its source write gate is asserted false before grant creation/upload.
+- Retention groups by lineage and orders validated units by generation first, then handoff version; filename timestamps never determine authority order. A durable exact-ID deletion plan makes grant-success/snapshot-failure cleanup resumable, retry-safe and 404-idempotent, while protected current assets remain untouched.
+- Release Asset listing follows `per_page=100` pagination until the complete collection is read. Network, timeout, authentication, permission, rate-limit and malformed receipt failures surface as structured secret-free transport errors.
+- The continuous-lifecycle fixture now passes its requested version argument through to the transfer identity rather than hard-coding v1.
+
+The correction-pass fake-HTTP matrix includes release payload/422, repository/token/auth/rate-limit failures, upload state/name/size/digest contradictions, pagination, wrong-source target rejection, receipt restart/revalidation, generation advancement, lineage isolation, grant digest protection, partial-delete retry/idempotency and network/timeout redaction. Full solution verification is 140 passed, 0 failed, 0 skipped; build is 0 warnings/0 errors; self-contained win-x64 publish is required below. CI must be green for the final pushed head. No real user-device test is performed in this pass.
+
 ## Branch, commits and amended sources
 
 - Branch: `codex/m02-directed-handoff-revalidation`
@@ -22,7 +36,7 @@ Automated fake-HTTP/synthetic tests cover strict receipts, missing digest, publi
 - PR: [#3](https://github.com/cimerosef/sushi81-pos/pull/3), open and not merged.
 - Original feasibility evidence remains in `docs/implementation/milestone-02-feasibility-report.md`; it is not rewritten here.
 - Amended sources: `docs/decisions/target-directed-authority-handoff.md`, `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`, and `docs/implementation-plan.md`.
-- Evidence uses synthetic data only. No business database, customer/order/payment data, credential, account identifier or personal file listing is included.
+- Current GitHub automated transport evidence is synthetic/fake-HTTP. The report also preserves sanitized real historical Home Device A OneDrive evidence. No business database, customer/order/payment data, credential, account identifier or personal file listing is included.
 
 ## Authority state model
 

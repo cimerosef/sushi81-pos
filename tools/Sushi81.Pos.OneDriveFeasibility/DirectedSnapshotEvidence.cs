@@ -18,7 +18,11 @@ public sealed record DirectedSnapshotEvidence(
         && checksum.All(Uri.IsHexDigit)
         && SnapshotByteLength > 0
         && IntegrityConfirmed
-        && SyncConfirmed;
+        && SyncConfirmed
+        && (RemoteReceipt is null || RemoteReceipt.IsValid
+            && RemoteReceipt.Size == SnapshotByteLength
+            && RemoteReceipt.Digest[7..].Equals(SnapshotChecksum, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Path.GetFileName(SnapshotPath), RemoteReceipt.Name, StringComparison.Ordinal));
 
     public static Task<DirectedSnapshotEvidence> CaptureAsync(
         DirectedTransferIdentity transfer,

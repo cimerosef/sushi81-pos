@@ -44,22 +44,27 @@ public sealed class GitHubDirectedSourceCoordinator
         }
         if (state.Transfer != transfer) return new(false, "transfer-state-mismatch", "Only the same transfer identity can be resumed.", state);
         var release = await transport.EnsureContainerAsync(false, cancellationToken);
-        var snapshotReceipt = state.SnapshotEvidence?.RemoteReceipt ?? await ReadReceiptAsync(Path.Combine(stateDirectory, "github-snapshot-receipt.json"), transfer.TransferId, cancellationToken);
+        var receiptPath = Path.Combine(stateDirectory, "github-snapshot-receipt.json");
+        var persistedReceipt = await ReadReceiptAsync(receiptPath, transfer.TransferId, cancellationToken);
+        if (persistedReceipt.Exists && persistedReceipt.Receipt is null)
+            return new(false, "snapshot-receipt-invalid", persistedReceipt.Error ?? "Persisted GitHub snapshot receipt is invalid; source remains prepared.", state);
+        var snapshotReceipt = state.SnapshotEvidence?.RemoteReceipt ?? persistedReceipt.Receipt;
         string? snapshotPath = null;
         string? snapshotName = null;
         if (state.Mode == DirectedAuthorityMode.TransferPrepared)
         {
             snapshotName = snapshotReceipt?.Name ?? await ReserveSnapshotNameAsync(release, cancellationToken);
             snapshotPath = Path.Combine(stateDirectory, snapshotName);
-            if (!File.Exists(snapshotPath)) await DirectedSnapshotEvidence.CreateSyntheticAsync(snapshotPath, cancellationToken);
             if (snapshotReceipt is null)
             {
+                if (!File.Exists(snapshotPath)) await DirectedSnapshotEvidence.CreateSyntheticAsync(snapshotPath, cancellationToken);
                 var local = await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshotPath, true, cancellationToken);
                 if (!local.IsValid) return new(false, "sqlite-integrity-failure", "Snapshot failed SQLite integrity validation.", state);
                 snapshotReceipt = await transport.UploadAssetAsync(release, snapshotName, snapshotPath, cancellationToken);
-                await WriteReceiptAsync(Path.Combine(stateDirectory, "github-snapshot-receipt.json"), transfer.TransferId, snapshotReceipt, cancellationToken);
-                local = local with { RemoteReceipt = snapshotReceipt };
-                var relinquished = await coordinator.DurablyRelinquishAsync(local, cancellationToken);
+                await WriteReceiptAsync(receiptPath, transfer.TransferId, snapshotReceipt, cancellationToken);
+                var revalidated = await RevalidateSnapshotReceiptAsync(release, transfer, snapshotPath, snapshotReceipt, cancellationToken);
+                if (!revalidated.Succeeded) return new(false, revalidated.Code, revalidated.Message, state);
+                var relinquished = await coordinator.DurablyRelinquishAsync(revalidated.Evidence!, cancellationToken);
                 if (!relinquished.Succeeded && relinquished.Code != "already-relinquished") return relinquished;
                 state = coordinator.Current;
             }
@@ -69,8 +74,9 @@ public sealed class GitHubDirectedSourceCoordinator
                 if (!File.Exists(snapshotPath)) return new(false, "snapshot-local-missing", "Durable snapshot receipt exists but local snapshot is missing.", state);
                 if (state.Mode == DirectedAuthorityMode.TransferPrepared)
                 {
-                    var local = await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshotPath, true, snapshotReceipt, cancellationToken);
-                    var relinquished = await coordinator.DurablyRelinquishAsync(local, cancellationToken);
+                    var revalidated = await RevalidateSnapshotReceiptAsync(release, transfer, snapshotPath, snapshotReceipt, cancellationToken);
+                    if (!revalidated.Succeeded) return new(false, revalidated.Code, revalidated.Message, state);
+                    var relinquished = await coordinator.DurablyRelinquishAsync(revalidated.Evidence!, cancellationToken);
                     if (!relinquished.Succeeded && relinquished.Code != "already-relinquished") return relinquished;
                     state = coordinator.Current;
                 }
@@ -79,6 +85,12 @@ public sealed class GitHubDirectedSourceCoordinator
         if (state.Mode is not (DirectedAuthorityMode.RelinquishedBlocked or DirectedAuthorityMode.Released))
             return new(false, "source-not-relinquished", "GitHub source flow did not cross durable relinquishment.", state);
         if (state.Mode == DirectedAuthorityMode.Released) return new(true, "already-released", "The same GitHub transfer is already durably complete.", state);
+        // Reconstruct from durable state at the relinquishment boundary.  The
+        // grant is not even created until the fresh write gate is false.
+        var reconstructed = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(Path.Combine(stateDirectory, "source-authority.json")));
+        if (reconstructed.MayBusinessWrite(transfer.SourceDeviceId))
+            return new(false, "source-write-gate-failed", "Reconstructed source authority remained writable after durable relinquishment.", reconstructed.Current);
+        state = reconstructed.Current ?? state;
         var evidence = state.SnapshotEvidence!;
         snapshotReceipt ??= evidence.RemoteReceipt;
         if (snapshotReceipt is null) return new(false, "snapshot-receipt-missing", "Durable relinquishment has no GitHub snapshot receipt.", state);
@@ -106,7 +118,8 @@ public sealed class GitHubDirectedSourceCoordinator
         }
         var committed = coordinator.CommitGitHubReleased($"github://release/{release.Id}/asset/{snapshotReceipt.AssetId}", $"github://release/{release.Id}/asset/{grantReceipt.AssetId}", grantReceipt);
         if (!committed.Succeeded && committed.Code != "already-released") return committed;
-        _ = await new GitHubHandoffRetention(transport).CleanupAsync(release, new HashSet<long> { snapshotReceipt.AssetId, grantReceipt.AssetId }, cancellationToken);
+        _ = await new GitHubHandoffRetention(transport, Path.Combine(stateDirectory, "github-retention-plan.json"))
+            .CleanupAsync(release, new HashSet<long> { snapshotReceipt.AssetId, grantReceipt.AssetId }, cancellationToken);
         return new(true, "github-source-released", "GitHub snapshot and grant publication completed after durable source relinquishment.", coordinator.Current);
     }
 
@@ -128,12 +141,47 @@ public sealed class GitHubDirectedSourceCoordinator
         await using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true);
         await JsonSerializer.SerializeAsync(stream, new SnapshotReceiptEnvelope(transferId, receipt), JsonOptions, cancellationToken); await stream.FlushAsync(cancellationToken); stream.Flush(true);
     }
-    private static async Task<GitHubAssetReceipt?> ReadReceiptAsync(string path, string transferId, CancellationToken cancellationToken)
+    private sealed record ReceiptReadResult(GitHubAssetReceipt? Receipt, bool Exists, string? Error);
+    private static async Task<ReceiptReadResult> ReadReceiptAsync(string path, string transferId, CancellationToken cancellationToken)
     {
-        if (!File.Exists(path)) return null;
-        try { await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true); var envelope = await JsonSerializer.DeserializeAsync<SnapshotReceiptEnvelope>(stream, JsonOptions, cancellationToken); return envelope is { Receipt.IsValid: true } && envelope.TransferId == transferId ? envelope.Receipt : null; }
-        catch (JsonException) { return null; }
-        catch (IOException) { return null; }
+        if (!File.Exists(path)) return new(null, false, null);
+        try
+        {
+            await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+            var envelope = await JsonSerializer.DeserializeAsync<SnapshotReceiptEnvelope>(stream, JsonOptions, cancellationToken);
+            if (envelope is { Receipt.IsValid: true } && envelope.TransferId == transferId)
+                return new(envelope.Receipt, true, null);
+            return new(null, true, "Persisted GitHub snapshot receipt does not match the exact transfer or strict receipt schema.");
+        }
+        catch (JsonException exception) { return new(null, true, "Persisted GitHub snapshot receipt is malformed: " + exception.Message); }
+        catch (IOException exception) { return new(null, true, "Persisted GitHub snapshot receipt could not be read: " + exception.Message); }
+    }
+
+    private async Task<(bool Succeeded, string Code, string Message, DirectedSnapshotEvidence? Evidence)> RevalidateSnapshotReceiptAsync(
+        GitHubReleaseContainer release,
+        DirectedTransferIdentity transfer,
+        string snapshotPath,
+        GitHubAssetReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (!receipt.IsValid || receipt.ReleaseId != release.Id || !GitHubSnapshotName.IsValid(receipt.Name) || !File.Exists(snapshotPath))
+            return (false, "snapshot-receipt-invalid", "Persisted GitHub snapshot receipt is not bound to the current release and local snapshot.", null);
+        try
+        {
+            var remote = await transport.GetAssetAsync(receipt.AssetId, cancellationToken);
+            if (!remote.IsComplete || remote.Id != receipt.AssetId || remote.Name != receipt.Name || remote.Size != receipt.Size
+                || !remote.Digest.Equals(receipt.Digest, StringComparison.OrdinalIgnoreCase))
+                return (false, "snapshot-receipt-mismatch", "GitHub snapshot receipt no longer matches the complete remote asset.", null);
+            var evidence = await DirectedSnapshotEvidence.CaptureAsync(transfer, snapshotPath, true, receipt, cancellationToken);
+            if (!evidence.IsValid || evidence.SnapshotByteLength != receipt.Size
+                || !evidence.SnapshotChecksum.Equals(receipt.Digest[7..], StringComparison.OrdinalIgnoreCase))
+                return (false, "snapshot-local-mismatch", "The current local SQLite snapshot no longer matches the persisted GitHub receipt.", null);
+            return (true, "snapshot-receipt-validated", "GitHub snapshot receipt and local SQLite snapshot are unchanged.", evidence);
+        }
+        catch (GitHubTransportException exception)
+        {
+            return (false, "snapshot-remote-revalidation-failed", exception.Message, null);
+        }
     }
 }
 
@@ -150,7 +198,8 @@ public sealed class GitHubDirectedTargetCoordinator
         if (!expectedTransfer.IsValid) return new(false, "invalid-transfer", "Transfer identity is invalid.");
         var release = await transport.EnsureContainerAsync(false, cancellationToken);
         var assets = await transport.ListAssetsAsync(release, cancellationToken);
-        foreach (var grantAsset in assets.Where(a => GitHubSnapshotName.IsGrant(a.Name)).OrderByDescending(a => a.Name, StringComparer.Ordinal))
+        var candidates = new List<(GitHubHandoffGrant Grant, GitHubRemoteAsset GrantAsset)>();
+        foreach (var grantAsset in assets.Where(a => GitHubSnapshotName.IsGrant(a.Name)))
         {
             if (!grantAsset.IsComplete) continue;
             var grantBytes = await transport.DownloadAssetAsync(grantAsset.Id, cancellationToken);
@@ -159,7 +208,11 @@ public sealed class GitHubDirectedTargetCoordinator
                 return new(false, "grant-hash-mismatch", "Downloaded grant does not match its GitHub server receipt.");
             GitHubHandoffGrant? grant;
             try { grant = JsonSerializer.Deserialize<GitHubHandoffGrant>(grantBytes, JsonOptions); } catch (JsonException) { continue; }
-            if (grant is null || !grant.IsValid || grant.TargetDeviceId != expectedTransfer.TargetDeviceId || grant.TransferId != expectedTransfer.TransferId || grant.LineageId != expectedTransfer.LineageId || grant.Generation != expectedTransfer.Generation || grant.HandoffVersion != expectedTransfer.HandoffVersion) continue;
+            if (grant is null || !grant.IsValid || grant.SourceDeviceId != expectedTransfer.SourceDeviceId || grant.TargetDeviceId != expectedTransfer.TargetDeviceId || grant.TransferId != expectedTransfer.TransferId || grant.LineageId != expectedTransfer.LineageId || grant.Generation != expectedTransfer.Generation || grant.HandoffVersion != expectedTransfer.HandoffVersion) continue;
+            candidates.Add((grant, grantAsset));
+        }
+        foreach (var (grant, grantAsset) in candidates.OrderByDescending(x => x.Grant.Generation).ThenByDescending(x => x.Grant.HandoffVersion))
+        {
             if (grant.SnapshotReleaseId != release.Id) return new(false, "snapshot-release-mismatch", "Grant references a different release.");
             var snapshotAsset = await transport.GetAssetAsync(grant.SnapshotAssetId, cancellationToken);
             if (!snapshotAsset.IsComplete || snapshotAsset.Name != grant.SnapshotAssetName || snapshotAsset.Size != grant.SnapshotByteLength || !snapshotAsset.Digest.Equals("sha256:" + grant.SnapshotSha256, StringComparison.OrdinalIgnoreCase)) return new(false, "remote-snapshot-mismatch", "GitHub snapshot metadata contradicts the immutable grant.");

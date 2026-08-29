@@ -26,7 +26,8 @@ public sealed class DirectedTargetAcquisitionTests
         using var fixture = new Fixture();
         var transfer = await fixture.CreateReleasedTransferAsync(2);
         var first = new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(fixture.TargetStatePath), "target");
-        Assert.IsTrue((await first.AcquireAsync(fixture.DirectoryPath, fixture.SnapshotPath, transfer)).Succeeded);
+        var firstResult = await first.AcquireAsync(fixture.DirectoryPath, fixture.SnapshotPath, transfer);
+        Assert.IsTrue(firstResult.Succeeded, firstResult.Code + ": " + firstResult.Message);
 
         var restarted = new DirectedTargetAcquisitionCoordinator(new DurableTargetAcquisitionStore(fixture.TargetStatePath), "target");
         Assert.IsNotNull(restarted.Current);
@@ -275,14 +276,45 @@ public sealed class DirectedTargetAcquisitionTests
         public async Task<DirectedTransferIdentity> CreateReleasedTransferAsync(long version)
         {
             var source = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(SourceStatePath));
-            var transfer = Transfer("target", 1);
-            Assert.IsTrue(source.InitializeAuthoritative("source", ["source", "target", "third"]).Succeeded);
+            var transfer = Transfer("target", version);
+            var prior = version > 1
+                ? new DirectedLocalAuthorityCursor(transfer.LineageId, transfer.Generation, version - 1)
+                : null;
+            Assert.IsTrue(source.InitializeAuthoritative("source", ["source", "target", "third"], prior).Succeeded);
+            if (version > 1)
+            {
+                var cursor = source.LocalCursorStore.Load();
+                source.LocalCursorStore.Save(cursor with
+                {
+                    Revision = cursor.Revision + 1,
+                    LineageId = transfer.LineageId,
+                    Generation = transfer.Generation,
+                    HighWaterHandoffVersion = version - 1,
+                    CurrentRole = DurableLocalAuthorityRole.Authoritative,
+                    UpdatedAtUtc = DateTimeOffset.UtcNow
+                });
+            }
             Assert.IsTrue(source.PrepareTransfer(transfer).Succeeded);
             SnapshotPath = Path.Combine(DirectoryPath, "synthetic-" + version + ".snapshot.db");
             await DirectedSnapshotEvidence.CreateSyntheticAsync(SnapshotPath);
             var evidence = await DirectedSnapshotEvidence.CaptureAsync(transfer, SnapshotPath, true);
             Assert.IsTrue((await source.DurablyRelinquishAsync(evidence)).Succeeded);
             Assert.IsTrue((await source.PublishReleaseMarkersAsync(DirectoryPath, SnapshotPath)).Succeeded);
+            if (version > 1)
+            {
+                // A v2+ fixture represents a target that has already joined the
+                // lineage and is resuming an acquisition-pending cursor.
+                new DurableLocalAuthorityCursorStore(LocalCursorPath).Save(new DurableLocalAuthorityCursorState(
+                    DurableLocalAuthorityCursorState.CurrentFormatVersion,
+                    1,
+                    "target",
+                    transfer.LineageId,
+                    transfer.Generation,
+                    version - 1,
+                    DurableLocalAuthorityRole.AcquisitionPending,
+                    transfer.TransferId,
+                    DateTimeOffset.UtcNow));
+            }
             return transfer;
         }
 

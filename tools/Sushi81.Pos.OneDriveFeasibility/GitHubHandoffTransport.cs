@@ -18,7 +18,12 @@ public sealed record GitHubHandoffTransportOptions(
 {
     public Uri BaseUri => ApiBaseUri ?? new Uri("https://api.github.com/");
     public bool IsValid => !string.IsNullOrWhiteSpace(Owner) && !string.IsNullOrWhiteSpace(Repository)
-        && !Owner.Contains('/') && !Repository.Contains('/') && !string.IsNullOrWhiteSpace(ReleaseTag);
+        && !Owner.Contains('/') && !Repository.Contains('/') && !string.IsNullOrWhiteSpace(ReleaseTag)
+        && BaseUri.IsAbsoluteUri && (BaseUri.Scheme == Uri.UriSchemeHttps || BaseUri.Scheme == Uri.UriSchemeHttp)
+        && (Timeout is null || Timeout.Value > TimeSpan.Zero)
+        // The source repository is code/history, never the operational handoff store.
+        && !(Owner.Equals("cimerosef", StringComparison.OrdinalIgnoreCase)
+            && Repository.Equals("sushi81-pos", StringComparison.OrdinalIgnoreCase));
 }
 
 public sealed record GitHubAssetReceipt(
@@ -129,7 +134,7 @@ public sealed class GitHubReleaseAssetTransport : IGitHubHandoffTransport, IDisp
 
     public async Task<GitHubReleaseContainer> EnsureContainerAsync(bool createIfMissing, CancellationToken cancellationToken = default)
     {
-        using var repo = await SendAsync(HttpMethod.Get, $"repos/{Uri.EscapeDataString(options.Owner)}/{Uri.EscapeDataString(options.Repository)}", null, cancellationToken);
+        using var repo = await SendAsync(HttpMethod.Get, $"repos/{Uri.EscapeDataString(options.Owner)}/{Uri.EscapeDataString(options.Repository)}", null, cancellationToken, allowNotFound: true);
         if (repo.StatusCode == HttpStatusCode.NotFound) throw new GitHubTransportException("Configured handoff repository was not found.", repo.StatusCode);
         var repository = await ParseAsync<GitHubRepository>(repo, cancellationToken);
         if (repository.Visibility is not null && repository.Visibility.Equals("public", StringComparison.OrdinalIgnoreCase) || repository.Private == false)
@@ -138,7 +143,8 @@ public sealed class GitHubReleaseAssetTransport : IGitHubHandoffTransport, IDisp
         if (release.StatusCode == HttpStatusCode.NotFound)
         {
             if (!createIfMissing) throw new GitHubTransportException("Configured handoff release was not found.", release.StatusCode);
-            var body = JsonSerializer.Serialize(new { tag_name = options.ReleaseTag, name = options.ReleaseName, draft = false, prerelease = false, make_latest = false });
+            // GitHub documents make_latest as the JSON string "true", "false" or "legacy".
+            var body = JsonSerializer.Serialize(new { tag_name = options.ReleaseTag, name = options.ReleaseName, draft = false, prerelease = false, make_latest = "false" });
             using var created = await SendAsync(HttpMethod.Post, $"repos/{options.Owner}/{options.Repository}/releases", new StringContent(body, Encoding.UTF8, "application/json"), cancellationToken);
             return await ParseReleaseAsync(created, cancellationToken);
         }
@@ -163,9 +169,16 @@ public sealed class GitHubReleaseAssetTransport : IGitHubHandoffTransport, IDisp
 
     public async Task<IReadOnlyList<GitHubRemoteAsset>> ListAssetsAsync(GitHubReleaseContainer release, CancellationToken cancellationToken = default)
     {
-        using var response = await SendAsync(HttpMethod.Get, $"repos/{options.Owner}/{options.Repository}/releases/{release.Id}/assets", null, cancellationToken);
-        var assets = await ParseAsync<List<GitHubAssetDto>>(response, cancellationToken);
-        return assets.Select(ToAsset).ToArray();
+        var all = new List<GitHubRemoteAsset>();
+        for (var page = 1; page <= 10_000; page++)
+        {
+            using var response = await SendAsync(HttpMethod.Get, $"repos/{options.Owner}/{options.Repository}/releases/{release.Id}/assets?per_page=100&page={page}", null, cancellationToken);
+            var assets = await ParseAsync<List<GitHubAssetDto>>(response, cancellationToken);
+            all.AddRange(assets.Select(ToAsset));
+            if (assets.Count < 100) return all;
+        }
+
+        throw new GitHubTransportException("GitHub release-asset pagination exceeded the safe page limit.");
     }
 
     public async Task<GitHubRemoteAsset> GetAssetAsync(long assetId, CancellationToken cancellationToken = default)
@@ -192,7 +205,19 @@ public sealed class GitHubReleaseAssetTransport : IGitHubHandoffTransport, IDisp
     {
         using var request = new HttpRequestMessage(method, path) { Content = content };
         request.Headers.Accept.Clear(); request.Headers.Accept.ParseAdd(acceptBinary ? "application/octet-stream" : "application/vnd.github+json");
-        var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        HttpResponseMessage response;
+        try
+        {
+            response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new GitHubTransportException("GitHub API request timed out.", null, exception);
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new GitHubTransportException("GitHub API network request failed.", null, exception);
+        }
         if ((int)response.StatusCode >= 400 && !(allowNotFound && response.StatusCode == HttpStatusCode.NotFound))
         {
             response.Dispose(); throw new GitHubTransportException($"GitHub API request failed with HTTP {(int)response.StatusCode}.", response.StatusCode);
@@ -208,6 +233,8 @@ public sealed class GitHubReleaseAssetTransport : IGitHubHandoffTransport, IDisp
             return await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken) ?? throw new GitHubTransportException("GitHub API returned an empty JSON response.");
         }
         catch (JsonException ex) { throw new GitHubTransportException("GitHub API returned malformed JSON.", response.StatusCode, ex); }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        { throw new GitHubTransportException("GitHub API response timed out.", null, exception); }
     }
     private static async Task<GitHubReleaseContainer> ParseReleaseAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {

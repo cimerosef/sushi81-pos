@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json;
 
 namespace Sushi81.Pos.OneDriveFeasibility.Tests;
 
@@ -55,6 +56,41 @@ public sealed class GitHubTransportTests
     }
 
     [TestMethod]
+    public void MissingTokenFailsBeforeAnyRequest()
+    {
+        using var client = new HttpClient { BaseAddress = new Uri("https://api.example/") };
+        var exception = ExpectTransportFailureAsync(() =>
+        {
+            _ = new GitHubReleaseAssetTransport(new GitHubHandoffTransportOptions("acme", "handoff", ApiBaseUri: client.BaseAddress), client, "");
+            return Task.CompletedTask;
+        }).GetAwaiter().GetResult();
+        Assert.IsTrue(exception.Message.Contains("not set", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public async Task UploadMetadataContradictionsFailClosed()
+    {
+        var variants = new[]
+        {
+            "{\"id\":44,\"name\":\"wrong.snapshot.db\",\"size\":1,\"state\":\"uploaded\",\"digest\":\"sha256:" + new string('a', 64) + "\"}",
+            "{\"id\":44,\"name\":\"20260829235959.snapshot.db\",\"size\":2,\"state\":\"uploaded\",\"digest\":\"sha256:" + new string('a', 64) + "\"}",
+            "{\"id\":44,\"name\":\"20260829235959.snapshot.db\",\"size\":1,\"state\":\"starter\",\"digest\":\"sha256:" + new string('a', 64) + "\"}",
+            "{\"id\":44,\"name\":\"20260829235959.snapshot.db\",\"size\":1,\"state\":\"uploaded\",\"digest\":\"sha256:" + new string('b', 64) + "\"}"
+        };
+        foreach (var variant in variants)
+        {
+            var handler = new StubHandler((request, _) => request.Method == HttpMethod.Post
+                ? Json(HttpStatusCode.Created, variant)
+                : new HttpResponseMessage(HttpStatusCode.OK));
+            var dir = NewDirectory(); var path = Path.Combine(dir, "local"); await File.WriteAllBytesAsync(path, [1]);
+            using var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.example/") };
+            using var transport = new GitHubReleaseAssetTransport(new GitHubHandoffTransportOptions("acme", "handoff", ApiBaseUri: client.BaseAddress), client, "secret-token");
+            var exception = await ExpectTransportFailureAsync(() => transport.UploadAssetAsync(new GitHubReleaseContainer(9, "tag", "https://uploads.example/assets", "", false, false), "20260829235959.snapshot.db", path));
+            Assert.IsTrue(exception.Message.Contains("receipt", StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    [TestMethod]
     public async Task PublicRepositoryIsRejectedWithoutLeakingToken()
     {
         var handler = new StubHandler((_, _) => Json(HttpStatusCode.OK, "{\"private\":false,\"visibility\":\"public\"}"));
@@ -87,13 +123,249 @@ public sealed class GitHubTransportTests
         var transport = new FakeTransport();
         for (var version = 1; version <= 4; version++) await transport.SeedUnitAsync(version);
         var result = await new GitHubHandoffRetention(transport).CleanupAsync(new GitHubReleaseContainer(9, "sushi81-handoff-v1", "", "", false, false));
-        Assert.IsTrue(result.Succeeded);
+        Assert.IsTrue(result.Succeeded, result.Message);
         Assert.HasCount(2, result.DeletedAssetIds);
         Assert.HasCount(6, await transport.ListAssetsAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false)));
     }
 
+    [TestMethod]
+    public async Task CreateReleaseSendsDocumentedStringMakeLatestFalse()
+    {
+        string? requestBody = null;
+        var handler = new StubHandler((request, _) =>
+        {
+            if (request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath == "/repos/acme/handoff")
+                return Json(HttpStatusCode.OK, "{\"private\":true,\"visibility\":\"private\"}");
+            if (request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath.Contains("/releases/tags/", StringComparison.Ordinal))
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            if (request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath.EndsWith("/releases", StringComparison.Ordinal))
+            {
+                requestBody = request.Content!.ReadAsStringAsync(CancellationToken.None).GetAwaiter().GetResult();
+                return Json(HttpStatusCode.Created, "{\"id\":9,\"tag_name\":\"sushi81-handoff-v1\",\"upload_url\":\"https://uploads.example/releases/9/assets{?name,label}\",\"html_url\":\"https://example/release\",\"draft\":false,\"prerelease\":false}");
+            }
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.example/") };
+        using var transport = new GitHubReleaseAssetTransport(new GitHubHandoffTransportOptions("acme", "handoff", ApiBaseUri: client.BaseAddress), client, "secret-token");
+        var release = await transport.EnsureContainerAsync(true);
+        using var document = JsonDocument.Parse(requestBody!);
+        Assert.AreEqual(JsonValueKind.String, document.RootElement.GetProperty("make_latest").ValueKind);
+        Assert.AreEqual("false", document.RootElement.GetProperty("make_latest").GetString());
+        Assert.AreEqual(9, release.Id);
+    }
+
+    [TestMethod]
+    public async Task CreateReleaseValidation422FailsClosed()
+    {
+        var handler = new StubHandler((request, _) => request.Method == HttpMethod.Get && request.RequestUri!.AbsolutePath == "/repos/acme/handoff"
+            ? Json(HttpStatusCode.OK, "{\"private\":true}")
+            : request.Method == HttpMethod.Get ? new HttpResponseMessage(HttpStatusCode.NotFound) : Json(HttpStatusCode.UnprocessableEntity, "{\"message\":\"validation failed\"}"));
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.example/") };
+        using var transport = new GitHubReleaseAssetTransport(new GitHubHandoffTransportOptions("acme", "handoff", ApiBaseUri: client.BaseAddress), client, "secret-token");
+        await ExpectTransportFailureAsync(() => transport.EnsureContainerAsync(true));
+    }
+
+    [TestMethod]
+    public async Task MissingRepositoryFailsClosed()
+    {
+        var handler = new StubHandler((_, _) => new HttpResponseMessage(HttpStatusCode.NotFound));
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.example/") };
+        using var transport = new GitHubReleaseAssetTransport(new GitHubHandoffTransportOptions("acme", "handoff", ApiBaseUri: client.BaseAddress), client, "secret-token");
+        var exception = await ExpectTransportFailureAsync(() => transport.EnsureContainerAsync(false));
+        Assert.AreEqual(HttpStatusCode.NotFound, exception.StatusCode);
+    }
+
+    [TestMethod]
+    public async Task AuthenticationPermissionAndRateLimitFailuresAreStructured()
+    {
+        foreach (var status in new[] { 401, 403, 429 })
+        {
+            var handler = new StubHandler((_, _) => new HttpResponseMessage((HttpStatusCode)status));
+            using var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.example/") };
+            using var transport = new GitHubReleaseAssetTransport(new GitHubHandoffTransportOptions("acme", "handoff", ApiBaseUri: client.BaseAddress), client, "secret-token");
+            var exception = await ExpectTransportFailureAsync(() => transport.EnsureContainerAsync(false));
+            Assert.IsFalse(exception.Message.Contains("secret-token", StringComparison.Ordinal));
+            Assert.AreEqual((HttpStatusCode)status, exception.StatusCode);
+        }
+    }
+
+    [TestMethod]
+    public async Task ListAssetsReadsPaginationBeyondTheFirstHundred()
+    {
+        var handler = new StubHandler((request, _) =>
+        {
+            var page = request.RequestUri!.Query.Contains("page=2", StringComparison.Ordinal) ? 2 : 1;
+            var count = page == 1 ? 100 : 1;
+            var items = Enumerable.Range(0, count).Select(index => $"{{\"id\":{1000 + page * 100 + index},\"name\":\"asset-{page}-{index}\",\"size\":1,\"state\":\"uploaded\",\"digest\":\"sha256:{new string('a', 64)}\"}}");
+            return Json(HttpStatusCode.OK, "[" + string.Join(',', items) + "]");
+        });
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.example/") };
+        using var transport = new GitHubReleaseAssetTransport(new GitHubHandoffTransportOptions("acme", "handoff", ApiBaseUri: client.BaseAddress), client, "secret-token");
+        var assets = await transport.ListAssetsAsync(new GitHubReleaseContainer(9, "tag", "https://uploads.example", "", false, false));
+        Assert.HasCount(101, assets);
+        Assert.IsTrue(assets.Any(asset => asset.Name == "asset-2-0"));
+    }
+
+    [TestMethod]
+    public void SourceRepositoryCannotBeConfiguredAsOperationalStore() =>
+        Assert.IsFalse(new GitHubHandoffTransportOptions("cimerosef", "sushi81-pos").IsValid);
+
+    [TestMethod]
+    public async Task TargetWrongSourceGrantCannotMutateDurableState()
+    {
+        var transport = new FakeTransport();
+        var actual = await transport.SeedUnitAsync(1, source: "wrong-source");
+        var expected = actual with { SourceDeviceId = "device-a" };
+        var targetDir = NewDirectory();
+        var result = await new GitHubDirectedTargetCoordinator(targetDir, transport).AcquireAsync(expected);
+        Assert.IsFalse(result.Succeeded);
+        Assert.IsFalse(Directory.EnumerateFiles(targetDir, "*", SearchOption.AllDirectories).Any(file => file.EndsWith(".json", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [TestMethod]
+    public async Task RetentionPrioritizesNewGenerationWithinOneLineage()
+    {
+        var transport = new FakeTransport();
+        await transport.SeedUnitAsync(98, generation: 1);
+        await transport.SeedUnitAsync(99, generation: 1);
+        await transport.SeedUnitAsync(100, generation: 1);
+        await transport.SeedUnitAsync(1, generation: 2);
+        var result = await new GitHubHandoffRetention(transport).CleanupAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false));
+        Assert.IsTrue(result.Succeeded);
+        Assert.HasCount(2, result.DeletedAssetIds);
+        Assert.IsFalse((await transport.ListAssetsAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false))).Any(x => x.Name.StartsWith("20260829000098", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task RetentionKeepsLineagesIsolated()
+    {
+        var transport = new FakeTransport();
+        for (var version = 1; version <= 4; version++) await transport.SeedUnitAsync(version, lineage: "11111111-1111-1111-1111-111111111111");
+        await transport.SeedUnitAsync(1, lineage: "22222222-2222-2222-2222-222222222222", timestamp: "20260901000001");
+        var result = await new GitHubHandoffRetention(transport).CleanupAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false));
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsTrue((await transport.ListAssetsAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false))).Any(x => x.Name == "20260901000001.snapshot.db"));
+    }
+
+    [TestMethod]
+    public async Task CorruptGrantReceiptNeverBecomesDeletionCandidate()
+    {
+        var transport = new FakeTransport();
+        for (var version = 1; version <= 4; version++) await transport.SeedUnitAsync(version);
+        transport.CorruptDigest("20260829000001.grant.json");
+        var result = await new GitHubHandoffRetention(transport).CleanupAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false));
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsTrue((await transport.ListAssetsAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false))).Any(x => x.Name == "20260829000001.snapshot.db"));
+    }
+
+    [TestMethod]
+    public async Task PartialRetentionDeletionIsResumableAndIdempotent()
+    {
+        var transport = new FakeTransport { FailSnapshotDeletionOnce = true };
+        for (var version = 1; version <= 4; version++) await transport.SeedUnitAsync(version);
+        var planPath = Path.Combine(NewDirectory(), "retention-plan.json");
+        var retention = new GitHubHandoffRetention(transport, planPath);
+        var first = await retention.CleanupAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false));
+        Assert.IsFalse(first.Succeeded);
+        Assert.IsFalse((await transport.ListAssetsAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false))).Any(x => x.Name == "20260829000001.grant.json"));
+        Assert.IsTrue((await transport.ListAssetsAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false))).Any(x => x.Name == "20260829000001.snapshot.db"));
+        var second = await retention.CleanupAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false));
+        Assert.IsTrue(second.Succeeded);
+        var third = await retention.CleanupAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false));
+        Assert.IsTrue(third.Succeeded);
+        Assert.IsFalse((await transport.ListAssetsAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false))).Any(x => x.Name.Contains("000001", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task SourceRestartRejectsChangedLocalSnapshotBeforeRelinquishment()
+    {
+        var transport = new FakeTransport();
+        var directory = NewDirectory();
+        var transfer = new DirectedTransferIdentity(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), 1, 1, "device-a", "device-b");
+        var coordinator = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(Path.Combine(directory, "source-authority.json")));
+        Assert.IsTrue(coordinator.InitializeAuthoritative("device-a", ["device-a", "device-b"]).Succeeded);
+        Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
+        var snapshot = Path.Combine(directory, "20260829120000.snapshot.db");
+        await DirectedSnapshotEvidence.CreateSyntheticAsync(snapshot);
+        var receipt = await transport.UploadAssetAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false), Path.GetFileName(snapshot), snapshot);
+        await File.WriteAllTextAsync(Path.Combine(directory, "github-snapshot-receipt.json"), JsonSerializer.Serialize(new { TransferId = transfer.TransferId, Receipt = receipt }));
+        await File.AppendAllTextAsync(snapshot, "changed");
+        var result = await new GitHubDirectedSourceCoordinator(directory, transport, () => new DateTimeOffset(2026, 8, 29, 12, 0, 0, TimeSpan.Zero)).RunAsync(transfer);
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(DirectedAuthorityMode.TransferPrepared, new DurableAuthorityStateStore(Path.Combine(directory, "source-authority.json")).Load().Mode);
+        Assert.IsFalse(transport.UploadedNames.Any(name => GitHubSnapshotName.IsGrant(name)));
+    }
+
+    [TestMethod]
+    public async Task SourceRestartRevalidatesPersistedReceiptAndResumesSameTransfer()
+    {
+        var transport = new FakeTransport();
+        var directory = NewDirectory();
+        var transfer = new DirectedTransferIdentity(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), 1, 1, "device-a", "device-b");
+        var coordinator = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(Path.Combine(directory, "source-authority.json")));
+        Assert.IsTrue(coordinator.InitializeAuthoritative("device-a", ["device-a", "device-b"]).Succeeded);
+        Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
+        var snapshot = Path.Combine(directory, "20260829120001.snapshot.db");
+        await DirectedSnapshotEvidence.CreateSyntheticAsync(snapshot);
+        var receipt = await transport.UploadAssetAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false), Path.GetFileName(snapshot), snapshot);
+        await File.WriteAllTextAsync(Path.Combine(directory, "github-snapshot-receipt.json"), JsonSerializer.Serialize(new { TransferId = transfer.TransferId, Receipt = receipt }));
+        var result = await new GitHubDirectedSourceCoordinator(directory, transport, () => new DateTimeOffset(2026, 8, 29, 12, 0, 0, TimeSpan.Zero)).RunAsync(transfer);
+        Assert.IsTrue(result.Succeeded, result.Message);
+        Assert.AreEqual(DirectedAuthorityMode.Released, result.State!.Mode);
+        Assert.HasCount(2, transport.UploadedNames);
+        Assert.IsFalse(new DirectedHandoffCoordinator(new DurableAuthorityStateStore(Path.Combine(directory, "source-authority.json"))).MayBusinessWrite("device-a"));
+    }
+
+    [TestMethod]
+    public async Task SourceRestartMissingRemoteReceiptStaysPrepared()
+    {
+        var transport = new FakeTransport();
+        var directory = NewDirectory();
+        var transfer = new DirectedTransferIdentity(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), 1, 1, "device-a", "device-b");
+        var coordinator = new DirectedHandoffCoordinator(new DurableAuthorityStateStore(Path.Combine(directory, "source-authority.json")));
+        Assert.IsTrue(coordinator.InitializeAuthoritative("device-a", ["device-a", "device-b"]).Succeeded);
+        Assert.IsTrue(coordinator.PrepareTransfer(transfer).Succeeded);
+        var snapshot = Path.Combine(directory, "20260829120002.snapshot.db");
+        await DirectedSnapshotEvidence.CreateSyntheticAsync(snapshot);
+        var receipt = await transport.UploadAssetAsync(new GitHubReleaseContainer(9, "tag", "", "", false, false), Path.GetFileName(snapshot), snapshot);
+        await File.WriteAllTextAsync(Path.Combine(directory, "github-snapshot-receipt.json"), JsonSerializer.Serialize(new { TransferId = transfer.TransferId, Receipt = receipt }));
+        transport.RemoveAsset(receipt.AssetId);
+        var result = await new GitHubDirectedSourceCoordinator(directory, transport).RunAsync(transfer);
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(DirectedAuthorityMode.TransferPrepared, new DurableAuthorityStateStore(Path.Combine(directory, "source-authority.json")).Load().Mode);
+    }
+
+    [TestMethod]
+    public async Task NetworkFailureIsRedactedAndStructured()
+    {
+        var handler = new StubHandler((_, _) => throw new HttpRequestException("secret-token DNS failure"));
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.example/") };
+        using var transport = new GitHubReleaseAssetTransport(new GitHubHandoffTransportOptions("acme", "handoff", ApiBaseUri: client.BaseAddress), client, "secret-token");
+        var exception = await ExpectTransportFailureAsync(() => transport.EnsureContainerAsync(false));
+        Assert.IsFalse(exception.Message.Contains("secret-token", StringComparison.Ordinal));
+        Assert.IsTrue(exception.Message.Contains("network", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public async Task NonCallerTimeoutIsStructured()
+    {
+        var handler = new StubHandler((_, _) => throw new TaskCanceledException("timeout"));
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("https://api.example/") };
+        using var transport = new GitHubReleaseAssetTransport(new GitHubHandoffTransportOptions("acme", "handoff", ApiBaseUri: client.BaseAddress), client, "secret-token");
+        var exception = await ExpectTransportFailureAsync(() => transport.EnsureContainerAsync(false));
+        Assert.IsTrue(exception.Message.Contains("timed out", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string NewDirectory() { var path = Path.Combine(Path.GetTempPath(), "sushi81-github-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(path); return path; }
     private static HttpResponseMessage Json(HttpStatusCode status, string json) => new(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+
+    private static async Task<GitHubTransportException> ExpectTransportFailureAsync(Func<Task> action)
+    {
+        try { await action(); }
+        catch (GitHubTransportException exception) { return exception; }
+        Assert.Fail("Expected a structured GitHub transport failure.");
+        return null!;
+    }
 
     private sealed class StubHandler(Func<HttpRequestMessage, CancellationToken, HttpResponseMessage> responder) : HttpMessageHandler
     {
@@ -104,8 +376,17 @@ public sealed class GitHubTransportTests
     {
         private readonly GitHubReleaseContainer release = new(9, "sushi81-handoff-v1", "https://uploads.example/assets", "", false, false);
         private readonly Dictionary<long, (GitHubRemoteAsset Asset, byte[] Bytes)> assets = new();
+        private readonly string lineageId = Guid.NewGuid().ToString();
         private long nextId = 100;
         public List<string> UploadedNames { get; } = [];
+        public bool FailSnapshotDeletionOnce { get; set; }
+        public void CorruptDigest(string name)
+        {
+            var item = assets.Values.FirstOrDefault(x => x.Asset.Name == name);
+            if (item.Asset is not null)
+                assets[item.Asset.Id] = (item.Asset with { Digest = "sha256:" + new string('f', 64) }, item.Bytes);
+        }
+        public void RemoveAsset(long assetId) => assets.Remove(assetId);
         public Task<GitHubReleaseContainer> EnsureContainerAsync(bool createIfMissing, CancellationToken cancellationToken = default) => Task.FromResult(release);
         public async Task<GitHubAssetReceipt> UploadAssetAsync(GitHubReleaseContainer release, string name, string filePath, CancellationToken cancellationToken = default)
         {
@@ -114,17 +395,30 @@ public sealed class GitHubTransportTests
             return new GitHubAssetReceipt(release.Id, id, name, bytes.Length, digest, DateTimeOffset.UtcNow);
         }
         public Task<IReadOnlyList<GitHubRemoteAsset>> ListAssetsAsync(GitHubReleaseContainer release, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<GitHubRemoteAsset>>(assets.Values.Select(x => x.Asset).ToArray());
-        public Task<GitHubRemoteAsset> GetAssetAsync(long assetId, CancellationToken cancellationToken = default) => Task.FromResult(assets[assetId].Asset);
-        public Task<byte[]> DownloadAssetAsync(long assetId, CancellationToken cancellationToken = default) => Task.FromResult(assets[assetId].Bytes);
-        public Task DeleteAssetAsync(long assetId, CancellationToken cancellationToken = default) { assets.Remove(assetId); return Task.CompletedTask; }
-
-        public async Task SeedUnitAsync(long version)
+        public Task<GitHubRemoteAsset> GetAssetAsync(long assetId, CancellationToken cancellationToken = default) => assets.TryGetValue(assetId, out var item)
+            ? Task.FromResult(item.Asset)
+            : Task.FromException<GitHubRemoteAsset>(new GitHubTransportException("asset not found", HttpStatusCode.NotFound));
+        public Task<byte[]> DownloadAssetAsync(long assetId, CancellationToken cancellationToken = default) => assets.TryGetValue(assetId, out var item)
+            ? Task.FromResult(item.Bytes)
+            : Task.FromException<byte[]>(new GitHubTransportException("asset not found", HttpStatusCode.NotFound));
+        public Task DeleteAssetAsync(long assetId, CancellationToken cancellationToken = default)
         {
-            var directory = NewDirectory(); var snapshotName = $"20260829{version:000000}.snapshot.db"; var snapshotPath = Path.Combine(directory, snapshotName); await File.WriteAllBytesAsync(snapshotPath, Encoding.UTF8.GetBytes("snapshot-" + version));
+            if (FailSnapshotDeletionOnce && assets.TryGetValue(assetId, out var item) && GitHubSnapshotName.IsValid(item.Asset.Name))
+            {
+                FailSnapshotDeletionOnce = false;
+                throw new GitHubTransportException("synthetic deletion failure", HttpStatusCode.BadGateway);
+            }
+            assets.Remove(assetId); return Task.CompletedTask;
+        }
+
+        public async Task<DirectedTransferIdentity> SeedUnitAsync(long version, long generation = 1, string? lineage = null, string source = "a", string target = "b", string? timestamp = null)
+        {
+            var directory = NewDirectory(); var snapshotName = (timestamp ?? $"20260829{version:000000}") + ".snapshot.db"; var snapshotPath = Path.Combine(directory, snapshotName); await File.WriteAllBytesAsync(snapshotPath, Encoding.UTF8.GetBytes("snapshot-" + version));
             var snapshotReceipt = await UploadAssetAsync(release, snapshotName, snapshotPath);
-            var transfer = new DirectedTransferIdentity(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), 1, version, "a", "b");
-            var grant = new GitHubHandoffGrant(1, transfer.TransferId, transfer.LineageId, 1, version, "a", "b", release.Id, snapshotReceipt.AssetId, snapshotReceipt.Name, snapshotReceipt.Size, snapshotReceipt.Digest[7..], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+            var transfer = new DirectedTransferIdentity(Guid.NewGuid().ToString(), lineage ?? lineageId, generation, version, source, target);
+            var grant = new GitHubHandoffGrant(1, transfer.TransferId, transfer.LineageId, generation, version, source, target, release.Id, snapshotReceipt.AssetId, snapshotReceipt.Name, snapshotReceipt.Size, snapshotReceipt.Digest[7..], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
             var grantPath = Path.Combine(directory, GitHubSnapshotName.GrantName(snapshotName)); await File.WriteAllTextAsync(grantPath, System.Text.Json.JsonSerializer.Serialize(grant)); await UploadAssetAsync(release, GitHubSnapshotName.GrantName(snapshotName), grantPath);
+            return transfer;
         }
     }
 }
