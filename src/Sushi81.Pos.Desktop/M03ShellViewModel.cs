@@ -99,10 +99,24 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     public string ActiveFilter
     {
         get => activeFilter;
+        set => SetActiveFilter(value);
+    }
+    /// <summary>
+    /// Stable semantic key for the status filter ComboBox.
+    ///
+    /// MainWindow binds SelectedValue to this property with SelectedValuePath="Key".
+    /// The status options are replaced during localization, so the binding must preserve
+    /// the key while WPF transiently clears selection during collection replacement.
+    /// </summary>
+    public string? SelectedStatusKey
+    {
+        get => activeFilter;
         set
         {
-            activeFilter = value is "Active" or "Inactive" ? value : "All";
-            OnPropertyChanged();
+            // Keep the effective key while WPF is between StatusFilters.Clear() and the
+            // rebuilt localized options. Once options exist, null deterministically means All.
+            if (value is null && StatusFilters.Count == 0) return;
+            SetActiveFilter(value);
         }
     }
     public bool CanEditProduct => SelectedProduct is not null && !IsBusy;
@@ -219,6 +233,13 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         selectedCategoryId = next?.Id ?? Guid.Empty;
         OnPropertyChanged(nameof(SelectedCategory));
         OnPropertyChanged(nameof(SelectedCategoryId));
+    }
+
+    private void SetActiveFilter(string? value)
+    {
+        activeFilter = value is "Active" or "Inactive" ? value : "All";
+        OnPropertyChanged(nameof(ActiveFilter));
+        OnPropertyChanged(nameof(SelectedStatusKey));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

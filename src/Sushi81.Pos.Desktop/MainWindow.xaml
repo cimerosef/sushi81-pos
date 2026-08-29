@@ -20,7 +20,7 @@
           <WrapPanel Margin="0,0,0,8">
             <TextBox Width="220" Margin="0,0,8,0" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding DataContext.Localized[Search], RelativeSource={RelativeSource AncestorType=Window}}" />
             <ComboBox Width="180" Margin="0,0,8,0" ItemsSource="{Binding CategoryFilters}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedCategoryId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            <ComboBox Width="120" Margin="0,0,8,0" ItemsSource="{Binding StatusFilters}" DisplayMemberPath="Label" SelectedValuePath="Key" SelectedValue="{Binding ActiveFilter}" />
+            <ComboBox Width="120" Margin="0,0,8,0" ItemsSource="{Binding StatusFilters}" DisplayMemberPath="Label" SelectedValuePath="Key" SelectedValue="{Binding SelectedStatusKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             <Button Padding="12,4" Content="↻" Click="OnRefreshCatalogue" />
           </WrapPanel>
           <DataGrid Grid.Row="1" ItemsSource="{Binding Products}" SelectedItem="{Binding SelectedProduct}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" MouseDoubleClick="OnEditProduct">

@@ -198,6 +198,49 @@ public sealed class M03DesktopTests
     }
 
     [TestMethod]
+    public async Task StatusFilterBindingKeyIsStableAcrossEmptyLocalizationAndRefresh()
+    {
+        var viewModel = new M03ShellViewModel(new CatalogueService(new FakeCatalogueStore()), new BusinessSettingsService(new FakeSettingsStore()));
+
+        Assert.AreEqual("All", viewModel.SelectedStatusKey);
+        viewModel.ApplyLocalization("全部", "启用", "停用");
+        await viewModel.RefreshAsync();
+        Assert.AreEqual("All", viewModel.SelectedStatusKey);
+        Assert.AreEqual("全部", viewModel.StatusFilters[0].Label);
+
+        viewModel.ApplyLocalization("Tous", "Actifs", "Inactifs");
+        Assert.AreEqual("All", viewModel.SelectedStatusKey);
+        Assert.AreEqual("Tous", viewModel.StatusFilters[0].Label);
+
+        // Simulate the WPF SelectedValue path writing null during ItemsSource replacement.
+        viewModel.SelectedStatusKey = null;
+        Assert.AreEqual("All", viewModel.SelectedStatusKey);
+        Assert.AreEqual("All", viewModel.ActiveFilter);
+    }
+
+    [TestMethod]
+    public async Task StatusFilterBindingKeyPreservesActiveAndInactiveAcrossLocalizationAndRefresh()
+    {
+        var category = new CategorySummary(Guid.NewGuid(), "Plats");
+        var viewModel = new M03ShellViewModel(new CatalogueService(new FakeCatalogueStore(category)), new BusinessSettingsService(new FakeSettingsStore()));
+
+        await viewModel.RefreshAsync();
+        viewModel.SelectedStatusKey = "Active";
+        viewModel.ApplyLocalization("全部", "启用", "停用");
+        await viewModel.RefreshAsync();
+        Assert.AreEqual("Active", viewModel.SelectedStatusKey);
+        Assert.AreEqual("Active", viewModel.ActiveFilter);
+        Assert.AreEqual("启用", viewModel.StatusFilters.Single(option => option.Key == "Active").Label);
+
+        viewModel.SelectedStatusKey = "Inactive";
+        viewModel.ApplyLocalization("Tous", "Actifs", "Inactifs");
+        await viewModel.RefreshAsync();
+        Assert.AreEqual("Inactive", viewModel.SelectedStatusKey);
+        Assert.AreEqual("Inactive", viewModel.ActiveFilter);
+        Assert.AreEqual("Inactifs", viewModel.StatusFilters.Single(option => option.Key == "Inactive").Label);
+    }
+
+    [TestMethod]
     public void PresentationParsingRejectsInvalidNumericInputAndFormatsLocalizedIssues()
     {
         Assert.IsFalse(M03Presentation.TryParseMoney("not-a-number", "price", out _, out var issue));
