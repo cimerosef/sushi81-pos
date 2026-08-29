@@ -143,8 +143,6 @@ When ChatGPT has completed review/design work, no user decision is required, and
 
 Every handoff ID is single-use. Codex must never process the same `CODEX_HANDOFF_READY` ID twice. Each distinct handoff ID must receive its own durable matching `CODEX_DONE: <same-id>` completion record; an older `CODEX_DONE` must not be edited or reused to represent a newer handoff.
 
-Each handoff ID must receive its own durable `CODEX_DONE: <same-id>` record on the same PR. A newer handoff must never be represented by editing, replacing or reusing an older handoff's `CODEX_DONE` record.
-
 The Execution Gate does not prevent ChatGPT from publishing handoffs. A handoff published while issue #4 is closed is queued, not cancelled.
 
 ### Codex recurring wake-up behavior
