@@ -38,8 +38,8 @@ Authorization: `milestone-03-authorization.md`.
   PR completion evidence. The status lifecycle remediation head `a3bab3de2b43e14a415f4251ab1b6dd77cf61aa0` passed local
   Release verification; its CI result is recorded in the matching PR completion evidence. The category-manager layout
   remediation in the final evidence head also passed local Release verification; its final CI result is recorded in the
-  matching PR completion evidence. The `M03-MANUAL-UI-CATALOGUE-HEADER-FIX-09` head
-  `e847c35ffdc4dc628175732f275058945ef784d8` passed GitHub Actions Continuous integration run **#155** (success).
+  matching PR completion evidence. The `M03-MANUAL-UI-CATALOGUE-HEADER-FIX-09` final head
+  `9bd4e057400abe0110ae95fdeb84efed43eb80a4` passed GitHub Actions Continuous integration run **#157** (success).
 
 ## Remediation handoff `M03-REVIEW-FIX-02`
 
