@@ -34,6 +34,9 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         CategoryFilters.Add(new CategorySummary(Guid.Empty, AllCategoryLabel));
         selectedCategory = CategoryFilters[0];
         selectedCategoryId = Guid.Empty;
+        // Keep the three semantic status options for the lifetime of the view-model. WPF
+        // can process collection replacement asynchronously; stable option identity lets
+        // localization update labels without creating a selection lifecycle race.
         StatusFilters = new ObservableCollection<FilterOption>
         {
             new("All", "All"),
@@ -51,7 +54,29 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     public string AllCategoryLabel { get; private set; } = "All";
 
-    public sealed record FilterOption(string Key, string Label);
+    public sealed class FilterOption : INotifyPropertyChanged
+    {
+        private string label;
+
+        public FilterOption(string key, string label)
+        {
+            Key = key;
+            this.label = label;
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public string Key { get; }
+        public string Label => label;
+
+        public void SetLabel(string value)
+        {
+            var next = string.IsNullOrWhiteSpace(value) ? Key : value;
+            if (string.Equals(label, next, StringComparison.Ordinal)) return;
+            label = next;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Label)));
+        }
+    }
 
     public ProductSummary? SelectedProduct { get => selectedProduct; set { selectedProduct = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanEditProduct)); OnPropertyChanged(nameof(CanDeleteProduct)); OnPropertyChanged(nameof(CanToggleProduct)); OnPropertyChanged(nameof(ToggleProductActionLabel)); } }
     public CategorySummary? SelectedCategory
@@ -142,10 +167,9 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         activateLabel = string.IsNullOrWhiteSpace(activate) ? "Activate" : activate;
         deactivateLabel = string.IsNullOrWhiteSpace(deactivate) ? "Deactivate" : deactivate;
         AllCategoryLabel = string.IsNullOrWhiteSpace(all) ? "All" : all;
-        StatusFilters.Clear();
-        StatusFilters.Add(new("All", string.IsNullOrWhiteSpace(all) ? "All" : all));
-        StatusFilters.Add(new("Active", string.IsNullOrWhiteSpace(active) ? "Active" : active));
-        StatusFilters.Add(new("Inactive", string.IsNullOrWhiteSpace(inactive) ? "Inactive" : inactive));
+        StatusFilters.Single(option => option.Key == "All").SetLabel(all);
+        StatusFilters.Single(option => option.Key == "Active").SetLabel(active);
+        StatusFilters.Single(option => option.Key == "Inactive").SetLabel(inactive);
         ActiveFilter = statusKey;
         if (CategoryFilters.Count > 0)
         {
@@ -153,7 +177,6 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
             RestoreCategorySelection(categoryId);
         }
         OnPropertyChanged(nameof(AllCategoryLabel));
-        OnPropertyChanged(nameof(StatusFilters));
         OnPropertyChanged(nameof(ToggleProductActionLabel));
     }
 

@@ -241,6 +241,40 @@ public sealed class M03DesktopTests
     }
 
     [TestMethod]
+    public async Task StatusFilterBindingOptionsRemainStableAcrossLocalizationAndRefresh()
+    {
+        var viewModel = new M03ShellViewModel(new CatalogueService(new FakeCatalogueStore()), new BusinessSettingsService(new FakeSettingsStore()));
+        var initial = viewModel.StatusFilters.ToArray();
+        var all = initial.Single(option => option.Key == "All");
+        var active = initial.Single(option => option.Key == "Active");
+        var inactive = initial.Single(option => option.Key == "Inactive");
+
+        viewModel.ApplyLocalization("全部", "启用", "停用");
+        await viewModel.RefreshAsync();
+        Assert.AreSame(all, viewModel.StatusFilters[0]);
+        Assert.AreSame(active, viewModel.StatusFilters[1]);
+        Assert.AreSame(inactive, viewModel.StatusFilters[2]);
+        Assert.AreEqual("全部", all.Label);
+        Assert.AreEqual("启用", active.Label);
+        Assert.AreEqual("停用", inactive.Label);
+
+        viewModel.SelectedStatusKey = "Active";
+        viewModel.ApplyLocalization("Tous", "Actifs", "Inactifs");
+        await viewModel.RefreshAsync();
+        Assert.AreSame(all, viewModel.StatusFilters[0]);
+        Assert.AreSame(active, viewModel.StatusFilters[1]);
+        Assert.AreSame(inactive, viewModel.StatusFilters[2]);
+        Assert.AreEqual("Active", viewModel.SelectedStatusKey);
+        Assert.AreEqual("Actifs", active.Label);
+
+        viewModel.SelectedStatusKey = "Inactive";
+        viewModel.ApplyLocalization("全部", "启用", "停用");
+        await viewModel.RefreshAsync();
+        Assert.AreEqual("Inactive", viewModel.SelectedStatusKey);
+        Assert.AreEqual("停用", inactive.Label);
+    }
+
+    [TestMethod]
     public void PresentationParsingRejectsInvalidNumericInputAndFormatsLocalizedIssues()
     {
         Assert.IsFalse(M03Presentation.TryParseMoney("not-a-number", "price", out _, out var issue));
