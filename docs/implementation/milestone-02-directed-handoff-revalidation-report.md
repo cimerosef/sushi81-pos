@@ -253,7 +253,7 @@ This section is an operator plan only. No live GitHub handoff, retention cleanup
 
 The current CLI has a safe same-home sequence without copying or forging another device's durable authority state: `github-directed-target-acquire` writes the target's own cursor, then the existing transport-independent `directed-target-promote` advances that same local cursor to source authority. `github-directed-source-run` then performs the next exact target-directed transfer and runs post-completion retention. Each synthetic device uses a separate state directory; no command below may reference `C:\Users\zshu\Documents\Sushi81-M02-Test\device-a`, `C:\Users\zshu\Documents\Sushi81-M02-Test\device-b`, `live.db`, application data, or a copied authority JSON.
 
-The drill must use a **new disposable GitHub Release** (for example, a unique `sushi81-retention-prep-<date>` tag) in the already-approved private handoff repository, or another separately approved disposable private handoff repository. Do not use the real `sushi81-handoff-v1` release. Retention is release-wide: adding four disposable units to the current release would make the known real v1 pair (`snapshot asset 534990583`, `grant asset 534990601`) an eligible old-unit candidate and could also make the real v2 pair eligible. Those real evidence assets are never in the deletion scope of this plan. If the preflight release is not empty or cannot be proven disposable, stop before the first source command.
+The drill must use a **new disposable GitHub Release** (with an automatically generated timestamp tag) in the already-approved private handoff repository, or another separately approved disposable private handoff repository. Do not use the real `sushi81-handoff-v1` release. Retention is release-wide: adding four disposable units to the current release would make the known real v1 pair (`snapshot asset 534990583`, `grant asset 534990601`) an eligible old-unit candidate and could also make the real v2 pair eligible. Those real evidence assets are never in the deletion scope of this plan. If the preflight release is not empty or cannot be proven disposable, stop before the first source command.
 
 The CLI performs cleanup inside the source command immediately after `Released`; therefore the transient fourth-unit count is an expected internal transition (eight complete assets before cleanup) rather than a separately inspectable remote state. The externally verifiable result is the exact pre-v4 six-asset set followed by a post-v4 six-asset set in which only the recorded oldest disposable pair is absent. This limitation must be stated in the evidence; it must not be “proved” by pausing or bypassing cleanup.
 
@@ -262,16 +262,23 @@ The CLI performs cleanup inside the source command immediately after `Released`;
 Run each step only after inspecting the previous JSON result. Within a grouped code block, execute each command as a separate invocation and wait for its result before continuing. Use a fresh disposable tag and fresh synthetic state directories; never paste the token into a command or evidence. The token is supplied only in the process environment as `SUSHI81_GITHUB_HANDOFF_TOKEN`.
 
 ```powershell
-$project = 'tools\Sushi81.Pos.OneDriveFeasibility\Sushi81.Pos.OneDriveFeasibility.csproj'
+$project = 'C:\Users\zshu\Documents\Projects\Sushi81POS\tools\Sushi81.Pos.OneDriveFeasibility\Sushi81.Pos.OneDriveFeasibility.csproj'
 $owner = 'cimerosef'
 $repo = 'sushi81-pos-handoff'
-$tag = 'sushi81-retention-prep-<unique-date>'
-$lineage = [guid]::NewGuid().ToString()
+$tag = 'sushi81-retention-prep-' + (Get-Date -Format 'yyyyMMddHHmmss')
+$lineage = [guid]::NewGuid().ToString('D')
 $generation = 1
-$prep = Join-Path $env:TEMP ('Sushi81-M02-RetentionPrep-' + $lineage)
+$prepRoot = Join-Path $env:USERPROFILE 'Sushi81-M02-Retention-Disposable'
+$prep = Join-Path $prepRoot $lineage
 $stateA = Join-Path $prep 'device-a'
 $stateB = Join-Path $prep 'device-b'
 ```
+
+0. Print and inspect only the safe preflight values. Confirm the absolute project path, automatically generated tag, GUID lineage and both state directories are correct and are not either real `C:\Users\zshu\Documents\Sushi81-M02-Test\device-a` or `C:\Users\zshu\Documents\Sushi81-M02-Test\device-b`. This output does not read or print `SUSHI81_GITHUB_HANDOFF_TOKEN`; do not proceed until the operator/ChatGPT has verified it.
+
+   ```powershell
+   [pscustomobject]@{ project=$project; releaseTag=$tag; lineage=$lineage; stateA=$stateA; stateB=$stateB } | ConvertTo-Json -Compress
+   ```
 
 1. Bootstrap/check only the disposable release. Expect the release to be newly created or otherwise explicitly confirmed empty; stop on any unexpected pre-existing asset.
 
