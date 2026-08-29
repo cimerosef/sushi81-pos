@@ -1,6 +1,6 @@
 # M02 target-directed handoff amendment revalidation report
 
-**Gate conclusion (current):** `PARTIAL — real A → B v1 and B → A v2 evidence complete; live retention observation remains required`
+**Gate conclusion (current):** `PASSED — amended GitHub target-directed handoff safety/liveness and live retention evidence complete`
 
 This report records the revalidation authorized by `docs/implementation/milestone-02-directed-handoff-revalidation.md`. It does not amend the specification and does not authorize M03 by itself. Historical OneDrive evidence remains valid but is no longer the normal handoff transport.
 
@@ -12,11 +12,11 @@ Snapshot publication is accepted only on HTTP 201 with `state=uploaded`, exact r
 
 The source command preserves the exact prepared Home Device A v1 identity (`device-a` → `device-b`, lineage `ca9dfdd4-fa48-4002-b993-23ce5c52a141`, generation 7, version 1, transfer `fc235936-64a6-460b-bcaf-f2f0b212790e`) and resumes only that transfer. It creates a strict `YYYYMMDDHHMMSS.snapshot.db`, validates SQLite/hash/size, uploads and validates the snapshot receipt, durably persists relinquishment, verifies the source write gate is false, then creates/uploads the matching `YYYYMMDDHHMMSS.grant.json`, validates its receipt, persists `Released`, and runs post-completion newest-three cleanup. The target command discovers grants by metadata, validates exact target/lineage/generation/version/transfer and referenced asset identity, downloads/hash-checks/integrity-checks the snapshot, then reuses the crash-safe pending/evidence/final-cursor acquisition ordering.
 
-Automated fake-HTTP/synthetic tests cover strict receipts, missing digest, public repository rejection, token redaction, source ordering, target acquisition, retention grouping and the pre-existing directed lifecycle safety suite. The real operator run below uses only synthetic state/data and records sanitized repository, release, asset, digest and technical-state metadata; no token, business snapshot or credential is included. Private repository setup, A → B v1, B → A v2, source restart/resume and exact target validation are now evidenced. A destructive live retention observation remains the sole outstanding operator evidence.
+Automated fake-HTTP/synthetic tests cover strict receipts, missing digest, public repository rejection, token redaction, source ordering, target acquisition, retention grouping and the pre-existing directed lifecycle safety suite. The real operator runs below use only synthetic state/data and record sanitized repository, release, asset, digest and technical-state metadata; no token, business snapshot or credential is included. Private repository setup, A → B v1, B → A v2, source restart/resume, exact target validation and the destructive live retention observation are now evidenced.
 
 ## Correction pass — GitHub wrapper lifecycle review
 
-The latest correction pass adds deterministic regression coverage for the full GitHub wrapper lifecycle and keeps the gate Partial pending the live retention observation:
+The latest correction pass adds deterministic regression coverage for the full GitHub wrapper lifecycle and supports the completed live retention observation:
 
 - Create Release sends `make_latest` as the documented JSON string `"false"`; HTTP 201 is accepted and HTTP 422 is fail-closed.
 - Target grant validation now requires the complete immutable identity tuple, including `sourceDeviceId`, before any local durable mutation.
@@ -59,7 +59,20 @@ This section records the completed real two-device GitHub transport run using sy
 - Device B reached durable `Released`; immediately before acquisition a fresh Device A state read confirmed `Released(v1)` and `mayBusinessWrite=false`. Device A exact v2 acquisition returned `target-acquired`, `acquisitionSucceeded=true`, `mayBusinessWrite=true`, durable `Acquired`, and the exact downloaded snapshot checksum/8192-byte length. An independent fresh process repeated the same v2 acquisition as `already-acquired` with the same durable state, proving restart/reconstruction rather than a second handoff.
 - The grant was independently read on Device A and validated as protocol version 1, generation 7, handoff version 2, source `device-b`, target `device-a`, `IsValid=true`.
 
-The real run therefore closes private repository/release access, valid server receipts, authenticated target download/validation, A → B v1, B → A v2, source restart/resume, exact target filtering and at-most-one-writer observations for the exercised states. It does not close live destructive retention observation; the M02 gate remains Partial until that remaining evidence (or an explicit approved waiver) is recorded.
+That earlier real run closed private repository/release access, valid server receipts, authenticated target download/validation, A → B v1, B → A v2, source restart/resume, exact target filtering and at-most-one-writer observations for the exercised states. Its four-asset inspection intentionally did not exercise destructive retention; the separate disposable drill below supplies that evidence.
+
+## Completed isolated live-retention operator evidence — disposable release
+
+The destructive retention drill was completed under supervised, one-command-at-a-time review using only a fresh disposable GitHub Release and fresh synthetic local state. It did not use the real `sushi81-handoff-v1` release or the real Device A/B state. The disposable transport container was repository `cimerosef/sushi81-pos-handoff`, release ID `378975662`, tag `sushi81-retention-prep-20260829142002`, synthetic lineage `3cdde18b-048e-4a0e-b894-fb901d54e6c4`, generation `1`, with state root `C:\Users\zshu\Sushi81-M02-Retention-Disposable\3cdde18b-048e-4a0e-b894-fb901d54e6c4\` and separate `device-a`/`device-b` directories. A read-only preflight independently verified `assets=[]` before publication. The expected externally observable count path was `0 → 2 → 4 → 6`; v4 logically reached eight inside source completion before internal cleanup, so that transient state was not externally inspectable.
+
+The complete synthetic sequence was:
+
+- **A → B v1:** transfer `fa4a274e-7517-4817-9033-71fa8bcab85a`; snapshot `20260829142326.snapshot.db` (asset `535189220`, 8192 bytes, `sha256:67ec69e5e1cbb73fd0b312a759390e6696f87563a2c0459eee1d299a260091e1`); grant `20260829142326.grant.json` (asset `535189245`, 699 bytes, `sha256:c660582b2f6f240de17d1c27205d4f6bf12040e1df251fc2f067d6f0c0d6c34a`). Source reached durable `Released` with `sourceMayBusinessWrite=false`; B exact-target acquisition succeeded and was promoted without deleting audit history. Independent inspection found exactly two assets.
+- **B → A v2:** transfer `1c68c2fc-343e-46a6-a7e9-8382fec4182e`; snapshot `20260829142607.snapshot.db` (asset `535191449`, 8192 bytes, the same valid SHA-256 snapshot digest); grant `20260829142607.grant.json` (asset `535191462`, 699 bytes, `sha256:67608e1f299c9b7120be0c00e6362067a69e92bfd9e58c21a0bc89dc9a18c08f`). Source reached durable `Released` with writes blocked; A exact-target acquisition succeeded with `mayBusinessWrite=true`. Inspection found exactly four assets and no deletion.
+- **A → B v3:** transfer `cb8cf162-e93d-4bad-9399-fde477cd65e2`; snapshot `20260829142809.snapshot.db` (asset `535193129`, 8192 bytes, the same valid SHA-256 snapshot digest); grant `20260829142809.grant.json` (asset `535193154`, 699 bytes, `sha256:7e6091d047d4f360248d1c5ef87477df96c47c1dba118ff9bbfc951929130c45`). Source reached durable `Released` with writes blocked; B exact-target acquisition succeeded and was promoted. Inspection found exactly six assets; v1 was not deleted prematurely.
+- **B → A v4 (destructive retention):** transfer `4489b5b0-fe72-43da-9a98-ffe6ed478347`; snapshot `20260829143029.snapshot.db` (asset `535195062`, 8192 bytes, the same valid SHA-256 snapshot digest); grant `20260829143029.grant.json` (asset `535195080`, 699 bytes, `sha256:35d042175ce0665cf4ef66a709205627044f62b3b63f9405a1cbf2b19e6bb574`). Source reached durable `Released` with writes blocked. Cleanup converged externally to exactly six assets: only the oldest v1 pair (`535189220` + `535189245`) was removed; v2 (`535191449` + `535191462`), v3 (`535193129` + `535193154`) and v4 (`535195062` + `535195080`) remained. No unrelated or newer asset was deleted.
+
+After v4 cleanup, A exact-target acquisition returned `code=target-acquired`, `acquisitionSucceeded=true`, `mayBusinessWrite=true`, durable `Acquired`, lineage/generation/version equal to the disposable lineage/`1`/`4`, and transfer `4489b5b0-fe72-43da-9a98-ffe6ed478347`. B remained the v4 source in durable `Released` with business writes blocked, leaving exactly one writable synthetic authority. The disposable Release and both synthetic state directories were preserved as audit evidence; no JSON was edited and no asset was manually deleted. The successful real contract lineage remains `ca9dfdd4-fa48-4002-b993-23ce5c52a141`; the `...4602...` value remains historical fail-closed evidence only.
 
 ## Branch, commits and amended sources
 
@@ -245,9 +258,9 @@ dotnet run --project $project -c Release --no-build -- directed-source-resume $r
 
 `directed-source-run` reports the source cursor, snapshot checksum/path, marker paths and technical sync states; it persists `Released` only after both markers are observer-confirmed `IN_SYNC`. `directed-target-acquire` reports the three Device B Cloud Files observations, validates the exact directed grant and persists the target cursor; after that local durable commit, `mayBusinessWrite=true` without any completion command. `directed-target-promote` reads only the exact local target state and advances that same device's local authority cursor without deleting target evidence. A Device C check uses the same immutable transfer metadata with `--device device-c` and must return `wrong-target` with no durable state. The complete multi-device sequence remains an operator procedure, not a claim of execution from the single Home Device A run; it cannot replace the deterministic safety proof or the transport gate.
 
-## Isolated live-retention preparation (not executed)
+## Isolated live-retention operator plan (historical preparation)
 
-This section is an operator plan only. No live GitHub handoff, retention cleanup, asset deletion, or device test was executed for this preparation pass. The current gate remains `PARTIAL` and retention is still outstanding.
+This section preserves the operator preparation plan for audit. It was superseded by the completed disposable drill recorded above; no command in this historical plan should be rerun against the real release or real Device A/B state.
 
 ### Safety decision and isolation boundary
 
@@ -341,7 +354,7 @@ $stateB = Join-Path $prep 'device-b'
    dotnet run --project $project -c Release -- github-remote-inspect --owner $owner --repo $repo --release-tag $tag --json
    ```
 
-If any command reports a mismatched identity, stale/replayed version, unexpected asset, incomplete receipt, non-empty preflight release, or count other than the expected transition, stop and preserve the durable synthetic state for review. Do not retry with changed IDs and do not touch the real release. A successful sequence would provide the missing live retention observation but would not by itself change the gate wording until the evidence is reviewed.
+If any command reports a mismatched identity, stale/replayed version, unexpected asset, incomplete receipt, non-empty preflight release, or count other than the expected transition, stop and preserve the durable synthetic state for review. Do not retry with changed IDs and do not touch the real release. This historical preparation plan was subsequently executed successfully; the sanitized results are recorded in the completed operator-evidence section above.
 
 ## Build, tests and AC mapping
 
@@ -357,8 +370,8 @@ The amended preparation mapping is: AC-STO-002 (N-device target-directed single 
 
 ## Final gate
 
-The original competitive OneDrive design remains historically `BLOCKED`, and the real OneDrive local-acknowledgement observation remains preserved. The approved GitHub transport implementation and automated evidence are conforming, and the real private-repository A → B v1 / B → A v2 round trip is now recorded above. The only remaining operator evidence is a destructive live retention observation; until it is recorded (or explicitly waived), the current conclusion is:
+The original competitive OneDrive design remains historically `BLOCKED`, and the real OneDrive local-acknowledgement observation remains preserved. The approved GitHub transport implementation and automated evidence are conforming, the real private-repository A → B v1 / B → A v2 round trip is recorded above, and the completed disposable live-retention drill is recorded above. The current conclusion is:
 
-`PARTIAL — real A → B v1 and B → A v2 evidence complete; live retention observation remains required`
+`PASSED — amended GitHub target-directed handoff safety/liveness and live retention evidence complete`
 
 M03 has not started. No specification was weakened and no sensitive or real business data was added.

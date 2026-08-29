@@ -198,4 +198,4 @@ M02's original generic acquisition design correctly ended `BLOCKED — specifica
 
 The target-directed authority-handoff amendment is now Approved and incorporated into the V1 baseline. M02 amendment revalidation is explicitly authorized by `implementation/milestone-02-directed-handoff-revalidation.md`.
 
-M03 and later milestones remain unauthorized until M02 revalidation reaches an acceptable gate result and the next milestone receives its own detailed task contract.
+M02 amended revalidation is now `Passed` with the documented real two-device and isolated live-retention evidence. M03 and later milestones remain unauthorized until M03 receives its own separate detailed implementation contract and the user explicitly approves the transition; this M02 closure does not authorize M03.
