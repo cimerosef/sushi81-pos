@@ -5,6 +5,11 @@ using Sushi81.Pos.Infrastructure.Paths;
 using Sushi81.Pos.Infrastructure.Recovery;
 using Sushi81.Pos.Infrastructure.Sqlite;
 using Sushi81.Pos.Infrastructure.Time;
+using Sushi81.Pos.Infrastructure.Ids;
+using Sushi81.Pos.Infrastructure.Catalogue;
+using Sushi81.Pos.Infrastructure.Settings;
+using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.Settings;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 
@@ -21,6 +26,8 @@ public static partial class CompositionRoot
         var paths = new WindowsAppPaths();
         ISelectedCultureStore cultureStore = new InMemorySelectedCultureStore();
         var startupSucceeded = false;
+        CatalogueService? catalogueService = null;
+        BusinessSettingsService? settingsService = null;
 
         try
         {
@@ -37,10 +44,14 @@ public static partial class CompositionRoot
             var snapshotService = new SqliteLocalRecoverySnapshotService(paths, connectionFactory, clock);
             var migrations = new SqliteMigrationRunner(
                 connectionFactory,
-                M01Migrations.All,
+                ProductionMigrations.All,
                 clock,
                 snapshotService);
             await migrations.InitializeAsync();
+            var transactionRunner = new SqliteTransactionRunner(connectionFactory);
+            var idGenerator = new GuidV7IdGenerator(TimeProvider.System);
+            catalogueService = new CatalogueService(new SqliteCatalogueStore(connectionFactory, transactionRunner, idGenerator, clock));
+            settingsService = new BusinessSettingsService(new SqliteBusinessSettingsStore(connectionFactory, transactionRunner, clock));
             LogFoundationStartupSucceeded(logger);
             startupSucceeded = true;
         }
@@ -53,7 +64,7 @@ public static partial class CompositionRoot
             }
         }
 
-        var viewModel = new ShellViewModel(cultureStore, startupSucceeded);
+        var viewModel = new ShellViewModel(cultureStore, startupSucceeded, catalogueService, settingsService);
         var window = new MainWindow(viewModel);
         application.MainWindow = window;
         application.Exit += (_, _) => loggerProvider?.Dispose();

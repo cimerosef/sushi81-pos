@@ -11,4 +11,51 @@
   <data name="LanguageSaveFailure" xml:space="preserve"><value>无法保存语言偏好设置。请重试。</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>法语</value></data>
   <data name="ChineseLanguage" xml:space="preserve"><value>简体中文</value></data>
+  <data name="Catalogue" xml:space="preserve"><value>商品目录</value></data>
+  <data name="Settings" xml:space="preserve"><value>设置</value></data>
+  <data name="Search" xml:space="preserve"><value>搜索</value></data>
+  <data name="Category" xml:space="preserve"><value>分类</value></data>
+  <data name="All" xml:space="preserve"><value>全部</value></data>
+  <data name="Active" xml:space="preserve"><value>启用</value></data>
+  <data name="Inactive" xml:space="preserve"><value>停用</value></data>
+  <data name="NewProduct" xml:space="preserve"><value>新建商品</value></data>
+  <data name="Edit" xml:space="preserve"><value>编辑</value></data>
+  <data name="Save" xml:space="preserve"><value>保存</value></data>
+  <data name="Cancel" xml:space="preserve"><value>取消</value></data>
+  <data name="Activate" xml:space="preserve"><value>启用</value></data>
+  <data name="Deactivate" xml:space="preserve"><value>停用</value></data>
+  <data name="DeletePermanently" xml:space="preserve"><value>永久删除</value></data>
+  <data name="ManageCategories" xml:space="preserve"><value>管理分类</value></data>
+  <data name="Code" xml:space="preserve"><value>编码</value></data>
+  <data name="Name" xml:space="preserve"><value>名称</value></data>
+  <data name="PriceTtc" xml:space="preserve"><value>含税价</value></data>
+  <data name="Vat" xml:space="preserve"><value>增值税</value></data>
+  <data name="DiscountEligible" xml:space="preserve"><value>可享自取折扣</value></data>
+  <data name="OptionsEnabled" xml:space="preserve"><value>启用商品选项</value></data>
+  <data name="OptionGroups" xml:space="preserve"><value>选项组</value></data>
+  <data name="Options" xml:space="preserve"><value>选项</value></data>
+  <data name="Required" xml:space="preserve"><value>必选</value></data>
+  <data name="Optional" xml:space="preserve"><value>可选</value></data>
+  <data name="Single" xml:space="preserve"><value>单选</value></data>
+  <data name="Multi" xml:space="preserve"><value>多选</value></data>
+  <data name="Minimum" xml:space="preserve"><value>最少</value></data>
+  <data name="Maximum" xml:space="preserve"><value>最多</value></data>
+  <data name="AdjustmentTtc" xml:space="preserve"><value>含税调整</value></data>
+  <data name="MoveUp" xml:space="preserve"><value>上移</value></data>
+  <data name="MoveDown" xml:space="preserve"><value>下移</value></data>
+  <data name="PickupDiscount" xml:space="preserve"><value>自取折扣 (%)</value></data>
+  <data name="PickupMinimum" xml:space="preserve"><value>折扣后最低金额 (€)</value></data>
+  <data name="DeliveryMinimum" xml:space="preserve"><value>配送最低金额 (€)</value></data>
+  <data name="DeliveryFee" xml:space="preserve"><value>配送费 (€)</value></data>
+  <data name="DeliveryFeeEnabled" xml:space="preserve"><value>启用配送费</value></data>
+  <data name="EmptyCatalogue" xml:space="preserve"><value>目录中暂无商品。</value></data>
+  <data name="DeleteConfirm" xml:space="preserve"><value>确定永久删除此商品吗？</value></data>
+  <data name="M03StartupFailure" xml:space="preserve"><value>商品目录和设置不可用。</value></data>
+  <data name="DeliveryFeeVatFixed" xml:space="preserve"><value>启用配送费的增值税固定为 10%。</value></data>
+  <data name="CreateCategory" xml:space="preserve"><value>创建</value></data>
+  <data name="CreateCategoryFirst" xml:space="preserve"><value>请先创建分类。</value></data>
+  <data name="RenameCategory" xml:space="preserve"><value>重命名</value></data>
+  <data name="Close" xml:space="preserve"><value>关闭</value></data>
+  <data name="EnterValidValues" xml:space="preserve"><value>请输入有效值。</value></data>
+  <data name="Saved" xml:space="preserve"><value>已保存。</value></data>
 </root>

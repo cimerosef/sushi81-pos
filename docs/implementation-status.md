@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The user approved the target-directed authority-handoff specification amendment on 2026-08-28; amended baseline documents are now authoritative. M02 directed-handoff revalidation, including real private-repository A → B v1 / B → A v2 and the isolated destructive retention observation, is Passed and its gate is closed by evidence. M03 remains Not started and requires a separate explicit detailed implementation contract plus user-approved transition.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation is complete on `codex/m03-catalogue-settings`; automated verification is green and the self-contained publish artifact is available. Interactive Windows/WPF M03 acceptance remains an explicit operator check when a desktop session is available.
 
 ## 1. Status vocabulary
 
@@ -22,7 +22,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 |---|---|---|
 | M01 — Foundation and safe persistence spine | Passed | Merged to `main` via PR #1 after automated verification and successful Windows/WPF manual re-verification. |
 | M02 — remote handoff feasibility gate | Passed | Original competitive OneDrive model remains historically Blocked. Approved GitHub private Release Asset transport, automated failure evidence, real private-repository A → B v1 / B → A v2 round-trip evidence, and isolated destructive newest-three retention evidence are complete; the amended M02 gate is closed by evidence. |
-| M03 — Catalogue and settings | Not started | Requires a separate explicit detailed implementation contract and user-approved transition; this M02 handoff does not authorize M03 |
+| M03 — Catalogue and settings | Partial — automated scope complete; manual WPF check pending | Authorized by `CODEX_HANDOFF_READY: M03-IMPLEMENT-01`; migration 2, layered catalogue/settings services, localized WPF maintenance shell and automated evidence are complete. The manual checklist is intentionally not marked Passed until an operator verifies it on Windows. |
 | M04 — Order-entry vertical slice | Not started | Pending M03 |
 | M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
 | M06 — Local recovery/read-only enforcement | Not started | Pending M05 |
@@ -51,11 +51,11 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 
 | Criterion | Owner | Status | Evidence |
 |---|---:|---|---|
-| AC-CAT-001 | M03 | Not started | — |
-| AC-CAT-002 | M03 | Not started | — |
-| AC-CAT-003 | M03 | Not started | Historical-snapshot regression closes in M04 |
-| AC-CAT-004 | M03 | Not started | — |
-| AC-CAT-005 | M03 | Not started | — |
+| AC-CAT-001 | M03 | Partial | Automated domain/integration coverage; manual WPF catalogue workflow pending |
+| AC-CAT-002 | M03 | Passed | Normalized category uniqueness and rename tests in `tests/Sushi81.Pos.Infrastructure.IntegrationTests/M03CatalogueIntegrationTests.cs` |
+| AC-CAT-003 | M03 | Partial | Current-product maintenance is implemented/tested; historical-order independence remains an M04 snapshot regression |
+| AC-CAT-004 | M03 | Passed | Required-field, price and VAT boundary validation tests |
+| AC-CAT-005 | M03 | Passed | Structured group/option validation, ordering, signed adjustments and aggregate persistence tests |
 | AC-CAT-006 | M04 | Not started | — |
 | AC-CAT-007 | M04 | Not started | — |
 | AC-CAT-008 | M10 | Not started | — |
@@ -69,7 +69,7 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 | Criterion | Owner | Status | Evidence |
 |---|---:|---|---|
 | AC-ORD-001 through AC-ORD-010 | M04 | Not started | Record individual tests before marking Passed |
-| AC-ORD-011 | M03 | Not started | Pricing integration also exercised in M04 |
+| AC-ORD-011 | M03 | Partial | BusinessSettings UI/persistence contract and exact round-trip tests; pricing-consumer cross-check remains in M04 |
 
 ### Lifecycle, payments and operational views
 
@@ -272,3 +272,55 @@ The current CLI was audited for a safe same-home drill. GitHub target acquisitio
 The detailed one-command-at-a-time sequence is recorded in `docs/implementation/milestone-02-directed-handoff-revalidation-report.md`. It used an automatically generated release tag and GUID lineage, printed a token-free preflight summary for operator confirmation, and stored separate state directories under the user's profile (outside AppData/TEMP and never under the real `Sushi81-M02-Test\device-a|device-b` paths). The completed disposable drill moved `0 → 2 → 4 → 6` complete assets for A → B v1, B → A v2 and A → B v3 with no deletion; B → A v4 logically reached `8` inside source completion and converged externally to exactly `6`, deleting only the recorded disposable oldest pair. The transient eight-asset state was not externally inspectable because cleanup is part of the source command; this limitation is recorded rather than bypassed. The disposable Release and synthetic state directories remain preserved as audit evidence, and the M02 gate is Passed.
 
 The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID `378975662`, tag `sushi81-retention-prep-20260829142002`, lineage `3cdde18b-048e-4a0e-b894-fb901d54e6c4`, generation `1`. It retained v2/v3/v4 pairs (`535191449`/`535191462`, `535193129`/`535193154`, `535195062`/`535195080`) and removed only the disposable v1 pair (`535189220`/`535189245`). Final A v4 acquisition returned `target-acquired`, `acquisitionSucceeded=true`, `mayBusinessWrite=true`; B remained the read-only v4 source. The successful real contract lineage remains `ca9dfdd4-fa48-4002-b993-23ce5c52a141`; `...4602...` remains historical fail-closed evidence only.
+
+## 10. M03 catalogue and settings implementation evidence
+
+**Milestone:** M03 — Catalogue and business settings
+**Implementation branch:** `codex/m03-catalogue-settings`
+**Handoff authorization:** `CODEX_HANDOFF_READY: M03-IMPLEMENT-01` on the active M03 implementation PR
+**Status:** Partial pending the operator's interactive Windows/WPF checklist; no automated blocker remains.
+
+### Delivered scope
+
+- Domain records and validation for Category, Product, OptionGroup, Option and BusinessSettings, including canonical
+  Unicode/case/whitespace normalization, decimal VAT/rate boundaries, signed integer-cent money and required-choice
+  satisfiability.
+- Application-owned, narrow catalogue/settings contracts and services. All product aggregate writes use the existing
+  transaction boundary; no generic repository or speculative feature framework was added.
+- SQLite migration **version 2**, `create-catalogue-and-business-settings`, creates only the five M03 tables and inserts
+  the singleton defaults exactly once. Product/group/option writes preserve opaque identities, created timestamps,
+  explicit deletions and deterministic contiguous order; uniqueness/FK races return stable validation results.
+- Localized WPF administration shell with exactly Catalogue and Settings destinations, French/zh-CN resources, category
+  manager, product/group/option editor, explicit activation/deactivation and permanent-delete confirmation, empty-state
+  and status/category filters, and persisted settings editing. No order, payment, pricing engine, printing, import/export,
+  Hiboutik, handoff UI, recovery UI or M04 code was added.
+
+### Verification evidence
+
+- Environment: Windows x64, .NET SDK 10.0.400 (runtime 10.0.11).
+- `dotnet restore Sushi81.Pos.sln`: passed.
+- `dotnet build Sushi81.Pos.sln -c Release --no-restore`: passed with 0 warnings and 0 errors.
+- `dotnet test Sushi81.Pos.sln -c Release --no-build`: 163 passed, 0 failed, 0 skipped (Domain 8; Application 2;
+  Infrastructure integration 21; Architecture/localization 8; protocol 32; GitHub wrapper/harness 92, including the
+  solution's existing wrapper test project instance).
+- `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true
+  -p:PublishSingleFile=false`: passed; output remains under the ignored Desktop publish directory.
+- Tests use isolated temporary SQLite paths and synthetic/sanitized catalogue values only. No database, logs, local
+  configuration, credentials, tokens, build artifacts or real customer/order/payment data are committed.
+
+### Acceptance mapping and remaining checks
+
+- **Passed by automated evidence:** AC-CAT-002, AC-CAT-004, AC-CAT-005 and the current-catalogue/settings portions of
+  AC-ORD-011; migration, normalized uniqueness, FK/constraint, aggregate rollback, ordering, cascade deletion, code
+  reuse and exact settings round-trip are covered in
+  `tests/Sushi81.Pos.Infrastructure.IntegrationTests/M03CatalogueIntegrationTests.cs` and
+  `tests/Sushi81.Pos.Domain.Tests/CatalogueDomainTests.cs`.
+- **Partial by design:** AC-CAT-001 awaits interactive catalogue-screen verification; AC-CAT-003 current-product
+  maintenance is implemented, while historical-order independence remains the M04 snapshot regression; AC-ORD-011
+  pricing-consumer integration is re-exercised by M04.
+- **Manual Windows/WPF verification:** not performed in this non-interactive automation run. The operator must still
+  launch the self-contained publish and execute the M03 checklist (French/Chinese switch, category/product/group/
+  option CRUD and ordering, activation/deletion/code reuse, settings restart round-trip, and confirmation that no
+  future features appear). This is intentionally not marked Passed.
+- **M04:** not started and not authorized by this handoff. **Blockers:** none for the automated M03 implementation; only
+  the explicitly outstanding manual WPF acceptance remains.

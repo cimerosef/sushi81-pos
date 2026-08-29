@@ -2,7 +2,7 @@
 
 Automated tests for Sushi81 POS live under this directory once implementation begins.
 
-**Current status:** M01 tests are green; M02 GitHub transport tests use deterministic fake HTTP/synthetic state only; M03 tests have not started.
+**Current status:** M01 and M03 tests are green; M02 GitHub transport tests use deterministic fake HTTP/synthetic state only.
 
 The test strategy is authoritative from `../docs/acceptance-criteria.md` and the approved V1 documents under `../docs/`.
 
@@ -11,3 +11,8 @@ Implementation should convert acceptance criteria into automated unit/integratio
 Use only synthetic or sanitized fixtures. Never commit real customer, order, payment, credential or other sensitive production data.
 
 GitHub transport tests must validate strict Release Asset server receipts, exact snapshot/grant names, target binding, digest/size integrity, durable relinquishment ordering, restart safety and newest-three retention without live GitHub dependencies.
+
+M03 domain and infrastructure tests use isolated temporary SQLite databases and synthetic catalogue/settings values. They
+cover normalization and validation boundaries, migration 2/default singleton idempotence, aggregate transactionality,
+opaque identity preservation, deterministic option ordering, activation/deactivation, cascade deletion, code reuse and
+settings round-trip persistence.

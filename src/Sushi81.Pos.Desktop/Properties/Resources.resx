@@ -11,4 +11,51 @@
   <data name="LanguageSaveFailure" xml:space="preserve"><value>Impossible d’enregistrer la préférence de langue. Réessayez.</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>Français</value></data>
   <data name="ChineseLanguage" xml:space="preserve"><value>中文（简体）</value></data>
+  <data name="Catalogue" xml:space="preserve"><value>Catalogue</value></data>
+  <data name="Settings" xml:space="preserve"><value>Paramètres</value></data>
+  <data name="Search" xml:space="preserve"><value>Rechercher</value></data>
+  <data name="Category" xml:space="preserve"><value>Catégorie</value></data>
+  <data name="All" xml:space="preserve"><value>Tous</value></data>
+  <data name="Active" xml:space="preserve"><value>Actifs</value></data>
+  <data name="Inactive" xml:space="preserve"><value>Inactifs</value></data>
+  <data name="NewProduct" xml:space="preserve"><value>Nouveau produit</value></data>
+  <data name="Edit" xml:space="preserve"><value>Modifier</value></data>
+  <data name="Save" xml:space="preserve"><value>Enregistrer</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="Activate" xml:space="preserve"><value>Activer</value></data>
+  <data name="Deactivate" xml:space="preserve"><value>Désactiver</value></data>
+  <data name="DeletePermanently" xml:space="preserve"><value>Supprimer définitivement</value></data>
+  <data name="ManageCategories" xml:space="preserve"><value>Gérer les catégories</value></data>
+  <data name="Code" xml:space="preserve"><value>Code</value></data>
+  <data name="Name" xml:space="preserve"><value>Nom</value></data>
+  <data name="PriceTtc" xml:space="preserve"><value>Prix TTC</value></data>
+  <data name="Vat" xml:space="preserve"><value>TVA</value></data>
+  <data name="DiscountEligible" xml:space="preserve"><value>Éligible remise Retrait</value></data>
+  <data name="OptionsEnabled" xml:space="preserve"><value>Options activées</value></data>
+  <data name="OptionGroups" xml:space="preserve"><value>Groupes d’options</value></data>
+  <data name="Options" xml:space="preserve"><value>Choix</value></data>
+  <data name="Required" xml:space="preserve"><value>Obligatoire</value></data>
+  <data name="Optional" xml:space="preserve"><value>Facultatif</value></data>
+  <data name="Single" xml:space="preserve"><value>Sélection unique</value></data>
+  <data name="Multi" xml:space="preserve"><value>Sélection multiple</value></data>
+  <data name="Minimum" xml:space="preserve"><value>Minimum</value></data>
+  <data name="Maximum" xml:space="preserve"><value>Maximum</value></data>
+  <data name="AdjustmentTtc" xml:space="preserve"><value>Ajustement TTC</value></data>
+  <data name="MoveUp" xml:space="preserve"><value>Monter</value></data>
+  <data name="MoveDown" xml:space="preserve"><value>Descendre</value></data>
+  <data name="PickupDiscount" xml:space="preserve"><value>Remise Retrait (%)</value></data>
+  <data name="PickupMinimum" xml:space="preserve"><value>Minimum après remise (€)</value></data>
+  <data name="DeliveryMinimum" xml:space="preserve"><value>Minimum Livraison (€)</value></data>
+  <data name="DeliveryFee" xml:space="preserve"><value>Frais de livraison (€)</value></data>
+  <data name="DeliveryFeeEnabled" xml:space="preserve"><value>Frais de livraison activés</value></data>
+  <data name="EmptyCatalogue" xml:space="preserve"><value>Aucun produit dans le catalogue.</value></data>
+  <data name="DeleteConfirm" xml:space="preserve"><value>Supprimer définitivement ce produit ?</value></data>
+  <data name="M03StartupFailure" xml:space="preserve"><value>Le catalogue et les paramètres ne sont pas disponibles.</value></data>
+  <data name="DeliveryFeeVatFixed" xml:space="preserve"><value>La TVA des frais de livraison activés est fixée à 10 %.</value></data>
+  <data name="CreateCategory" xml:space="preserve"><value>Créer</value></data>
+  <data name="CreateCategoryFirst" xml:space="preserve"><value>Créez d’abord une catégorie.</value></data>
+  <data name="RenameCategory" xml:space="preserve"><value>Renommer</value></data>
+  <data name="Close" xml:space="preserve"><value>Fermer</value></data>
+  <data name="EnterValidValues" xml:space="preserve"><value>Saisissez des valeurs valides.</value></data>
+  <data name="Saved" xml:space="preserve"><value>Enregistré.</value></data>
 </root>
