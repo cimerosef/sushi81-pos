@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The user approved the target-directed authority-handoff specification amendment on 2026-08-28; amended baseline documents are now authoritative and M02 directed-handoff revalidation is explicitly authorized. M03 remains Not started.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The user approved the target-directed authority-handoff specification amendment on 2026-08-28; amended baseline documents are now authoritative and M02 directed-handoff revalidation is explicitly authorized. Real private-repository A → B v1 and B → A v2 evidence is now recorded; live destructive retention observation remains outstanding, so M02 stays Partial. M03 remains Not started.
 
 ## 1. Status vocabulary
 
@@ -21,7 +21,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 | Milestone | Status | Authorization / result |
 |---|---|---|
 | M01 — Foundation and safe persistence spine | Passed | Merged to `main` via PR #1 after automated verification and successful Windows/WPF manual re-verification. |
-| M02 — remote handoff feasibility gate | In progress / Partial | Original competitive OneDrive model remains historically Blocked. Approved GitHub private Release Asset transport is implemented with automated receipt/failure evidence; real private-repository A→B v1 and B→A v2 evidence is still required. |
+| M02 — remote handoff feasibility gate | In progress / Partial | Original competitive OneDrive model remains historically Blocked. Approved GitHub private Release Asset transport and automated failure evidence are complete; real private-repository A → B v1, B → A v2, restart/resume and exact-target validation are recorded. A destructive live retention observation remains required before the gate can close. |
 | M03 — Catalogue and settings | Not started | Pending successful M02 amended-protocol feasibility gate and explicit M03 authorization |
 | M04 — Order-entry vertical slice | Not started | Pending M03 |
 | M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
@@ -218,7 +218,7 @@ This evidence is retained as the rationale for the amendment. It is not erased o
 **Decision record:** `docs/decisions/target-directed-authority-handoff.md`  
 **Amended baseline:** `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`  
 **Revalidation task:** `docs/implementation/milestone-02-directed-handoff-revalidation.md`  
-**Historical directed revalidation status:** Implemented correction pass; its OneDrive-only transport conclusion is superseded by the approved GitHub transport amendment below. The current gate is Partial pending real private-repository evidence.
+**Historical directed revalidation status:** Implemented correction pass; its OneDrive-only transport conclusion is superseded by the approved GitHub transport amendment below. Real private-repository A → B v1 and B → A v2 evidence is now recorded; the current gate remains Partial pending live destructive retention observation.
 
 Approved semantics:
 
@@ -233,7 +233,7 @@ Approved semantics:
 - unrecoverable target path uses explicit Disaster Recovery;
 - no hosted/Graph/OAuth coordinator is introduced for normal transfer.
 
-M02 remains open until the amended deterministic safety/liveness proof and the transport architecture decision reach an authorized gate conclusion. Real transport evidence is now present, but it demonstrates a false negative in the current observer rather than local confirmation.
+M02 remains open until the amended deterministic safety/liveness proof and the transport architecture decision reach an authorized gate conclusion. Real GitHub transport evidence is now present; the historical OneDrive observer still demonstrates a false negative rather than local confirmation, and live retention deletion has not yet been observed.
 
 M03 must not start until M02 revalidation is accepted and M03 receives an explicit detailed task definition.
 
@@ -245,11 +245,20 @@ The historical directed protocol and durable persistence evidence were verified 
 
 ## 9. M02 GitHub transport revalidation (current)
 
-**Status:** `Partial — GitHub transport implementation ready; real two-device private-repository evidence required`
+**Status:** `Partial — real A → B v1 and B → A v2 evidence complete; live retention observation remains required`
 **Implementation branch:** `codex/m02-directed-handoff-revalidation`
 **Approved sources:** `docs/decisions/github-handoff-transport.md`, `docs/implementation/milestone-02-github-transport-revalidation.md`
 **Historical evidence:** the original OneDrive competitive blocker and Home Device A `NO_STATES` false-negative remain above and in the dedicated M02 report; they are not erased or relabeled as passes.
 
 The implementation adds direct .NET `HttpClient` GitHub Release Asset transport against a configurable dedicated private repository. The source flow requires HTTP 201, `uploaded`, exact name/size, asset ID and matching `sha256:<hex>` receipt for the snapshot before durable relinquishment; it then uploads/validates the exact-basename grant before `Released`. The target flow validates grant metadata, exact referenced asset identity including source device, authenticated download, local hash/size and SQLite integrity before the existing pending/evidence/final-cursor write gate. The GitHub target wrapper reconstructs the device-local source state so a returning device can validate its exact Released predecessor for B → A v2 and A → B v3. A valid receipt from an earlier completed transfer is ignored for a later transfer, while malformed or same-transfer receipts still fail closed. Retention validates complete snapshot+grant units release-wide and retains exactly the newest three by generation/handoff-version metadata; cleanup failure is retryable and cannot roll authority back, including reconvergence after a newer unit arrives during an old-plan retry. Grant upload failure and pre-`Released` commit interruption are restart-safe and do not duplicate an acknowledged asset. Gateway failures remove only exact-ID `starter` assets and retry once; receipt/grant artifacts use crash-atomic durable replacement and strict grant validation. Credentials are read only from `SUSHI81_GITHUB_HANDOFF_TOKEN` and are not serialized/logged. Recovery-hardening implementation code head: `edc7fdc5ccdd75f8d97f9cb0d6c2bb239a95dea8`; final branch head and CI result are recorded in PR #3 checks.
 
-The current automated GitHub transport evidence is synthetic/fake-HTTP only: the latest correction pass records 153 passed, 0 failed and 0 skipped across the solution (Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, GitHub wrapper/harness 92), with 0 Release build warnings/errors and a self-contained win-x64 publish. Coverage includes A → B v1 → B → A v2 → A → B v3 through the GitHub wrappers, stale-receipt replacement, release-wide retention, grant restart/retry, exact-ID starter deletion after 502, crash-atomic receipt/grant persistence, strict malformed-grant rejection, post-plan retention reconvergence, target truncation/hash/SQLite corruption, duplicate-name 422, upstream 502/starter and timestamp collision. No live GitHub repository, token, database, snapshot or business data is committed. The report also preserves sanitized real historical Home Device A OneDrive evidence; that OneDrive `IN_SYNC` observation is historical only. Real operator evidence still requires private repository setup plus sequential A → B v1 and B → A v2, restart/resume, target filtering and retention checks. M03 remains Not started.
+The current automated GitHub transport evidence is synthetic/fake-HTTP: the latest correction pass records 153 passed, 0 failed and 0 skipped across the solution (Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, GitHub wrapper/harness 92), with 0 Release build warnings/errors and a self-contained win-x64 publish. Coverage includes A → B v1 → B → A v2 → A → B v3 through the GitHub wrappers, stale-receipt replacement, release-wide retention, grant restart/retry, exact-ID starter deletion after 502, crash-atomic receipt/grant persistence, strict malformed-grant rejection, post-plan retention reconvergence, target truncation/hash/SQLite corruption, duplicate-name 422, upstream 502/starter and timestamp collision. No token, credential, database or business data is committed. The report also preserves sanitized real historical Home Device A OneDrive evidence; that OneDrive `IN_SYNC` observation is historical only.
+
+### Real private-repository operator evidence (sanitized)
+
+- Dedicated private repository: `cimerosef/sushi81-pos-handoff`; release tag `sushi81-handoff-v1`; release ID `378925560`.
+- A → B v1 (`device-a` → `device-b`, generation 7, version 1, lineage `ca9dfdd4-fa48-4002-b993-23ce5c52a141`, transfer `fc235936-64a6-460b-bcaf-f2f0b212790e`) completed with snapshot asset `534990583` (`20260829104435.snapshot.db`, 8192 bytes, digest `sha256:67ec69e5e1cbb73fd0b312a759390e6696f87563a2c0459eee1d299a260091e1`) and grant asset `534990601` (`20260829104435.grant.json`, 699 bytes, digest `sha256:b37034026a16b7f219068dfcd40754674e10bb5c9e4914e83b1b101116e72dab`). Device A reached durable `Released` and a fresh process confirmed `mayBusinessWrite=false`; Device B acquired the exact target-bound pair.
+- B → A v2 (same lineage/generation, version 2, transfer `e55cc196-cd67-4b9a-a15e-662ac3e0f0ea`) completed with snapshot asset `535105715` (`20260829125825.snapshot.db`, 8192 bytes, digest `sha256:67ec69e5e1cbb73fd0b312a759390e6696f87563a2c0459eee1d299a260091e1`) and grant asset `535105732` (`20260829125825.grant.json`, 699 bytes, digest `sha256:5bb7c3f441990a58121538ed97a574c5e074416260308ff41b86c22ae21e5bbd`). Device A validated protocol version 1, exact source/target, and `IsValid=true`; acquisition returned `target-acquired`, durable `Acquired`, `mayBusinessWrite=true`, and the exact checksum/8192-byte snapshot. A fresh process repeated the run as `already-acquired` with the same durable state.
+- Remote inspection found exactly four assets (two complete handoff units). Newest-three retention therefore had no eligible deletion; destructive live retention behavior remains unobserved and is the only outstanding M02 operator evidence. No token, PAT, authorization header, business snapshot contents or personal file listing was recorded.
+
+The earlier `ca9dfdd4-fa48-4602-b993-23ce5c52a141` command is retained only as fail-closed historical evidence: it returned `transfer-state-mismatch`, left the source prepared, and created no remote asset. It is not the identity of the successful transfers above. M03 remains Not started.

@@ -238,7 +238,7 @@ The user's current real synthetic M02 state is pre-relinquishment `TransferPrepa
 
 - source: `device-a`
 - target: `device-b`
-- lineage: `ca9dfdd4-fa48-4602-b993-23ce5c52a141`
+- lineage: `ca9dfdd4-fa48-4002-b993-23ce5c52a141`
 - generation: `7`
 - handoff version: `1`
 - transfer ID: `fc235936-64a6-460b-bcaf-f2f0b212790e`

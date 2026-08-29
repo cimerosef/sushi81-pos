@@ -1,6 +1,6 @@
 # M02 target-directed handoff amendment revalidation report
 
-**Gate conclusion (current):** `PARTIAL — GitHub transport implementation ready; real two-device private-repository evidence required`
+**Gate conclusion (current):** `PARTIAL — real A → B v1 and B → A v2 evidence complete; live retention observation remains required`
 
 This report records the revalidation authorized by `docs/implementation/milestone-02-directed-handoff-revalidation.md`. It does not amend the specification and does not authorize M03 by itself. Historical OneDrive evidence remains valid but is no longer the normal handoff transport.
 
@@ -10,13 +10,13 @@ The approved `docs/decisions/github-handoff-transport.md` changes only the norma
 
 Snapshot publication is accepted only on HTTP 201 with `state=uploaded`, exact requested filename, exact byte size, positive immutable asset ID and a present `sha256:<64-hex>` digest matching the local hash. Any missing/contradictory status, name, size, digest, authentication/API/network/timeout/cancellation response fails closed. The token is read only from `SUSHI81_GITHUB_HANDOFF_TOKEN`, never serialized or logged; diagnostics contain no authorization header or token.
 
-The source command preserves the exact prepared Home Device A v1 identity (`device-a` → `device-b`, lineage `ca9dfdd4-fa48-4602-b993-23ce5c52a141`, generation 7, version 1, transfer `fc235936-64a6-460b-bcaf-f2f0b212790e`) and resumes only that transfer. It creates a strict `YYYYMMDDHHMMSS.snapshot.db`, validates SQLite/hash/size, uploads and validates the snapshot receipt, durably persists relinquishment, verifies the source write gate is false, then creates/uploads the matching `YYYYMMDDHHMMSS.grant.json`, validates its receipt, persists `Released`, and runs post-completion newest-three cleanup. The target command discovers grants by metadata, validates exact target/lineage/generation/version/transfer and referenced asset identity, downloads/hash-checks/integrity-checks the snapshot, then reuses the crash-safe pending/evidence/final-cursor acquisition ordering.
+The source command preserves the exact prepared Home Device A v1 identity (`device-a` → `device-b`, lineage `ca9dfdd4-fa48-4002-b993-23ce5c52a141`, generation 7, version 1, transfer `fc235936-64a6-460b-bcaf-f2f0b212790e`) and resumes only that transfer. It creates a strict `YYYYMMDDHHMMSS.snapshot.db`, validates SQLite/hash/size, uploads and validates the snapshot receipt, durably persists relinquishment, verifies the source write gate is false, then creates/uploads the matching `YYYYMMDDHHMMSS.grant.json`, validates its receipt, persists `Released`, and runs post-completion newest-three cleanup. The target command discovers grants by metadata, validates exact target/lineage/generation/version/transfer and referenced asset identity, downloads/hash-checks/integrity-checks the snapshot, then reuses the crash-safe pending/evidence/final-cursor acquisition ordering.
 
-Automated fake-HTTP/synthetic tests cover strict receipts, missing digest, public repository rejection, token redaction, source ordering, target acquisition, retention grouping and the pre-existing directed lifecycle safety suite. No real GitHub token, repository, business snapshot or live device run is included. Real operator verification remains required: private handoff repository setup, A → B v1, B → A v2, source restart/resume, exact target validation and retention observation.
+Automated fake-HTTP/synthetic tests cover strict receipts, missing digest, public repository rejection, token redaction, source ordering, target acquisition, retention grouping and the pre-existing directed lifecycle safety suite. The real operator run below uses only synthetic state/data and records sanitized repository, release, asset, digest and technical-state metadata; no token, business snapshot or credential is included. Private repository setup, A → B v1, B → A v2, source restart/resume and exact target validation are now evidenced. A destructive live retention observation remains the sole outstanding operator evidence.
 
 ## Correction pass — GitHub wrapper lifecycle review
 
-The latest correction pass adds deterministic regression coverage for the full GitHub wrapper lifecycle and keeps the gate `PARTIAL — real two-device GitHub evidence required`:
+The latest correction pass adds deterministic regression coverage for the full GitHub wrapper lifecycle and keeps the gate Partial pending the live retention observation:
 
 - Create Release sends `make_latest` as the documented JSON string `"false"`; HTTP 201 is accepted and HTTP 422 is fail-closed.
 - Target grant validation now requires the complete immutable identity tuple, including `sourceDeviceId`, before any local durable mutation.
@@ -32,7 +32,34 @@ The latest correction pass adds deterministic regression coverage for the full G
 - Retention cleanup re-enumerates after completing any persisted old deletion plan and converges again to exactly the newest three release-wide units, covering a newer handoff arriving during retry.
 - GitHub-specific target regressions cover truncated/hash-mismatched downloads, corrupt SQLite content whose remote metadata is internally consistent, duplicate-name HTTP 422, upstream HTTP 502/starter responses, and timestamp-collision name reservation.
 
-The correction-pass fake-HTTP matrix includes release payload/422, repository/token/auth/rate-limit failures, upload state/name/size/digest contradictions, duplicate-name 422, upstream 502/starter, pagination, wrong-source target rejection, receipt restart/revalidation, generation advancement, release-wide retention, grant upload/restart and pre-commit recovery, target truncation/hash/SQLite corruption, timestamp collision, partial-delete retry/idempotency, starter deletion/retry, malformed grant rejection, crash-atomic artifact writes, post-plan retention reconvergence and network/timeout redaction. Full solution verification is 153 passed, 0 failed, 0 skipped (Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, GitHub wrapper/harness 92); build is 0 warnings/0 errors; self-contained win-x64 publish passed. CI must be green for the final pushed head. No real user-device test is performed in this pass.
+The correction-pass fake-HTTP matrix includes release payload/422, repository/token/auth/rate-limit failures, upload state/name/size/digest contradictions, duplicate-name 422, upstream 502/starter, pagination, wrong-source target rejection, receipt restart/revalidation, generation advancement, release-wide retention, grant upload/restart and pre-commit recovery, target truncation/hash/SQLite corruption, timestamp collision, partial-delete retry/idempotency, starter deletion/retry, malformed grant rejection, crash-atomic artifact writes, post-plan retention reconvergence and network/timeout redaction. Full solution verification is 153 passed, 0 failed, 0 skipped (Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, GitHub wrapper/harness 92); build is 0 warnings/0 errors; self-contained win-x64 publish passed. CI must be green for the final pushed head. The preceding correction-pass verification was synthetic/fake-HTTP only; sanitized real operator evidence is recorded below.
+
+## Real private-repository operator evidence — Device A and Device B
+
+This section records the completed real two-device GitHub transport run using synthetic M02 state/data only. It contains no token, PAT, authorization header, business snapshot contents or personal file listing.
+
+**Transport container**
+
+- Dedicated private repository: `cimerosef/sushi81-pos-handoff`.
+- Long-lived release: tag `sushi81-handoff-v1`, release ID `378925560`.
+- The release was inspected after the return transfer; exactly four uploaded assets were present, representing two complete handoff units. With only two units, the approved newest-three cleanup had no eligible deletion, so destructive live retention behavior was not observed.
+
+**A → B v1 — source publication and target acquisition**
+
+- Transfer `fc235936-64a6-460b-bcaf-f2f0b212790e`, lineage `ca9dfdd4-fa48-4002-b993-23ce5c52a141`, generation `7`, handoff version `1`, source `device-a`, target `device-b`.
+- Snapshot `20260829104435.snapshot.db`, asset ID `534990583`, size `8192`, digest `sha256:67ec69e5e1cbb73fd0b312a759390e6696f87563a2c0459eee1d299a260091e1`.
+- Grant `20260829104435.grant.json`, asset ID `534990601`, size `699`, digest `sha256:b37034026a16b7f219068dfcd40754674e10bb5c9e4914e83b1b101116e72dab`.
+- Device A reached durable `Released`; a fresh process reload confirmed `mayBusinessWrite=false`. Device B validated the exact grant/snapshot pair and acquired the target-bound state.
+
+**B → A v2 — return publication and restart reconstruction**
+
+- Transfer `e55cc196-cd67-4b9a-a15e-662ac3e0f0ea`, same lineage `ca9dfdd4-fa48-4002-b993-23ce5c52a141`, generation `7`, handoff version `2`, source `device-b`, target `device-a`.
+- Snapshot `20260829125825.snapshot.db`, asset ID `535105715`, size `8192`, digest `sha256:67ec69e5e1cbb73fd0b312a759390e6696f87563a2c0459eee1d299a260091e1`.
+- Grant `20260829125825.grant.json`, asset ID `535105732`, size `699`, digest `sha256:5bb7c3f441990a58121538ed97a574c5e074416260308ff41b86c22ae21e5bbd`.
+- Device B reached durable `Released`; immediately before acquisition a fresh Device A state read confirmed `Released(v1)` and `mayBusinessWrite=false`. Device A exact v2 acquisition returned `target-acquired`, `acquisitionSucceeded=true`, `mayBusinessWrite=true`, durable `Acquired`, and the exact downloaded snapshot checksum/8192-byte length. An independent fresh process repeated the same v2 acquisition as `already-acquired` with the same durable state, proving restart/reconstruction rather than a second handoff.
+- The grant was independently read on Device A and validated as protocol version 1, generation 7, handoff version 2, source `device-b`, target `device-a`, `IsValid=true`.
+
+The real run therefore closes private repository/release access, valid server receipts, authenticated target download/validation, A → B v1, B → A v2, source restart/resume, exact target filtering and at-most-one-writer observations for the exercised states. It does not close live destructive retention observation; the M02 gate remains Partial until that remaining evidence (or an explicit approved waiver) is recorded.
 
 ## Branch, commits and amended sources
 
@@ -42,7 +69,7 @@ The correction-pass fake-HTTP matrix includes release payload/422, repository/to
 - PR: [#3](https://github.com/cimerosef/sushi81-pos/pull/3), open and not merged.
 - Original feasibility evidence remains in `docs/implementation/milestone-02-feasibility-report.md`; it is not rewritten here.
 - Amended sources: `docs/decisions/target-directed-authority-handoff.md`, `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`, and `docs/implementation-plan.md`.
-- Current GitHub automated transport evidence is synthetic/fake-HTTP. The report also preserves sanitized real historical Home Device A OneDrive evidence. No business database, customer/order/payment data, credential, account identifier or personal file listing is included.
+- Current GitHub automated transport evidence is synthetic/fake-HTTP; sanitized real private-repository operator evidence is recorded in the dedicated section above. The report also preserves sanitized real historical Home Device A OneDrive evidence. No business database, customer/order/payment data, credential, account identifier or personal file listing is included.
 
 ## Authority state model
 
@@ -120,11 +147,12 @@ The Windows observation boundary uses documented registered sync-root metadata a
 
 `IN_SYNC` is a narrow per-file provider state, not a distributed lock, remote acknowledgement or proof of absence of competing writers. Protocol safety comes from source-directed target binding and durable source relinquishment ordering. OneDrive is used only to transport immutable artifacts; atomic file creation, conflict naming, timing, quiet periods and propagation bounds are not mutual-exclusion primitives.
 
-## Real OneDrive evidence — Home Device A
+## Real OneDrive evidence — Home Device A (historical)
 
 This section records the sanitized real transport observation supplied from Home Device A. It contains no username, account identifier, personal path, screenshot or business data. Paths are represented only as `<home-OneDrive-root>\\...` and `<home-local-state>\\device-a`.
 
-- Windows accepted the registered OneDrive root; the run used .NET SDK 10.0.400, source `device-a`, target `device-b`, generation `7`, handoff version `1`, lineage `ca9dfdd4-fa48-4602-b993-23ce5c52a141`, and transfer `fc235936-64a6-460b-bcaf-f2f0b212790e`.
+- An earlier operator attempt used the wrong lineage `ca9dfdd4-fa48-4602-b993-23ce5c52a141`; the implementation returned `transfer-state-mismatch`, left the source at the safe prepared state and created no remote asset. This is retained only as fail-closed historical evidence and is not the real transfer identity. The corrected real GitHub run uses lineage `ca9dfdd4-fa48-4002-b993-23ce5c52a141` as recorded above.
+- Windows accepted the registered OneDrive root; the historical observation used .NET SDK 10.0.400, source `device-a`, target `device-b`, generation `7`, handoff version `1`, and transfer `fc235936-64a6-460b-bcaf-f2f0b212790e`.
 - The synthetic local state was outside OneDrive. `directed-source-run` created `directed-fc235936-64a6-460b-bcaf-f2f0b212790e.snapshot.db` under `<home-OneDrive-root>\\Sushi81-M02-Synthetic\\DirectedHandoff`, waited 120 seconds, and safely returned `succeeded=false`, `code=snapshot-not-synchronized`, `snapshotSync.status=Unknown`, `isConfirmedInSync=false`.
 - An independent observation reported `state=NotCloudPlaceholder`, `rawPlaceholderState=0`, `isConfirmedInSync=false`. Microsoft defines `CF_PLACEHOLDER_STATE_NO_STATES (0)` as “the file or directory ... is not a placeholder”; it is not an upload-complete signal. [`CF_PLACEHOLDER_STATE`](https://learn.microsoft.com/en-us/windows/win32/api/cfapi/ne-cfapi-cf_placeholder_state)
 - OneDrive web independently showed the exact snapshot remotely at 8 KB / 8192 bytes. This proves the current Cloud Files observer can produce a false negative after the remote upload is complete: a locally-created regular file can remain `NO_STATES` while being visible in the cloud.
@@ -218,7 +246,7 @@ dotnet run --project $project -c Release --no-build -- directed-source-resume $r
 
 ## Build, tests and AC mapping
 
-Verification was run on Windows 10.0.26200 x64 with .NET SDK 10.0.400 (runtime 10.0.11). Exact package versions are `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0, `MSTest` 4.0.2 and Windows SDK projection `10.0.26100.87`. `dotnet restore Sushi81.Pos.sln` passed with the approved network escalation; `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings and 0 errors; `dotnet test Sushi81.Pos.sln -c Release --no-build` passed 153, 0 failed and 0 skipped (Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, GitHub wrapper/harness 92); the required self-contained `win-x64` publish with `PublishSingleFile=false` passed. No real GitHub transport run was executed.
+Verification was run on Windows 10.0.26200 x64 with .NET SDK 10.0.400 (runtime 10.0.11). Exact package versions are `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0, `MSTest` 4.0.2 and Windows SDK projection `10.0.26100.87`. `dotnet restore Sushi81.Pos.sln` passed with the approved network escalation; `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings and 0 errors; `dotnet test Sushi81.Pos.sln -c Release --no-build` passed 153, 0 failed and 0 skipped (Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, GitHub wrapper/harness 92); the required self-contained `win-x64` publish with `PublishSingleFile=false` passed. The preceding automated verification is synthetic/fake-HTTP; the real private-repository run is recorded in the operator-evidence section above.
 
 GitHub Actions Continuous Integration must complete for the newly pushed branch head; the PR checks will be the authoritative per-head CI record for the final documentation head.
 
@@ -230,8 +258,8 @@ The amended preparation mapping is: AC-STO-002 (N-device target-directed single 
 
 ## Final gate
 
-The original competitive OneDrive design remains historically `BLOCKED`, and the real OneDrive local-acknowledgement observation remains preserved. The approved GitHub transport implementation and automated evidence are conforming for the M02 revalidation contract, but no live private-repository receipt or two-device round-trip has been executed in this environment. The current conclusion is exactly:
+The original competitive OneDrive design remains historically `BLOCKED`, and the real OneDrive local-acknowledgement observation remains preserved. The approved GitHub transport implementation and automated evidence are conforming, and the real private-repository A → B v1 / B → A v2 round trip is now recorded above. The only remaining operator evidence is a destructive live retention observation; until it is recorded (or explicitly waived), the current conclusion is:
 
-`PARTIAL — GitHub transport implementation ready; real two-device private-repository evidence required`
+`PARTIAL — real A → B v1 and B → A v2 evidence complete; live retention observation remains required`
 
 M03 has not started. No specification was weakened and no sensitive or real business data was added.
