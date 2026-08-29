@@ -65,6 +65,33 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
             var next = value ?? CategoryFilters.FirstOrDefault(category => category.Id == Guid.Empty);
             selectedCategory = next;
             if (next is not null) selectedCategoryId = next.Id;
+            OnPropertyChanged(nameof(SelectedCategoryId));
+            OnPropertyChanged();
+        }
+    }
+    /// <summary>
+    /// Stable semantic key for the category filter ComboBox.
+    ///
+    /// The WPF view binds SelectedValue to this property with SelectedValuePath="Id".
+    /// The selected category object is replaced whenever localization or refresh rebuilds
+    /// the filter collection, so object-instance SelectedItem identity is not a reliable
+    /// binding contract. Guid.Empty is the localized All item and is always the fallback.
+    /// </summary>
+    public Guid? SelectedCategoryId
+    {
+        get => selectedCategoryId;
+        set
+        {
+            // WPF can transiently write null while ItemsSource is being replaced. Keep the
+            // semantic key until the rebuilt collection is ready, then restore it from the
+            // collection (or deterministically fall back to All).
+            if (value is null && CategoryFilters.Count == 0) return;
+            var requestedId = value ?? Guid.Empty;
+            var next = CategoryFilters.FirstOrDefault(category => category.Id == requestedId)
+                ?? CategoryFilters.FirstOrDefault(category => category.Id == Guid.Empty);
+            selectedCategory = next;
+            selectedCategoryId = next?.Id ?? requestedId;
+            OnPropertyChanged(nameof(SelectedCategory));
             OnPropertyChanged();
         }
     }
@@ -191,6 +218,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         selectedCategory = next;
         selectedCategoryId = next?.Id ?? Guid.Empty;
         OnPropertyChanged(nameof(SelectedCategory));
+        OnPropertyChanged(nameof(SelectedCategoryId));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

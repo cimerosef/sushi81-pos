@@ -147,6 +147,57 @@ public sealed class M03DesktopTests
     }
 
     [TestMethod]
+    public async Task CategoryFilterBindingKeyIsStableAcrossEmptyLocalizationAndRefresh()
+    {
+        var viewModel = new M03ShellViewModel(new CatalogueService(new FakeCatalogueStore()), new BusinessSettingsService(new FakeSettingsStore()));
+
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategoryId);
+        Assert.AreEqual(Guid.Empty, viewModel.CategoryFilters[0].Id);
+
+        viewModel.ApplyLocalization("全部", "启用", "停用");
+        await viewModel.RefreshAsync();
+
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategoryId);
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategory!.Id);
+        Assert.AreEqual("全部", viewModel.CategoryFilters[0].Name);
+
+        viewModel.ApplyLocalization("Tous", "Actifs", "Inactifs");
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategoryId);
+        Assert.AreEqual("Tous", viewModel.CategoryFilters[0].Name);
+
+        // Simulate the WPF SelectedValue path writing the All key after a transient
+        // null selection during ItemsSource replacement.
+        viewModel.SelectedCategoryId = null;
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategoryId);
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategory!.Id);
+    }
+
+    [TestMethod]
+    public async Task CategoryFilterBindingKeyPreservesRealCategoryAndFallsBackWhenRemoved()
+    {
+        var first = new CategorySummary(Guid.NewGuid(), "Plats");
+        var second = new CategorySummary(Guid.NewGuid(), "Desserts");
+        var store = new MutableCatalogueStore(first, second);
+        var viewModel = new M03ShellViewModel(new CatalogueService(store), new BusinessSettingsService(new FakeSettingsStore()));
+
+        await viewModel.RefreshAsync();
+        viewModel.SelectedCategoryId = first.Id;
+        Assert.AreEqual(first.Id, viewModel.SelectedCategoryId);
+        Assert.AreEqual(first.Id, viewModel.SelectedCategory!.Id);
+
+        viewModel.ApplyLocalization("全部", "启用", "停用");
+        await viewModel.RefreshAsync();
+        Assert.AreEqual(first.Id, viewModel.SelectedCategoryId);
+        Assert.AreEqual(first.Id, viewModel.SelectedCategory!.Id);
+
+        store.Categories.Remove(first);
+        await viewModel.RefreshAsync();
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategoryId);
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategory!.Id);
+        Assert.AreEqual("全部", viewModel.CategoryFilters[0].Name);
+    }
+
+    [TestMethod]
     public void PresentationParsingRejectsInvalidNumericInputAndFormatsLocalizedIssues()
     {
         Assert.IsFalse(M03Presentation.TryParseMoney("not-a-number", "price", out _, out var issue));
