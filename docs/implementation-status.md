@@ -279,7 +279,7 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 **Implementation branch:** `codex/m03-catalogue-settings`
 **Handoff authorization:** `CODEX_HANDOFF_READY: M03-IMPLEMENT-01` on the active M03 implementation PR
 **Implementation/evidence commits:** `466dd06e5f9e7d1e2ea7d75b8a02d14d5f569a64`, `5a36bf9e6e656db842c4bebc464289ade3e1b436`, `80647b131d7a52b410675ba2802d68be29f3d891`
-**Remediation handoff:** `CODEX_HANDOFF_READY: M03-REVIEW-FIX-02`; final post-fix implementation SHA and CI run are recorded in the matching durable `CODEX_DONE` PR comment after push.
+**Remediation handoff:** `CODEX_HANDOFF_READY: M03-REVIEW-FIX-02`; post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run **#133** (success; the final durable completion record includes the check URL).
 **Status:** Partial pending the operator's interactive Windows/WPF checklist; no automated blocker remains.
 
 ### Delivered scope

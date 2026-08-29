@@ -26,7 +26,8 @@ Authorization: `milestone-03-authorization.md`.
 - Release solution tests: **188 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
   Architecture/localization 15, OneDrive protocol 32, and GitHub wrapper/harness 92.
 - Self-contained `win-x64` publish passed with `PublishSingleFile=false`.
-- Final post-fix CI is required on the pushed head; the PR completion record names the resulting workflow run and check URL.
+- Post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run
+  **#133** (success; check URL is recorded in the PR completion evidence).
 
 ## Remediation handoff `M03-REVIEW-FIX-02`
 
