@@ -118,8 +118,11 @@ public sealed class CatalogueService(ICatalogueStore store)
         if (error is not null) return new("product", error);
         var groups = draft.Groups ?? [];
         var seenGroupOrders = new HashSet<int>();
+        var seenGroupIds = new HashSet<Guid>();
+        var seenOptionIds = new HashSet<Guid>();
         foreach (var group in groups)
         {
+            if (group.Id != Guid.Empty && !seenGroupIds.Add(group.Id)) return new("groups", "Option group identities must be unique.");
             if (!seenGroupOrders.Add(group.DisplayOrder)) return new("groups", "Option group order must be unique.");
             var groupEntity = new OptionGroup(group.Id, draft.Id, group.Name, group.SelectionMode, group.IsRequired, group.MinSelections, group.MaxSelections, group.DisplayOrder, default, default);
             error = CatalogueValidation.ValidateGroup(groupEntity);
@@ -127,6 +130,7 @@ public sealed class CatalogueService(ICatalogueStore store)
             var seenOptionOrders = new HashSet<int>();
             foreach (var option in group.Options ?? [])
             {
+                if (option.Id != Guid.Empty && !seenOptionIds.Add(option.Id)) return new("options", "Option identities must be unique.");
                 if (!seenOptionOrders.Add(option.DisplayOrder)) return new("options", "Option order must be unique.");
                 var optionEntity = new ProductOption(option.Id, group.Id, option.Name, option.PriceAdjustmentTtc, option.IsActive, option.DisplayOrder, default, default);
                 error = CatalogueValidation.ValidateOption(optionEntity);

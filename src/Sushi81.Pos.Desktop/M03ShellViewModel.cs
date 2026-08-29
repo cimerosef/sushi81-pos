@@ -104,16 +104,22 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     public async Task<OperationResult> SaveSettingsAsync(CancellationToken cancellationToken = default)
     {
-        if (!decimal.TryParse(PickupDiscountRateText, NumberStyles.Number, CultureInfo.InvariantCulture, out var percent)
-            || !decimal.TryParse(PickupDiscountMinText, NumberStyles.Number, CultureInfo.InvariantCulture, out var pickupMin)
-            || !decimal.TryParse(DeliveryMinText, NumberStyles.Number, CultureInfo.InvariantCulture, out var deliveryMin)
-            || !decimal.TryParse(DeliveryFeeAmountText, NumberStyles.Number, CultureInfo.InvariantCulture, out var fee))
-            return OperationResult.Failure(new ValidationIssue("settings", "Enter valid numeric settings."));
-        var current = loadedSettings ?? await settings.GetAsync(cancellationToken);
-        var updated = current with { PickupDiscountRate = percent / 100m, PickupDiscountMinTotalTtc = Money.FromEuros(pickupMin), DeliveryMinMerchandiseTotalTtc = Money.FromEuros(deliveryMin), DeliveryFeeEnabled = DeliveryFeeEnabled, DeliveryFeeAmountTtc = Money.FromEuros(fee) };
-        var result = await settings.UpdateAsync(updated, cancellationToken);
-        if (result.Succeeded) loadedSettings = updated;
-        return result;
+        if (IsBusy) return OperationResult.Failure(new ValidationIssue("settings", "A settings save is already in progress."));
+        IsBusy = true;
+        try
+        {
+            if (!decimal.TryParse(PickupDiscountRateText, NumberStyles.Number, CultureInfo.InvariantCulture, out var percent)
+                || !decimal.TryParse(PickupDiscountMinText, NumberStyles.Number, CultureInfo.InvariantCulture, out var pickupMin)
+                || !decimal.TryParse(DeliveryMinText, NumberStyles.Number, CultureInfo.InvariantCulture, out var deliveryMin)
+                || !decimal.TryParse(DeliveryFeeAmountText, NumberStyles.Number, CultureInfo.InvariantCulture, out var fee))
+                return OperationResult.Failure(new ValidationIssue("settings", "Enter valid numeric settings."));
+            var current = loadedSettings ?? await settings.GetAsync(cancellationToken);
+            var updated = current with { PickupDiscountRate = percent / 100m, PickupDiscountMinTotalTtc = Money.FromEuros(pickupMin), DeliveryMinMerchandiseTotalTtc = Money.FromEuros(deliveryMin), DeliveryFeeEnabled = DeliveryFeeEnabled, DeliveryFeeAmountTtc = Money.FromEuros(fee) };
+            var result = await settings.UpdateAsync(updated, cancellationToken);
+            if (result.Succeeded) loadedSettings = updated;
+            return result;
+        }
+        finally { IsBusy = false; }
     }
 
     public Task<ProductDraft?> LoadProductAsync(Guid id, CancellationToken cancellationToken = default) => catalogue.GetProductForEditAsync(id, cancellationToken);

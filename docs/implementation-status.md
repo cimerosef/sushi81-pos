@@ -300,8 +300,8 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 - Environment: Windows x64, .NET SDK 10.0.400 (runtime 10.0.11).
 - `dotnet restore Sushi81.Pos.sln`: passed.
 - `dotnet build Sushi81.Pos.sln -c Release --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test Sushi81.Pos.sln -c Release --no-build`: 163 passed, 0 failed, 0 skipped (Domain 8; Application 2;
-  Infrastructure integration 21; Architecture/localization 8; protocol 32; GitHub wrapper/harness 92, including the
+- `dotnet test Sushi81.Pos.sln -c Release --no-build`: 170 passed, 0 failed, 0 skipped (Domain 8; Application 6;
+  Infrastructure integration 21; Architecture/localization 11; protocol 32; GitHub wrapper/harness 92, including the
   solution's existing wrapper test project instance).
 - `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true
   -p:PublishSingleFile=false`: passed; output remains under the ignored Desktop publish directory.
