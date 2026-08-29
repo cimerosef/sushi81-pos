@@ -26,7 +26,7 @@ The latest correction pass adds deterministic regression coverage and keeps the 
 - Release Asset listing follows `per_page=100` pagination until the complete collection is read. Network, timeout, authentication, permission, rate-limit and malformed receipt failures surface as structured secret-free transport errors.
 - The continuous-lifecycle fixture now passes its requested version argument through to the transfer identity rather than hard-coding v1.
 
-The correction-pass fake-HTTP matrix includes release payload/422, repository/token/auth/rate-limit failures, upload state/name/size/digest contradictions, pagination, wrong-source target rejection, receipt restart/revalidation, generation advancement, lineage isolation, grant digest protection, partial-delete retry/idempotency and network/timeout redaction. Full solution verification is 140 passed, 0 failed, 0 skipped; build is 0 warnings/0 errors; self-contained win-x64 publish is required below. CI must be green for the final pushed head. No real user-device test is performed in this pass.
+The correction-pass fake-HTTP matrix includes release payload/422, repository/token/auth/rate-limit failures, upload state/name/size/digest contradictions, pagination, wrong-source target rejection, receipt restart/revalidation, generation advancement, lineage isolation, grant digest protection, partial-delete retry/idempotency and network/timeout redaction. Full solution verification is 143 passed, 0 failed, 0 skipped; build is 0 warnings/0 errors; self-contained win-x64 publish passed. CI must be green for the final pushed head. No real user-device test is performed in this pass.
 
 ## Branch, commits and amended sources
 
