@@ -29,7 +29,7 @@ If implementation exposes a genuine specification conflict or a missing material
 Sushi81 POS uses a hybrid approach:
 
 1. establish a thin but complete technical foundation that cannot safely be retrofitted later;
-2. prove the highest-risk OneDrive single-writer assumptions early;
+2. prove the highest-risk remote handoff/single-writer assumptions early (historical OneDrive evidence plus the approved GitHub transport revalidation);
 3. if the feasibility gate reveals a material blocker, amend the specification before broad business implementation and re-verify the amended safety model;
 4. deliver business functionality as end-to-end vertical slices;
 5. add integrations only after their upstream business state is stable;
@@ -49,7 +49,7 @@ Primary acceptance ownership: `AC-ARCH-001` through `AC-ARCH-004`, `AC-STO-001`;
 
 Detailed authorized task definition: `implementation/milestone-01-foundation.md`.
 
-### M02 — OneDrive single-writer feasibility gate and amendment revalidation
+### M02 — Remote handoff feasibility gate and GitHub transport revalidation
 
 M02 runs before broad business implementation.
 
@@ -63,7 +63,8 @@ PR #2 / merge commit `5bacafa0e4ca906d8ff058e34586dee43503bc42` established:
 - strict synthetic handoff publication/validation primitives;
 - deterministic N-device delayed/reordered simulation;
 - an executable double-writer counterexample for claim-only competitive acquisition;
-- a blocker conclusion because the approved OneDrive/local-filesystem model exposes no documented cross-client atomic exclusive-grant primitive.
+- a blocker conclusion because the approved OneDrive/local-filesystem model exposes no documented cross-client atomic exclusive-grant primitive;
+- the approved GitHub private-repository Release Asset transport amendment and its strict server-receipt gate.
 
 The resulting historical evidence is `implementation/milestone-02-feasibility-report.md`.
 
@@ -86,7 +87,8 @@ Before M03, M02 must re-verify the amended target-directed protocol, including:
 - pre/post-relinquishment failures;
 - wrong-target rejection;
 - N-device safety and valid-path liveness;
-- real OneDrive immutable-artifact transport evidence.
+- automated GitHub REST/Release Asset receipt and failure-matrix evidence;
+- real private GitHub two-device upload/download/round-trip evidence before the gate can be Passed.
 
 Primary acceptance preparation remains: amended `AC-STO-002` through `AC-STO-005`, `AC-STO-007` through `AC-STO-010`.
 
@@ -120,7 +122,7 @@ Primary acceptance ownership: `AC-STO-006`, `AC-STO-010`; partial completion of 
 
 ### M07 — Pairing, target-directed formal handoff and disaster recovery
 
-Implement device/lineage initialization, N-device pairing, close-and-retain behavior, explicit target selection, target-directed transfer-and-close, durable source relinquishment, safe target acquisition, immutable versions, checksum/integrity validation, synchronization confirmation, five-version handoff retention, change-triggered recovery-only cloud checkpoints, explicit Disaster Recovery and generation invalidation.
+Implement device/lineage initialization, N-device pairing, close-and-retain behavior, explicit target selection, target-directed transfer-and-close, durable source relinquishment, safe target acquisition, immutable versions, checksum/integrity validation, GitHub server acknowledgement, three-version normal handoff retention, change-triggered recovery-only cloud checkpoints, explicit Disaster Recovery and generation invalidation.
 
 Normal M07 acquisition must not reintroduce generic competitive claim/election semantics superseded by the 2026-08-28 amendment.
 
@@ -196,4 +198,4 @@ M02's original generic acquisition design correctly ended `BLOCKED — specifica
 
 The target-directed authority-handoff amendment is now Approved and incorporated into the V1 baseline. M02 amendment revalidation is explicitly authorized by `implementation/milestone-02-directed-handoff-revalidation.md`.
 
-M03 and later milestones remain unauthorized until M02 revalidation reaches an acceptable gate result and the next milestone receives its own detailed task contract.
+M02 amended revalidation is now `Passed` with the documented real two-device and isolated live-retention evidence. M03 and later milestones remain unauthorized until M03 receives its own separate detailed implementation contract and the user explicitly approves the transition; this M02 closure does not authorize M03.
