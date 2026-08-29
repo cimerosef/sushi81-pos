@@ -98,7 +98,7 @@ Implement the requested milestone only. Do not add speculative product features 
 
 Do not reintroduce superseded complexity, especially the former Hiboutik emergency-order UI/original-total/discrepancy/reconciliation model. Hiboutik paste-created orders use the normal order model plus only the hidden anti-double-counting source discriminator defined by the frozen specification.
 
-## ChatGPT ↔ Codex collaboration handoff protocol v2.1
+## ChatGPT ↔ Codex collaboration handoff protocol v2.2
 
 This section is the durable collaboration protocol for implementation/review relay between the ChatGPT project lead and Codex. It **supersedes the earlier browser-polling rule** in which one long-running Codex task repeatedly opened the ChatGPT conversation and waited for a new marker.
 
@@ -107,7 +107,7 @@ This section is the durable collaboration protocol for implementation/review rel
 The active GitHub implementation pull request is the durable inter-agent mailbox.
 
 - GitHub PR comments are the authoritative relay channel between ChatGPT and Codex.
-- ChatGPT browser access may be used as a convenience/fast notification path, but it is not the durable source of relay state.
+- ChatGPT browser access is the mandatory-attempt fast notification path after completed handoffs, but it is not the durable source of relay state.
 - A Codex run must not remain alive merely to poll a ChatGPT browser tab.
 - Ending one Codex run must not be interpreted as cancelling the recurring relay automation.
 
@@ -163,7 +163,7 @@ The recurring automation itself remains enabled after an individual run ends. A 
 
 ### Codex → ChatGPT completion
 
-After completing an authorized handoff, Codex must:
+After completing an authorized handoff, Codex must perform the following delivery sequence in order:
 
 1. push the implementation/evidence to the authorized branch/PR;
 2. leave a top-level comment on the same PR beginning with:
@@ -171,11 +171,24 @@ After completing an authorized handoff, Codex must:
    `CODEX_DONE: <same-id>`
 
 3. include at least the implementation/pushed SHA, tests/build/CI status, gate status, and any blocker or unresolved finding;
-4. stop implementation and wait for the next distinct handoff unless the current task contract explicitly authorizes another step.
+4. **after the durable GitHub `CODEX_DONE` exists, always attempt to return to the already-open Sushi81 POS ChatGPT browser conversation and send a completion notification** containing the same handoff ID plus a short request for ChatGPT to review the corresponding PR/evidence;
+5. stop implementation and wait for the next distinct handoff unless the current task contract explicitly authorizes another step.
 
-After the durable GitHub `CODEX_DONE` comment exists, Codex should make a **best-effort** notification through the already-open Sushi81 POS ChatGPT browser conversation when that browser session is available. The convenience message should contain only the same handoff ID plus a short request to review the corresponding PR/evidence. It must not include secrets, tokens, large logs or code dumps.
+The browser-notification **attempt is mandatory for every executed handoff**. It is not optional and must not be skipped merely because GitHub delivery already succeeded.
 
-Failure of the browser notification does not make the implementation fail and does not authorize re-execution of the handoff. GitHub remains the durable completion record. A later recurring wake-up may retry the convenience notification if the automation can distinguish that the same handoff has already been implemented; it must never implement the handoff twice.
+The browser-notification **success is best-effort and non-fatal**. Browser/session unavailability, navigation failure, authentication/session loss, inability to control the existing tab, or another browser-side error does not make the implementation task fail and does not authorize re-execution of the handoff. GitHub remains the durable completion record.
+
+For every `CODEX_DONE`, Codex must record the browser-notification attempt outcome in that same PR comment using one of these values:
+
+- `browserNotification: succeeded`
+- `browserNotification: unavailable`
+- `browserNotification: failed`
+
+`unavailable` or `failed` means the required attempt was made but did not succeed. Absence of a `browserNotification` outcome means the delivery protocol was not fully executed.
+
+The ChatGPT browser notification must not include secrets, tokens, large logs or code dumps.
+
+A later recurring wake-up may retry a failed/unavailable convenience notification only if it can distinguish that the same handoff has already been implemented; it must never implement the handoff twice.
 
 ### User-decision stop state
 
