@@ -15,6 +15,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     private readonly BusinessSettingsService settings;
     private ProductSummary? selectedProduct;
     private CategorySummary? selectedCategory;
+    private Guid selectedCategoryId;
     private string searchText = string.Empty;
     private string activeFilter = "All";
     private bool isBusy;
@@ -30,6 +31,9 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         Categories = new ObservableCollection<CategorySummary>();
         Products = new ObservableCollection<ProductSummary>();
         CategoryFilters = new ObservableCollection<CategorySummary>();
+        CategoryFilters.Add(new CategorySummary(Guid.Empty, AllCategoryLabel));
+        selectedCategory = CategoryFilters[0];
+        selectedCategoryId = Guid.Empty;
         StatusFilters = new ObservableCollection<FilterOption>
         {
             new("All", "All"),
@@ -49,15 +53,37 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     public sealed record FilterOption(string Key, string Label);
 
-    public ProductSummary? SelectedProduct { get => selectedProduct; set { selectedProduct = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanEditProduct)); OnPropertyChanged(nameof(CanToggleProduct)); OnPropertyChanged(nameof(ToggleProductActionLabel)); } }
-    public CategorySummary? SelectedCategory { get => selectedCategory; set { selectedCategory = value; OnPropertyChanged(); } }
+    public ProductSummary? SelectedProduct { get => selectedProduct; set { selectedProduct = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanEditProduct)); OnPropertyChanged(nameof(CanDeleteProduct)); OnPropertyChanged(nameof(CanToggleProduct)); OnPropertyChanged(nameof(ToggleProductActionLabel)); } }
+    public CategorySummary? SelectedCategory
+    {
+        get => selectedCategory;
+        set
+        {
+            // WPF can transiently write null while ItemsSource is rebuilt. Preserve the
+            // semantic selection and restore it after the collection has been rebuilt.
+            if (value is null && CategoryFilters.Count == 0) return;
+            var next = value ?? CategoryFilters.FirstOrDefault(category => category.Id == Guid.Empty);
+            selectedCategory = next;
+            if (next is not null) selectedCategoryId = next.Id;
+            OnPropertyChanged();
+        }
+    }
     public string SearchText { get => searchText; set { searchText = value ?? string.Empty; OnPropertyChanged(); } }
-    public string ActiveFilter { get => activeFilter; set { activeFilter = value ?? "All"; OnPropertyChanged(); } }
+    public string ActiveFilter
+    {
+        get => activeFilter;
+        set
+        {
+            activeFilter = value is "Active" or "Inactive" ? value : "All";
+            OnPropertyChanged();
+        }
+    }
     public bool CanEditProduct => SelectedProduct is not null && !IsBusy;
+    public bool CanDeleteProduct => SelectedProduct is not null && !IsBusy;
     public bool CanToggleProduct => SelectedProduct is not null && !IsBusy;
     public string ToggleProductActionLabel => SelectedProduct?.IsActive == true ? deactivateLabel : activateLabel;
     public bool HasProducts => Products.Count > 0;
-    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanEditProduct)); OnPropertyChanged(nameof(CanToggleProduct)); OnPropertyChanged(nameof(ToggleProductActionLabel)); } }
+    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanEditProduct)); OnPropertyChanged(nameof(CanDeleteProduct)); OnPropertyChanged(nameof(CanToggleProduct)); OnPropertyChanged(nameof(ToggleProductActionLabel)); } }
 
     public string PickupDiscountRateText { get; set; } = "10";
     public string PickupDiscountMinText { get; set; } = "15.00";
@@ -70,6 +96,8 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     public void ApplyLocalization(string all, string active, string inactive, string? activate = null, string? deactivate = null)
     {
+        var categoryId = selectedCategoryId;
+        var statusKey = ActiveFilter;
         activateLabel = string.IsNullOrWhiteSpace(activate) ? "Activate" : activate;
         deactivateLabel = string.IsNullOrWhiteSpace(deactivate) ? "Deactivate" : deactivate;
         AllCategoryLabel = string.IsNullOrWhiteSpace(all) ? "All" : all;
@@ -77,7 +105,12 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         StatusFilters.Add(new("All", string.IsNullOrWhiteSpace(all) ? "All" : all));
         StatusFilters.Add(new("Active", string.IsNullOrWhiteSpace(active) ? "Active" : active));
         StatusFilters.Add(new("Inactive", string.IsNullOrWhiteSpace(inactive) ? "Inactive" : inactive));
-        if (CategoryFilters.Count > 0) CategoryFilters[0] = new CategorySummary(Guid.Empty, AllCategoryLabel);
+        ActiveFilter = statusKey;
+        if (CategoryFilters.Count > 0)
+        {
+            CategoryFilters[0] = new CategorySummary(Guid.Empty, AllCategoryLabel);
+            RestoreCategorySelection(categoryId);
+        }
         OnPropertyChanged(nameof(AllCategoryLabel));
         OnPropertyChanged(nameof(StatusFilters));
         OnPropertyChanged(nameof(ToggleProductActionLabel));
@@ -88,14 +121,18 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
+            var categoryId = selectedCategoryId;
+            var statusKey = ActiveFilter;
             var categories = await catalogue.ListCategoriesAsync(cancellationToken);
             Categories.Clear();
             CategoryFilters.Clear();
             CategoryFilters.Add(new CategorySummary(Guid.Empty, AllCategoryLabel));
             foreach (var category in categories) { Categories.Add(category); CategoryFilters.Add(category); }
+            RestoreCategorySelection(categoryId);
+            ActiveFilter = statusKey;
             var active = ActiveFilter switch { "Active" => true, "Inactive" => false, _ => (bool?)null };
-            Guid? categoryId = SelectedCategory is null || SelectedCategory.Id == Guid.Empty ? null : SelectedCategory.Id;
-            var products = await catalogue.ListProductsAsync(SearchText, categoryId, active, cancellationToken);
+            Guid? selectedId = SelectedCategory is null || SelectedCategory.Id == Guid.Empty ? null : SelectedCategory.Id;
+            var products = await catalogue.ListProductsAsync(SearchText, selectedId, active, cancellationToken);
             Products.Clear(); foreach (var product in products) Products.Add(product);
             OnPropertyChanged(nameof(HasProducts));
             if (SelectedProduct is not null) SelectedProduct = Products.FirstOrDefault(product => product.Id == SelectedProduct.Id);
@@ -146,6 +183,15 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid id, string name, CancellationToken cancellationToken = default) => catalogue.RenameCategoryAsync(id, name, cancellationToken);
     public Task<OperationResult> SetProductActiveAsync(Guid id, bool active, CancellationToken cancellationToken = default) => catalogue.SetProductActiveAsync(id, active, cancellationToken);
     public Task<OperationResult> DeleteProductAsync(Guid id, CancellationToken cancellationToken = default) => catalogue.DeleteProductAsync(id, cancellationToken);
+
+    private void RestoreCategorySelection(Guid categoryId)
+    {
+        var next = CategoryFilters.FirstOrDefault(category => category.Id == categoryId)
+            ?? CategoryFilters.FirstOrDefault(category => category.Id == Guid.Empty);
+        selectedCategory = next;
+        selectedCategoryId = next?.Id ?? Guid.Empty;
+        OnPropertyChanged(nameof(SelectedCategory));
+    }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

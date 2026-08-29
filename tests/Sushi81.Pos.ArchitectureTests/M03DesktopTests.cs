@@ -23,12 +23,72 @@ public sealed class M03DesktopTests
 
         Assert.AreEqual(Guid.Empty, viewModel.CategoryFilters[0].Id);
         Assert.AreEqual("Tous", viewModel.CategoryFilters[0].Name);
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategory!.Id);
+        Assert.AreEqual("All", viewModel.ActiveFilter);
         CollectionAssert.AreEqual(FrenchFilters, viewModel.StatusFilters.Select(option => option.Label).ToArray());
         Assert.IsTrue(viewModel.HasProducts);
 
         viewModel.ApplyLocalization("全部", "启用", "停用");
         Assert.AreEqual("全部", viewModel.AllCategoryLabel);
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategory!.Id);
+        Assert.AreEqual("All", viewModel.ActiveFilter);
         CollectionAssert.AreEqual(ChineseFilters, viewModel.StatusFilters.Select(option => option.Label).ToArray());
+    }
+
+    [TestMethod]
+    public async Task FilterSelectionsRemainSemanticAcrossLanguageSwitchAndRefresh()
+    {
+        var first = new CategorySummary(Guid.NewGuid(), "Plats");
+        var second = new CategorySummary(Guid.NewGuid(), "Desserts");
+        var store = new MutableCatalogueStore(first, second);
+        var viewModel = new M03ShellViewModel(new CatalogueService(store), new BusinessSettingsService(new FakeSettingsStore()));
+
+        viewModel.ApplyLocalization("Tous", "Actifs", "Inactifs");
+        await viewModel.RefreshAsync();
+        viewModel.SelectedCategory = viewModel.CategoryFilters.Single(category => category.Id == first.Id);
+        viewModel.ActiveFilter = "Active";
+        viewModel.ApplyLocalization("全部", "启用", "停用");
+
+        Assert.AreEqual(first.Id, viewModel.SelectedCategory!.Id);
+        Assert.AreEqual("Plats", viewModel.SelectedCategory.Name);
+        Assert.AreEqual("Active", viewModel.ActiveFilter);
+        Assert.AreEqual("启用", viewModel.StatusFilters.Single(option => option.Key == "Active").Label);
+        Assert.AreEqual("全部", viewModel.CategoryFilters[0].Name);
+
+        viewModel.ActiveFilter = "Inactive";
+        viewModel.ApplyLocalization("Tous", "Actifs", "Inactifs");
+        Assert.AreEqual("Inactive", viewModel.ActiveFilter);
+        Assert.AreEqual("Inactifs", viewModel.StatusFilters.Single(option => option.Key == "Inactive").Label);
+
+        await viewModel.RefreshAsync();
+        Assert.AreEqual(first.Id, viewModel.SelectedCategory!.Id);
+        Assert.AreEqual("Inactive", viewModel.ActiveFilter);
+
+        store.Categories.Remove(first);
+        await viewModel.RefreshAsync();
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategory!.Id);
+        Assert.AreEqual("Inactive", viewModel.ActiveFilter);
+    }
+
+    [TestMethod]
+    public async Task FreshStateAndLanguageRoundTripKeepAllFiltersSelected()
+    {
+        var viewModel = new M03ShellViewModel(new CatalogueService(new FakeCatalogueStore()), new BusinessSettingsService(new FakeSettingsStore()));
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategory!.Id);
+        Assert.AreEqual("All", viewModel.ActiveFilter);
+
+        viewModel.ApplyLocalization("全部", "启用", "停用");
+        await viewModel.RefreshAsync();
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategory!.Id);
+        Assert.AreEqual("All", viewModel.ActiveFilter);
+        Assert.AreEqual("全部", viewModel.CategoryFilters[0].Name);
+        Assert.AreEqual("全部", viewModel.StatusFilters[0].Label);
+
+        viewModel.ApplyLocalization("Tous", "Actifs", "Inactifs");
+        Assert.AreEqual(Guid.Empty, viewModel.SelectedCategory!.Id);
+        Assert.AreEqual("All", viewModel.ActiveFilter);
+        Assert.AreEqual("Tous", viewModel.CategoryFilters[0].Name);
+        Assert.AreEqual("Tous", viewModel.StatusFilters[0].Label);
     }
 
     [TestMethod]
@@ -73,6 +133,20 @@ public sealed class M03DesktopTests
     }
 
     [TestMethod]
+    public void ProductActionsAreDisabledWithoutSelectionAndEnabledWithSelection()
+    {
+        var viewModel = new M03ShellViewModel(new CatalogueService(new FakeCatalogueStore()), new BusinessSettingsService(new FakeSettingsStore()));
+        Assert.IsFalse(viewModel.CanEditProduct);
+        Assert.IsFalse(viewModel.CanDeleteProduct);
+        Assert.IsFalse(viewModel.CanToggleProduct);
+
+        viewModel.SelectedProduct = new ProductSummary(Guid.NewGuid(), "P1", "Product", Guid.NewGuid(), "Plats", Money.FromCents(100), 10m, true, true, false);
+        Assert.IsTrue(viewModel.CanEditProduct);
+        Assert.IsTrue(viewModel.CanDeleteProduct);
+        Assert.IsTrue(viewModel.CanToggleProduct);
+    }
+
+    [TestMethod]
     public void PresentationParsingRejectsInvalidNumericInputAndFormatsLocalizedIssues()
     {
         Assert.IsFalse(M03Presentation.TryParseMoney("not-a-number", "price", out _, out var issue));
@@ -106,6 +180,22 @@ public sealed class M03DesktopTests
         private readonly CategorySummary? category = category;
         public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>(category is null ? [] : [category]);
         public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>(category is null ? [] : [new(Guid.NewGuid(), "P1", "Product", category.Id, category.Name, Money.FromCents(100), 10m, true, true, false)]);
+        public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(null);
+        public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(Guid.NewGuid(), name)));
+        public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(categoryId, name)));
+        public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<Guid>.Success(Guid.NewGuid()));
+        public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+    }
+
+    private sealed class MutableCatalogueStore(params CategorySummary[] initialCategories) : ICatalogueStore
+    {
+        public List<CategorySummary> Categories { get; } = [.. initialCategories];
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>(Categories.ToArray());
+        public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ProductSummary>>([]);
         public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(null);
         public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(Guid.NewGuid(), name)));
         public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(categoryId, name)));
