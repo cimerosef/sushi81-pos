@@ -23,8 +23,8 @@ Authorization: `milestone-03-authorization.md`.
 
 - .NET SDK 10.0.400, Windows x64.
 - Release restore/build passed (0 warnings, 0 errors).
-- Release solution tests: **195 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
-  Architecture/localization 22, OneDrive protocol 32, and GitHub wrapper/harness 92.
+- Release solution tests: **196 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
+  Architecture/localization 23, OneDrive protocol 32, and GitHub wrapper/harness 92.
 - Self-contained `win-x64` publish passed with `PublishSingleFile=false`.
 - Post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run
   **#133** (success). The follow-up filter-state remediation head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` passed
@@ -32,7 +32,8 @@ Authorization: `milestone-03-authorization.md`.
   binding remediation head `1053c9b210cac15343959aac8f9ffa2c13ccd9b8` passed local Release verification; its CI result
   is recorded in the matching PR completion evidence. The status binding remediation head
   `e56ec77b4d13898c40d57be600652309d77938df` passed local Release verification; its CI result is recorded in the matching
-  PR completion evidence.
+  PR completion evidence. The status lifecycle remediation head `a3bab3de2b43e14a415f4251ab1b6dd77cf61aa0` passed local
+  Release verification; its CI result is recorded in the matching PR completion evidence.
 
 ## Remediation handoff `M03-REVIEW-FIX-02`
 
@@ -82,20 +83,28 @@ no-selection action tests remain green. M03 remains Partial pending the operator
 ## Manual-test remediation handoff `M03-MANUAL-UI-STATUS-BINDING-FIX-05`
 
 The subsequent operator pass confirmed the category binding fix in the real UI, but switching from persisted zh-CN to French
-left the status ComboBox blank. The root cause was the localized `StatusFilters` collection being rebuilt while WPF could write a
-transient null/invalid selected value back through the status binding. The narrow remediation exposes the stable semantic
-`SelectedStatusKey` (with `All`, `Active` and `Inactive` keys), binds the ComboBox through `SelectedValuePath="Key"`, and
-preserves the effective key while the collection is replaced. Null writes during an empty collection are ignored; once options
-exist, invalid/null values deterministically resolve to All. The added desktop regressions cover fresh All state, zh-CN ↔ fr-FR
-All round trips, Active and Inactive preservation across localization and refresh, and transient-null tolerance. Category binding,
-status behavior and no-selection action guards remain covered. M03 remains Partial pending the operator rerun of the full WPF
+left the status ComboBox blank. The first status-key remediation exposed `SelectedStatusKey` and a semantic
+`SelectedValuePath="Key"` binding, but the operator's next pass showed that rebuilding the `StatusFilters` collection could still
+race with WPF's asynchronous selection lifecycle. That intermediate attempt is superseded by the lifecycle remediation below.
+
+## Manual-test remediation handoff `M03-MANUAL-UI-STATUS-LIFECYCLE-FIX-06`
+
+The operator reproduced the blank status selection in the opposite French → zh-CN direction after the first status-key fix. The
+root cause was collection replacement itself: `StatusFilters.Clear()` followed by new option instances allowed WPF to process a
+transient null/invalid selection after localization returned. The final narrow remediation initializes exactly three bindable
+status options once (`All`, `Active`, `Inactive`) and updates only their mutable localized labels in place. Their immutable keys,
+object identities and collection positions therefore remain stable for the view-model lifetime while the ComboBox continues to
+bind `SelectedValuePath="Key"` to `SelectedStatusKey`. Invalid values safely resolve to All, and no transient null can be
+introduced by a collection rebuild because localization no longer rebuilds that collection. The added regression captures all
+three option objects, verifies identity/position and labels across fr/zh localization and refresh, and proves All/Active/Inactive
+semantic selection preservation plus invalid/null fallback. M03 remains Partial pending the operator rerun of the full WPF
 checklist after this fix.
 
 ## Outstanding
 
 - Operator must rerun the manual M03 Windows/WPF checklist from the contract against the newly published artifact, including
   visual confirmation that both category and status ComboBoxes show `Tous`/`全部` on first render and remain selected through
-  either language-switch direction and refresh. This run did not claim interactive verification after the status binding fix.
+  either language-switch direction and refresh. This run did not claim interactive verification after the lifecycle binding fix.
 - AC-CAT-003 historical-order independence and pricing-consumer cross-check in AC-ORD-011 remain intentionally
   deferred to M04, which is not started or authorized.
 
