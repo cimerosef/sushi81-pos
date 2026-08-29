@@ -34,8 +34,8 @@ The correction-pass fake-HTTP matrix includes release payload/422, repository/to
 ## Branch, commits and amended sources
 
 - Branch: `codex/m02-directed-handoff-revalidation`
-- Correction-pass implementation head: `3ec53ef31bef42ba5099d2cd101ea44ae6d7d625`.
-- Correction-pass CI head: `3ec53ef31bef42ba5099d2cd101ea44ae6d7d625` (GitHub Actions run #87, success).
+- Correction-pass implementation head: `5402c50cc528d70297946e2281bb86eeef6c0ea6`.
+- Correction-pass CI head: pending push for this correction; the prior pushed head/CI remains historical until the new branch head completes.
 - PR: [#3](https://github.com/cimerosef/sushi81-pos/pull/3), open and not merged.
 - Original feasibility evidence remains in `docs/implementation/milestone-02-feasibility-report.md`; it is not rewritten here.
 - Amended sources: `docs/decisions/target-directed-authority-handoff.md`, `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`, and `docs/implementation-plan.md`.
@@ -217,7 +217,7 @@ dotnet run --project $project -c Release --no-build -- directed-source-resume $r
 
 Verification was run on Windows 10.0.26200 x64 with .NET SDK 10.0.400 (runtime 10.0.11). Exact package versions are `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0, `MSTest` 4.0.2 and Windows SDK projection `10.0.26100.87`. `dotnet restore Sushi81.Pos.sln` passed with the approved network escalation; `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings and 0 errors; `dotnet test Sushi81.Pos.sln -c Release --no-build` passed 150, 0 failed and 0 skipped (Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, GitHub wrapper/harness 89); the required self-contained `win-x64` publish with `PublishSingleFile=false` passed. No real GitHub transport run was executed.
 
-GitHub Actions Continuous Integration has completed successfully for the pushed branch; the PR checks are the authoritative per-head CI record for the final documentation head.
+GitHub Actions Continuous Integration must complete for the newly pushed branch head; the PR checks will be the authoritative per-head CI record for the final documentation head.
 
 Final implementation tree is limited to the M02 harness and evidence: `tools/Sushi81.Pos.OneDriveFeasibility` (Cloud Files historical observation, centralized device-local lifecycle authority gate, persistent authority cursor, durable source/target stores, marker/snapshot validation, direct `HttpClient` GitHub Release Asset transport, grant schema, source/target GitHub coordinators, release-wide newest-three retention and directed CLI including promotion/restart); `tools/Sushi81.Pos.OneDriveFeasibility.Tests` (89 directed durable/source/target/lifecycle/diagnostic/GitHub wrapper and transport tests, including strict receipt, token redaction, source ordering, exact target, continuous A→B→A→B→A→B lifecycle, upload-retry, download-integrity and retention tests); `tests/Sushi81.Pos.OneDriveFeasibility.Tests` (32 pure protocol tests); unchanged M01/product projects under `src/` and their existing test projects; and the M02 evidence/status documents. No Catalogue, BusinessSettings, Order, Cart, Payment, pricing/VAT, printing, export, Hiboutik, pairing, disaster-recovery, archive, installer or legacy emergency-model code was added.
 
