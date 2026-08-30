@@ -226,6 +226,8 @@ step consolidated `AC-CAT-013` into `docs/acceptance-criteria.md` (amendment met
 approval record. The current M03 branch first incorporated main `4c971afda3ff5f2bc047f083bf962ee46d74f1f7` and preserved all prior
 FIX-12 evidence.
 
+Final extension head: `37ab7c5d156a7aa0b7aec90ffa3523fb6c75551f`; GitHub Actions Continuous integration run **#208** passed.
+
 The implementation is deliberately narrow: `CatalogueService` validates an immutable Product-ID/expected-state request and
 delegates even all-no-op captures to the store's read-only preflight; `SqliteCatalogueStore` revalidates every target inside one transaction, skips already-target
 products, applies one operation timestamp to changed rows and rolls back on missing/stale targets or injected failures. Only
