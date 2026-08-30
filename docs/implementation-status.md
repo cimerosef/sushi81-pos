@@ -335,8 +335,8 @@ and restores the actionable state after Cancel or successful Save. The follow-up
 the unsupported DataGridColumn-to-Window header bindings, applies all six localized labels through a direct presentation seam on
 construction/load/language change, and gives the grid fixed Code/TTC/VAT/Active widths plus flexible Name/Category star sizing.
 The deterministic regression proves effective French → zh-CN → French labels from the real resource dictionaries and the grid
-presentation contract. M03 remains Partial solely because the operator's latest run stopped after successful product creation at
-the blank-header observation; the full Windows/WPF checklist must be rerun after this fix. M04 is not started and is not authorized.
+presentation contract. M03 remains Partial because the complete post-remediation Windows/WPF checklist remains an operator
+gate; M04 is not started and is not authorized.
 
 The follow-up `M03-MANUAL-UI-OPTION-GROUP-ADD-CRASH-FIX-10` addresses the next operator-reproduced crash in the shown Product
 Editor. `GroupEditor` now exposes and owns its Border container; all dynamic group add/remove/reorder operations use that
@@ -355,7 +355,7 @@ margin-aware button DesiredSize plus peer-button height spread in both French an
 safe Cancel/no-write behavior remain covered. The retrospective and complete fixed-width/action audit are recorded in the
 M03 worklog. The initial FIX-11 implementation/evidence head `2ad30a7d1a4d12c256fc274b808873ef1ff8278e` passed GitHub Actions
 Continuous integration run **#179** (success); the addendum alignment head `96f9330ceae21c0fc224c0eb9a6083ecfcebcc10` passed run
-**#183** (success). Manual WPF acceptance is still required and remains intentionally unmarked.
+  **#183** (success). Manual WPF acceptance is still required and remains intentionally unmarked.
 
 The follow-up `M03-MANUAL-UI-LIVE-FILTER-FIX-12` addresses the operator-reproduced live-filter defect: the visible search,
 category and status controls previously changed bound state without querying until the manual refresh button was pressed.
@@ -368,6 +368,9 @@ reload. A localized generic error event keeps automatic query failures on the ex
 architecture regressions cover status/category transitions, debounce/latest-wins, localization semantics, manual reload and
 stale full-refresh protection. Manual WPF acceptance is still required and remains intentionally unmarked.
 
+FIX-12 implementation head `b3e34d0d79a4efd39dd3817d19cd107a0f7af50c` passed CI **#189**; this evidence-documentation update is
+head `19d425463966f48fd2d4ba3ea847f853b1b05633` and passed CI **#191** (success).
+
 ### Acceptance mapping and remaining checks
 
 - **Passed by automated evidence:** AC-CAT-002, AC-CAT-004, AC-CAT-005 and the current-catalogue/settings portions of
@@ -378,13 +381,11 @@ stale full-refresh protection. Manual WPF acceptance is still required and remai
 - **Partial by design:** AC-CAT-001 awaits interactive catalogue-screen verification; AC-CAT-003 current-product
   maintenance is implemented, while historical-order independence remains the M04 snapshot regression; AC-ORD-011
   pricing-consumer integration is re-exercised by M04.
-- **Manual Windows/WPF verification:** not performed after `M03-MANUAL-UI-CATALOGUE-HEADER-FIX-09` in this non-interactive
-  automation run. The operator's latest run passed synthetic product creation but stopped when all six DataGrid headers were blank.
-  The operator must launch the newly published self-contained artifact and rerun the M03 checklist (including visual French and
-  zh-CN header labels and readability at default/resized/maximized sizes, `Tous`/`全部` category and status All selections on
-  first render, both language-switch directions, category-manager resize/maximize proportions with readable French/Chinese action
-  buttons, Create/Rename focus and actionable Save/Cancel state, category/product/group/option CRUD and ordering,
-  activation/deletion/code reuse, settings restart round-trip, and confirmation that no future features appear). This is
-  intentionally not marked Passed.
+- **Manual Windows/WPF verification:** not performed after `M03-MANUAL-UI-LIVE-FILTER-FIX-12` in this non-interactive
+  automation run. Earlier operator evidence predates the header/layout/filter remediations; the operator must launch the latest
+  self-contained artifact and rerun the M03 checklist (including visual French and zh-CN header labels, automatic debounced
+  search/category/status filtering, latest-wins rapid changes, `Tous`/`全部` selection across both language directions and
+  refresh, category-manager/Product Editor readability, category/product/group/option CRUD and ordering, activation/deletion,
+  settings restart round-trip, and confirmation that no future features appear). This is intentionally not marked Passed.
 - **M04:** not started and not authorized by this handoff. **Blockers:** none for the automated M03 implementation; only
   the explicitly outstanding manual WPF acceptance remains.

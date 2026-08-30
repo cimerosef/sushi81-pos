@@ -45,7 +45,9 @@ Authorization: `milestone-03-authorization.md`.
   implementation/evidence head `2ad30a7d1a4d12c256fc274b808873ef1ff8278e` passed GitHub Actions Continuous integration run
   **#179** (success). The FIX-11 addendum alignment head `96f9330ceae21c0fc224c0eb9a6083ecfcebcc10` passed GitHub Actions
   Continuous integration run **#183** (success). The `M03-MANUAL-UI-LIVE-FILTER-FIX-12` implementation/evidence head
-  `b3e34d0d79a4efd39dd3817d19cd107a0f7af50c` passed GitHub Actions Continuous integration run **#189** (success).
+  `b3e34d0d79a4efd39dd3817d19cd107a0f7af50c` passed GitHub Actions Continuous integration run **#189** (success). The
+  final evidence-documentation head `19d425463966f48fd2d4ba3ea847f853b1b05633` passed GitHub Actions Continuous integration
+  run **#191** (success).
 
 ## Remediation handoff `M03-REVIEW-FIX-02`
 
@@ -219,14 +221,14 @@ complete Windows/WPF checklist against the fixed artifact; M04 is not started.
 
 ## Outstanding
 
-- Operator must rerun the manual M03 Windows/WPF checklist from the contract against the newly published artifact, including
-  visual confirmation that all six Catalogue headers are populated (`Code`, `Nom`, `Catégorie`, `Prix TTC`, `TVA`, `Actifs` in
-  French and the corresponding zh-CN labels), switch live in both directions, and remain readable at default/resized/maximized
-  sizes. The operator should also confirm both category and status ComboBoxes show `Tous`/`全部` on first render and remain
-  selected through either language-switch direction and refresh, plus the category-manager resize/maximize layout and readable
-  French/Chinese action buttons, and the Product Editor's SelectionMode, Required, min/max, group-action and option-action labels
-  remain readable at normal and larger sizes in both languages. Product creation passed in the latest run; acceptance stopped at
-  the blank-header observation.
+- Operator must rerun the manual M03 Windows/WPF checklist from the contract against the latest FIX-12 published artifact,
+  including visual confirmation that all six Catalogue headers are populated (`Code`, `Nom`, `Catégorie`, `Prix TTC`, `TVA`,
+  `Actifs` in French and the corresponding zh-CN labels), switch live in both directions, and remain readable at
+  default/resized/maximized sizes. The operator must also confirm that search, category and status filters update the product
+  list automatically (with debounced search), rapid changes settle on the latest result, `Tous`/`全部` category and status All
+  selections are stable through either language-switch direction and refresh, and category-manager/Product Editor layouts and
+  CRUD/settings workflows remain readable and safe. This automation run did not perform an interactive Windows/WPF session;
+  the earlier manual run stopped at the blank-header observation before FIX-09, so the post-FIX-12 checklist remains open.
 - AC-CAT-003 historical-order independence and pricing-consumer cross-check in AC-ORD-011 remain intentionally
   deferred to M04, which is not started or authorized.
 
