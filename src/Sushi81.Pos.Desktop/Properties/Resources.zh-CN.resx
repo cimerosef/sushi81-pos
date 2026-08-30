@@ -34,6 +34,7 @@
   <data name="OptionsEnabled" xml:space="preserve"><value>启用商品选项</value></data>
   <data name="OptionGroups" xml:space="preserve"><value>选项组</value></data>
   <data name="Options" xml:space="preserve"><value>选项</value></data>
+  <data name="SelectionMode" xml:space="preserve"><value>选择模式</value></data>
   <data name="Required" xml:space="preserve"><value>必选</value></data>
   <data name="Optional" xml:space="preserve"><value>可选</value></data>
   <data name="Single" xml:space="preserve"><value>单选</value></data>

@@ -34,6 +34,7 @@
   <data name="OptionsEnabled" xml:space="preserve"><value>Options activées</value></data>
   <data name="OptionGroups" xml:space="preserve"><value>Groupes d’options</value></data>
   <data name="Options" xml:space="preserve"><value>Choix</value></data>
+  <data name="SelectionMode" xml:space="preserve"><value>Mode de sélection</value></data>
   <data name="Required" xml:space="preserve"><value>Obligatoire</value></data>
   <data name="Optional" xml:space="preserve"><value>Facultatif</value></data>
   <data name="Single" xml:space="preserve"><value>Sélection unique</value></data>

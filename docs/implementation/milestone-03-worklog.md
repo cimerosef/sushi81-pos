@@ -26,8 +26,8 @@ Authorization: `milestone-03-authorization.md`.
 
 - .NET SDK 10.0.400, Windows x64.
 - Release restore/build passed (0 warnings, 0 errors).
-- Release solution tests: **199 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
-  Architecture/localization 26, OneDrive protocol 32, and GitHub wrapper/harness 92.
+- Release solution tests: **201 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
+  Architecture/localization 28, OneDrive protocol 32, and GitHub wrapper/harness 92.
 - Self-contained `win-x64` publish passed with `PublishSingleFile=false`.
 - Post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run
   **#133** (success). The follow-up filter-state remediation head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` passed
@@ -148,6 +148,28 @@ including at the minimum, resized and maximized window sizes. A deterministic de
 zh-CN resource dictionaries through the seam, round-trips back to French, and verifies the six-column sizing/presentation
 contract without relying on a screenshot or source text alone. M03 remains Partial pending the operator rerun of the full WPF
 checklist with the header labels now visible.
+
+## Manual-test remediation handoff `M03-MANUAL-UI-OPTION-GROUP-ADD-CRASH-FIX-10`
+
+The operator's next WPF pass reproduced a user-visible crash twice after `New Product` → enable Options → `+ Groupes
+d'options`; manual acceptance stopped at that point. The defect-escape retrospective found that the prior implementation
+created a `Border`, assigned its `StackPanel` child, and then inserted that child directly into the parent panel. The first
+dynamic add therefore attempted to attach an already-owned WPF element and raised the logical-parent exception during the
+button click. The existing source/pure tests did not construct a shown dialog and click the dynamic control, so this was an
+insufficient regression seam.
+
+The narrow fix keeps the intended `Border` as the `GroupEditor.Container` and inserts/removes/reorders that container as the
+single visual child. The dialog captures the shell localization dictionary explicitly so child group/option controls do not
+fall back to English when their `DataContext` is not inherited. The mode label now uses a dedicated `SelectionMode` resource.
+No persistence path changed: Add Group/Add Option, mode changes, remove and reorder update only the in-memory editor until
+Product Save; Cancel closes without a create call. SINGLE clears and disables min/max, while MULTI enables their existing
+validation path.
+
+The regression is an actual STA WPF lifecycle test: it shows an owner and modal product dialog, raises the real Add Group,
+Add Option, mode, Move Up, Remove and Cancel events, inspects the visual container and localized labels, and asserts that
+the synthetic store received no create call. This also audits adjacent event wiring and initialization order without adding
+business-feature scaffolding. M03 remains Partial pending the operator rerun of the complete Windows/WPF checklist against the
+fixed artifact.
 
 ## Outstanding
 

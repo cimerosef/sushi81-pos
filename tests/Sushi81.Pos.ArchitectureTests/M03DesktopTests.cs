@@ -1,7 +1,15 @@
+using System.Reflection;
+using System.Runtime.ExceptionServices;
+using System.IO;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Desktop;
 using Sushi81.Pos.Domain;
+using DomainSelectionMode = Sushi81.Pos.Domain.SelectionMode;
 
 namespace Sushi81.Pos.ArchitectureTests;
 
@@ -380,6 +388,159 @@ public sealed class M03DesktopTests
     }
 
     [TestMethod]
+    public void ProductEditorAddGroupLifecycleUsesTheIntendedContainerAndDoesNotCrash()
+    {
+        RunOnSta(() =>
+        {
+            var catalogueStore = new FakeCatalogueStore(new CategorySummary(Guid.NewGuid(), "Entrées"));
+            var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(catalogueStore), new BusinessSettingsService(new FakeSettingsStore()));
+            shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+            var admin = shell.Admin!;
+            var owner = new Window { DataContext = shell };
+            owner.Show();
+            var dialogType = typeof(MainWindow).GetNestedType("ProductEditorDialog", BindingFlags.NonPublic)!;
+            var constructor = dialogType.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null,
+                [typeof(Window), typeof(M03ShellViewModel), typeof(ProductDraft), typeof(IReadOnlyList<CategorySummary>)], null)!;
+            var categories = (IReadOnlyList<CategorySummary>)[new CategorySummary(Guid.NewGuid(), "Entrées")];
+            var dialog = (Window)constructor.Invoke([owner, admin, null, categories]);
+
+            Exception? callbackFailure = null;
+            dialog.ContentRendered += (_, _) =>
+            {
+                try
+                {
+                    var addGroup = VisualDescendants<Button>(dialog).Single(button => string.Equals(button.Content?.ToString(), $"+ {shell.Localized["OptionGroups"]}", StringComparison.Ordinal));
+                    addGroup.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    dialog.UpdateLayout();
+
+                var groupsPanel = (StackPanel)GetPrivateField(dialog, "groupsPanel");
+                Assert.AreEqual(1, groupsPanel.Children.Count);
+                Assert.IsInstanceOfType<Border>(groupsPanel.Children[0]);
+                var firstBorder = (Border)groupsPanel.Children[0];
+                Assert.IsInstanceOfType<StackPanel>(firstBorder.Child);
+
+                var groups = (System.Collections.IList)GetPrivateField(dialog, "groups");
+                var firstGroup = groups[0]!;
+                var mode = (ComboBox)GetPrivateField(firstGroup, "mode");
+                var min = (TextBox)GetPrivateField(firstGroup, "min");
+                var max = (TextBox)GetPrivateField(firstGroup, "max");
+                Assert.AreEqual(DomainSelectionMode.Single, mode.SelectedValue);
+                Assert.AreEqual(2, mode.Items.Count);
+                Assert.IsFalse(min.IsEnabled);
+                Assert.IsFalse(max.IsEnabled);
+                Assert.AreEqual(string.Empty, min.Text);
+                Assert.AreEqual(string.Empty, max.Text);
+
+                mode.SelectedValue = DomainSelectionMode.Multi;
+                Assert.IsTrue(min.IsEnabled);
+                Assert.IsTrue(max.IsEnabled);
+                mode.SelectedValue = DomainSelectionMode.Single;
+                Assert.IsFalse(min.IsEnabled);
+                Assert.IsFalse(max.IsEnabled);
+
+                var addOption = VisualDescendants<Button>(firstBorder).Single(button => string.Equals(button.Content?.ToString(), $"+ {shell.Localized["Options"]}", StringComparison.Ordinal));
+                addOption.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                dialog.UpdateLayout();
+                var optionsPanel = (StackPanel)GetPrivateField(firstGroup, "optionsPanel");
+                Assert.AreEqual(1, optionsPanel.Children.Count);
+                var optionLabels = VisualDescendants<TextBlock>(optionsPanel).Select(text => text.Text).ToArray();
+                CollectionAssert.Contains(optionLabels, shell.Localized["OptionName"]);
+                CollectionAssert.Contains(optionLabels, shell.Localized["AdjustmentTtc"]);
+                Assert.IsTrue(VisualDescendants<CheckBox>(optionsPanel).Any(check => string.Equals(check.Content?.ToString(), shell.Localized["OptionActive"], StringComparison.Ordinal)));
+                addOption.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                dialog.UpdateLayout();
+                Assert.AreEqual(2, optionsPanel.Children.Count);
+                var firstOptionRoot = optionsPanel.Children[0];
+                var secondOptionRoot = optionsPanel.Children[1];
+                var moveOptionDown = VisualDescendants<Button>(firstOptionRoot).Single(button => string.Equals(button.Content?.ToString(), shell.Localized["MoveDown"], StringComparison.Ordinal));
+                moveOptionDown.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.AreSame(secondOptionRoot, optionsPanel.Children[0]);
+                var deleteOption = VisualDescendants<Button>(optionsPanel.Children[0]).Single(button => string.Equals(button.Content?.ToString(), "×", StringComparison.Ordinal));
+                deleteOption.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.AreEqual(1, optionsPanel.Children.Count);
+
+                addGroup.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                dialog.UpdateLayout();
+                Assert.AreEqual(2, groupsPanel.Children.Count);
+                var secondGroup = groups[1]!;
+                var secondBorder = (Border)groupsPanel.Children[1];
+                var moveUp = VisualDescendants<Button>(secondBorder).Single(button => string.Equals(button.Content?.ToString(), shell.Localized["MoveUp"], StringComparison.Ordinal));
+                moveUp.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.AreSame(secondGroup, groups[0]);
+                Assert.AreSame(secondBorder, groupsPanel.Children[0]);
+
+                var remove = VisualDescendants<Button>((Border)groupsPanel.Children[0]).Single(button => string.Equals(button.Content?.ToString(), shell.Localized["DeletePermanently"], StringComparison.Ordinal));
+                remove.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.AreEqual(1, groupsPanel.Children.Count);
+                Assert.AreEqual(0, catalogueStore.CreateProductCalls);
+
+                    var cancel = VisualDescendants<Button>(dialog).Single(button => string.Equals(button.Content?.ToString(), shell.Localized["Cancel"], StringComparison.Ordinal));
+                    cancel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Assert.IsFalse(dialog.IsVisible);
+                    Assert.AreEqual(0, catalogueStore.CreateProductCalls);
+                }
+                catch (Exception ex)
+                {
+                    callbackFailure = ex;
+                }
+                finally
+                {
+                    if (dialog.IsVisible) dialog.Close();
+                }
+            };
+            dialog.ShowDialog();
+            if (callbackFailure is not null)
+            {
+                ExceptionDispatchInfo.Capture(callbackFailure).Throw();
+            }
+
+            if (owner.IsVisible) owner.Close();
+        });
+    }
+
+    [TestMethod]
+    public void ProductEditorExistingSingleGroupInitializesWithoutFalseDirtyState()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var catalogueStore = new FakeCatalogueStore(new CategorySummary(categoryId, "Entrées"));
+            var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(catalogueStore), new BusinessSettingsService(new FakeSettingsStore()));
+            var owner = new Window { DataContext = shell };
+            owner.Show();
+            var existing = new ProductDraft(Guid.NewGuid(), "TST001", "Produit test", categoryId, Money.FromEuros(8.50m), 10m, true, true, true,
+                [new OptionGroupDraft(Guid.NewGuid(), "Choix", DomainSelectionMode.Single, false, null, null, 0, [])]);
+            var dialogType = typeof(MainWindow).GetNestedType("ProductEditorDialog", BindingFlags.NonPublic)!;
+            var constructor = dialogType.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null,
+                [typeof(Window), typeof(M03ShellViewModel), typeof(ProductDraft), typeof(IReadOnlyList<CategorySummary>)], null)!;
+            var dialog = (Window)constructor.Invoke([owner, shell.Admin!, existing, (IReadOnlyList<CategorySummary>)[new CategorySummary(categoryId, "Entrées")]]);
+            Exception? callbackFailure = null;
+            dialog.ContentRendered += (_, _) =>
+            {
+                try
+                {
+                    Assert.IsFalse((bool)GetPrivateField(dialog, "dirty"));
+                }
+                catch (Exception ex)
+                {
+                    callbackFailure = ex;
+                }
+                finally
+                {
+                    dialog.Close();
+                }
+            };
+            dialog.ShowDialog();
+            if (callbackFailure is not null)
+            {
+                ExceptionDispatchInfo.Capture(callbackFailure).Throw();
+            }
+
+            owner.Close();
+        });
+    }
+
+    [TestMethod]
     public void CategoryManagerLayoutUsesContentSizedEditorAndActionRows()
     {
         var sourcePath = Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml.cs");
@@ -411,15 +572,44 @@ public sealed class M03DesktopTests
         throw new InvalidOperationException("Repository root was not found.");
     }
 
+    private static object GetPrivateField(object instance, string name) => instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(instance)!;
+
+    private static IEnumerable<T> VisualDescendants<T>(DependencyObject root) where T : DependencyObject
+    {
+        if (root is T match) yield return match;
+        int childCount;
+        try { childCount = VisualTreeHelper.GetChildrenCount(root); }
+        catch (InvalidOperationException) { yield break; }
+        for (var index = 0; index < childCount; index++)
+        {
+            foreach (var child in VisualDescendants<T>(VisualTreeHelper.GetChild(root, index))) yield return child;
+        }
+    }
+
+    private static void RunOnSta(Action action)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try { action(); }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
     private sealed class FakeCatalogueStore(CategorySummary? category = null) : ICatalogueStore
     {
         private readonly CategorySummary? category = category;
+        public int CreateProductCalls { get; private set; }
         public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>(category is null ? [] : [category]);
         public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>(category is null ? [] : [new(Guid.NewGuid(), "P1", "Product", category.Id, category.Name, Money.FromCents(100), 10m, true, true, false)]);
         public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(null);
         public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(Guid.NewGuid(), name)));
         public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(categoryId, name)));
-        public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<Guid>.Success(Guid.NewGuid()));
+        public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) { CreateProductCalls++; return Task.FromResult(OperationResult<Guid>.Success(Guid.NewGuid())); }
         public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
         public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
         public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
