@@ -353,8 +353,9 @@ horizontal padding and margin alignment while retaining their approved input wid
 adds groups/options after render and asserts actual visual-tree widths against detached natural text DesiredSize and
 margin-aware button DesiredSize plus peer-button height spread in both French and zh-CN at normal and resized dimensions. FIX-10 lifecycle, localization and
 safe Cancel/no-write behavior remain covered. The retrospective and complete fixed-width/action audit are recorded in the
-M03 worklog. Implementation/evidence head `2ad30a7d1a4d12c256fc274b808873ef1ff8278e` passed GitHub Actions Continuous
-integration run **#179** (success). Manual WPF acceptance is still required and remains intentionally unmarked.
+M03 worklog. The initial FIX-11 implementation/evidence head `2ad30a7d1a4d12c256fc274b808873ef1ff8278e` passed GitHub Actions
+Continuous integration run **#179** (success); the addendum alignment head `96f9330ceae21c0fc224c0eb9a6083ecfcebcc10` passed run
+**#183** (success). Manual WPF acceptance is still required and remains intentionally unmarked.
 
 ### Acceptance mapping and remaining checks
 

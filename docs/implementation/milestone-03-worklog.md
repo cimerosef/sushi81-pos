@@ -43,7 +43,8 @@ Authorization: `milestone-03-authorization.md`.
   `M03-MANUAL-UI-OPTION-GROUP-ADD-CRASH-FIX-10` implementation head `64dc110bd2d6c6b9a623d4c3ba487210e014c178` passed
   GitHub Actions Continuous integration run **#173** (success). The `M03-MANUAL-UI-OPTION-GROUP-LAYOUT-FIX-11`
   implementation/evidence head `2ad30a7d1a4d12c256fc274b808873ef1ff8278e` passed GitHub Actions Continuous integration run
-  **#179** (success).
+  **#179** (success). The FIX-11 addendum alignment head `96f9330ceae21c0fc224c0eb9a6083ecfcebcc10` passed GitHub Actions
+  Continuous integration run **#183** (success).
 
 ## Remediation handoff `M03-REVIEW-FIX-02`
 
