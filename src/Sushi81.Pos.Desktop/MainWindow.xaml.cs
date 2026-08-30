@@ -93,10 +93,17 @@ public partial class MainWindow : Window
     private async Task RunBulkActiveStateAsync(bool targetIsActive)
     {
         if (DataContext is not ShellViewModel { Admin: { } admin }) return;
-        BulkProductActiveStateRequest capture;
+        M03Presentation.BulkWorkflowResult workflow;
         try
         {
-            capture = await admin.CaptureBulkProductActiveStateAsync(targetIsActive);
+            workflow = await admin.ExecuteBulkActiveStateWorkflowAsync(
+                targetIsActive,
+                confirmation => MessageBox.Show(
+                    this,
+                    confirmation.Format(((ShellViewModel)DataContext).Localized),
+                    LocalizedText(this, "ShellTitle", "Sushi81 POS"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question) == MessageBoxResult.Yes);
         }
         catch (OperationCanceledException)
         {
@@ -108,33 +115,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        var changedCount = capture.Items.Count(item => item.ExpectedIsActive != targetIsActive);
-        if (changedCount == 0)
+        if (workflow.Outcome == M03Presentation.BulkWorkflowOutcome.NoOp)
         {
             MessageBox.Show(this, LocalizedText(this, "BulkNoChange", "No change is needed for the filtered products."),
                 LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        var confirmation = new M03Presentation.BulkConfirmationModel(targetIsActive, capture.Items.Count, changedCount).Format(((ShellViewModel)DataContext).Localized);
-        if (MessageBox.Show(this, confirmation, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+        if (workflow.Outcome == M03Presentation.BulkWorkflowOutcome.Cancelled)
             return;
 
-        OperationResult<BulkProductActiveStateResult> result;
-        try
-        {
-            result = await admin.BulkSetProductsActiveAsync(capture);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-        catch
-        {
-            ShowResultError(OperationResult.Failure(new ValidationIssue("products", "The catalogue change could not be completed.")));
-            await admin.RefreshAsync();
-            return;
-        }
+        var result = workflow.Mutation!;
         if (!result.Succeeded)
         {
             ShowResultError(result);
@@ -142,10 +133,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        var changed = result.Value?.ChangedCount ?? changedCount;
+        var changed = result.Value?.ChangedCount ?? workflow.Confirmation.ChangedCount;
         MessageBox.Show(this, string.Format(CultureInfo.CurrentCulture, LocalizedText(this, "BulkSuccess", "{0} product(s) updated."), changed),
             LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Information);
-        await admin.RefreshAsync();
     }
 
     private async void OnDeleteProduct(object sender, RoutedEventArgs e)

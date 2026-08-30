@@ -7,6 +7,24 @@ namespace Sushi81.Pos.Desktop;
 /// <summary>Presentation-only helpers for M03 validation and editor state.</summary>
 public static class M03Presentation
 {
+    public enum BulkWorkflowOutcome
+    {
+        NoOp,
+        Cancelled,
+        Confirmed,
+    }
+
+    /// <summary>
+    /// Result of the narrow bulk-operator workflow seam. The production window supplies
+    /// the real modal MessageBox decision; tests can supply a deterministic decision without
+    /// replacing the MessageBox implementation or introducing a generic dialog framework.
+    /// </summary>
+    public sealed record BulkWorkflowResult(
+        BulkWorkflowOutcome Outcome,
+        BulkProductActiveStateRequest Request,
+        BulkConfirmationModel Confirmation,
+        OperationResult<BulkProductActiveStateResult>? Mutation);
+
     public sealed record BulkConfirmationModel(bool TargetIsActive, int MatchedCount, int ChangedCount)
     {
         public bool HasEffectiveChanges => ChangedCount > 0;

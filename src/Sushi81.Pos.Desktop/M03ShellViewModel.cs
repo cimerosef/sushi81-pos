@@ -439,6 +439,53 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         try { return await catalogue.BulkSetProductsActiveAsync(request, cancellationToken); }
         finally { mutationBusy = false; IsBusy = false; }
     }
+    /// <summary>
+    /// Executes the complete filtered bulk operator workflow while keeping the native modal
+    /// confirmation in the WPF shell. The caller supplies only the Yes/No decision so the
+    /// capture, single mutation and post-success refresh remain directly testable.
+    /// </summary>
+    public async Task<M03Presentation.BulkWorkflowResult> ExecuteBulkActiveStateWorkflowAsync(
+        bool targetIsActive,
+        Func<M03Presentation.BulkConfirmationModel, bool> confirm,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(confirm);
+        var request = await CaptureBulkProductActiveStateAsync(targetIsActive, cancellationToken);
+        var confirmation = new M03Presentation.BulkConfirmationModel(
+            targetIsActive,
+            request.Items.Count,
+            request.Items.Count(item => item.ExpectedIsActive != targetIsActive));
+        if (!confirmation.HasEffectiveChanges)
+        {
+            return new M03Presentation.BulkWorkflowResult(
+                M03Presentation.BulkWorkflowOutcome.NoOp,
+                request,
+                confirmation,
+                null);
+        }
+
+        if (!confirm(confirmation))
+        {
+            return new M03Presentation.BulkWorkflowResult(
+                M03Presentation.BulkWorkflowOutcome.Cancelled,
+                request,
+                confirmation,
+                null);
+        }
+
+        var mutation = await BulkSetProductsActiveAsync(request, cancellationToken);
+        if (mutation.Succeeded)
+        {
+            await RefreshAsync(cancellationToken);
+        }
+
+        return new M03Presentation.BulkWorkflowResult(
+            M03Presentation.BulkWorkflowOutcome.Confirmed,
+            request,
+            confirmation,
+            mutation);
+    }
+
     public Task<OperationResult> DeleteProductAsync(Guid id, CancellationToken cancellationToken = default) => catalogue.DeleteProductAsync(id, cancellationToken);
 
     private async Task WaitForLatestFilterRefreshAsync(CancellationToken cancellationToken)

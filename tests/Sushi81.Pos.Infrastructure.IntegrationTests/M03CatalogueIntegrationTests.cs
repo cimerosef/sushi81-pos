@@ -259,6 +259,87 @@ public sealed class M03CatalogueIntegrationTests
     }
 
     [TestMethod]
+    public async Task BulkActivationActivatesMultipleProductsAndPreservesAlreadyActiveAndOptionData()
+    {
+        using var paths = new TempPaths();
+        var factory = await InitializeAsync(paths);
+        var clock = new SequenceClock();
+        var service = new CatalogueService(new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock));
+        var firstCategory = (await service.CreateCategoryAsync("Plats")).Value!;
+        var secondCategory = (await service.CreateCategoryAsync("Desserts")).Value!;
+        var optionDraft = new OptionGroupDraft(
+            Guid.Empty,
+            "Extras",
+            SelectionMode.Multi,
+            false,
+            0,
+            2,
+            0,
+            [new OptionDraft(Guid.Empty, "Plus", Money.FromCents(25), true, 0), new OptionDraft(Guid.Empty, "Sans", Money.Zero, false, 1)]);
+        var changedWithOptions = (await service.CreateProductAsync(new ProductDraft(
+            Guid.Empty, "A", "Inactive with options", firstCategory.Id, Money.FromCents(1250), 10m,
+            false, false, true, [optionDraft]))).Value!;
+        var alreadyActive = (await service.CreateProductAsync(new ProductDraft(
+            Guid.Empty, "B", "Already active", secondCategory.Id, Money.FromCents(950), 5.5m,
+            true, true, false, []))).Value!;
+        var changedSecond = (await service.CreateProductAsync(new ProductDraft(
+            Guid.Empty, "C", "Inactive dessert", secondCategory.Id, Money.FromCents(775), 20m,
+            false, true, false, []))).Value!;
+        var beforeChanged = await ReadProductStateAsync(factory, changedWithOptions);
+        var beforeAlreadyActive = await ReadProductStateAsync(factory, alreadyActive);
+        var beforeSecond = await ReadProductStateAsync(factory, changedSecond);
+        var beforeAggregate = (await service.GetProductForEditAsync(changedWithOptions))!;
+        var schemaVersion = await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;");
+
+        var request = new BulkProductActiveStateRequest(true,
+            [
+                new BulkProductActiveStateItem(changedWithOptions, false),
+                new BulkProductActiveStateItem(alreadyActive, true),
+                new BulkProductActiveStateItem(changedSecond, false),
+            ]);
+        var result = await service.BulkSetProductsActiveAsync(request);
+
+        Assert.IsTrue(result.Succeeded, result.ErrorMessage);
+        Assert.AreEqual(3, result.Value!.MatchedCount);
+        Assert.AreEqual(2, result.Value.ChangedCount);
+        var afterChanged = await ReadProductStateAsync(factory, changedWithOptions);
+        var afterAlreadyActive = await ReadProductStateAsync(factory, alreadyActive);
+        var afterSecond = await ReadProductStateAsync(factory, changedSecond);
+        Assert.IsTrue(afterChanged.IsActive);
+        Assert.IsTrue(afterAlreadyActive.IsActive);
+        Assert.IsTrue(afterSecond.IsActive);
+        Assert.AreEqual(afterChanged.UpdatedAt, afterSecond.UpdatedAt, "all changed products use one activation timestamp");
+        Assert.AreNotEqual(beforeChanged.UpdatedAt, afterChanged.UpdatedAt);
+        Assert.AreNotEqual(beforeSecond.UpdatedAt, afterSecond.UpdatedAt);
+        Assert.AreEqual(beforeAlreadyActive.UpdatedAt, afterAlreadyActive.UpdatedAt, "already-active product is not rewritten");
+        Assert.AreEqual(schemaVersion, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+
+        var afterAggregate = (await service.GetProductForEditAsync(changedWithOptions))!;
+        Assert.AreEqual(beforeAggregate.Id, afterAggregate.Id);
+        Assert.AreEqual(beforeAggregate.Code, afterAggregate.Code);
+        Assert.AreEqual(beforeAggregate.Name, afterAggregate.Name);
+        Assert.AreEqual(beforeAggregate.CategoryId, afterAggregate.CategoryId);
+        Assert.AreEqual(beforeAggregate.PriceTtc, afterAggregate.PriceTtc);
+        Assert.AreEqual(beforeAggregate.VatRate, afterAggregate.VatRate);
+        Assert.AreEqual(beforeAggregate.DiscountEligible, afterAggregate.DiscountEligible);
+        Assert.AreEqual(beforeAggregate.OptionsEnabled, afterAggregate.OptionsEnabled);
+        Assert.HasCount(beforeAggregate.Groups.Count, afterAggregate.Groups);
+        for (var i = 0; i < beforeAggregate.Groups.Count; i++)
+        {
+            var beforeGroup = beforeAggregate.Groups[i];
+            var afterGroup = afterAggregate.Groups[i];
+            Assert.AreEqual(beforeGroup.Id, afterGroup.Id);
+            Assert.AreEqual(beforeGroup.Name, afterGroup.Name);
+            Assert.AreEqual(beforeGroup.SelectionMode, afterGroup.SelectionMode);
+            Assert.AreEqual(beforeGroup.IsRequired, afterGroup.IsRequired);
+            Assert.AreEqual(beforeGroup.MinSelections, afterGroup.MinSelections);
+            Assert.AreEqual(beforeGroup.MaxSelections, afterGroup.MaxSelections);
+            Assert.AreEqual(beforeGroup.DisplayOrder, afterGroup.DisplayOrder);
+            CollectionAssert.AreEqual(beforeGroup.Options.ToArray(), afterGroup.Options.ToArray());
+        }
+    }
+
+    [TestMethod]
     public async Task BulkActivationMissingOrStaleTargetRollsBackEveryProduct()
     {
         using var paths = new TempPaths();

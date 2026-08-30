@@ -5,6 +5,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Desktop;
@@ -25,6 +26,9 @@ public sealed class M03DesktopTests
     private static readonly string[] DessertProductCodes = ["D-A"];
     private static readonly string[] NewProductCodes = ["NEW"];
     private static readonly string[] ActiveDishProductCodes = ["P-A"];
+    private static readonly string[] BulkRenderCultures = ["fr-FR", "zh-CN"];
+    private static readonly (double Width, double Height, string Name)[] BulkRenderSizes =
+        [(980d, 680d, "normal"), (760d, 520d, "minimum"), (1400d, 900d, "large")];
 
     [TestMethod]
     public async Task M03FiltersExposeLocalizedAllAndStatusValues()
@@ -443,6 +447,131 @@ public sealed class M03DesktopTests
     }
 
     [TestMethod]
+    public async Task BulkWorkflowCancelAndNoOpPerformNoMutation()
+    {
+        var category = new CategorySummary(Guid.NewGuid(), "Plats");
+        var cancelStore = new WorkflowCatalogueStore(category, Product("A", "Active", category, true), Product("I", "Inactive", category, false));
+        var cancelViewModel = NewWorkflowViewModel(cancelStore);
+        await cancelViewModel.RefreshAsync();
+        var beforeCancel = cancelStore.Products.ToArray();
+        var cancelled = await cancelViewModel.ExecuteBulkActiveStateWorkflowAsync(false, confirmation =>
+        {
+            Assert.AreEqual(2, confirmation.MatchedCount);
+            Assert.AreEqual(1, confirmation.ChangedCount);
+            return false;
+        });
+        Assert.AreEqual(M03Presentation.BulkWorkflowOutcome.Cancelled, cancelled.Outcome);
+        Assert.IsNull(cancelled.Mutation);
+        Assert.AreEqual(0, cancelStore.BulkCalls);
+        CollectionAssert.AreEqual(beforeCancel, cancelStore.Products.ToArray());
+
+        var noOpStore = new WorkflowCatalogueStore(category, Product("A", "Active", category, true));
+        var noOpViewModel = NewWorkflowViewModel(noOpStore);
+        await noOpViewModel.RefreshAsync();
+        var noOp = await noOpViewModel.ExecuteBulkActiveStateWorkflowAsync(true, _ => throw new AssertFailedException("no-op must not ask for confirmation"));
+        Assert.AreEqual(M03Presentation.BulkWorkflowOutcome.NoOp, noOp.Outcome);
+        Assert.IsNull(noOp.Mutation);
+        Assert.AreEqual(0, noOpStore.BulkCalls);
+    }
+
+    [TestMethod]
+    public async Task BulkWorkflowConfirmedDeactivateRefreshesAndClearsProductOutsideActiveFilter()
+    {
+        var category = new CategorySummary(Guid.NewGuid(), "Plats");
+        var active = Product("A", "Active", category, true);
+        var inactive = Product("I", "Inactive", category, false);
+        var store = new WorkflowCatalogueStore(category, active, inactive);
+        var viewModel = NewWorkflowViewModel(store);
+        await viewModel.RefreshAsync();
+        viewModel.SearchText = "active";
+        viewModel.SelectedCategoryId = category.Id;
+        viewModel.SelectedStatusKey = "Active";
+        await viewModel.FilterRefreshTask;
+        viewModel.SelectedProduct = viewModel.Products.Single();
+
+        var workflow = await viewModel.ExecuteBulkActiveStateWorkflowAsync(false, confirmation =>
+        {
+            Assert.AreEqual(1, confirmation.MatchedCount);
+            Assert.AreEqual(1, confirmation.ChangedCount);
+            return true;
+        });
+
+        Assert.AreEqual(M03Presentation.BulkWorkflowOutcome.Confirmed, workflow.Outcome);
+        Assert.IsTrue(workflow.Mutation!.Succeeded);
+        Assert.AreEqual(1, store.BulkCalls);
+        Assert.AreEqual("active", viewModel.SearchText);
+        Assert.AreEqual(category.Id, viewModel.SelectedCategoryId);
+        Assert.AreEqual("Active", viewModel.SelectedStatusKey);
+        Assert.AreEqual("Active", viewModel.ActiveFilter);
+        Assert.IsEmpty(viewModel.Products);
+        Assert.IsNull(viewModel.SelectedProduct);
+        Assert.IsFalse(store.Products.Single(product => product.Id == active.Id).IsActive);
+    }
+
+    [TestMethod]
+    public async Task BulkWorkflowConfirmedActivateRefreshesAndClearsProductOutsideInactiveFilter()
+    {
+        var category = new CategorySummary(Guid.NewGuid(), "Plats");
+        var active = Product("A", "Active", category, true);
+        var inactive = Product("I", "Inactive", category, false);
+        var store = new WorkflowCatalogueStore(category, active, inactive);
+        var viewModel = NewWorkflowViewModel(store);
+        await viewModel.RefreshAsync();
+        viewModel.SearchText = "inactive";
+        viewModel.SelectedCategoryId = category.Id;
+        viewModel.SelectedStatusKey = "Inactive";
+        await viewModel.FilterRefreshTask;
+        viewModel.SelectedProduct = viewModel.Products.Single();
+
+        var workflow = await viewModel.ExecuteBulkActiveStateWorkflowAsync(true, confirmation =>
+        {
+            Assert.AreEqual(1, confirmation.MatchedCount);
+            Assert.AreEqual(1, confirmation.ChangedCount);
+            return true;
+        });
+
+        Assert.AreEqual(M03Presentation.BulkWorkflowOutcome.Confirmed, workflow.Outcome);
+        Assert.IsTrue(workflow.Mutation!.Succeeded);
+        Assert.AreEqual(1, store.BulkCalls);
+        Assert.AreEqual("inactive", viewModel.SearchText);
+        Assert.AreEqual(category.Id, viewModel.SelectedCategoryId);
+        Assert.AreEqual("Inactive", viewModel.SelectedStatusKey);
+        Assert.IsEmpty(viewModel.Products);
+        Assert.IsNull(viewModel.SelectedProduct);
+        Assert.IsTrue(store.Products.Single(product => product.Id == inactive.Id).IsActive);
+    }
+
+    [TestMethod]
+    public async Task BulkWorkflowCaptureUsesLatestComposedFilterBeforeConfirmation()
+    {
+        var first = new CategorySummary(Guid.NewGuid(), "Plats");
+        var second = new CategorySummary(Guid.NewGuid(), "Desserts");
+        var target = Product("TARGET", "Target dish", first, false);
+        var excluded = Product("OTHER", "Other dish", second, false);
+        var store = new WorkflowCatalogueStore(first, target, excluded) { CategoriesOverride = [first, second] };
+        var viewModel = NewWorkflowViewModel(store);
+        await viewModel.RefreshAsync();
+        viewModel.SearchText = "target";
+        viewModel.SelectedCategoryId = first.Id;
+        viewModel.SelectedStatusKey = "Inactive";
+
+        var workflow = await viewModel.ExecuteBulkActiveStateWorkflowAsync(true, confirmation =>
+        {
+            Assert.AreEqual(1, confirmation.MatchedCount);
+            Assert.AreEqual(1, confirmation.ChangedCount);
+            return false;
+        });
+
+        Assert.AreEqual(M03Presentation.BulkWorkflowOutcome.Cancelled, workflow.Outcome);
+        Assert.HasCount(1, workflow.Request.Items);
+        Assert.AreEqual(target.Id, workflow.Request.Items[0].ProductId);
+        Assert.AreEqual("target", viewModel.SearchText);
+        Assert.AreEqual(first.Id, viewModel.SelectedCategoryId);
+        Assert.AreEqual("Inactive", viewModel.SelectedStatusKey);
+        Assert.AreEqual(0, store.BulkCalls);
+    }
+
+    [TestMethod]
     public async Task OlderFullRefreshCannotCommitStaleCategoriesOrClearBusyForLatestRefresh()
     {
         var first = new CategorySummary(Guid.NewGuid(), "Plats");
@@ -555,6 +684,65 @@ public sealed class M03DesktopTests
         var codeBehind = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml.cs"));
         StringAssert.Contains(codeBehind, "OnBulkActivate");
         StringAssert.Contains(codeBehind, "OnBulkDeactivate");
+    }
+
+    [TestMethod]
+    public void BulkButtonsRenderWithoutClippingAtSupportedSizesInFrenchAndChinese()
+    {
+        RunOnSta(() =>
+        {
+            foreach (var cultureName in BulkRenderCultures)
+            {
+                foreach (var size in BulkRenderSizes)
+                {
+                    var category = new CategorySummary(Guid.NewGuid(), "Plats");
+                    var store = new RenderCatalogueStore(category);
+                    var shell = new ShellViewModel(
+                        new InMemorySelectedCultureStore(),
+                        true,
+                        new CatalogueService(store),
+                        new BusinessSettingsService(new FakeSettingsStore()));
+                    if (cultureName == "zh-CN")
+                    {
+                        shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == cultureName)).GetAwaiter().GetResult();
+                    }
+
+                    var window = new MainWindow(shell)
+                    {
+                        Width = size.Width,
+                        Height = size.Height,
+                        ShowInTaskbar = false,
+                        WindowStartupLocation = WindowStartupLocation.Manual,
+                        Left = 0,
+                        Top = 0,
+                    };
+                    try
+                    {
+                        window.Show();
+                        window.UpdateLayout();
+                        window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                        window.UpdateLayout();
+
+                        var buttons = VisualDescendants<Button>(window)
+                            .Where(button => button.Visibility == Visibility.Visible)
+                            .ToArray();
+                        var activate = buttons.Single(button => string.Equals(button.Content?.ToString(), shell.Localized["BulkActivate"], StringComparison.Ordinal));
+                        var deactivate = buttons.Single(button => string.Equals(button.Content?.ToString(), shell.Localized["BulkDeactivate"], StringComparison.Ordinal));
+                        Assert.IsTrue(activate.IsEnabled, $"{cultureName} {size.Name} activate button is not usable.");
+                        Assert.IsTrue(deactivate.IsEnabled, $"{cultureName} {size.Name} deactivate button is not usable.");
+                        Assert.IsTrue(activate.IsHitTestVisible && deactivate.IsHitTestVisible, $"{cultureName} {size.Name} bulk buttons are not hit-testable.");
+                        AssertRenderedButtonFits(activate, cultureName, size.Name);
+                        AssertRenderedButtonFits(deactivate, cultureName, size.Name);
+
+                        Assert.IsFalse(buttons.Any(button => button.Content?.ToString()?.Contains("Bulk", StringComparison.OrdinalIgnoreCase) == true && button.Content?.ToString()?.Contains("Delete", StringComparison.OrdinalIgnoreCase) == true));
+                    }
+                    finally
+                    {
+                        window.Close();
+                    }
+                }
+            }
+        });
     }
 
     [TestMethod]
@@ -861,6 +1049,9 @@ public sealed class M03DesktopTests
     private static M03ShellViewModel NewLiveFilterViewModel(LiveFilterCatalogueStore store) =>
         new(new CatalogueService(store), new BusinessSettingsService(new FakeSettingsStore()));
 
+    private static M03ShellViewModel NewWorkflowViewModel(WorkflowCatalogueStore store) =>
+        new(new CatalogueService(store), new BusinessSettingsService(new FakeSettingsStore()));
+
     private static ProductSummary Product(string code, string name, CategorySummary category, bool active) =>
         new(Guid.NewGuid(), code, name, category.Id, category.Name, Money.FromCents(100), 10m, active, true, false);
 
@@ -913,6 +1104,22 @@ public sealed class M03DesktopTests
         }
     }
 
+    private static void AssertRenderedButtonFits(Button button, string cultureName, string sizeName)
+    {
+        Assert.IsTrue(button.ActualWidth > 0 && button.ActualHeight > 0, $"{cultureName} {sizeName} button '{button.Content}' is not rendered.");
+        button.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var naturalContentWidth = Math.Max(0, button.DesiredSize.Width - button.Margin.Left - button.Margin.Right);
+        Assert.IsGreaterThanOrEqualTo(naturalContentWidth, button.ActualWidth + 0.5,
+            $"{cultureName} {sizeName} button '{button.Content}' is clipped: actual={button.ActualWidth}, natural={naturalContentWidth}.");
+
+        if (button.Parent is FrameworkElement parent && parent.ActualWidth > 0)
+        {
+            var origin = button.TranslatePoint(new Point(0, 0), parent);
+            Assert.IsLessThanOrEqualTo(parent.ActualWidth + 1.0, origin.X + button.ActualWidth,
+                $"{cultureName} {sizeName} button '{button.Content}' exceeds its action-row bounds.");
+        }
+    }
+
     private static void RunOnSta(Action action)
     {
         Exception? failure = null;
@@ -943,6 +1150,28 @@ public sealed class M03DesktopTests
         public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
     }
 
+    private sealed class RenderCatalogueStore(CategorySummary category) : ICatalogueStore
+    {
+        private readonly ProductSummary[] products =
+        [
+            new(Guid.NewGuid(), "A", "Active product", category.Id, category.Name, Money.FromCents(100), 10m, true, true, false),
+            new(Guid.NewGuid(), "I", "Inactive product", category.Id, category.Name, Money.FromCents(200), 10m, false, true, false),
+        ];
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([category]);
+        public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ProductSummary>>(products.Where(product => (categoryId is null || product.CategoryId == categoryId) && (active is null || product.IsActive == active)).ToArray());
+        public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(null);
+        public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(category));
+        public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(category));
+        public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<Guid>.Success(Guid.NewGuid()));
+        public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(OperationResult<BulkProductActiveStateResult>.Success(new(request.Items.Count, request.Items.Count(item => item.ExpectedIsActive != request.TargetIsActive))));
+        public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+    }
+
     private sealed class MutableCatalogueStore(params CategorySummary[] initialCategories) : ICatalogueStore
     {
         public List<CategorySummary> Categories { get; } = [.. initialCategories];
@@ -957,6 +1186,46 @@ public sealed class M03DesktopTests
         public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
         public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
         public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<BulkProductActiveStateResult>.Success(new(request.Items.Count, request.Items.Count(item => item.ExpectedIsActive != request.TargetIsActive))));
+        public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+    }
+
+    private sealed class WorkflowCatalogueStore(CategorySummary category, params ProductSummary[] initialProducts) : ICatalogueStore
+    {
+        private readonly List<ProductSummary> products = [.. initialProducts];
+        public IReadOnlyList<ProductSummary> Products => products;
+        public int BulkCalls { get; private set; }
+        public IReadOnlyList<CategorySummary> CategoriesOverride { get; set; } = [category];
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult(CategoriesOverride);
+        public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default)
+        {
+            var trimmedSearch = search?.Trim() ?? string.Empty;
+            return Task.FromResult<IReadOnlyList<ProductSummary>>(products.Where(product =>
+                (categoryId is null || product.CategoryId == categoryId.Value) &&
+                (active is null || product.IsActive == active.Value) &&
+                (trimmedSearch.Length == 0 || product.Code.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase) || product.Name.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase))).ToArray());
+        }
+        public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(null);
+        public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(category));
+        public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(category));
+        public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<Guid>.Success(Guid.NewGuid()));
+        public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default)
+        {
+            BulkCalls++;
+            var changed = 0;
+            foreach (var item in request.Items)
+            {
+                var index = products.FindIndex(product => product.Id == item.ProductId);
+                if (index < 0 || products[index].IsActive != item.ExpectedIsActive)
+                    return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "Synthetic conflict.", ValidationCodes.Conflict)));
+                if (products[index].IsActive == request.TargetIsActive) continue;
+                products[index] = products[index] with { IsActive = request.TargetIsActive };
+                changed++;
+            }
+            return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Success(new(request.Items.Count, changed)));
+        }
         public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
     }
 

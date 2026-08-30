@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation plus the review and manual-UI remediations through `M03-MANUAL-UI-LIVE-FILTER-FIX-12` are complete on `codex/m03-catalogue-settings`; the authorized AC-CAT-013 filtered bulk activation/deactivation extension is implemented with automated evidence, while the self-contained publish artifact and interactive Windows/WPF M03 acceptance remain explicit operator checks.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation plus the review and manual-UI remediations through `M03-MANUAL-UI-LIVE-FILTER-FIX-12` are complete on `codex/m03-catalogue-settings`; the authorized AC-CAT-013 filtered bulk activation/deactivation extension and review remediation `M03-FILTERED-BULK-ACTIVATION-REVIEW-FIX-14` are implemented with automated evidence, while interactive Windows/WPF M03 acceptance remains an explicit operator check.
 
 ## 1. Status vocabulary
 
@@ -303,11 +303,13 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 - Environment: Windows x64, .NET SDK 10.0.400 (runtime 10.0.11).
 - `dotnet restore Sushi81.Pos.sln`: passed.
 - `dotnet build Sushi81.Pos.sln -c Release --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test Sushi81.Pos.sln -c Release --no-build`: **215 passed, 0 failed, 0 skipped** (Domain 10; Application 11;
-  Infrastructure integration 33; Architecture/localization 37; protocol 32; GitHub wrapper/harness 92, including the
+- `dotnet test Sushi81.Pos.sln -c Release --no-build`: **221 passed, 0 failed, 0 skipped** (Domain 10; Application 11;
+  Infrastructure integration 34; Architecture/localization 42; protocol 32; GitHub wrapper/harness 92, including the
   solution's existing wrapper test project instance).
 - `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true
-  -p:PublishSingleFile=false`: passed; output remains under the ignored Desktop publish directory.
+  -p:PublishSingleFile=false`: attempted; the default Desktop publish directory was occupied by the already-running
+  Sushi81 POS process. The same self-contained settings succeeded under the ignored alternate
+  `artifacts/m03-extension-publish/` directory without terminating that process.
 - Tests use isolated temporary SQLite paths and synthetic/sanitized catalogue values only. No database, logs, local
   configuration, credentials, tokens, build artifacts or real customer/order/payment data are committed.
 
@@ -389,6 +391,24 @@ Final extension head: `37ab7c5d156a7aa0b7aec90ffa3523fb6c75551f`; incorporated `
 run **#208** passed. Follow-up evidence-documentation head `4b67bc7e0787008deb5a5033ea941f265817c967` passed CI **#210**. The required default publish directory was occupied by the running desktop process; a self-contained
 `win-x64` publish with the same settings was generated successfully under ignored `artifacts/m03-extension-publish/` without
 terminating that process.
+
+### Review remediation evidence — `M03-FILTERED-BULK-ACTIVATION-REVIEW-FIX-14`
+
+The narrow review pass adds the missing successful multi-product **Activate** SQLite integration proof, including an already-active
+no-op row, one operation timestamp for changed rows, unchanged aggregate/option fields and unchanged schema version. A real STA/WPF
+render test now constructs the actual `MainWindow` bulk controls in French and Simplified Chinese and checks visibility, hit testing,
+natural desired width, action-row bounds and absence of a bulk-delete control at `980x680`, `760x520` and a larger `1400x900` size.
+
+The production confirmation remains the native modal `MessageBox.Show(... YesNo ...)`; the smallest testable seam is
+`M03ShellViewModel.ExecuteBulkActiveStateWorkflowAsync`, which owns latest-filter capture, no-op/cancel short-circuit, one Application
+mutation and post-success refresh. Architecture regressions prove cancel/no-op performs no mutation, confirmed Deactivate and Activate
+refresh while preserving search/category/status filters and clear a selected Product that leaves the filtered result.
+
+Final review-remediation verification is **221 passed, 0 failed, 0 skipped** (Domain 10; Application 11; Infrastructure integration 34;
+Architecture/localization 42; protocol 32; GitHub wrapper/harness 92). Release build remains 0 warnings/0 errors. The required default
+publish path was truthfully recorded as locked by the running process; equivalent self-contained output succeeded under the ignored
+alternate path. Interactive Windows/WPF acceptance remains outstanding, M03 and AC-CAT-013 remain `Partial`, PR #5 remains open/unmerged,
+and M04 is not started or authorized.
 
 ### Acceptance mapping and remaining checks
 

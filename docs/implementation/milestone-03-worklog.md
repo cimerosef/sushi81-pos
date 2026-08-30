@@ -245,6 +245,29 @@ preservation, localization and no-bulk-delete structure. Final local Release ver
 GitHub wrapper/harness 92. Manual Windows/WPF acceptance remains outstanding; this automation run did not perform an interactive desktop
 session. M03 remains Partial and M04 remains not started/unauthorized. `POST_TASK_POWER_ACTION: NONE`.
 
+## Review remediation handoff `M03-FILTERED-BULK-ACTIVATION-REVIEW-FIX-14`
+
+The review of EXT-13 identified four narrow evidence gaps. This remediation adds a focused SQLite integration regression for successful
+multi-product **Activate**, including an already-active no-op Product, one operation timestamp for changed rows, unchanged Product
+aggregate/option values and unchanged schema version. Existing deactivation, stale/missing-target and injected-failure rollback tests
+remain intact.
+
+The WPF evidence now constructs and renders the actual `MainWindow` on an STA thread in both `fr-FR` and `zh-CN`. The two localized bulk
+buttons are checked for visibility, hit testing, natural desired-width fit and action-row bounds at normal `980x680`, minimum `760x520`
+and larger `1400x900` sizes; no bulk Delete control is present. The production path continues to use the native modal Yes/No
+`MessageBox.Show`.
+
+The smallest workflow seam is `M03ShellViewModel.ExecuteBulkActiveStateWorkflowAsync`: it waits for the latest composed/debounced filter,
+captures immutable IDs/states, short-circuits no-op and Cancel without mutation, performs one Application bulk call on confirmation, and
+refreshes successfully while preserving search/category/status semantics. Architecture tests cover Cancel/no-op zero-write behavior,
+confirmed Deactivate and Activate filter-preserving refreshes, selected-product clearing when a row leaves the result, and latest-filter
+capture before confirmation.
+
+The prior status-document publish wording was corrected: the required default self-contained win-x64 output directory was occupied by the
+running Sushi81 POS process, so verification used an ignored alternate publish directory with the same settings and did not terminate
+the operator process. Final local remediation verification is 221 passed, 0 failed, 0 skipped; interactive Windows/WPF acceptance remains
+an operator gate, M03 remains Partial and M04 remains not started/unauthorized.
+
 ## Outstanding
 
 - Operator must rerun the manual M03 Windows/WPF checklist from the contract against the latest FIX-12 published artifact,
