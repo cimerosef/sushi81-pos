@@ -23,6 +23,13 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     private string activateLabel = "Activate";
     private string deactivateLabel = "Deactivate";
     private string settingsValidationMessage = string.Empty;
+    private readonly object filterRefreshLock = new();
+    private CancellationTokenSource? filterRefreshCancellation;
+    private Task filterRefreshTask = Task.CompletedTask;
+    private long filterRefreshVersion;
+    private int filterRefreshSuppression;
+
+    private static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(250);
 
     public M03ShellViewModel(CatalogueService catalogue, BusinessSettingsService settings)
     {
@@ -46,6 +53,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+    public event EventHandler? FilterRefreshFailed;
 
     public ObservableCollection<CategorySummary> Categories { get; }
     public ObservableCollection<CategorySummary> CategoryFilters { get; }
@@ -88,10 +96,12 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
             // semantic selection and restore it after the collection has been rebuilt.
             if (value is null && CategoryFilters.Count == 0) return;
             var next = value ?? CategoryFilters.FirstOrDefault(category => category.Id == Guid.Empty);
+            if (next is not null && selectedCategory?.Id == next.Id) return;
             selectedCategory = next;
             if (next is not null) selectedCategoryId = next.Id;
             OnPropertyChanged(nameof(SelectedCategoryId));
             OnPropertyChanged();
+            ScheduleFilterRefresh(debounce: false);
         }
     }
     /// <summary>
@@ -114,17 +124,31 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
             var requestedId = value ?? Guid.Empty;
             var next = CategoryFilters.FirstOrDefault(category => category.Id == requestedId)
                 ?? CategoryFilters.FirstOrDefault(category => category.Id == Guid.Empty);
+            var nextId = next?.Id ?? requestedId;
+            if (selectedCategoryId == nextId) return;
             selectedCategory = next;
-            selectedCategoryId = next?.Id ?? requestedId;
+            selectedCategoryId = nextId;
             OnPropertyChanged(nameof(SelectedCategory));
             OnPropertyChanged();
+            ScheduleFilterRefresh(debounce: false);
         }
     }
-    public string SearchText { get => searchText; set { searchText = value ?? string.Empty; OnPropertyChanged(); } }
+    public string SearchText
+    {
+        get => searchText;
+        set
+        {
+            var next = value ?? string.Empty;
+            if (string.Equals(searchText, next, StringComparison.Ordinal)) return;
+            searchText = next;
+            OnPropertyChanged();
+            ScheduleFilterRefresh(debounce: true);
+        }
+    }
     public string ActiveFilter
     {
         get => activeFilter;
-        set => SetActiveFilter(value);
+        set => SetActiveFilter(value, schedule: true);
     }
     /// <summary>
     /// Stable semantic key for the status filter ComboBox.
@@ -141,8 +165,14 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
             // Keep the effective key while WPF is between StatusFilters.Clear() and the
             // rebuilt localized options. Once options exist, null deterministically means All.
             if (value is null && StatusFilters.Count == 0) return;
-            SetActiveFilter(value);
+            SetActiveFilter(value, schedule: true);
         }
+    }
+
+    /// <summary>Completion task for the latest automatic filter/search refresh.</summary>
+    public Task FilterRefreshTask
+    {
+        get { lock (filterRefreshLock) return filterRefreshTask; }
     }
     public bool CanEditProduct => SelectedProduct is not null && !IsBusy;
     public bool CanDeleteProduct => SelectedProduct is not null && !IsBusy;
@@ -170,11 +200,19 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         StatusFilters.Single(option => option.Key == "All").SetLabel(all);
         StatusFilters.Single(option => option.Key == "Active").SetLabel(active);
         StatusFilters.Single(option => option.Key == "Inactive").SetLabel(inactive);
-        ActiveFilter = statusKey;
-        if (CategoryFilters.Count > 0)
+        SetActiveFilter(statusKey, schedule: false);
+        SuppressFilterRefresh();
+        try
         {
-            CategoryFilters[0] = new CategorySummary(Guid.Empty, AllCategoryLabel);
-            RestoreCategorySelection(categoryId);
+            if (CategoryFilters.Count > 0)
+            {
+                CategoryFilters[0] = new CategorySummary(Guid.Empty, AllCategoryLabel);
+                RestoreCategorySelection(categoryId);
+            }
+        }
+        finally
+        {
+            ResumeFilterRefresh();
         }
         OnPropertyChanged(nameof(AllCategoryLabel));
         OnPropertyChanged(nameof(ToggleProductActionLabel));
@@ -182,27 +220,142 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
+        var request = BeginRefreshRequest(isFullRefresh: true, cancellationToken);
         IsBusy = true;
         try
         {
-            var categoryId = selectedCategoryId;
-            var statusKey = ActiveFilter;
-            var categories = await catalogue.ListCategoriesAsync(cancellationToken);
-            Categories.Clear();
-            CategoryFilters.Clear();
-            CategoryFilters.Add(new CategorySummary(Guid.Empty, AllCategoryLabel));
-            foreach (var category in categories) { Categories.Add(category); CategoryFilters.Add(category); }
-            RestoreCategorySelection(categoryId);
-            ActiveFilter = statusKey;
-            var active = ActiveFilter switch { "Active" => true, "Inactive" => false, _ => (bool?)null };
-            Guid? selectedId = SelectedCategory is null || SelectedCategory.Id == Guid.Empty ? null : SelectedCategory.Id;
-            var products = await catalogue.ListProductsAsync(SearchText, selectedId, active, cancellationToken);
+            var categories = await catalogue.ListCategoriesAsync(request.Cancellation.Token);
+            request.Cancellation.Token.ThrowIfCancellationRequested();
+            if (!IsCurrentRequest(request)) return;
+
+            SuppressFilterRefresh();
+            try
+            {
+                Categories.Clear();
+                CategoryFilters.Clear();
+                CategoryFilters.Add(new CategorySummary(Guid.Empty, AllCategoryLabel));
+                foreach (var category in categories) { Categories.Add(category); CategoryFilters.Add(category); }
+                RestoreCategorySelection(request.Snapshot.CategoryId);
+                SetActiveFilter(request.Snapshot.StatusKey, schedule: false);
+            }
+            finally
+            {
+                ResumeFilterRefresh();
+            }
+
+            // Category refresh can deterministically fall back to All when the previously
+            // selected category no longer exists. Use that effective key for the product
+            // query while retaining the request's search/status snapshot.
+            Guid? effectiveCategoryId = selectedCategoryId == Guid.Empty ? null : selectedCategoryId;
+            var products = await catalogue.ListProductsAsync(request.Snapshot.SearchText, effectiveCategoryId, request.Snapshot.ActiveValue, request.Cancellation.Token);
+            request.Cancellation.Token.ThrowIfCancellationRequested();
+            if (!IsCurrentRequest(request)) return;
             Products.Clear(); foreach (var product in products) Products.Add(product);
             OnPropertyChanged(nameof(HasProducts));
             if (SelectedProduct is not null) SelectedProduct = Products.FirstOrDefault(product => product.Id == SelectedProduct.Id);
         }
-        finally { IsBusy = false; }
+        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            // A newer manual or automatic request superseded this one. Its task is complete
+            // without committing stale categories or products.
+        }
+        finally
+        {
+            if (EndRefreshRequest(request)) IsBusy = false;
+        }
     }
+
+    private void ScheduleFilterRefresh(bool debounce)
+    {
+        if (filterRefreshSuppression > 0) return;
+
+        var request = BeginRefreshRequest(isFullRefresh: false, CancellationToken.None);
+        lock (filterRefreshLock) filterRefreshTask = RunFilterRefreshAsync(request, debounce);
+    }
+
+    private async Task RunFilterRefreshAsync(RefreshRequest request, bool debounce)
+    {
+        try
+        {
+            if (debounce) await Task.Delay(SearchDebounce, request.Cancellation.Token);
+            await RefreshProductsAsync(request);
+        }
+        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested)
+        {
+            // A newer filter request superseded this one. It must not report an error.
+        }
+        catch
+        {
+            if (IsCurrentRequest(request)) FilterRefreshFailed?.Invoke(this, EventArgs.Empty);
+        }
+        finally
+        {
+            EndRefreshRequest(request);
+        }
+    }
+
+    private async Task RefreshProductsAsync(RefreshRequest request)
+    {
+        var products = await catalogue.ListProductsAsync(request.Snapshot.SearchText, request.Snapshot.CategoryIdValue, request.Snapshot.ActiveValue, request.Cancellation.Token);
+        request.Cancellation.Token.ThrowIfCancellationRequested();
+        if (!IsCurrentRequest(request)) return;
+        Products.Clear();
+        foreach (var product in products) Products.Add(product);
+        OnPropertyChanged(nameof(HasProducts));
+        if (SelectedProduct is not null) SelectedProduct = Products.FirstOrDefault(product => product.Id == SelectedProduct.Id);
+    }
+
+    private RefreshRequest BeginRefreshRequest(bool isFullRefresh, CancellationToken externalCancellationToken)
+    {
+        CancellationTokenSource cancellation;
+        RefreshRequest request;
+        lock (filterRefreshLock)
+        {
+            filterRefreshCancellation?.Cancel();
+            cancellation = CancellationTokenSource.CreateLinkedTokenSource(externalCancellationToken);
+            filterRefreshCancellation = cancellation;
+            request = new(++filterRefreshVersion, CaptureFilterSnapshot(), cancellation, isFullRefresh);
+        }
+        if (!isFullRefresh && IsBusy) IsBusy = false;
+        return request;
+    }
+
+    private bool EndRefreshRequest(RefreshRequest request)
+    {
+        bool isCurrent;
+        lock (filterRefreshLock)
+        {
+            isCurrent = request.Version == filterRefreshVersion && ReferenceEquals(filterRefreshCancellation, request.Cancellation);
+            if (isCurrent)
+            {
+                filterRefreshCancellation = null;
+            }
+        }
+        request.Cancellation.Dispose();
+        return isCurrent && request.IsFullRefresh;
+    }
+
+    private bool IsCurrentRequest(RefreshRequest request)
+    {
+        lock (filterRefreshLock)
+        {
+            return request.Version == filterRefreshVersion && ReferenceEquals(filterRefreshCancellation, request.Cancellation);
+        }
+    }
+
+    private FilterSnapshot CaptureFilterSnapshot() => new(searchText, selectedCategoryId, activeFilter);
+
+    private void SuppressFilterRefresh() => filterRefreshSuppression++;
+
+    private void ResumeFilterRefresh() => filterRefreshSuppression = Math.Max(0, filterRefreshSuppression - 1);
+
+    private readonly record struct FilterSnapshot(string SearchText, Guid CategoryId, string StatusKey)
+    {
+        public Guid? CategoryIdValue => CategoryId == Guid.Empty ? null : CategoryId;
+        public bool? ActiveValue => StatusKey switch { "Active" => true, "Inactive" => false, _ => null };
+    }
+
+    private readonly record struct RefreshRequest(long Version, FilterSnapshot Snapshot, CancellationTokenSource Cancellation, bool IsFullRefresh);
 
     public async Task LoadSettingsAsync(CancellationToken cancellationToken = default)
     {
@@ -258,11 +411,14 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(SelectedCategoryId));
     }
 
-    private void SetActiveFilter(string? value)
+    private void SetActiveFilter(string? value, bool schedule)
     {
-        activeFilter = value is "Active" or "Inactive" ? value : "All";
+        var next = value is "Active" or "Inactive" ? value : "All";
+        if (string.Equals(activeFilter, next, StringComparison.Ordinal)) return;
+        activeFilter = next;
         OnPropertyChanged(nameof(ActiveFilter));
         OnPropertyChanged(nameof(SelectedStatusKey));
+        if (schedule) ScheduleFilterRefresh(debounce: false);
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

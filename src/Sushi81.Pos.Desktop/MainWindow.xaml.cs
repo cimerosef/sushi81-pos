@@ -18,6 +18,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = viewModel;
+        if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
         ApplyCatalogueHeaders();
     }
 
@@ -48,6 +49,12 @@ public partial class MainWindow : Window
     private async void OnRefreshCatalogue(object sender, RoutedEventArgs e)
     {
         if (DataContext is ShellViewModel { Admin: { } admin }) await admin.RefreshAsync();
+    }
+
+    private void OnFilterRefreshFailed(object? sender, EventArgs e)
+    {
+        MessageBox.Show(this, LocalizedText(this, "ValidationGeneric", "The operation failed."),
+            LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private async void OnNewProduct(object sender, RoutedEventArgs e)

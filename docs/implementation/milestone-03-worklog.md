@@ -1,6 +1,6 @@
 # M03 implementation worklog
 
-**Status:** Remediation complete through FIX-11; automated evidence green; manual WPF acceptance outstanding
+**Status:** Remediation complete through FIX-12; automated evidence green; manual WPF acceptance outstanding
 **Milestone:** M03 — In-application catalogue and business settings
 
 This worklog records the implementation/evidence handoff for the active M03 PR. The production scope is limited to
@@ -26,8 +26,8 @@ Authorization: `milestone-03-authorization.md`.
 
 - .NET SDK 10.0.400, Windows x64.
 - Release restore/build passed (0 warnings, 0 errors).
-- Release solution tests: **202 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
-  Architecture/localization 29, OneDrive protocol 32, and GitHub wrapper/harness 92.
+- Release solution tests: **206 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
+  Architecture/localization 33, OneDrive protocol 32, and GitHub wrapper/harness 92.
 - Self-contained `win-x64` publish passed with `PublishSingleFile=false`.
 - Post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run
   **#133** (success). The follow-up filter-state remediation head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` passed
@@ -194,6 +194,27 @@ natural widths against `ActualWidth` (with WPF margins accounted for), enabled-b
 spread in French and zh-CN, then resizes the dialog and repeats the assertions. It closes through the existing safe test seam so no synthetic product write
 occurs. The test covers SelectionMode, Required, min/max, group actions and option labels/actions in the actual visual tree.
 M03 remains Partial pending the operator rerun of the complete Windows/WPF checklist against the fixed artifact.
+
+## Manual-test remediation handoff `M03-MANUAL-UI-LIVE-FILTER-FIX-12`
+
+The operator's next catalogue pass found that the visible search, category and status controls changed their bound values but
+did not update the product list until the explicit refresh button was clicked. The root cause was that the original setters
+only changed presentation state; the only query trigger was the manual `RefreshAsync` command. This was misleading in the live
+UI because the controls looked like immediately applied filters.
+
+The narrow fix adds automatic product requery for status and category changes, plus a 250 ms search debounce so a text edit
+does not issue one database query per keystroke. Every automatic and manual reload now uses an immutable filter snapshot,
+monotonic request version and an owned cancellation source. A newer request cancels its predecessor, stale stores that ignore
+cancellation cannot commit products or categories, and only the current full refresh may clear `IsBusy`. Category collection
+rebuilds suppress transient WPF binding callbacks, while localization updates semantic labels in place without duplicate
+filter queries. The existing refresh button remains an explicit force reload. If an automatic query fails, the desktop shell
+reports the existing localized generic error rather than exposing storage details.
+
+Four architecture regressions cover mixed All/Active/Inactive transitions, automatic category filtering, selected-product
+clearing after a filter excludes it, debounced search, latest-wins behavior when an older query ignores cancellation, semantic
+French → zh-CN → French preservation, no duplicate query on language-only changes, manual force reload, and stale overlapping
+full-refresh protection. The test store and all values are synthetic. M03 remains Partial pending the operator rerun of the
+complete Windows/WPF checklist against the fixed artifact; M04 is not started.
 
 ## Outstanding
 

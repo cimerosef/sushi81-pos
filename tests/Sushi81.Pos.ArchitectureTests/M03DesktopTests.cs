@@ -19,6 +19,12 @@ public sealed class M03DesktopTests
     private static readonly string[] FrenchFilters = ["Tous", "Actifs", "Inactifs"];
     private static readonly string[] ChineseFilters = ["全部", "启用", "停用"];
     private static readonly string[] OptionGroupCultures = ["fr-FR", "zh-CN"];
+    private static readonly string[] AllProductCodes = ["P-A", "P-I", "D-A"];
+    private static readonly string[] ActiveProductCodes = ["P-A", "D-A"];
+    private static readonly string[] InactiveProductCodes = ["P-I"];
+    private static readonly string[] DessertProductCodes = ["D-A"];
+    private static readonly string[] NewProductCodes = ["NEW"];
+    private static readonly string[] ActiveDishProductCodes = ["P-A"];
 
     [TestMethod]
     public async Task M03FiltersExposeLocalizedAllAndStatusValues()
@@ -281,6 +287,138 @@ public sealed class M03DesktopTests
         await viewModel.RefreshAsync();
         Assert.AreEqual("Inactive", viewModel.SelectedStatusKey);
         Assert.AreEqual("停用", inactive.Label);
+    }
+
+    [TestMethod]
+    public async Task LiveStatusAndCategoryFiltersQueryAutomaticallyAndManualRefreshStillForcesReload()
+    {
+        var first = new CategorySummary(Guid.NewGuid(), "Plats");
+        var second = new CategorySummary(Guid.NewGuid(), "Desserts");
+        var store = new LiveFilterCatalogueStore(new[] { first, second },
+            Product("P-A", "Active dish", first, true),
+            Product("P-I", "Inactive dish", first, false),
+            Product("D-A", "Active dessert", second, true));
+        var viewModel = NewLiveFilterViewModel(store);
+
+        await viewModel.RefreshAsync();
+        CollectionAssert.AreEquivalent(AllProductCodes, ProductCodes(viewModel));
+        viewModel.SelectedProduct = viewModel.Products.Single(product => product.Code == "P-I");
+
+        viewModel.SelectedStatusKey = "Active";
+        await viewModel.FilterRefreshTask;
+        CollectionAssert.AreEquivalent(ActiveProductCodes, ProductCodes(viewModel));
+        Assert.IsNull(viewModel.SelectedProduct);
+
+        viewModel.SelectedStatusKey = "Inactive";
+        await viewModel.FilterRefreshTask;
+        CollectionAssert.AreEquivalent(InactiveProductCodes, ProductCodes(viewModel));
+
+        viewModel.SelectedStatusKey = "All";
+        await viewModel.FilterRefreshTask;
+        CollectionAssert.AreEquivalent(AllProductCodes, ProductCodes(viewModel));
+
+        viewModel.SelectedCategoryId = second.Id;
+        await viewModel.FilterRefreshTask;
+        CollectionAssert.AreEquivalent(DessertProductCodes, ProductCodes(viewModel));
+
+        var beforeManualRefresh = store.ProductQueries.Count;
+        await viewModel.RefreshAsync();
+        Assert.HasCount(beforeManualRefresh + 1, store.ProductQueries);
+        CollectionAssert.AreEquivalent(DessertProductCodes, ProductCodes(viewModel));
+    }
+
+    [TestMethod]
+    public async Task LiveSearchDebouncesAndOlderIgnoringCancellationCannotOverwriteLatestResult()
+    {
+        var category = new CategorySummary(Guid.NewGuid(), "Plats");
+        var oldProduct = Product("OLD", "Old result", category, true);
+        var newProduct = Product("NEW", "New result", category, true);
+        var store = new LiveFilterCatalogueStore(new[] { category }, oldProduct, newProduct);
+        var viewModel = NewLiveFilterViewModel(store);
+
+        await viewModel.RefreshAsync();
+        store.ClearProductQueries();
+        viewModel.SearchText = "o";
+        viewModel.SearchText = "ol";
+        viewModel.SearchText = "old";
+        await viewModel.FilterRefreshTask;
+
+        Assert.HasCount(1, store.ProductQueries);
+        Assert.AreEqual("old", store.ProductQueries[0].Search);
+
+        var blockingStore = new LiveFilterCatalogueStore(new[] { category }, oldProduct, newProduct) { BlockOldQueries = true };
+        var blockingViewModel = NewLiveFilterViewModel(blockingStore);
+        await blockingViewModel.RefreshAsync();
+        blockingStore.ClearProductQueries();
+        blockingViewModel.SearchText = "old";
+        await blockingStore.OldQueryStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var oldTask = blockingViewModel.FilterRefreshTask;
+
+        blockingViewModel.SearchText = "new";
+        var latestTask = blockingViewModel.FilterRefreshTask;
+        await latestTask;
+        blockingStore.ReleaseOldQuery();
+        await oldTask;
+
+        Assert.AreEqual("new", blockingStore.ProductQueries[^1].Search);
+        CollectionAssert.AreEqual(NewProductCodes, ProductCodes(blockingViewModel));
+    }
+
+    [TestMethod]
+    public async Task LiveFiltersPreserveSemanticSelectionAcrossFrenchChineseRoundTrip()
+    {
+        var first = new CategorySummary(Guid.NewGuid(), "Plats");
+        var second = new CategorySummary(Guid.NewGuid(), "Desserts");
+        var store = new LiveFilterCatalogueStore(new[] { first, second },
+            Product("P-A", "Active dish", first, true),
+            Product("P-I", "Inactive dish", first, false),
+            Product("D-A", "Active dessert", second, true));
+        var viewModel = NewLiveFilterViewModel(store);
+
+        await viewModel.RefreshAsync();
+        viewModel.SelectedCategoryId = first.Id;
+        await viewModel.FilterRefreshTask;
+        viewModel.SelectedStatusKey = "Active";
+        await viewModel.FilterRefreshTask;
+        var queryCount = store.ProductQueries.Count;
+
+        viewModel.ApplyLocalization("全部", "启用", "停用");
+        viewModel.ApplyLocalization("Tous", "Actifs", "Inactifs");
+        await viewModel.FilterRefreshTask;
+
+        Assert.AreEqual(first.Id, viewModel.SelectedCategoryId);
+        Assert.AreEqual("Active", viewModel.SelectedStatusKey);
+        Assert.HasCount(queryCount, store.ProductQueries);
+
+        viewModel.SearchText = "active";
+        await viewModel.FilterRefreshTask;
+        Assert.AreEqual("active", store.ProductQueries[^1].Search);
+        CollectionAssert.AreEqual(ActiveDishProductCodes, ProductCodes(viewModel));
+    }
+
+    [TestMethod]
+    public async Task OlderFullRefreshCannotCommitStaleCategoriesOrClearBusyForLatestRefresh()
+    {
+        var first = new CategorySummary(Guid.NewGuid(), "Plats");
+        var second = new CategorySummary(Guid.NewGuid(), "Desserts");
+        var store = new LiveFilterCatalogueStore(new[] { first }, Product("P-A", "Active dish", first, true));
+        var viewModel = NewLiveFilterViewModel(store);
+        await viewModel.RefreshAsync();
+
+        store.SetCategories(first);
+        store.BlockCategoryQueries = true;
+        var staleRefresh = viewModel.RefreshAsync();
+        await store.FirstCategoryQueryStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+        store.SetCategories(second);
+        var latestRefresh = viewModel.RefreshAsync();
+        await store.TwoCategoryQueriesStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        store.ReleaseCategoryQueries();
+
+        await Task.WhenAll(staleRefresh, latestRefresh);
+        Assert.HasCount(1, viewModel.Categories);
+        Assert.AreEqual(second.Id, viewModel.Categories[0].Id);
+        Assert.IsFalse(viewModel.IsBusy);
     }
 
     [TestMethod]
@@ -634,6 +772,14 @@ public sealed class M03DesktopTests
 
     private static object GetPrivateField(object instance, string name) => instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(instance)!;
 
+    private static M03ShellViewModel NewLiveFilterViewModel(LiveFilterCatalogueStore store) =>
+        new(new CatalogueService(store), new BusinessSettingsService(new FakeSettingsStore()));
+
+    private static ProductSummary Product(string code, string name, CategorySummary category, bool active) =>
+        new(Guid.NewGuid(), code, name, category.Id, category.Name, Money.FromCents(100), 10m, active, true, false);
+
+    private static string[] ProductCodes(M03ShellViewModel viewModel) => viewModel.Products.Select(product => product.Code).ToArray();
+
     private static IEnumerable<T> VisualDescendants<T>(DependencyObject root) where T : DependencyObject
     {
         if (root is T match) yield return match;
@@ -724,6 +870,74 @@ public sealed class M03DesktopTests
         public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
         public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
         public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+    }
+
+    private sealed class LiveFilterCatalogueStore : ICatalogueStore
+    {
+        private readonly List<ProductSummary> products = [];
+        private readonly TaskCompletionSource<bool> oldQueryRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> categoryQueryRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public LiveFilterCatalogueStore(IEnumerable<CategorySummary> initialCategories, params ProductSummary[] initialProducts)
+        {
+            Categories = [.. initialCategories];
+            products.AddRange(initialProducts);
+        }
+
+        public List<CategorySummary> Categories { get; }
+        public List<ProductQuery> ProductQueries { get; } = [];
+        public TaskCompletionSource<bool> OldQueryStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> FirstCategoryQueryStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> TwoCategoryQueriesStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int CategoryQueries { get; private set; }
+        public bool BlockCategoryQueries { get; set; }
+        public bool BlockOldQueries { get; set; }
+
+        public async Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default)
+        {
+            var snapshot = Categories.ToArray();
+            CategoryQueries++;
+            if (BlockCategoryQueries && !FirstCategoryQueryStarted.Task.IsCompleted) FirstCategoryQueryStarted.TrySetResult(true);
+            if (BlockCategoryQueries && CategoryQueries >= 3) TwoCategoryQueriesStarted.TrySetResult(true);
+            if (BlockCategoryQueries) await categoryQueryRelease.Task;
+            return snapshot;
+        }
+
+        public async Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default)
+        {
+            ProductQueries.Add(new(search ?? string.Empty, categoryId, active));
+            if (BlockOldQueries && string.Equals(search, "old", StringComparison.Ordinal))
+            {
+                OldQueryStarted.TrySetResult(true);
+                await oldQueryRelease.Task;
+            }
+
+            var trimmedSearch = search?.Trim() ?? string.Empty;
+            return products.Where(product =>
+                (categoryId is null || product.CategoryId == categoryId.Value) &&
+                (active is null || product.IsActive == active.Value) &&
+                (trimmedSearch.Length == 0 || product.Code.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase) || product.Name.Contains(trimmedSearch, StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
+        }
+
+        public void ClearProductQueries() => ProductQueries.Clear();
+        public void ReleaseOldQuery() => oldQueryRelease.TrySetResult(true);
+        public void SetCategories(params CategorySummary[] categories)
+        {
+            Categories.Clear();
+            Categories.AddRange(categories);
+        }
+        public void ReleaseCategoryQueries() => categoryQueryRelease.TrySetResult(true);
+
+        public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(null);
+        public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(Guid.NewGuid(), name)));
+        public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(categoryId, name)));
+        public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<Guid>.Success(Guid.NewGuid()));
+        public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+
+        public sealed record ProductQuery(string Search, Guid? CategoryId, bool? Active);
     }
 
     private sealed class FakeSettingsStore : IBusinessSettingsStore
