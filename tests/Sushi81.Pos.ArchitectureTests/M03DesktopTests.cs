@@ -18,6 +18,7 @@ public sealed class M03DesktopTests
 {
     private static readonly string[] FrenchFilters = ["Tous", "Actifs", "Inactifs"];
     private static readonly string[] ChineseFilters = ["全部", "启用", "停用"];
+    private static readonly string[] OptionGroupCultures = ["fr-FR", "zh-CN"];
 
     [TestMethod]
     public async Task M03FiltersExposeLocalizedAllAndStatusValues()
@@ -541,6 +542,63 @@ public sealed class M03DesktopTests
     }
 
     [TestMethod]
+    public void ProductEditorOptionGroupLabelsFitFrenchAndChineseAtSupportedWidths()
+    {
+        RunOnSta(() =>
+        {
+            foreach (var cultureName in OptionGroupCultures)
+            {
+                var categoryId = Guid.NewGuid();
+                var catalogueStore = new FakeCatalogueStore(new CategorySummary(categoryId, "Entrées"));
+                var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(catalogueStore), new BusinessSettingsService(new FakeSettingsStore()));
+                if (cultureName == "zh-CN") shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == cultureName)).GetAwaiter().GetResult();
+                var owner = new Window { DataContext = shell };
+                owner.Show();
+                var dialogType = typeof(MainWindow).GetNestedType("ProductEditorDialog", BindingFlags.NonPublic)!;
+                var constructor = dialogType.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null,
+                    [typeof(Window), typeof(M03ShellViewModel), typeof(ProductDraft), typeof(IReadOnlyList<CategorySummary>)], null)!;
+                var dialog = (Window)constructor.Invoke([owner, shell.Admin!, null, (IReadOnlyList<CategorySummary>)[new CategorySummary(categoryId, "Entrées")]]);
+                Exception? callbackFailure = null;
+                dialog.ContentRendered += (_, _) =>
+                {
+                    try
+                    {
+                        var addGroup = VisualDescendants<Button>(dialog).Single(button => string.Equals(button.Content?.ToString(), $"+ {shell.Localized["OptionGroups"]}", StringComparison.Ordinal));
+                        addGroup.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        dialog.UpdateLayout();
+                        var firstBorder = (Border)((StackPanel)GetPrivateField(dialog, "groupsPanel")).Children[0];
+                        AssertWpfLayoutFits(firstBorder, cultureName, "normal");
+                        var addOption = VisualDescendants<Button>(firstBorder).Single(button => string.Equals(button.Content?.ToString(), $"+ {shell.Localized["Options"]}", StringComparison.Ordinal));
+                        addOption.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        dialog.UpdateLayout();
+                        AssertWpfLayoutFits(firstBorder, cultureName, "option");
+                        dialog.Width = 900;
+                        dialog.Height = 800;
+                        dialog.UpdateLayout();
+                        AssertWpfLayoutFits(firstBorder, cultureName, "large");
+                    }
+                    catch (Exception ex)
+                    {
+                        callbackFailure = ex;
+                    }
+                    finally
+                    {
+                        dialogType.GetField("closeAllowed", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(dialog, true);
+                        dialog.Close();
+                    }
+                };
+                dialog.ShowDialog();
+                if (callbackFailure is not null)
+                {
+                    ExceptionDispatchInfo.Capture(callbackFailure).Throw();
+                }
+
+                owner.Close();
+            }
+        });
+    }
+
+    [TestMethod]
     public void CategoryManagerLayoutUsesContentSizedEditorAndActionRows()
     {
         var sourcePath = Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml.cs");
@@ -583,6 +641,27 @@ public sealed class M03DesktopTests
         for (var index = 0; index < childCount; index++)
         {
             foreach (var child in VisualDescendants<T>(VisualTreeHelper.GetChild(root, index))) yield return child;
+        }
+    }
+
+    private static void AssertWpfLayoutFits(DependencyObject root, string cultureName, string sizeName)
+    {
+        foreach (var textBlock in VisualDescendants<TextBlock>(root).Where(text => text.Visibility == Visibility.Visible && !string.IsNullOrWhiteSpace(text.Text)))
+        {
+            var actualWidth = textBlock.ActualWidth;
+            var natural = new TextBlock { Text = textBlock.Text, FontFamily = textBlock.FontFamily, FontSize = textBlock.FontSize, FontStretch = textBlock.FontStretch, FontStyle = textBlock.FontStyle, FontWeight = textBlock.FontWeight, TextWrapping = TextWrapping.NoWrap };
+            natural.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Assert.IsGreaterThanOrEqualTo(natural.DesiredSize.Width, actualWidth + 0.5,
+                $"{cultureName} {sizeName} TextBlock '{textBlock.Text}' is clipped: actual={actualWidth}, natural={natural.DesiredSize.Width}.");
+        }
+
+        foreach (var button in VisualDescendants<Button>(root).Where(button => button.Visibility == Visibility.Visible && button.IsEnabled))
+        {
+            var actualWidth = button.ActualWidth;
+            button.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var naturalWidth = Math.Max(0, button.DesiredSize.Width - button.Margin.Left - button.Margin.Right);
+            Assert.IsGreaterThanOrEqualTo(naturalWidth, actualWidth + 1.0,
+                $"{cultureName} {sizeName} Button '{button.Content}' is clipped: actual={actualWidth}, natural={naturalWidth}.");
         }
     }
 

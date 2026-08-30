@@ -1,6 +1,6 @@
 # M03 implementation worklog
 
-**Status:** Remediation complete; automated evidence green; manual WPF acceptance outstanding  
+**Status:** Remediation complete through FIX-11; automated evidence green; manual WPF acceptance outstanding
 **Milestone:** M03 — In-application catalogue and business settings
 
 This worklog records the implementation/evidence handoff for the active M03 PR. The production scope is limited to
@@ -26,8 +26,8 @@ Authorization: `milestone-03-authorization.md`.
 
 - .NET SDK 10.0.400, Windows x64.
 - Release restore/build passed (0 warnings, 0 errors).
-- Release solution tests: **201 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
-  Architecture/localization 28, OneDrive protocol 32, and GitHub wrapper/harness 92.
+- Release solution tests: **202 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
+  Architecture/localization 29, OneDrive protocol 32, and GitHub wrapper/harness 92.
 - Self-contained `win-x64` publish passed with `PublishSingleFile=false`.
 - Post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run
   **#133** (success). The follow-up filter-state remediation head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` passed
@@ -173,6 +173,24 @@ the synthetic store received no create call. This also audits adjacent event wir
 business-feature scaffolding. M03 remains Partial pending the operator rerun of the complete Windows/WPF checklist against the
 fixed artifact.
 
+## Manual-test remediation handoff `M03-MANUAL-UI-OPTION-GROUP-LAYOUT-FIX-11`
+
+The next operator pass reached the first rendered option group, but the French `Mode de sélection` label was clipped to
+`Mode de sélectio` at the normal Product Editor size. The defect-escape retrospective identified the fixed `Width = 90`
+selection-mode label as the direct cause and expanded the audit to every fixed-width or action-row element in the group and
+option editors across French and zh-CN at normal and larger supported widths.
+
+The narrow layout fix removes the hardcoded selection-mode label width and uses an Auto / gap / Star Grid so the localized
+label receives its natural width while the ComboBox remains usable. Minimum/maximum fields and group actions now use
+content-sized WrapPanels; existing numeric TextBox widths and all editor semantics remain unchanged. No persistence,
+validation, localization-resource, or FIX-10 lifecycle/container behavior was changed.
+
+The regression is a real STA WPF modal-dialog test. It adds a group and option after rendering, verifies visible TextBlock
+natural widths against `ActualWidth` (with WPF margins accounted for) and enabled-button desired widths in French and zh-CN,
+then resizes the dialog and repeats the assertions. It closes through the existing safe test seam so no synthetic product write
+occurs. The test covers SelectionMode, Required, min/max, group actions and option labels/actions in the actual visual tree.
+M03 remains Partial pending the operator rerun of the complete Windows/WPF checklist against the fixed artifact.
+
 ## Outstanding
 
 - Operator must rerun the manual M03 Windows/WPF checklist from the contract against the newly published artifact, including
@@ -180,7 +198,9 @@ fixed artifact.
   French and the corresponding zh-CN labels), switch live in both directions, and remain readable at default/resized/maximized
   sizes. The operator should also confirm both category and status ComboBoxes show `Tous`/`全部` on first render and remain
   selected through either language-switch direction and refresh, plus the category-manager resize/maximize layout and readable
-  French/Chinese action buttons. Product creation passed in the latest run; acceptance stopped at the blank-header observation.
+  French/Chinese action buttons, and the Product Editor's SelectionMode, Required, min/max, group-action and option-action labels
+  remain readable at normal and larger sizes in both languages. Product creation passed in the latest run; acceptance stopped at
+  the blank-header observation.
 - AC-CAT-003 historical-order independence and pricing-consumer cross-check in AC-ORD-011 remain intentionally
   deferred to M04, which is not started or authorized.
 
