@@ -1,7 +1,7 @@
 # Catalogue management
 
-**Status:** Approved — Phase 2 baseline  
-**Last updated:** 2026-08-27  
+**Status:** Approved — Phase 2 baseline, amended 2026-08-30  
+**Last updated:** 2026-08-30  
 **Product:** Sushi81 POS  
 **Purpose:** Freeze the V1 current catalogue, category, product-option and Excel batch-maintenance behavior before implementation.
 
@@ -14,6 +14,7 @@ It covers:
 - product identity and lifecycle;
 - current product/category attributes;
 - activation/deactivation and deletion;
+- filtered bulk activation/deactivation;
 - discount eligibility;
 - structured product options/choices;
 - option price adjustments and display order;
@@ -49,6 +50,7 @@ Authoritative principles:
 6. Excel `.xlsx` import/export is a bulk-maintenance convenience, not the only maintenance method.
 7. Ordinary order entry may not overwrite a catalogue product's base unit price.
 8. Product options may carry preset and operator-entered adjustments under `business-rules.md`.
+9. The in-application catalogue may apply an explicitly confirmed activation/deactivation change atomically to the complete result of the current composed search/category/status filters.
 
 ## 3. Product identity and current-code uniqueness
 
@@ -75,6 +77,7 @@ The dedicated catalogue-management area supports:
 - edit product code and approved commercial attributes;
 - assign/change category;
 - activate/deactivate product;
+- bulk activate/deactivate the complete current filtered result;
 - permanently delete product;
 - manage Retrait-discount eligibility;
 - manage product option groups/choices.
@@ -113,6 +116,8 @@ No additional mandatory commercial product field is part of the V1 baseline.
 - deletion releases the visible code for reuse.
 
 Deleting a row from an Excel import workbook is **not** the permanent-deletion mechanism.
+
+Bulk maintenance under section 7 changes only active/inactive state and never acts as a bulk permanent-delete workflow.
 
 ## 5. Categories
 
@@ -225,14 +230,48 @@ The catalogue area provides a searchable/filterable current product list and ord
 - edit selected product;
 - save;
 - cancel unsaved edit;
-- activate/deactivate;
+- activate/deactivate one selected product;
+- bulk activate/deactivate the complete current filtered result;
 - permanent delete with confirmation;
 - manage category assignment;
 - manage structured options.
 
-Changes become authoritative when explicitly saved rather than being persisted character-by-character while typing.
+Changes become authoritative when explicitly saved/confirmed rather than being persisted character-by-character while typing.
 
 Exact layout/control styling is delegated to implementation as long as this workflow remains practical and does not mix accidental catalogue editing into routine order entry.
+
+### 7.1 Filtered bulk activation/deactivation
+
+V1 provides explicit bulk **Activate** and **Deactivate** actions for operational catalogue maintenance.
+
+The selection boundary is the same composed filter state used by the catalogue list:
+
+- code/name keyword search;
+- category filter;
+- status filter (`All`, `Active`, `Inactive`).
+
+All filters compose together. A bulk action targets the **complete current filtered Product result**, not merely rows visible in the current viewport.
+
+When the operator starts a bulk action:
+
+1. the application captures an immutable snapshot of the matching current Product IDs and the target active state;
+2. the application calculates the total matched count and the number that would actually change;
+3. products already in the target state are skipped;
+4. the operator receives a clear confirmation showing at least the target action, matched count and effective-change count;
+5. explicit confirmation is required before any write;
+6. zero effective changes produce no business write and must be represented by disabled action or clear no-change feedback.
+
+After confirmation, the required state changes are one atomic business mutation. All target products change state or none do. If a captured Product no longer exists or another conflict prevents safe application, the whole mutation fails without partial success and the catalogue is refreshed with clear feedback.
+
+The operation changes **only** Product active/inactive state. It never alters Product identity/code/name/category/price/VAT/discount eligibility/options-enabled state, OptionGroups, Options or their display order, and it never rewrites historical order snapshots.
+
+After success the catalogue automatically refreshes while preserving the current search/category/status filter values. A status filter may therefore make successfully changed rows disappear naturally from the visible result.
+
+Bulk permanent deletion is explicitly outside this workflow and is not introduced by this amendment.
+
+All new labels, confirmation text and result/error messages are localized in French and Simplified Chinese; operator-entered catalogue data remains unchanged when language switches.
+
+The approved decision record is `docs/decisions/filtered-catalogue-bulk-activation.md`.
 
 ## 8. Historical catalogue independence
 
@@ -418,6 +457,10 @@ Implementation must preserve all of the following:
 - historical orders are independent snapshots;
 - product deactivation is distinct from permanent deletion;
 - current Product deletion never deletes historical order data;
+- code/name search, category filter and status filter compose as the catalogue maintenance selection boundary;
+- the complete current filtered result can be bulk activated/deactivated only after explicit impact confirmation;
+- filtered bulk activation/deactivation skips already-target-state products, performs no write for zero effective changes and commits all required state changes atomically;
+- filtered bulk state changes alter only Product active/inactive state and never provide bulk permanent deletion;
 - category-based navigation remains practical without requiring the legacy VBA shortcut field;
 - structured per-product options support required/optional single/multi behavior and min/max validation;
 - individual options support active state, positive/negative/zero adjustments and saved display order;
@@ -434,8 +477,8 @@ Implementation must preserve all of the following:
 
 ## 12. Approval
 
-This document is the **Approved — Phase 2 catalogue baseline**, incorporating the approved Phase 3 category-name-uniqueness decision and Phase 5 consistency clarification of category/workbook semantics.
+This document is the **Approved — Phase 2 catalogue baseline**, incorporating the approved Phase 3 category-name-uniqueness decision, Phase 5 consistency clarification of category/workbook semantics, and the approved 2026-08-30 V1 amendment for filtered bulk activation/deactivation.
 
-There are no remaining unresolved V1 catalogue business/data-flow questions.
+There are no remaining unresolved V1 catalogue business/data-flow questions for the behavior frozen here.
 
-Exact screen layout, category navigation styling and technical helper-column/relationship representation may be selected during implementation only where they preserve every frozen semantic above and `acceptance-criteria.md`.
+Exact screen layout, category navigation styling and technical helper-column/relationship representation may be selected during implementation only where they preserve every frozen semantic above, `acceptance-criteria.md`, and `acceptance-criteria-amendment-filtered-catalogue-bulk-activation.md`.
