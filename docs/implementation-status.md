@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation plus the review and manual-UI remediations through `M03-MANUAL-UI-LIVE-FILTER-FIX-12` are complete on `codex/m03-catalogue-settings`; the authorized AC-CAT-013 filtered bulk activation/deactivation extension and review remediation `M03-FILTERED-BULK-ACTIVATION-REVIEW-FIX-14` are implemented with automated evidence, while interactive Windows/WPF M03 acceptance remains an explicit operator check.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation plus the review and manual-UI remediations through `M03-MANUAL-UI-LIVE-FILTER-FIX-12` are complete on `codex/m03-catalogue-settings`; the authorized AC-CAT-013 filtered bulk activation/deactivation extension and review remediations through `M03-FILTERED-BULK-FAILURE-REFRESH-FIX-15` are implemented with automated evidence, while interactive Windows/WPF M03 acceptance remains an explicit operator check.
 
 ## 1. Status vocabulary
 
@@ -401,7 +401,7 @@ natural desired width, action-row bounds and absence of a bulk-delete control at
 
 The production confirmation remains the native modal `MessageBox.Show(... YesNo ...)`; the smallest testable seam is
 `M03ShellViewModel.ExecuteBulkActiveStateWorkflowAsync`, which owns latest-filter capture, no-op/cancel short-circuit, one Application
-mutation and post-success refresh. Architecture regressions prove cancel/no-op performs no mutation, confirmed Deactivate and Activate
+mutation and post-attempt refresh. Architecture regressions prove cancel/no-op performs no mutation, confirmed Deactivate and Activate
 refresh while preserving search/category/status filters and clear a selected Product that leaves the filtered result.
 
 Final review-remediation verification is **221 passed, 0 failed, 0 skipped** (Domain 10; Application 11; Infrastructure integration 34;
@@ -409,6 +409,19 @@ Architecture/localization 42; protocol 32; GitHub wrapper/harness 92). Release b
 publish path was truthfully recorded as locked by the running process; equivalent self-contained output succeeded under the ignored
 alternate path. Interactive Windows/WPF acceptance remains outstanding, M03 and AC-CAT-013 remain `Partial`, PR #5 remains open/unmerged,
 and M04 is not started or authorized.
+
+### Failure-path refresh remediation — `M03-FILTERED-BULK-FAILURE-REFRESH-FIX-15`
+
+The narrow failure-path fix centralizes post-confirmation truth refresh in
+`M03ShellViewModel.ExecuteBulkActiveStateWorkflowAsync`: successful mutations and normal result failures each refresh exactly once,
+while unexpected non-cancellation mutation exceptions trigger a best-effort refresh before the original exception is rethrown. The
+native WPF shell keeps its safe error feedback and no longer performs a duplicate result-failure refresh. Refresh failures during the
+unexpected-exception path are swallowed only for that best-effort refresh, so the original failure cannot be masked or reported as success.
+
+Architecture regressions cover result failure refresh/filter preservation, unexpected exception refresh before propagation, and refresh
+failure without masking the original exception. Final local verification for this remediation is **224 passed, 0 failed, 0 skipped**;
+interactive Windows/WPF acceptance remains outstanding, M03 and AC-CAT-013 remain `Partial`, PR #5 remains open/unmerged, and M04 is
+not started or authorized.
 
 ### Acceptance mapping and remaining checks
 

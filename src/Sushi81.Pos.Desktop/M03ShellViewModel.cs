@@ -473,17 +473,47 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
                 null);
         }
 
-        var mutation = await BulkSetProductsActiveAsync(request, cancellationToken);
-        if (mutation.Succeeded)
+        OperationResult<BulkProductActiveStateResult> mutation;
+        try
         {
-            await RefreshAsync(cancellationToken);
+            mutation = await BulkSetProductsActiveAsync(request, cancellationToken);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            // An unexpected persistence/I/O exception still needs a best-effort truth
+            // refresh before the shell reports the safe failure. Do not let a refresh
+            // failure mask the original exception or turn it into a success path.
+            await TryRefreshAfterBulkFailureAsync();
+            throw;
+        }
+
+        // Both success and normal result-based failures must converge back to the
+        // current catalogue truth exactly once. MainWindow only renders the result.
+        await RefreshAsync(cancellationToken);
 
         return new M03Presentation.BulkWorkflowResult(
             M03Presentation.BulkWorkflowOutcome.Confirmed,
             request,
             confirmation,
             mutation);
+    }
+
+    private async Task TryRefreshAfterBulkFailureAsync()
+    {
+        try
+        {
+            // The original mutation exception owns cancellation/error semantics. A
+            // best-effort refresh must never replace it with a second exception.
+            await RefreshAsync(CancellationToken.None);
+        }
+        catch
+        {
+            // Keep the original safe operator failure path intact.
+        }
     }
 
     public Task<OperationResult> DeleteProductAsync(Guid id, CancellationToken cancellationToken = default) => catalogue.DeleteProductAsync(id, cancellationToken);

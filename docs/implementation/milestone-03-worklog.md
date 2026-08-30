@@ -268,9 +268,22 @@ running Sushi81 POS process, so verification used an ignored alternate publish d
 the operator process. Final local remediation verification is 221 passed, 0 failed, 0 skipped; interactive Windows/WPF acceptance remains
 an operator gate, M03 remains Partial and M04 remains not started/unauthorized.
 
+## Failure-path refresh remediation `M03-FILTERED-BULK-FAILURE-REFRESH-FIX-15`
+
+The follow-up review identified that an unexpected exception from a confirmed bulk mutation reached the safe WPF error path without
+refreshing the catalogue. The narrow workflow seam now centralizes one post-attempt refresh for successful and normal result-based
+outcomes, while unexpected non-cancellation mutation exceptions perform a best-effort refresh before the original exception is
+re-raised. The native MessageBox remains the production confirmation surface, and MainWindow no longer duplicates result-failure
+refresh work.
+
+Synthetic architecture regressions prove result failure refresh/filter preservation, unexpected exception refresh before propagation,
+and refresh-failure handling that preserves the original exception without claiming success. Final local verification is **224 passed,
+0 failed, 0 skipped**; M03 and AC-CAT-013 remain Partial pending operator Windows/WPF acceptance, and M04 remains not started/unauthorized.
+
 ## Outstanding
 
-- Operator must rerun the manual M03 Windows/WPF checklist from the contract against the latest FIX-12 published artifact,
+- Operator must rerun the manual M03 Windows/WPF checklist from the contract against the latest M03 branch self-contained artifact,
+  including AC-CAT-013 and all accepted review remediations through FIX-15,
   including visual confirmation that all six Catalogue headers are populated (`Code`, `Nom`, `Catégorie`, `Prix TTC`, `TVA`,
   `Actifs` in French and the corresponding zh-CN labels), switch live in both directions, and remain readable at
   default/resized/maximized sizes. The operator must also confirm that search, category and status filters update the product

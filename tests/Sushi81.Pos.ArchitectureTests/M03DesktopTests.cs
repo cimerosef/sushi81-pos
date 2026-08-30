@@ -542,6 +542,81 @@ public sealed class M03DesktopTests
     }
 
     [TestMethod]
+    public async Task BulkWorkflowResultFailureRefreshesAndPreservesFilters()
+    {
+        var category = new CategorySummary(Guid.NewGuid(), "Plats");
+        var active = Product("A", "Active", category, true);
+        var inactive = Product("I", "Inactive", category, false);
+        var store = new WorkflowCatalogueStore(category, active, inactive) { ReturnBulkFailure = true };
+        var viewModel = NewWorkflowViewModel(store);
+        await viewModel.RefreshAsync();
+        viewModel.SearchText = "active";
+        viewModel.SelectedCategoryId = category.Id;
+        viewModel.SelectedStatusKey = "Active";
+        await viewModel.FilterRefreshTask;
+        var queriesBeforeMutation = store.ProductListCalls;
+
+        var workflow = await viewModel.ExecuteBulkActiveStateWorkflowAsync(false, _ => true);
+
+        Assert.AreEqual(M03Presentation.BulkWorkflowOutcome.Confirmed, workflow.Outcome);
+        Assert.IsFalse(workflow.Mutation!.Succeeded);
+        Assert.AreEqual(1, store.BulkCalls);
+        Assert.AreEqual(queriesBeforeMutation + 1, store.ProductListCalls);
+        Assert.AreEqual("active", viewModel.SearchText);
+        Assert.AreEqual(category.Id, viewModel.SelectedCategoryId);
+        Assert.AreEqual("Active", viewModel.SelectedStatusKey);
+        Assert.IsTrue(viewModel.Products.Any(product => product.Id == active.Id));
+        Assert.IsTrue(store.Products.Single(product => product.Id == active.Id).IsActive);
+    }
+
+    [TestMethod]
+    public async Task BulkWorkflowUnexpectedExceptionRefreshesBeforePropagatingSafeFailure()
+    {
+        var category = new CategorySummary(Guid.NewGuid(), "Plats");
+        var active = Product("A", "Active", category, true);
+        var inactive = Product("I", "Inactive", category, false);
+        var store = new WorkflowCatalogueStore(category, active, inactive) { ThrowBulkException = true };
+        var viewModel = NewWorkflowViewModel(store);
+        await viewModel.RefreshAsync();
+        viewModel.SearchText = "active";
+        viewModel.SelectedCategoryId = category.Id;
+        viewModel.SelectedStatusKey = "Active";
+        await viewModel.FilterRefreshTask;
+        var queriesBeforeMutation = store.ProductListCalls;
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await viewModel.ExecuteBulkActiveStateWorkflowAsync(false, _ => true));
+
+        Assert.AreEqual("Synthetic bulk persistence failure.", exception.Message);
+        Assert.AreEqual(1, store.BulkCalls);
+        Assert.AreEqual(queriesBeforeMutation + 1, store.ProductListCalls);
+        Assert.AreEqual("active", viewModel.SearchText);
+        Assert.AreEqual(category.Id, viewModel.SelectedCategoryId);
+        Assert.AreEqual("Active", viewModel.SelectedStatusKey);
+        Assert.IsTrue(viewModel.Products.Any(product => product.Id == active.Id));
+    }
+
+    [TestMethod]
+    public async Task BulkWorkflowRefreshFailureDoesNotMaskUnexpectedMutationException()
+    {
+        var category = new CategorySummary(Guid.NewGuid(), "Plats");
+        var active = Product("A", "Active", category, true);
+        var store = new WorkflowCatalogueStore(category, active) { ThrowBulkException = true };
+        var viewModel = NewWorkflowViewModel(store);
+        await viewModel.RefreshAsync();
+        viewModel.SearchText = "active";
+        await viewModel.FilterRefreshTask;
+        store.ThrowOnProductList = true;
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await viewModel.ExecuteBulkActiveStateWorkflowAsync(false, _ => true));
+
+        Assert.AreEqual("Synthetic bulk persistence failure.", exception.Message);
+        Assert.AreEqual(1, store.BulkCalls);
+        Assert.IsTrue(viewModel.Products.Any(product => product.Id == active.Id));
+    }
+
+    [TestMethod]
     public async Task BulkWorkflowCaptureUsesLatestComposedFilterBeforeConfirmation()
     {
         var first = new CategorySummary(Guid.NewGuid(), "Plats");
@@ -1194,11 +1269,17 @@ public sealed class M03DesktopTests
         private readonly List<ProductSummary> products = [.. initialProducts];
         public IReadOnlyList<ProductSummary> Products => products;
         public int BulkCalls { get; private set; }
+        public int ProductListCalls { get; private set; }
+        public bool ReturnBulkFailure { get; set; }
+        public bool ThrowBulkException { get; set; }
+        public bool ThrowOnProductList { get; set; }
         public IReadOnlyList<CategorySummary> CategoriesOverride { get; set; } = [category];
 
         public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult(CategoriesOverride);
         public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default)
         {
+            ProductListCalls++;
+            if (ThrowOnProductList) throw new InvalidOperationException("Synthetic catalogue refresh failure.");
             var trimmedSearch = search?.Trim() ?? string.Empty;
             return Task.FromResult<IReadOnlyList<ProductSummary>>(products.Where(product =>
                 (categoryId is null || product.CategoryId == categoryId.Value) &&
@@ -1214,6 +1295,9 @@ public sealed class M03DesktopTests
         public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default)
         {
             BulkCalls++;
+            if (ThrowBulkException) throw new InvalidOperationException("Synthetic bulk persistence failure.");
+            if (ReturnBulkFailure)
+                return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "Synthetic bulk failure.", ValidationCodes.Conflict)));
             var changed = 0;
             foreach (var item in request.Items)
             {

@@ -129,7 +129,6 @@ public partial class MainWindow : Window
         if (!result.Succeeded)
         {
             ShowResultError(result);
-            await admin.RefreshAsync();
             return;
         }
 
