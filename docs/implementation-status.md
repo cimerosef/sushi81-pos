@@ -368,8 +368,8 @@ reload. A localized generic error event keeps automatic query failures on the ex
 architecture regressions cover status/category transitions, debounce/latest-wins, localization semantics, manual reload and
 stale full-refresh protection. Manual WPF acceptance is still required and remains intentionally unmarked.
 
-FIX-12 implementation head `b3e34d0d79a4efd39dd3817d19cd107a0f7af50c` passed CI **#189**; this evidence-documentation update is
-head `19d425463966f48fd2d4ba3ea847f853b1b05633` and passed CI **#191** (success).
+FIX-12 implementation head `b3e34d0d79a4efd39dd3817d19cd107a0f7af50c` passed CI **#189**; the final evidence-documentation
+head `47a21237f7296c002986807918c733fbc58e5858` passed CI **#193** (success).
 
 ### Acceptance mapping and remaining checks
 
