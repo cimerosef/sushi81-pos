@@ -44,7 +44,8 @@ Authorization: `milestone-03-authorization.md`.
   GitHub Actions Continuous integration run **#173** (success). The `M03-MANUAL-UI-OPTION-GROUP-LAYOUT-FIX-11`
   implementation/evidence head `2ad30a7d1a4d12c256fc274b808873ef1ff8278e` passed GitHub Actions Continuous integration run
   **#179** (success). The FIX-11 addendum alignment head `96f9330ceae21c0fc224c0eb9a6083ecfcebcc10` passed GitHub Actions
-  Continuous integration run **#183** (success).
+  Continuous integration run **#183** (success). The `M03-MANUAL-UI-LIVE-FILTER-FIX-12` implementation/evidence head
+  `b3e34d0d79a4efd39dd3817d19cd107a0f7af50c` passed GitHub Actions Continuous integration run **#189** (success).
 
 ## Remediation handoff `M03-REVIEW-FIX-02`
 
