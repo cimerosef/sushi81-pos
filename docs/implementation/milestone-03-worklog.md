@@ -184,12 +184,13 @@ option editors across French and zh-CN at normal and larger supported widths.
 
 The narrow layout fix removes the hardcoded selection-mode label width and uses an Auto / gap / Star Grid so the localized
 label receives its natural width while the ComboBox remains usable. Minimum/maximum fields and group actions now use
-content-sized WrapPanels; existing numeric TextBox widths and all editor semantics remain unchanged. No persistence,
-validation, localization-resource, or FIX-10 lifecycle/container behavior was changed.
+content-sized WrapPanels with a consistent peer-button margin/padding contract; OptionEditor action buttons use the same
+horizontal padding and margin alignment. Existing numeric TextBox widths and all editor semantics remain unchanged. No
+persistence, validation, localization-resource, or FIX-10 lifecycle/container behavior was changed.
 
 The regression is a real STA WPF modal-dialog test. It adds a group and option after rendering, verifies visible TextBlock
-natural widths against `ActualWidth` (with WPF margins accounted for) and enabled-button desired widths in French and zh-CN,
-then resizes the dialog and repeats the assertions. It closes through the existing safe test seam so no synthetic product write
+natural widths against `ActualWidth` (with WPF margins accounted for), enabled-button desired widths, and peer-button height
+spread in French and zh-CN, then resizes the dialog and repeats the assertions. It closes through the existing safe test seam so no synthetic product write
 occurs. The test covers SelectionMode, Required, min/max, group actions and option labels/actions in the actual visual tree.
 M03 remains Partial pending the operator rerun of the complete Windows/WPF checklist against the fixed artifact.
 

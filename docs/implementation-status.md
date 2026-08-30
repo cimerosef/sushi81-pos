@@ -348,9 +348,10 @@ acceptance is still required and remains intentionally unmarked.
 
 The follow-up `M03-MANUAL-UI-OPTION-GROUP-LAYOUT-FIX-11` addresses the next operator-reproduced clipping defect in the shown
 Product Editor. The fixed-width French SelectionMode label is replaced with an Auto/gap/Star Grid; min/max and group action
-rows are content-sized WrapPanels; option controls retain their approved input widths and behavior. A real STA WPF regression
+rows are content-sized WrapPanels with consistent peer-button margin/padding; OptionEditor action buttons use the same
+horizontal padding and margin alignment while retaining their approved input widths and behavior. A real STA WPF regression
 adds groups/options after render and asserts actual visual-tree widths against detached natural text DesiredSize and
-margin-aware button DesiredSize in both French and zh-CN at normal and resized dimensions. FIX-10 lifecycle, localization and
+margin-aware button DesiredSize plus peer-button height spread in both French and zh-CN at normal and resized dimensions. FIX-10 lifecycle, localization and
 safe Cancel/no-write behavior remain covered. The retrospective and complete fixed-width/action audit are recorded in the
 M03 worklog. Implementation/evidence head `2ad30a7d1a4d12c256fc274b808873ef1ff8278e` passed GitHub Actions Continuous
 integration run **#179** (success). Manual WPF acceptance is still required and remains intentionally unmarked.

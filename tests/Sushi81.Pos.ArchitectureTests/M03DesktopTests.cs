@@ -572,10 +572,12 @@ public sealed class M03DesktopTests
                         addOption.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                         dialog.UpdateLayout();
                         AssertWpfLayoutFits(firstBorder, cultureName, "option");
+                        AssertPeerButtonHeights(firstBorder, cultureName, "option");
                         dialog.Width = 900;
                         dialog.Height = 800;
                         dialog.UpdateLayout();
                         AssertWpfLayoutFits(firstBorder, cultureName, "large");
+                        AssertPeerButtonHeights(firstBorder, cultureName, "large");
                     }
                     catch (Exception ex)
                     {
@@ -662,6 +664,20 @@ public sealed class M03DesktopTests
             var naturalWidth = Math.Max(0, button.DesiredSize.Width - button.Margin.Left - button.Margin.Right);
             Assert.IsGreaterThanOrEqualTo(naturalWidth, actualWidth + 1.0,
                 $"{cultureName} {sizeName} Button '{button.Content}' is clipped: actual={actualWidth}, natural={naturalWidth}.");
+        }
+    }
+
+    private static void AssertPeerButtonHeights(DependencyObject root, string cultureName, string sizeName)
+    {
+        foreach (var peerGroup in VisualDescendants<Button>(root)
+            .Where(button => button.Visibility == Visibility.Visible && button.IsEnabled)
+            .GroupBy(button => button.Parent)
+            .Where(group => group.Count() >= 2))
+        {
+            var heights = peerGroup.Select(button => button.ActualHeight).ToArray();
+            var spread = heights.Max() - heights.Min();
+            Assert.IsGreaterThanOrEqualTo(-1.0, -spread,
+                $"{cultureName} {sizeName} peer buttons have inconsistent heights: spread={spread}; heights={string.Join(",", heights)}.");
         }
     }
 
