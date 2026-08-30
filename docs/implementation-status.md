@@ -386,7 +386,7 @@ unrelated-field preservation. No migration/schema change was made. Manual Window
 outstanding, so M03 and AC-CAT-013 remain `Partial` rather than `Passed`.
 
 Final extension head: `37ab7c5d156a7aa0b7aec90ffa3523fb6c75551f`; incorporated `main` at `4c971afda3ff5f2bc047f083bf962ee46d74f1f7`; CI
-run **#208** passed. The required default publish directory was occupied by the running desktop process; a self-contained
+run **#208** passed. Follow-up evidence-documentation head `4b67bc7e0787008deb5a5033ea941f265817c967` passed CI **#210**. The required default publish directory was occupied by the running desktop process; a self-contained
 `win-x64` publish with the same settings was generated successfully under ignored `artifacts/m03-extension-publish/` without
 terminating that process.
 

@@ -227,6 +227,7 @@ approval record. The current M03 branch first incorporated main `4c971afda3ff5f2
 FIX-12 evidence.
 
 Final extension head: `37ab7c5d156a7aa0b7aec90ffa3523fb6c75551f`; GitHub Actions Continuous integration run **#208** passed.
+The follow-up evidence-documentation head `4b67bc7e0787008deb5a5033ea941f265817c967` also passed CI **#210**.
 
 The implementation is deliberately narrow: `CatalogueService` validates an immutable Product-ID/expected-state request and
 delegates even all-no-op captures to the store's read-only preflight; `SqliteCatalogueStore` revalidates every target inside one transaction, skips already-target
