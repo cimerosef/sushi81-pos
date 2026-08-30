@@ -41,7 +41,9 @@ Authorization: `milestone-03-authorization.md`.
   matching PR completion evidence. The `M03-MANUAL-UI-CATALOGUE-HEADER-FIX-09` final head
   `9bd4e057400abe0110ae95fdeb84efed43eb80a4` passed GitHub Actions Continuous integration run **#157** (success). The
   `M03-MANUAL-UI-OPTION-GROUP-ADD-CRASH-FIX-10` implementation head `64dc110bd2d6c6b9a623d4c3ba487210e014c178` passed
-  GitHub Actions Continuous integration run **#173** (success).
+  GitHub Actions Continuous integration run **#173** (success). The `M03-MANUAL-UI-OPTION-GROUP-LAYOUT-FIX-11`
+  implementation/evidence head `2ad30a7d1a4d12c256fc274b808873ef1ff8278e` passed GitHub Actions Continuous integration run
+  **#179** (success).
 
 ## Remediation handoff `M03-REVIEW-FIX-02`
 
