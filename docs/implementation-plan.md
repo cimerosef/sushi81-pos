@@ -1,8 +1,8 @@
 # V1 implementation plan
 
-**Status:** Approved — Phase 6 baseline, amended 2026-08-28  
+**Status:** Approved — Phase 6 baseline, amended 2026-08-30  
 **Approval date:** 2026-08-27  
-**Latest amendment:** 2026-08-28  
+**Latest amendment:** 2026-08-30  
 **Product:** Sushi81 POS  
 **Purpose:** Define the controlled implementation sequence for the frozen-and-amended V1 Specification.
 
@@ -12,8 +12,8 @@ This plan is subordinate to the V1 Specification in:
 
 - `v1-specification-freeze.md`;
 - the Approved Phase 1–4 baseline documents and later approved amendments recorded in them;
-- the Approved records under `decisions/`;
-- `acceptance-criteria.md`;
+- Approved records under `decisions/`;
+- `acceptance-criteria.md` and approved acceptance amendments;
 - repository instructions in `../AGENTS.md`.
 
 This plan does not independently amend product behavior, business rules, architecture, logical data semantics, storage safety, printing or export contracts.
@@ -94,13 +94,19 @@ Primary acceptance preparation remains: amended `AC-STO-002` through `AC-STO-005
 
 Detailed authorized revalidation task definition: `implementation/milestone-02-directed-handoff-revalidation.md`.
 
-M03 remains unauthorized until the revalidation gate is successfully closed and M03 receives its own detailed task definition.
+M02 is now Passed and merged; its gate is closed by evidence.
 
 ### M03 — In-application catalogue and business settings
 
 Implement Category, Product, OptionGroup, Option and BusinessSettings persistence, domain validation and WPF maintenance workflows. Excel batch import/export remains out of scope.
 
-Primary acceptance ownership: `AC-CAT-001` through `AC-CAT-005`, `AC-ORD-011`. Historical-order portions close in M04.
+The approved 2026-08-30 catalogue amendment adds an M03 in-application workflow for atomic bulk Activate/Deactivate of the complete current code/name-search + category + status filtered Product result, with immutable target capture, explicit impact counts/confirmation, zero-change no-op behavior, preserved filters, localized UI and no bulk permanent deletion.
+
+Primary acceptance ownership: `AC-CAT-001` through `AC-CAT-005`, `AC-CAT-013`, `AC-ORD-011`. Historical-order portions close in M04.
+
+Detailed original M03 task definition: `implementation/milestone-03-catalogue-settings.md`.
+
+Detailed authorized extension: `implementation/milestone-03-filtered-bulk-activation-extension.md`.
 
 ### M04 — First complete order-entry vertical slice
 
@@ -196,6 +202,6 @@ M01 is `Passed` and was merged to `main` through PR #1 at merge commit `b8590d1d
 
 M02's original generic acquisition design correctly ended `BLOCKED — specification/architecture amendment required`; its evidence was merged through PR #2 at `5bacafa0e4ca906d8ff058e34586dee43503bc42`.
 
-The target-directed authority-handoff amendment is now Approved and incorporated into the V1 baseline. M02 amendment revalidation is explicitly authorized by `implementation/milestone-02-directed-handoff-revalidation.md`.
+The target-directed authority-handoff amendment was Approved and incorporated into the V1 baseline; amended M02 revalidation subsequently Passed and was merged.
 
-M02 amended revalidation is now `Passed` with the documented real two-device and isolated live-retention evidence. M03 and later milestones remain unauthorized until M03 receives its own separate detailed implementation contract and the user explicitly approves the transition; this M02 closure does not authorize M03.
+M03 is authorized and active on PR #5. Its original implementation and manual remediations through `M03-MANUAL-UI-LIVE-FILTER-FIX-12` have green automated evidence; FIX-12's live search/category/status filter behavior and FR ↔ zh-CN preservation were manually re-verified by the operator. M03 remains `Partial` because the approved 2026-08-30 filtered bulk activation/deactivation extension (AC-CAT-013) and the remaining M03 operator checklist must still be completed. PR #5 remains open/unmerged and M04 is not authorized.

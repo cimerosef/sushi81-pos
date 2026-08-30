@@ -1,8 +1,8 @@
 # V1 Specification freeze
 
-**Status:** Approved — Phase 5 baseline, amended 2026-08-28  
+**Status:** Approved — Phase 5 baseline, amended 2026-08-30  
 **Freeze date:** 2026-08-27  
-**Latest approved amendment:** 2026-08-28  
+**Latest approved amendment:** 2026-08-30  
 **Product:** Sushi81 POS  
 **Purpose:** Record completion of the V1 design/specification phase and establish the authoritative implementation baseline for the Codex implementation phase.
 
@@ -40,7 +40,7 @@ The implementation-authoritative V1 baseline is:
 
 - `order-lifecycle.md` — **Approved — Phase 2 baseline**.
 - `business-rules.md` — **Approved — Phase 2 baseline**.
-- `catalogue-management.md` — **Approved — Phase 2 baseline**.
+- `catalogue-management.md` — **Approved — Phase 2 baseline**, including the 2026-08-30 filtered bulk activation/deactivation amendment.
 
 ### Phase 3
 
@@ -57,6 +57,7 @@ The implementation-authoritative V1 baseline is:
 ### Phase 5
 
 - `acceptance-criteria.md` — **Approved — Phase 5 baseline (V1 Specification)**, including later approved amendments recorded in that document.
+- `acceptance-criteria-amendment-filtered-catalogue-bulk-activation.md` — **Approved 2026-08-30 V1 acceptance amendment**, defining AC-CAT-013 until the next consolidated acceptance-criteria rewrite.
 - this `v1-specification-freeze.md` record — **Approved — Phase 5 baseline**, with amendment log below.
 
 ## 3. Approved decision records incorporated into the V1 baseline
@@ -72,6 +73,7 @@ The following approved records under `docs/decisions/` materially constrain V1 a
 - `export-eligibility.md`;
 - `export-intermediate-file.md`;
 - `export-post-export-correction.md`;
+- `filtered-catalogue-bulk-activation.md` — **Approved 2026-08-30 V1 specification amendment**;
 - `hiboutik-paste-option-confirmation.md`;
 - `hiboutik-paste-simplification.md`;
 - `hiboutik-paste-total-calculation.md`;
@@ -159,9 +161,35 @@ The V1 normal-handoff model is therefore amended as follows:
 
 `architecture.md`, `storage-strategy.md` and `acceptance-criteria.md` are amended to contain these semantics directly. The approved GitHub transport amendment is recorded in `docs/decisions/github-handoff-transport.md`.
 
-M02 must re-verify the amended protocol before M03 can start.
+M02 revalidated the amended protocol before M03 began.
 
-## 8. Authority and conflict rule for implementation
+## 8. Post-freeze amendment — filtered catalogue bulk activation/deactivation (2026-08-30)
+
+During Phase 6 M03 interactive catalogue acceptance, the operator identified a practical current-catalogue maintenance gap: search/category/status filters could narrow the catalogue, but enabling or disabling the resulting products still required one-by-one edits.
+
+The user approved the amendment recorded in `docs/decisions/filtered-catalogue-bulk-activation.md` on 2026-08-30.
+
+V1 Catalogue maintenance is therefore amended as follows:
+
+- existing code/name search, category filter and Active/Inactive/All status filter compose as the bulk-selection boundary;
+- bulk Activate and bulk Deactivate target the complete current filtered result, not just visible viewport rows;
+- the action captures an immutable Product-ID/target-state snapshot before confirmation;
+- confirmation exposes matched and effective-change counts plus the target action;
+- already-target-state products are skipped;
+- zero effective changes perform no business write;
+- the required active-state changes are committed atomically as one business mutation;
+- stale/missing/conflicting captured products fail the complete operation rather than allowing partial success;
+- only Product active/inactive state may change;
+- historical snapshots and all unrelated current catalogue fields/options remain unchanged;
+- no bulk permanent-delete workflow is introduced;
+- successful completion refreshes the catalogue while preserving current filters;
+- all operator-facing additions are localized in French and Simplified Chinese.
+
+`catalogue-management.md` now contains these semantics directly. `acceptance-criteria-amendment-filtered-catalogue-bulk-activation.md` adds `AC-CAT-013` as an Approved acceptance amendment until the next consolidated rewrite of `acceptance-criteria.md`.
+
+M03 owns this extension; M04 remains gated until M03 including AC-CAT-013 is accepted and merged.
+
+## 9. Authority and conflict rule for implementation
 
 Codex and other implementation agents must use the frozen-and-amended GitHub specification rather than prior chat memory or legacy VBA behavior.
 
@@ -178,16 +206,16 @@ Pure implementation details that preserve all approved semantics may be selected
 
 **reliability > simplicity > maintainability > operational clarity > novelty.**
 
-## 9. Change-control rule after freeze
+## 10. Change-control rule after freeze
 
 The V1 Specification is a baseline, not an immutable historical artifact.
 
 A future necessary change is allowed, but any change that alters frozen product/business/architecture/data behavior must be treated as an explicit specification amendment and must update all affected baseline/acceptance documents consistently before the implementation is considered conformant.
 
-The 2026-08-28 target-directed authority-handoff amendment is the first post-freeze V1 amendment and demonstrates this process.
+The 2026-08-28 target-directed authority-handoff amendment and the 2026-08-30 filtered catalogue bulk activation/deactivation amendment demonstrate this process.
 
-## 10. Current exit condition
+## 11. Current exit condition
 
 **Phase 5 remains complete.**
 
-Phase 6 implementation is active. M01 is complete. M02 produced and documented the original OneDrive blocker, then received approved target-directed and GitHub transport amendments. GitHub transport revalidation is in progress and must complete before M03 may be authorized.
+Phase 6 implementation is active. M01 and M02 are complete. M03 Catalogue/BusinessSettings implementation is active on its controlled implementation PR; its original scope and manual remediations through FIX-12 have automated evidence green, but M03 remains Partial pending the newly approved filtered bulk activation/deactivation extension and the remaining operator acceptance checklist. M04 is not authorized.
