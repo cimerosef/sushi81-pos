@@ -101,7 +101,7 @@ public sealed class CatalogueApplicationTests
     }
 
     [TestMethod]
-    public async Task BulkActiveStateRequestReturnsCountsAndSkipsNoOpWithoutStoreWrite()
+    public async Task BulkActiveStateRequestReturnsCountsAndDoesNotWriteAllNoOp()
     {
         var store = new FakeCatalogueStore();
         var service = new CatalogueService(store);
@@ -120,7 +120,7 @@ public sealed class CatalogueApplicationTests
         var noOp = await service.BulkSetProductsActiveAsync(new BulkProductActiveStateRequest(true, [new(active, true)]));
         Assert.IsTrue(noOp.Succeeded, noOp.ErrorMessage);
         Assert.AreEqual(0, noOp.Value!.ChangedCount);
-        Assert.AreEqual(1, store.BulkCalls);
+        Assert.AreEqual(2, store.BulkCalls);
     }
 
     [TestMethod]

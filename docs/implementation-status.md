@@ -375,7 +375,8 @@ head `47a21237f7296c002986807918c733fbc58e5858` passed CI **#193** (success).
 ### AC-CAT-013 filtered bulk activation/deactivation extension
 
 The approved amendment and authorization are present on the branch. The Application boundary now validates immutable captured
-Product IDs/expected active states, computes matched/effective counts and avoids persistence for an all-no-op request. The SQLite
+Product IDs/expected active states, computes matched/effective counts and delegates all-no-op requests to a read-only transactional
+preflight with no UPDATE. The SQLite
 store revalidates all captures inside one transaction, skips already-target Products, uses one operation timestamp for changed rows,
 and rolls back on missing/stale targets or injected mid-operation failure; only `is_active` and changed-row `updated_at_utc` are written.
 The WPF shell exposes exactly localized bulk Activate/Deactivate actions, waits for the latest live/debounced composed filter result,

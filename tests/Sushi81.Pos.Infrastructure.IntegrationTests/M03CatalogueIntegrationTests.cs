@@ -279,6 +279,11 @@ public sealed class M03CatalogueIntegrationTests
             [new BulkProductActiveStateItem(first, false), new BulkProductActiveStateItem(second, true)]));
         Assert.IsFalse(stale.Succeeded);
         Assert.IsTrue((await service.ListProductsAsync()).All(product => product.IsActive));
+
+        var allNoOpWithMissingTarget = await service.BulkSetProductsActiveAsync(new BulkProductActiveStateRequest(true,
+            [new BulkProductActiveStateItem(first, true), new BulkProductActiveStateItem(Guid.NewGuid(), true)]));
+        Assert.IsFalse(allNoOpWithMissingTarget.Succeeded, "all-no-op captures still validate target existence");
+        Assert.IsTrue((await service.ListProductsAsync()).All(product => product.IsActive));
     }
 
     [TestMethod]

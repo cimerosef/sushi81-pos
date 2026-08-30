@@ -227,7 +227,7 @@ approval record. The current M03 branch first incorporated main `4c971afda3ff5f2
 FIX-12 evidence.
 
 The implementation is deliberately narrow: `CatalogueService` validates an immutable Product-ID/expected-state request and
-short-circuits all-no-op captures; `SqliteCatalogueStore` revalidates every target inside one transaction, skips already-target
+delegates even all-no-op captures to the store's read-only preflight; `SqliteCatalogueStore` revalidates every target inside one transaction, skips already-target
 products, applies one operation timestamp to changed rows and rolls back on missing/stale targets or injected failures. Only
 `is_active` and `updated_at_utc` of changed Products are written; aggregate fields and option hierarchies remain unchanged. The
 view-model waits for the latest live/debounced filter task before capturing the complete filtered result, and MainWindow presents

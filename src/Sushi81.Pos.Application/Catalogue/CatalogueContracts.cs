@@ -152,8 +152,6 @@ public sealed class CatalogueService(ICatalogueStore store)
         if (items.Count == 0) return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request is empty.", ValidationCodes.BulkRequestInvalid)));
         if (items.Any(item => item.ProductId == Guid.Empty)) return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request contains an invalid product.", ValidationCodes.BulkRequestInvalid)));
         if (items.Select(item => item.ProductId).Distinct().Count() != items.Count) return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request contains duplicate products.", ValidationCodes.BulkRequestInvalid)));
-        if (items.All(item => item.ExpectedIsActive == request.TargetIsActive))
-            return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Success(new BulkProductActiveStateResult(items.Count, 0)));
         return store.BulkSetProductsActiveAsync(request with { Items = items }, cancellationToken);
     }
     public Task<OperationResult> DeleteProductAsync(Guid id, CancellationToken cancellationToken = default) => store.DeleteProductAsync(id, cancellationToken);
