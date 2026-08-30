@@ -14,12 +14,14 @@ public sealed class SqliteCatalogueStore(
     SqliteConnectionFactory connectionFactory,
     ITransactionRunner transactionRunner,
     IIdGenerator idGenerator,
-    IBusinessClock clock) : ICatalogueStore
+    IBusinessClock clock,
+    Func<int, Exception?>? bulkWriteFailureInjector = null) : ICatalogueStore
 {
     private readonly SqliteConnectionFactory connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     private readonly ITransactionRunner transactionRunner = transactionRunner ?? throw new ArgumentNullException(nameof(transactionRunner));
     private readonly IIdGenerator idGenerator = idGenerator ?? throw new ArgumentNullException(nameof(idGenerator));
     private readonly IBusinessClock clock = clock ?? throw new ArgumentNullException(nameof(clock));
+    private readonly Func<int, Exception?>? bulkWriteFailureInjector = bulkWriteFailureInjector;
 
     public async Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default)
     {
@@ -194,6 +196,59 @@ public sealed class SqliteCatalogueStore(
         catch (SqliteException exception) when (IsConstraint(exception)) { return OperationResult.Failure(new ValidationIssue("product", "The product could not be updated.", ValidationCodes.Conflict)); }
     }
 
+    public async Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request is null || request.Items is null || request.Items.Count == 0)
+            return OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request is empty.", ValidationCodes.BulkRequestInvalid));
+        if (request.Items.Any(item => item.ProductId == Guid.Empty) || request.Items.Select(item => item.ProductId).Distinct().Count() != request.Items.Count)
+            return OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request contains invalid or duplicate products.", ValidationCodes.BulkRequestInvalid));
+
+        try
+        {
+            var result = await transactionRunner.ExecuteAsync(async (transaction, token) =>
+            {
+                var sqlite = RequireSqlite(transaction);
+                // Revalidate the entire immutable capture before attempting the first write.
+                foreach (var item in request.Items)
+                {
+                    var state = await ReadActiveStateAsync(sqlite, item.ProductId, token);
+                    if (state is null || state.Value != item.ExpectedIsActive)
+                        throw new CatalogueConflictException("The selected catalogue no longer matches the captured state.");
+                }
+
+                var effective = request.Items.Where(item => item.ExpectedIsActive != request.TargetIsActive).ToArray();
+                if (effective.Length == 0) return new BulkProductActiveStateResult(request.Items.Count, 0);
+
+                var operationTime = Format(clock.UtcNow);
+                var attempt = 0;
+                foreach (var item in effective)
+                {
+                    var injectedFailure = bulkWriteFailureInjector?.Invoke(++attempt);
+                    if (injectedFailure is not null) throw injectedFailure;
+                    var changed = await ExecuteAsync(sqlite,
+                        "UPDATE products SET is_active=$active, updated_at_utc=$updated WHERE product_id=$id AND is_active=$expected;",
+                        token,
+                        ("$active", request.TargetIsActive ? 1 : 0),
+                        ("$updated", operationTime),
+                        ("$id", item.ProductId.ToString()),
+                        ("$expected", item.ExpectedIsActive ? 1 : 0));
+                    if (changed != 1) throw new CatalogueConflictException("The selected catalogue no longer matches the captured state.");
+                }
+
+                return new BulkProductActiveStateResult(request.Items.Count, effective.Length);
+            }, cancellationToken);
+            return OperationResult<BulkProductActiveStateResult>.Success(result);
+        }
+        catch (CatalogueConflictException exception)
+        {
+            return OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", exception.Message, ValidationCodes.Conflict));
+        }
+        catch (SqliteException exception) when (IsConstraint(exception))
+        {
+            return OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The catalogue change conflicts with existing data.", ValidationCodes.Conflict));
+        }
+    }
+
     public async Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default)
     {
         if (productId == Guid.Empty) return OperationResult.Failure(new ValidationIssue("product", "The product no longer exists.", ValidationCodes.ProductMissing));
@@ -281,6 +336,16 @@ public sealed class SqliteCatalogueStore(
     private static async Task<bool> ExistsAsync(SqliteApplicationTransaction sqlite, string sql, CancellationToken token, params (string Name, object? Value)[] parameters)
     {
         await using var command = sqlite.Connection.CreateCommand(); command.Transaction = sqlite.Transaction; command.CommandText = sql; AddParameters(command, parameters); return await command.ExecuteScalarAsync(token) is not null;
+    }
+
+    private static async Task<bool?> ReadActiveStateAsync(SqliteApplicationTransaction sqlite, Guid productId, CancellationToken token)
+    {
+        await using var command = sqlite.Connection.CreateCommand();
+        command.Transaction = sqlite.Transaction;
+        command.CommandText = "SELECT is_active FROM products WHERE product_id=$id;";
+        command.Parameters.AddWithValue("$id", productId.ToString());
+        var value = await command.ExecuteScalarAsync(token);
+        return value is null or DBNull ? null : Convert.ToInt64(value, CultureInfo.InvariantCulture) == 1;
     }
 
     private static async Task<int> ExecuteAsync(SqliteApplicationTransaction sqlite, string sql, CancellationToken token, params (string Name, object? Value)[] parameters)

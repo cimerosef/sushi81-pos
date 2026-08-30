@@ -14,5 +14,7 @@ GitHub transport tests must validate strict Release Asset server receipts, exact
 
 M03 domain and infrastructure tests use isolated temporary SQLite databases and synthetic catalogue/settings values. They
 cover normalization and validation boundaries, migration 2/default singleton idempotence, aggregate transactionality,
-opaque identity preservation, deterministic option ordering, activation/deactivation, cascade deletion, code reuse and
-settings round-trip persistence.
+opaque identity preservation, deterministic option ordering, activation/deactivation, atomic filtered bulk activation/deactivation
+(including stale/missing rollback, injected failure rollback, timestamp and aggregate preservation), cascade deletion, code reuse
+and settings round-trip persistence. Desktop tests cover composed-filter capture/latest-debounce synchronization, immutable
+bulk snapshots, localized actions/confirmation resources, filter-state preservation and the absence of bulk deletion.

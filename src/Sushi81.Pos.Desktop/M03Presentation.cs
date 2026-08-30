@@ -7,6 +7,19 @@ namespace Sushi81.Pos.Desktop;
 /// <summary>Presentation-only helpers for M03 validation and editor state.</summary>
 public static class M03Presentation
 {
+    public sealed record BulkConfirmationModel(bool TargetIsActive, int MatchedCount, int ChangedCount)
+    {
+        public bool HasEffectiveChanges => ChangedCount > 0;
+
+        public string Format(IReadOnlyDictionary<string, string> localized)
+        {
+            ArgumentNullException.ThrowIfNull(localized);
+            var action = localized.GetValueOrDefault(TargetIsActive ? "Activate" : "Deactivate", TargetIsActive ? "Activate" : "Deactivate");
+            var template = localized.GetValueOrDefault("BulkConfirm", "{0} filtered products?\n\nMatched products: {1}\nEffective changes: {2}");
+            return string.Format(CultureInfo.CurrentCulture, template, action, MatchedCount, ChangedCount);
+        }
+    }
+
     public static string FormatIssues(OperationResult result, IReadOnlyDictionary<string, string> localized)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -32,6 +45,7 @@ public static class M03Presentation
             ValidationCodes.GroupStructure => "ValidationGroupStructure",
             ValidationCodes.OptionStructure => "ValidationOptionStructure",
             ValidationCodes.Conflict => "ValidationConflict",
+            ValidationCodes.BulkRequestInvalid => "ValidationGeneric",
             _ => issue.Field switch
             {
                 "code" or "name" or "product" or "groups" or "options" => "ValidationRequired",

@@ -86,6 +86,68 @@ public partial class MainWindow : Window
         if (!result.Succeeded) ShowResultError(result); else await admin.RefreshAsync();
     }
 
+    private async void OnBulkActivate(object sender, RoutedEventArgs e) => await RunBulkActiveStateAsync(targetIsActive: true);
+
+    private async void OnBulkDeactivate(object sender, RoutedEventArgs e) => await RunBulkActiveStateAsync(targetIsActive: false);
+
+    private async Task RunBulkActiveStateAsync(bool targetIsActive)
+    {
+        if (DataContext is not ShellViewModel { Admin: { } admin }) return;
+        BulkProductActiveStateRequest capture;
+        try
+        {
+            capture = await admin.CaptureBulkProductActiveStateAsync(targetIsActive);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch
+        {
+            ShowResultError(OperationResult.Failure(new ValidationIssue("products", "The catalogue could not be refreshed.")));
+            return;
+        }
+
+        var changedCount = capture.Items.Count(item => item.ExpectedIsActive != targetIsActive);
+        if (changedCount == 0)
+        {
+            MessageBox.Show(this, LocalizedText(this, "BulkNoChange", "No change is needed for the filtered products."),
+                LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var confirmation = new M03Presentation.BulkConfirmationModel(targetIsActive, capture.Items.Count, changedCount).Format(((ShellViewModel)DataContext).Localized);
+        if (MessageBox.Show(this, confirmation, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        OperationResult<BulkProductActiveStateResult> result;
+        try
+        {
+            result = await admin.BulkSetProductsActiveAsync(capture);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch
+        {
+            ShowResultError(OperationResult.Failure(new ValidationIssue("products", "The catalogue change could not be completed.")));
+            await admin.RefreshAsync();
+            return;
+        }
+        if (!result.Succeeded)
+        {
+            ShowResultError(result);
+            await admin.RefreshAsync();
+            return;
+        }
+
+        var changed = result.Value?.ChangedCount ?? changedCount;
+        MessageBox.Show(this, string.Format(CultureInfo.CurrentCulture, LocalizedText(this, "BulkSuccess", "{0} product(s) updated."), changed),
+            LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Information);
+        await admin.RefreshAsync();
+    }
+
     private async void OnDeleteProduct(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { Admin: { } admin } || admin.SelectedProduct is not { } product) return;

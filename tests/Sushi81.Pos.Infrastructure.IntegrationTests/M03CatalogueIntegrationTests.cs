@@ -179,6 +179,128 @@ public sealed class M03CatalogueIntegrationTests
         var result = await store.CreateProductAsync(invalid); Assert.IsFalse(result.Succeeded); Assert.IsEmpty(await service.ListProductsAsync()); Assert.AreEqual(0L, await ScalarAsync(factory, "SELECT COUNT(*) FROM option_groups;"));
     }
 
+    [TestMethod]
+    public async Task BulkActivationIsAtomicAndPreservesUnrelatedCatalogueData()
+    {
+        using var paths = new TempPaths();
+        var factory = await InitializeAsync(paths);
+        var clock = new SequenceClock();
+        var service = new CatalogueService(new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock));
+        var firstCategory = (await service.CreateCategoryAsync("Plats")).Value!;
+        var secondCategory = (await service.CreateCategoryAsync("Desserts")).Value!;
+        var optionDraft = new OptionGroupDraft(Guid.Empty, "Extras", SelectionMode.Multi, false, 0, 2, 0,
+            [new OptionDraft(Guid.Empty, "Plus", Money.FromCents(25), true, 0), new OptionDraft(Guid.Empty, "Sans", Money.Zero, false, 1)]);
+        var changedProduct = (await service.CreateProductAsync(new ProductDraft(Guid.Empty, "A", "Active", firstCategory.Id, Money.FromCents(1250), 10m, true, false, true, [optionDraft]))).Value!;
+        var alreadyInactive = (await service.CreateProductAsync(new ProductDraft(Guid.Empty, "B", "Inactive", firstCategory.Id, Money.FromCents(950), 5.5m, false, true, false, []))).Value!;
+        var secondChanged = (await service.CreateProductAsync(new ProductDraft(Guid.Empty, "C", "Dessert", secondCategory.Id, Money.FromCents(775), 20m, true, true, false, []))).Value!;
+        var beforeChanged = await ReadProductStateAsync(factory, changedProduct);
+        var beforeInactive = await ReadProductStateAsync(factory, alreadyInactive);
+        var beforeSecond = await ReadProductStateAsync(factory, secondChanged);
+        var beforeAggregate = await service.GetProductForEditAsync(changedProduct);
+        var schemaVersion = await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;");
+
+        var request = new BulkProductActiveStateRequest(false,
+            [new BulkProductActiveStateItem(changedProduct, true), new BulkProductActiveStateItem(alreadyInactive, false), new BulkProductActiveStateItem(secondChanged, true)]);
+        var result = await service.BulkSetProductsActiveAsync(request);
+
+        Assert.IsTrue(result.Succeeded, result.ErrorMessage);
+        Assert.AreEqual(3, result.Value!.MatchedCount);
+        Assert.AreEqual(2, result.Value.ChangedCount);
+        var afterChanged = await ReadProductStateAsync(factory, changedProduct);
+        var afterInactive = await ReadProductStateAsync(factory, alreadyInactive);
+        var afterSecond = await ReadProductStateAsync(factory, secondChanged);
+        Assert.IsFalse(afterChanged.IsActive);
+        Assert.IsFalse(afterSecond.IsActive);
+        Assert.IsFalse(afterInactive.IsActive);
+        Assert.AreEqual(afterChanged.UpdatedAt, afterSecond.UpdatedAt, "all changed products use one operation timestamp");
+        Assert.AreNotEqual(beforeChanged.UpdatedAt, afterChanged.UpdatedAt);
+        Assert.AreEqual(beforeInactive.UpdatedAt, afterInactive.UpdatedAt, "already-target product is not rewritten");
+        Assert.AreEqual(schemaVersion, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        var afterAggregate = await service.GetProductForEditAsync(changedProduct);
+        Assert.IsNotNull(beforeAggregate);
+        Assert.IsNotNull(afterAggregate);
+        Assert.AreEqual(beforeAggregate!.Id, afterAggregate!.Id);
+        Assert.AreEqual(beforeAggregate.Code, afterAggregate.Code);
+        Assert.AreEqual(beforeAggregate.Name, afterAggregate.Name);
+        Assert.AreEqual(beforeAggregate.CategoryId, afterAggregate.CategoryId);
+        Assert.AreEqual(beforeAggregate.PriceTtc, afterAggregate.PriceTtc);
+        Assert.AreEqual(beforeAggregate.VatRate, afterAggregate.VatRate);
+        Assert.IsFalse(afterAggregate.IsActive);
+        Assert.AreEqual(beforeAggregate.DiscountEligible, afterAggregate.DiscountEligible);
+        Assert.AreEqual(beforeAggregate.OptionsEnabled, afterAggregate.OptionsEnabled);
+        Assert.HasCount(beforeAggregate.Groups.Count, afterAggregate.Groups);
+        for (var i = 0; i < beforeAggregate.Groups.Count; i++)
+        {
+            var beforeGroup = beforeAggregate.Groups[i];
+            var afterGroup = afterAggregate.Groups[i];
+            Assert.AreEqual(beforeGroup.Id, afterGroup.Id);
+            Assert.AreEqual(beforeGroup.Name, afterGroup.Name);
+            Assert.AreEqual(beforeGroup.SelectionMode, afterGroup.SelectionMode);
+            Assert.AreEqual(beforeGroup.IsRequired, afterGroup.IsRequired);
+            Assert.AreEqual(beforeGroup.MinSelections, afterGroup.MinSelections);
+            Assert.AreEqual(beforeGroup.MaxSelections, afterGroup.MaxSelections);
+            Assert.AreEqual(beforeGroup.DisplayOrder, afterGroup.DisplayOrder);
+            Assert.HasCount(beforeGroup.Options.Count, afterGroup.Options);
+            for (var j = 0; j < beforeGroup.Options.Count; j++)
+            {
+                Assert.AreEqual(beforeGroup.Options[j], afterGroup.Options[j]);
+            }
+        }
+        Assert.AreEqual(beforeChanged with { IsActive = false, UpdatedAt = afterChanged.UpdatedAt }, afterChanged);
+        Assert.AreEqual(beforeSecond with { IsActive = false, UpdatedAt = afterSecond.UpdatedAt }, afterSecond);
+
+        var noOpBefore = await ReadProductStateAsync(factory, changedProduct);
+        var noOp = await service.BulkSetProductsActiveAsync(new BulkProductActiveStateRequest(false,
+            [new BulkProductActiveStateItem(changedProduct, false), new BulkProductActiveStateItem(alreadyInactive, false), new BulkProductActiveStateItem(secondChanged, false)]));
+        Assert.IsTrue(noOp.Succeeded, noOp.ErrorMessage);
+        Assert.AreEqual(3, noOp.Value!.MatchedCount);
+        Assert.AreEqual(0, noOp.Value.ChangedCount);
+        Assert.AreEqual(noOpBefore, await ReadProductStateAsync(factory, changedProduct), "all-no-op request must not rewrite timestamps");
+    }
+
+    [TestMethod]
+    public async Task BulkActivationMissingOrStaleTargetRollsBackEveryProduct()
+    {
+        using var paths = new TempPaths();
+        var factory = await InitializeAsync(paths);
+        var clock = new SequenceClock();
+        var service = new CatalogueService(new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock));
+        var category = (await service.CreateCategoryAsync("Plats")).Value!;
+        var first = (await service.CreateProductAsync(new ProductDraft(Guid.Empty, "A", "A", category.Id, Money.Zero, 10m, true, true, false, []))).Value!;
+        var second = (await service.CreateProductAsync(new ProductDraft(Guid.Empty, "B", "B", category.Id, Money.Zero, 10m, true, true, false, []))).Value!;
+        var before = await service.ListProductsAsync();
+
+        var missing = await service.BulkSetProductsActiveAsync(new BulkProductActiveStateRequest(false,
+            [new BulkProductActiveStateItem(first, true), new BulkProductActiveStateItem(Guid.NewGuid(), true)]));
+        Assert.IsFalse(missing.Succeeded);
+        CollectionAssert.AreEquivalent(before.Select(product => product.IsActive).ToArray(), (await service.ListProductsAsync()).Select(product => product.IsActive).ToArray());
+
+        var stale = await service.BulkSetProductsActiveAsync(new BulkProductActiveStateRequest(false,
+            [new BulkProductActiveStateItem(first, false), new BulkProductActiveStateItem(second, true)]));
+        Assert.IsFalse(stale.Succeeded);
+        Assert.IsTrue((await service.ListProductsAsync()).All(product => product.IsActive));
+    }
+
+    [TestMethod]
+    public async Task BulkActivationInjectedMidOperationFailureRollsBackEarlierUpdates()
+    {
+        using var paths = new TempPaths();
+        var factory = await InitializeAsync(paths);
+        var clock = new SequenceClock();
+        var setup = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var service = new CatalogueService(setup);
+        var category = (await service.CreateCategoryAsync("Plats")).Value!;
+        var first = (await service.CreateProductAsync(new ProductDraft(Guid.Empty, "A", "A", category.Id, Money.Zero, 10m, true, true, false, []))).Value!;
+        var second = (await service.CreateProductAsync(new ProductDraft(Guid.Empty, "B", "B", category.Id, Money.Zero, 10m, true, true, false, []))).Value!;
+        var failingStore = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock,
+            attempt => attempt == 2 ? new InvalidOperationException("synthetic injected failure") : null);
+        var failingService = new CatalogueService(failingStore);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await failingService.BulkSetProductsActiveAsync(new BulkProductActiveStateRequest(false,
+            [new BulkProductActiveStateItem(first, true), new BulkProductActiveStateItem(second, true)])));
+        Assert.IsTrue((await service.ListProductsAsync()).All(product => product.IsActive));
+    }
+
     private static async Task<SqliteConnectionFactory> InitializeAsync(IAppPaths paths)
     {
         var factory = new SqliteConnectionFactory(paths); await new SqliteMigrationRunner(factory, ProductionMigrations.All, new FixedClock()).InitializeAsync(); return factory;
@@ -186,7 +308,26 @@ public sealed class M03CatalogueIntegrationTests
     private static async Task<long> ScalarAsync(SqliteConnectionFactory factory, string sql) { await using var connection = await factory.OpenLiveConnectionAsync(); return await ScalarAsync(connection, sql); }
     private static async Task<long> ScalarAsync(SqliteConnection connection, string sql) { await using var command = connection.CreateCommand(); command.CommandText = sql; return Convert.ToInt64(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture); }
 
+    private static async Task<ProductState> ReadProductStateAsync(SqliteConnectionFactory factory, Guid productId)
+    {
+        await using var connection = await factory.OpenLiveConnectionAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT code,name,category_id,price_ttc_cents,vat_rate,is_active,discount_eligible,options_enabled,created_at_utc,updated_at_utc FROM products WHERE product_id=$id;";
+        command.Parameters.AddWithValue("$id", productId.ToString());
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.IsTrue(await reader.ReadAsync());
+        return new(productId, reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetInt64(3), reader.GetString(4), reader.GetInt64(5) == 1, reader.GetInt64(6) == 1, reader.GetInt64(7) == 1, reader.GetString(8), reader.GetString(9));
+    }
+
     private sealed class FixedClock : IBusinessClock { public DateTimeOffset UtcNow => new(2026, 8, 29, 12, 0, 0, TimeSpan.Zero); public DateOnly BusinessDate => new(2026, 8, 29); public TimeZoneInfo BusinessTimeZone => TimeZoneInfo.Utc; }
+    private sealed class SequenceClock : IBusinessClock
+    {
+        private int count;
+        public DateTimeOffset UtcNow => new DateTimeOffset(2026, 8, 29, 12, 0, count++, TimeSpan.Zero);
+        public DateOnly BusinessDate => new(2026, 8, 29);
+        public TimeZoneInfo BusinessTimeZone => TimeZoneInfo.Utc;
+    }
+    private sealed record ProductState(Guid Id, string Code, string Name, string CategoryId, long PriceCents, string Vat, bool IsActive, bool DiscountEligible, bool OptionsEnabled, string CreatedAt, string UpdatedAt);
     private sealed class DeterministicIds : IIdGenerator { private int count; public Guid NewId() => Guid.Parse($"00000000-0000-0000-0000-{Interlocked.Increment(ref count):D12}"); }
     private sealed class TempPaths : IAppPaths, IDisposable
     {

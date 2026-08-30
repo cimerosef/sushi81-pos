@@ -26,8 +26,8 @@ Authorization: `milestone-03-authorization.md`.
 
 - .NET SDK 10.0.400, Windows x64.
 - Release restore/build passed (0 warnings, 0 errors).
-- Release solution tests: **206 passed, 0 failed, 0 skipped**: Domain 10, Application 9, Infrastructure integration 30,
-  Architecture/localization 33, OneDrive protocol 32, and GitHub wrapper/harness 92.
+- Release solution tests: **215 passed, 0 failed, 0 skipped**: Domain 10, Application 11, Infrastructure integration 33,
+  Architecture/localization 37, OneDrive protocol 32, and GitHub wrapper/harness 92.
 - Self-contained `win-x64` publish passed with `PublishSingleFile=false`.
 - Post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run
   **#133** (success). The follow-up filter-state remediation head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` passed
@@ -218,6 +218,29 @@ clearing after a filter excludes it, debounced search, latest-wins behavior when
 French → zh-CN → French preservation, no duplicate query on language-only changes, manual force reload, and stale overlapping
 full-refresh protection. The test store and all values are synthetic. M03 remains Partial pending the operator rerun of the
 complete Windows/WPF checklist against the fixed artifact; M04 is not started.
+
+## Extension handoff `M03-FILTERED-BULK-ACTIVATION-EXT-13`
+
+The operator approved the filtered catalogue bulk activation/deactivation amendment after FIX-12 acceptance. The documentation-first
+step consolidated `AC-CAT-013` into `docs/acceptance-criteria.md` (amendment metadata 2026-08-30) while retaining the standalone
+approval record. The current M03 branch first incorporated main `4c971afda3ff5f2bc047f083bf962ee46d74f1f7` and preserved all prior
+FIX-12 evidence.
+
+The implementation is deliberately narrow: `CatalogueService` validates an immutable Product-ID/expected-state request and
+short-circuits all-no-op captures; `SqliteCatalogueStore` revalidates every target inside one transaction, skips already-target
+products, applies one operation timestamp to changed rows and rolls back on missing/stale targets or injected failures. Only
+`is_active` and `updated_at_utc` of changed Products are written; aggregate fields and option hierarchies remain unchanged. The
+view-model waits for the latest live/debounced filter task before capturing the complete filtered result, and MainWindow presents
+localized FR/zh-CN confirmation counts, cancellation/no-op behavior, automatic refresh and preserved filter semantics through exactly
+two bulk action buttons. No bulk Delete, migration or future-milestone UI was added.
+
+The operator journey was mapped as: settle composed filters → capture IDs/states → inspect localized target/matched/effective counts
+→ cancel or confirm → one atomic mutation → refresh without resetting filters. Automated Application, SQLite integration and STA/presentation
+seams cover request validation, exact capture, no-op behavior, stale/latest synchronization, all-or-nothing writes, timestamp/aggregate
+preservation, localization and no-bulk-delete structure. Final local Release verification for this extension is **215 passed, 0 failed,
+0 skipped** across Domain 10, Application 11, Infrastructure integration 33, Architecture/localization 37, OneDrive protocol 32 and
+GitHub wrapper/harness 92. Manual Windows/WPF acceptance remains outstanding; this automation run did not perform an interactive desktop
+session. M03 remains Partial and M04 remains not started/unauthorized. `POST_TASK_POWER_ACTION: NONE`.
 
 ## Outstanding
 

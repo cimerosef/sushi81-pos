@@ -1,11 +1,11 @@
 # V1 acceptance criteria
 
-**Status:** Approved — Phase 5 baseline (V1 Specification), amended 2026-08-28  
-**Last updated:** 2026-08-28  
+**Status:** Approved — Phase 5 baseline (V1 Specification), amended 2026-08-30
+**Last updated:** 2026-08-30
 **Product:** Sushi81 POS  
 **Purpose:** Convert the approved V1 product, business, lifecycle, catalogue, data, storage, architecture, paste-import, printing and export specifications into verifiable implementation acceptance criteria.
 
-**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below. `docs/decisions/github-handoff-transport.md` makes a dedicated private GitHub Release Asset API the normal handoff transport and server acknowledgement path; OneDrive remains separately approved for recovery/archive only.
+**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below. `docs/decisions/github-handoff-transport.md` makes a dedicated private GitHub Release Asset API the normal handoff transport and server acknowledgement path; OneDrive remains separately approved for recovery/archive only. `docs/decisions/filtered-catalogue-bulk-activation.md` adds AC-CAT-013 for filtered current-catalogue bulk activation/deactivation.
 
 ## 1. Acceptance principle
 
@@ -146,6 +146,12 @@ Removing a row from the workbook never implies permanent deletion from the live 
 After an order is confirmed, later changes to product code/name/category/price/VAT/discount eligibility/options/active state or catalogue deletion do not change historical order viewing, printing or export values.
 
 **Evidence:** persistence snapshot regression test.
+
+### AC-CAT-013 — Filtered bulk activation/deactivation
+
+**Given** the operator is in the in-application Catalogue maintenance area and has any combination of code/name keyword search, category filter and Active/Inactive/All status filter, **when** the operator invokes bulk Activate or bulk Deactivate, **then** the complete current filtered Product result is captured before confirmation and the target action, matched count and effective-change count are shown. Products already in the requested state are skipped; zero effective changes perform no business write; explicit confirmation is required; all effective changes commit atomically or none commit; missing/stale/conflicting captured Products fail completely without partial state changes; only Product active state and its normal updated timestamp for changed Products may change; historical snapshots and all other catalogue fields remain unchanged; the catalogue refreshes while preserving filter values; and French and Simplified Chinese labels/messages are available without translating catalogue business data.
+
+**Evidence:** Application request/count/no-op tests; SQLite atomicity, stale/missing rollback, timestamp and aggregate-preservation integration tests; WPF/presentation capture, synchronization, confirmation, refresh, localization and no-bulk-delete tests; manual Windows/WPF checklist.
 
 ## 4. Order creation and business rules
 

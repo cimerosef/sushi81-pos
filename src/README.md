@@ -16,5 +16,5 @@ Do not implement speculative features or alter frozen business/architecture sema
 Normal handoff transport is the dedicated private GitHub Release Asset API defined by `../docs/decisions/github-handoff-transport.md`; the historical OneDrive diagnostics are not a source of write authority.
 
 M03 production code is intentionally limited to Categories, Products, structured OptionGroups/Options, the singleton
-BusinessSettings contract, SQLite migration 2, and the localized two-destination WPF maintenance shell. Order entry,
+BusinessSettings contract, atomic filtered bulk Product activation/deactivation, SQLite migration 2, and the localized two-destination WPF maintenance shell. Order entry,
 pricing, payments, printing, imports/exports, handoff UI and recovery workflows remain in their authorized milestones.

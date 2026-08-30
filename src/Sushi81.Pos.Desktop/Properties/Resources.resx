@@ -84,4 +84,12 @@
   <data name="KeepEditing" xml:space="preserve"><value>Continuer la modification</value></data>
   <data name="OptionName" xml:space="preserve"><value>Nom du choix</value></data>
   <data name="OptionActive" xml:space="preserve"><value>Choix actif</value></data>
+  <data name="BulkActivate" xml:space="preserve"><value>Activer les résultats filtrés</value></data>
+  <data name="BulkDeactivate" xml:space="preserve"><value>Désactiver les résultats filtrés</value></data>
+  <data name="BulkConfirm" xml:space="preserve"><value>{0} les produits filtrés ?
+
+Produits correspondants : {1}
+Changements effectifs : {2}</value></data>
+  <data name="BulkNoChange" xml:space="preserve"><value>Aucun changement n’est nécessaire pour les produits filtrés.</value></data>
+  <data name="BulkSuccess" xml:space="preserve"><value>{0} produit(s) mis à jour.</value></data>
 </root>

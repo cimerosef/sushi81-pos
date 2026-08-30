@@ -100,12 +100,53 @@ public sealed class CatalogueApplicationTests
         Assert.AreEqual(1, store.SetActiveCalls); Assert.AreEqual(1, store.DeleteCalls);
     }
 
+    [TestMethod]
+    public async Task BulkActiveStateRequestReturnsCountsAndSkipsNoOpWithoutStoreWrite()
+    {
+        var store = new FakeCatalogueStore();
+        var service = new CatalogueService(store);
+        var active = Guid.NewGuid();
+        var inactive = Guid.NewGuid();
+        var request = new BulkProductActiveStateRequest(true,
+            [new BulkProductActiveStateItem(active, true), new BulkProductActiveStateItem(inactive, false)]);
+
+        var result = await service.BulkSetProductsActiveAsync(request);
+
+        Assert.IsTrue(result.Succeeded, result.ErrorMessage);
+        Assert.AreEqual(2, result.Value!.MatchedCount);
+        Assert.AreEqual(1, result.Value.ChangedCount);
+        Assert.AreEqual(1, store.BulkCalls);
+
+        var noOp = await service.BulkSetProductsActiveAsync(new BulkProductActiveStateRequest(true, [new(active, true)]));
+        Assert.IsTrue(noOp.Succeeded, noOp.ErrorMessage);
+        Assert.AreEqual(0, noOp.Value!.ChangedCount);
+        Assert.AreEqual(1, store.BulkCalls);
+    }
+
+    [TestMethod]
+    public async Task BulkActiveStateRejectsDuplicateAndInvalidIdsDeterministically()
+    {
+        var store = new FakeCatalogueStore();
+        var service = new CatalogueService(store);
+        var id = Guid.NewGuid();
+
+        var duplicate = await service.BulkSetProductsActiveAsync(new BulkProductActiveStateRequest(false, [new(id, true), new(id, true)]));
+        Assert.IsFalse(duplicate.Succeeded);
+        Assert.AreEqual(ValidationCodes.BulkRequestInvalid, duplicate.Issues[0].StableCode);
+
+        var invalid = await service.BulkSetProductsActiveAsync(new BulkProductActiveStateRequest(false, [new(Guid.Empty, true)]));
+        Assert.IsFalse(invalid.Succeeded);
+        Assert.AreEqual(ValidationCodes.BulkRequestInvalid, invalid.Issues[0].StableCode);
+        Assert.AreEqual(0, store.BulkCalls);
+    }
+
     private sealed class FakeCatalogueStore : ICatalogueStore
     {
         public int CreateProductCalls { get; private set; }
         public int UpdateProductCalls { get; private set; }
         public int SetActiveCalls { get; private set; }
         public int DeleteCalls { get; private set; }
+        public int BulkCalls { get; private set; }
         public Guid LastUpdateId { get; private set; }
         public ProductDraft LastDraft { get; private set; } = null!;
         public Guid CreatedProductId { get; init; } = Guid.NewGuid();
@@ -118,6 +159,7 @@ public sealed class CatalogueApplicationTests
         public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) { CreateProductCalls++; LastDraft = draft; return Task.FromResult(OperationResult<Guid>.Success(CreatedProductId)); }
         public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) { UpdateProductCalls++; LastUpdateId = productId; LastDraft = draft; return Task.FromResult(OperationResult.Success()); }
         public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) { SetActiveCalls++; return Task.FromResult(OperationResult.Success()); }
+        public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default) { BulkCalls++; return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Success(new(request.Items.Count, request.Items.Count(item => item.ExpectedIsActive != request.TargetIsActive)))); }
         public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) { DeleteCalls++; return Task.FromResult(OperationResult.Success()); }
     }
 

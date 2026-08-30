@@ -19,6 +19,7 @@ public static class ValidationCodes
     public const string InvalidNumber = "invalid-number";
     public const string Busy = "busy";
     public const string Conflict = "conflict";
+    public const string BulkRequestInvalid = "bulk-request-invalid";
 
     public static string Infer(string message) => message switch
     {
@@ -106,6 +107,14 @@ public sealed record ProductDraft(
     bool OptionsEnabled,
     IReadOnlyList<OptionGroupDraft> Groups);
 
+public sealed record BulkProductActiveStateItem(Guid ProductId, bool ExpectedIsActive);
+
+public sealed record BulkProductActiveStateRequest(
+    bool TargetIsActive,
+    IReadOnlyList<BulkProductActiveStateItem> Items);
+
+public sealed record BulkProductActiveStateResult(int MatchedCount, int ChangedCount);
+
 public interface ICatalogueQueries
 {
     Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default);
@@ -120,6 +129,7 @@ public interface ICatalogueStore : ICatalogueQueries
     Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default);
     Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default);
     Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default);
+    Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default);
     Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default);
 }
 
@@ -135,6 +145,17 @@ public sealed class CatalogueService(ICatalogueStore store)
     public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => ValidateAndCreateAsync(draft, cancellationToken);
     public Task<OperationResult> UpdateProductAsync(Guid id, ProductDraft draft, CancellationToken cancellationToken = default) => ValidateAndUpdateAsync(id, draft, cancellationToken);
     public Task<OperationResult> SetProductActiveAsync(Guid id, bool active, CancellationToken cancellationToken = default) => store.SetProductActiveAsync(id, active, cancellationToken);
+    public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request is null) return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request is invalid.", ValidationCodes.BulkRequestInvalid)));
+        var items = request.Items ?? [];
+        if (items.Count == 0) return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request is empty.", ValidationCodes.BulkRequestInvalid)));
+        if (items.Any(item => item.ProductId == Guid.Empty)) return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request contains an invalid product.", ValidationCodes.BulkRequestInvalid)));
+        if (items.Select(item => item.ProductId).Distinct().Count() != items.Count) return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request contains duplicate products.", ValidationCodes.BulkRequestInvalid)));
+        if (items.All(item => item.ExpectedIsActive == request.TargetIsActive))
+            return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Success(new BulkProductActiveStateResult(items.Count, 0)));
+        return store.BulkSetProductsActiveAsync(request with { Items = items }, cancellationToken);
+    }
     public Task<OperationResult> DeleteProductAsync(Guid id, CancellationToken cancellationToken = default) => store.DeleteProductAsync(id, cancellationToken);
 
     private async Task<OperationResult<Guid>> ValidateAndCreateAsync(ProductDraft draft, CancellationToken cancellationToken)

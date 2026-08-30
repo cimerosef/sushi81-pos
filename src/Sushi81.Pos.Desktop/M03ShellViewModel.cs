@@ -19,6 +19,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     private string searchText = string.Empty;
     private string activeFilter = "All";
     private bool isBusy;
+    private bool mutationBusy;
     private BusinessSettings? loadedSettings;
     private string activateLabel = "Activate";
     private string deactivateLabel = "Deactivate";
@@ -177,9 +178,14 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     public bool CanEditProduct => SelectedProduct is not null && !IsBusy;
     public bool CanDeleteProduct => SelectedProduct is not null && !IsBusy;
     public bool CanToggleProduct => SelectedProduct is not null && !IsBusy;
+    public bool CanBulkActivate => !IsBusy && Products.Any(product => !product.IsActive);
+    public bool CanBulkDeactivate => !IsBusy && Products.Any(product => product.IsActive);
+    public int FilteredProductCount => Products.Count;
+    public int FilteredProductsToActivateCount => Products.Count(product => !product.IsActive);
+    public int FilteredProductsToDeactivateCount => Products.Count(product => product.IsActive);
     public string ToggleProductActionLabel => SelectedProduct?.IsActive == true ? deactivateLabel : activateLabel;
     public bool HasProducts => Products.Count > 0;
-    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanEditProduct)); OnPropertyChanged(nameof(CanDeleteProduct)); OnPropertyChanged(nameof(CanToggleProduct)); OnPropertyChanged(nameof(ToggleProductActionLabel)); } }
+    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanEditProduct)); OnPropertyChanged(nameof(CanDeleteProduct)); OnPropertyChanged(nameof(CanToggleProduct)); OnPropertyChanged(nameof(CanBulkActivate)); OnPropertyChanged(nameof(CanBulkDeactivate)); OnPropertyChanged(nameof(ToggleProductActionLabel)); } }
 
     public string PickupDiscountRateText { get; set; } = "10";
     public string PickupDiscountMinText { get; set; } = "15.00";
@@ -218,10 +224,21 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ToggleProductActionLabel));
     }
 
-    public async Task RefreshAsync(CancellationToken cancellationToken = default)
+    public Task RefreshAsync(CancellationToken cancellationToken = default)
     {
         var request = BeginRefreshRequest(isFullRefresh: true, cancellationToken);
         IsBusy = true;
+        var task = ExecuteRefreshAsync(request, cancellationToken);
+        lock (filterRefreshLock)
+        {
+            if (request.Version == filterRefreshVersion && ReferenceEquals(filterRefreshCancellation, request.Cancellation))
+                filterRefreshTask = task;
+        }
+        return task;
+    }
+
+    private async Task ExecuteRefreshAsync(RefreshRequest request, CancellationToken cancellationToken)
+    {
         try
         {
             var categories = await catalogue.ListCategoriesAsync(request.Cancellation.Token);
@@ -251,7 +268,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
             request.Cancellation.Token.ThrowIfCancellationRequested();
             if (!IsCurrentRequest(request)) return;
             Products.Clear(); foreach (var product in products) Products.Add(product);
-            OnPropertyChanged(nameof(HasProducts));
+            NotifyProductFilterProperties();
             if (SelectedProduct is not null) SelectedProduct = Products.FirstOrDefault(product => product.Id == SelectedProduct.Id);
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
@@ -286,7 +303,13 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         }
         catch
         {
-            if (IsCurrentRequest(request)) FilterRefreshFailed?.Invoke(this, EventArgs.Empty);
+            if (IsCurrentRequest(request))
+            {
+                // Do not leave an older result actionable after a failed filter query.
+                Products.Clear();
+                NotifyProductFilterProperties();
+                FilterRefreshFailed?.Invoke(this, EventArgs.Empty);
+            }
         }
         finally
         {
@@ -301,7 +324,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         if (!IsCurrentRequest(request)) return;
         Products.Clear();
         foreach (var product in products) Products.Add(product);
-        OnPropertyChanged(nameof(HasProducts));
+        NotifyProductFilterProperties();
         if (SelectedProduct is not null) SelectedProduct = Products.FirstOrDefault(product => product.Id == SelectedProduct.Id);
     }
 
@@ -316,7 +339,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
             filterRefreshCancellation = cancellation;
             request = new(++filterRefreshVersion, CaptureFilterSnapshot(), cancellation, isFullRefresh);
         }
-        if (!isFullRefresh && IsBusy) IsBusy = false;
+        if (!isFullRefresh && IsBusy && !mutationBusy) IsBusy = false;
         return request;
     }
 
@@ -371,6 +394,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     public async Task<OperationResult> SaveSettingsAsync(CancellationToken cancellationToken = default)
     {
         if (IsBusy) return OperationResult.Failure(new ValidationIssue("settings", "A settings save is already in progress."));
+        mutationBusy = true;
         IsBusy = true;
         try
         {
@@ -390,7 +414,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
             if (result.Succeeded) loadedSettings = updated;
             return result;
         }
-        finally { IsBusy = false; }
+        finally { mutationBusy = false; IsBusy = false; }
     }
 
     public Task<ProductDraft?> LoadProductAsync(Guid id, CancellationToken cancellationToken = default) => catalogue.GetProductForEditAsync(id, cancellationToken);
@@ -399,7 +423,52 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => catalogue.CreateCategoryAsync(name, cancellationToken);
     public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid id, string name, CancellationToken cancellationToken = default) => catalogue.RenameCategoryAsync(id, name, cancellationToken);
     public Task<OperationResult> SetProductActiveAsync(Guid id, bool active, CancellationToken cancellationToken = default) => catalogue.SetProductActiveAsync(id, active, cancellationToken);
+    public async Task<BulkProductActiveStateRequest> CaptureBulkProductActiveStateAsync(bool targetIsActive, CancellationToken cancellationToken = default)
+    {
+        await WaitForLatestFilterRefreshAsync(cancellationToken);
+        // ProductSummary is immutable; copying the IDs and expected states creates the
+        // confirmation snapshot that cannot be retargeted by later filter changes.
+        var items = Products.Select(product => new BulkProductActiveStateItem(product.Id, product.IsActive)).ToArray();
+        return new BulkProductActiveStateRequest(targetIsActive, items);
+    }
+    public async Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default)
+    {
+        if (IsBusy) return OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "A catalogue operation is already in progress.", ValidationCodes.Busy));
+        mutationBusy = true;
+        IsBusy = true;
+        try { return await catalogue.BulkSetProductsActiveAsync(request, cancellationToken); }
+        finally { mutationBusy = false; IsBusy = false; }
+    }
     public Task<OperationResult> DeleteProductAsync(Guid id, CancellationToken cancellationToken = default) => catalogue.DeleteProductAsync(id, cancellationToken);
+
+    private async Task WaitForLatestFilterRefreshAsync(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            Task task;
+            long version;
+            lock (filterRefreshLock)
+            {
+                task = filterRefreshTask;
+                version = filterRefreshVersion;
+            }
+            await task.WaitAsync(cancellationToken);
+            lock (filterRefreshLock)
+            {
+                if (version == filterRefreshVersion && ReferenceEquals(task, filterRefreshTask)) return;
+            }
+        }
+    }
+
+    private void NotifyProductFilterProperties()
+    {
+        OnPropertyChanged(nameof(HasProducts));
+        OnPropertyChanged(nameof(FilteredProductCount));
+        OnPropertyChanged(nameof(FilteredProductsToActivateCount));
+        OnPropertyChanged(nameof(FilteredProductsToDeactivateCount));
+        OnPropertyChanged(nameof(CanBulkActivate));
+        OnPropertyChanged(nameof(CanBulkDeactivate));
+    }
 
     private void RestoreCategorySelection(Guid categoryId)
     {

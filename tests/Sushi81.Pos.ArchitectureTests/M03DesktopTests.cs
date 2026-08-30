@@ -397,6 +397,52 @@ public sealed class M03DesktopTests
     }
 
     [TestMethod]
+    public async Task BulkCaptureWaitsForLatestDebouncedComposedFilterAndUsesExactIds()
+    {
+        var first = new CategorySummary(Guid.NewGuid(), "Plats");
+        var second = new CategorySummary(Guid.NewGuid(), "Desserts");
+        var firstActive = Product("P-A", "Active dish", first, true);
+        var firstInactive = Product("P-I", "Inactive dish", first, false);
+        var secondActive = Product("D-A", "Active dessert", second, true);
+        var store = new LiveFilterCatalogueStore(new[] { first, second }, firstActive, firstInactive, secondActive);
+        var viewModel = NewLiveFilterViewModel(store);
+        await viewModel.RefreshAsync();
+
+        // Search remains debounced while category and status changes schedule immediate
+        // refreshes. Capture must wait for the final composed request, not stale Products.
+        viewModel.SearchText = "dish";
+        viewModel.SelectedCategoryId = first.Id;
+        viewModel.SelectedStatusKey = "Active";
+        var capture = await viewModel.CaptureBulkProductActiveStateAsync(false);
+
+        Assert.HasCount(1, capture.Items);
+        Assert.AreEqual(firstActive.Id, capture.Items[0].ProductId);
+        Assert.IsTrue(capture.Items[0].ExpectedIsActive);
+    }
+
+    [TestMethod]
+    public async Task BulkCaptureIsImmutableAcrossLaterFilterChangesAndEnablementReflectsTargetState()
+    {
+        var category = new CategorySummary(Guid.NewGuid(), "Plats");
+        var active = Product("A", "Active", category, true);
+        var inactive = Product("I", "Inactive", category, false);
+        var store = new LiveFilterCatalogueStore(new[] { category }, active, inactive);
+        var viewModel = NewLiveFilterViewModel(store);
+        await viewModel.RefreshAsync();
+
+        Assert.IsTrue(viewModel.CanBulkActivate);
+        Assert.IsTrue(viewModel.CanBulkDeactivate);
+        var capture = await viewModel.CaptureBulkProductActiveStateAsync(false);
+        viewModel.SelectedStatusKey = "Inactive";
+        await viewModel.FilterRefreshTask;
+
+        Assert.HasCount(2, capture.Items);
+        CollectionAssert.AreEquivalent(new[] { active.Id, inactive.Id }, capture.Items.Select(item => item.ProductId).ToArray());
+        Assert.IsTrue(viewModel.CanBulkActivate);
+        Assert.IsFalse(viewModel.CanBulkDeactivate);
+    }
+
+    [TestMethod]
     public async Task OlderFullRefreshCannotCommitStaleCategoriesOrClearBusyForLatestRefresh()
     {
         var first = new CategorySummary(Guid.NewGuid(), "Plats");
@@ -487,8 +533,48 @@ public sealed class M03DesktopTests
     {
         var fr = new ShellViewModel(new InMemorySelectedCultureStore(), true);
         var store = new InMemorySelectedCultureStore(); var zh = new ShellViewModel(store, true); await zh.ChangeLanguageAsync(zh.Languages.Single(language => language.CultureName == "zh-CN"));
-        var required = new[] { "Catalogue", "Settings", "All", "Active", "Inactive", "ValidationInvalidNumber", "ValidationCategoryDuplicate", "OptionName", "OptionActive" };
+        var required = new[] { "Catalogue", "Settings", "All", "Active", "Inactive", "BulkActivate", "BulkDeactivate", "BulkConfirm", "BulkNoChange", "BulkSuccess", "ValidationInvalidNumber", "ValidationCategoryDuplicate", "OptionName", "OptionActive" };
         foreach (var key in required) { Assert.IsTrue(fr.Localized.ContainsKey(key)); Assert.IsTrue(zh.Localized.ContainsKey(key)); }
+    }
+
+    [TestMethod]
+    public async Task BulkActionsAreLocalizedAndThereIsNoBulkDeleteControl()
+    {
+        var fr = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+        var zh = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+        await zh.ChangeLanguageAsync(zh.Languages.Single(language => language.CultureName == "zh-CN"));
+        Assert.AreEqual("Activer les résultats filtrés", fr.Localized["BulkActivate"]);
+        Assert.AreEqual("批量启用筛选结果", zh.Localized["BulkActivate"]);
+        Assert.AreEqual("Désactiver les résultats filtrés", fr.Localized["BulkDeactivate"]);
+        Assert.AreEqual("批量停用筛选结果", zh.Localized["BulkDeactivate"]);
+
+        var xaml = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml"));
+        Assert.AreEqual(1, xaml.Split("Localized[BulkActivate]", StringSplitOptions.None).Length - 1);
+        Assert.AreEqual(1, xaml.Split("Localized[BulkDeactivate]", StringSplitOptions.None).Length - 1);
+        Assert.IsFalse(xaml.Contains("BulkDelete", StringComparison.Ordinal));
+        var codeBehind = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml.cs"));
+        StringAssert.Contains(codeBehind, "OnBulkActivate");
+        StringAssert.Contains(codeBehind, "OnBulkDeactivate");
+    }
+
+    [TestMethod]
+    public async Task BulkConfirmationModelFormatsActionCountsAndNoOpStateForBothLanguages()
+    {
+        var fr = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+        var zh = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+        await zh.ChangeLanguageAsync(zh.Languages.Single(language => language.CultureName == "zh-CN"));
+
+        var activate = new M03Presentation.BulkConfirmationModel(TargetIsActive: true, MatchedCount: 5, ChangedCount: 3);
+        StringAssert.Contains(activate.Format(fr.Localized), "Activer les produits filtrés");
+        StringAssert.Contains(activate.Format(fr.Localized), "Produits correspondants : 5");
+        StringAssert.Contains(activate.Format(fr.Localized), "Changements effectifs : 3");
+        StringAssert.Contains(activate.Format(zh.Localized), "启用筛选结果中的商品");
+        StringAssert.Contains(activate.Format(zh.Localized), "匹配商品数：5");
+        StringAssert.Contains(activate.Format(zh.Localized), "实际变更数：3");
+
+        var noOp = new M03Presentation.BulkConfirmationModel(TargetIsActive: false, MatchedCount: 2, ChangedCount: 0);
+        Assert.IsFalse(noOp.HasEffectiveChanges);
+        StringAssert.Contains(noOp.Format(fr.Localized), "Désactiver les produits filtrés");
     }
 
     [TestMethod]
@@ -853,6 +939,7 @@ public sealed class M03DesktopTests
         public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) { CreateProductCalls++; return Task.FromResult(OperationResult<Guid>.Success(Guid.NewGuid())); }
         public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
         public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<BulkProductActiveStateResult>.Success(new(request.Items.Count, request.Items.Count(item => item.ExpectedIsActive != request.TargetIsActive))));
         public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
     }
 
@@ -869,6 +956,7 @@ public sealed class M03DesktopTests
         public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<Guid>.Success(Guid.NewGuid()));
         public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
         public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<BulkProductActiveStateResult>.Success(new(request.Items.Count, request.Items.Count(item => item.ExpectedIsActive != request.TargetIsActive))));
         public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
     }
 
@@ -935,6 +1023,8 @@ public sealed class M03DesktopTests
         public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<Guid>.Success(Guid.NewGuid()));
         public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
         public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default)
+            => Task.FromResult(OperationResult<BulkProductActiveStateResult>.Success(new(request.Items.Count, request.Items.Count(item => item.ExpectedIsActive != request.TargetIsActive))));
         public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
 
         public sealed record ProductQuery(string Search, Guid? CategoryId, bool? Active);

@@ -46,8 +46,10 @@
           <WrapPanel Grid.Row="2" Margin="0,10,0,0">
             <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding DataContext.Localized[NewProduct], RelativeSource={RelativeSource AncestorType=Window}}" Click="OnNewProduct" />
             <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding DataContext.Localized[Edit], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanEditProduct}" Click="OnEditProduct" />
-            <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding ToggleProductActionLabel}" IsEnabled="{Binding CanToggleProduct}" Click="OnToggleProduct" />
-            <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding DataContext.Localized[DeletePermanently], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanDeleteProduct}" Click="OnDeleteProduct" />
+             <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding ToggleProductActionLabel}" IsEnabled="{Binding CanToggleProduct}" Click="OnToggleProduct" />
+             <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding DataContext.Localized[BulkActivate], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanBulkActivate}" Click="OnBulkActivate" />
+             <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding DataContext.Localized[BulkDeactivate], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanBulkDeactivate}" Click="OnBulkDeactivate" />
+             <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding DataContext.Localized[DeletePermanently], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanDeleteProduct}" Click="OnDeleteProduct" />
             <Button Padding="12,4" Content="{Binding DataContext.Localized[ManageCategories], RelativeSource={RelativeSource AncestorType=Window}}" Click="OnManageCategories" />
           </WrapPanel>
         </Grid>

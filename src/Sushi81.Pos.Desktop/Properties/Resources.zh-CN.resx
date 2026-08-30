@@ -84,4 +84,12 @@
   <data name="KeepEditing" xml:space="preserve"><value>继续编辑</value></data>
   <data name="OptionName" xml:space="preserve"><value>选项名称</value></data>
   <data name="OptionActive" xml:space="preserve"><value>启用选项</value></data>
+  <data name="BulkActivate" xml:space="preserve"><value>批量启用筛选结果</value></data>
+  <data name="BulkDeactivate" xml:space="preserve"><value>批量停用筛选结果</value></data>
+  <data name="BulkConfirm" xml:space="preserve"><value>{0}筛选结果中的商品？
+
+匹配商品数：{1}
+实际变更数：{2}</value></data>
+  <data name="BulkNoChange" xml:space="preserve"><value>筛选结果无需变更。</value></data>
+  <data name="BulkSuccess" xml:space="preserve"><value>已更新 {0} 个商品。</value></data>
 </root>

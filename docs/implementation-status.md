@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation plus the review and manual-UI remediations through `M03-MANUAL-UI-LIVE-FILTER-FIX-12` are complete on `codex/m03-catalogue-settings`; automated verification is green and the self-contained publish artifact is available. Interactive Windows/WPF M03 acceptance remains an explicit operator check when a desktop session is available.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation plus the review and manual-UI remediations through `M03-MANUAL-UI-LIVE-FILTER-FIX-12` are complete on `codex/m03-catalogue-settings`; the authorized AC-CAT-013 filtered bulk activation/deactivation extension is implemented with automated evidence, while the self-contained publish artifact and interactive Windows/WPF M03 acceptance remain explicit operator checks.
 
 ## 1. Status vocabulary
 
@@ -63,6 +63,7 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 | AC-CAT-010 | M10 | Not started | — |
 | AC-CAT-011 | M10 | Not started | — |
 | AC-CAT-012 | M04 | Not started | — |
+| AC-CAT-013 | M03 | Partial | Application/SQLite/presentation automation is implemented and green; manual filtered-bulk Windows/WPF checklist remains outstanding |
 
 ### Order creation and business rules
 
@@ -302,8 +303,8 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 - Environment: Windows x64, .NET SDK 10.0.400 (runtime 10.0.11).
 - `dotnet restore Sushi81.Pos.sln`: passed.
 - `dotnet build Sushi81.Pos.sln -c Release --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test Sushi81.Pos.sln -c Release --no-build`: **206 passed, 0 failed, 0 skipped** (Domain 10; Application 9;
-  Infrastructure integration 30; Architecture/localization 33; protocol 32; GitHub wrapper/harness 92, including the
+- `dotnet test Sushi81.Pos.sln -c Release --no-build`: **215 passed, 0 failed, 0 skipped** (Domain 10; Application 11;
+  Infrastructure integration 33; Architecture/localization 37; protocol 32; GitHub wrapper/harness 92, including the
   solution's existing wrapper test project instance).
 - `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true
   -p:PublishSingleFile=false`: passed; output remains under the ignored Desktop publish directory.
@@ -370,6 +371,18 @@ stale full-refresh protection. Manual WPF acceptance is still required and remai
 
 FIX-12 implementation head `b3e34d0d79a4efd39dd3817d19cd107a0f7af50c` passed CI **#189**; the final evidence-documentation
 head `47a21237f7296c002986807918c733fbc58e5858` passed CI **#193** (success).
+
+### AC-CAT-013 filtered bulk activation/deactivation extension
+
+The approved amendment and authorization are present on the branch. The Application boundary now validates immutable captured
+Product IDs/expected active states, computes matched/effective counts and avoids persistence for an all-no-op request. The SQLite
+store revalidates all captures inside one transaction, skips already-target Products, uses one operation timestamp for changed rows,
+and rolls back on missing/stale targets or injected mid-operation failure; only `is_active` and changed-row `updated_at_utc` are written.
+The WPF shell exposes exactly localized bulk Activate/Deactivate actions, waits for the latest live/debounced composed filter result,
+shows target/matched/effective confirmation counts, supports cancel/no-op/error feedback and refreshes while preserving filters.
+Automated Application, SQLite integration and desktop presentation tests cover these invariants, including option aggregate and
+unrelated-field preservation. No migration/schema change was made. Manual Windows/WPF execution of the extension checklist remains
+outstanding, so M03 and AC-CAT-013 remain `Partial` rather than `Passed`.
 
 ### Acceptance mapping and remaining checks
 
