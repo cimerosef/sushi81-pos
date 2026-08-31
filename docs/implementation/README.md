@@ -19,14 +19,25 @@ All implementation handoffs issued on or after 2026-08-30 inherit the cross-cutt
 
 Milestone-specific contracts remain authoritative for milestone scope and acceptance requirements. These cross-cutting contracts do not change frozen V1 product, business, data or architecture semantics.
 
-## Active M03 contracts
+## Completed M03 contracts
 
-M03 is currently active on PR #5. Its implementation authority is split between:
+M03 is Passed and merged through PR #5 at merge commit `57f89cac0672d6d98dda7dc3c9a8ba7b3434e292`.
 
-- `milestone-03-catalogue-settings.md` — original Catalogue/BusinessSettings scope;
-- `milestone-03-filtered-bulk-activation-extension.md` — approved 2026-08-30 filtered bulk activation/deactivation extension implementing AC-CAT-013;
-- `milestone-03-filtered-bulk-activation-authorization.md` — durable authorization for that extension.
+Historical M03 contracts remain under this directory as implementation/evidence records:
 
-The extension inherits every cross-cutting governance file listed above and must remain on the existing M03 branch/PR. It does not authorize M04 or merge.
+- `milestone-03-catalogue-settings.md`
+- `milestone-03-filtered-bulk-activation-extension.md`
+- `milestone-03-filtered-bulk-activation-authorization.md`
+- `milestone-03-worklog.md`
 
-Future milestone contracts M04–M13 must include a short **Parallel execution plan** section that identifies likely independent workstreams and the dependency seams that must be stabilized before concurrent delegation, and must treat `interactive-quality-gate.md` as inherited whenever the milestone includes user-visible UI/workflow behavior.
+## Current M04 contract
+
+M04 — First complete order-entry vertical slice — is approved for controlled implementation through:
+
+- `milestone-04-order-entry.md` — detailed implementation contract;
+- `milestone-04-authorization.md` — durable project-owner authorization;
+- `../decisions/m04-order-entry-pricing-clarifications.md` — approved A1/B1/C1 V1 clarification amendment.
+
+M04 must inherit every cross-cutting governance file listed above. Its implementation PR must remain open/unmerged until explicit project-owner merge approval. M04 completion does not authorize M05.
+
+Future milestone contracts M05–M13 must include a short **Parallel execution plan** section that identifies likely independent workstreams and the dependency seams that must be stabilized before concurrent delegation, and must treat `interactive-quality-gate.md` as inherited whenever the milestone includes user-visible UI/workflow behavior.
