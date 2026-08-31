@@ -39,7 +39,7 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 
 ## Delivery record
 
-- Implementation commit: `b1b6770` (`feat: implement M04 order-entry vertical slice`).
+- Implementation commit: `2a8eb85` (`feat: implement M04 order-entry vertical slice`).
 - Migration identity: version `3`, `create-orders-and-sale-snapshots`.
 - Verification: `dotnet test Sushi81.Pos.sln --no-restore` passed with 232 tests; `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore` passed.
 - CI: not yet observed for the pushed commit.
