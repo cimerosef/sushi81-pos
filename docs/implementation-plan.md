@@ -1,8 +1,8 @@
 # V1 implementation plan
 
-**Status:** Approved — Phase 6 baseline, amended 2026-08-30  
+**Status:** Approved — Phase 6 baseline, amended 2026-08-31  
 **Approval date:** 2026-08-27  
-**Latest amendment:** 2026-08-30  
+**Latest amendment:** 2026-08-31  
 **Product:** Sushi81 POS  
 **Purpose:** Define the controlled implementation sequence for the frozen-and-amended V1 Specification.
 
@@ -78,7 +78,7 @@ The amended behavior is folded into `architecture.md`, `storage-strategy.md` and
 
 #### Required revalidation
 
-Before M03, M02 must re-verify the amended target-directed protocol, including:
+Before M03, M02 re-verified the amended target-directed protocol, including:
 
 - close-and-retain semantics;
 - target binding;
@@ -88,13 +88,13 @@ Before M03, M02 must re-verify the amended target-directed protocol, including:
 - wrong-target rejection;
 - N-device safety and valid-path liveness;
 - automated GitHub REST/Release Asset receipt and failure-matrix evidence;
-- real private GitHub two-device upload/download/round-trip evidence before the gate can be Passed.
+- real private GitHub two-device upload/download/round-trip evidence.
 
-Primary acceptance preparation remains: amended `AC-STO-002` through `AC-STO-005`, `AC-STO-007` through `AC-STO-010`.
+Primary acceptance preparation remained: amended `AC-STO-002` through `AC-STO-005`, `AC-STO-007` through `AC-STO-010`.
 
 Detailed authorized revalidation task definition: `implementation/milestone-02-directed-handoff-revalidation.md`.
 
-M02 is now Passed and merged; its gate is closed by evidence.
+M02 is Passed and merged; its gate is closed by evidence.
 
 ### M03 — In-application catalogue and business settings
 
@@ -108,11 +108,19 @@ Detailed original M03 task definition: `implementation/milestone-03-catalogue-se
 
 Detailed authorized extension: `implementation/milestone-03-filtered-bulk-activation-extension.md`.
 
+M03 is Passed and merged through PR #5 at merge commit `57f89cac0672d6d98dda7dc3c9a8ba7b3434e292`. AC-CAT-003 historical-order independence and the AC-ORD-011 pricing-consumer cross-check were deliberately deferred to M04.
+
 ### M04 — First complete order-entry vertical slice
 
 Implement Catalogue browsing/search, ordinary option selection, cart editing, pricing/VAT, Retrait/Livraison validation, authoritative-total override, transactional confirmation, historical item/adjustment/tax snapshots, reload and the post-commit print-dispatch boundary using a test sink rather than the final Windows printer adapter.
 
 Primary acceptance ownership: `AC-CAT-006`, `AC-CAT-007`, `AC-CAT-012`, `AC-ORD-001` through `AC-ORD-010`, `AC-LIFE-001`, `AC-LIFE-002`; partial foundation for `AC-LIFE-008` and `AC-NFR-003`.
+
+Approved detailed contract: `implementation/milestone-04-order-entry.md`.
+
+Durable authorization: `implementation/milestone-04-authorization.md`.
+
+Approved M04 pricing/interaction clarification amendment: `decisions/m04-order-entry-pricing-clarifications.md`.
 
 ### M05 — Lifecycle, payments, search and operational dashboard
 
@@ -200,8 +208,8 @@ Phase 6 planning remains Approved.
 
 M01 is `Passed` and was merged to `main` through PR #1 at merge commit `b8590d1d0a2aee4ec6554ddee43587a257cedc47` after automated verification and successful Windows/WPF manual re-verification.
 
-M02's original generic acquisition design correctly ended `BLOCKED — specification/architecture amendment required`; its evidence was merged through PR #2 at `5bacafa0e4ca906d8ff058e34586dee43503bc42`.
+M02's original generic acquisition design correctly ended `BLOCKED — specification/architecture amendment required`; its evidence was merged through PR #2 at `5bacafa0e4ca906d8ff058e34586dee43503bc42`. The approved target-directed/GitHub transport amendment was incorporated and the amended M02 revalidation subsequently Passed and merged.
 
-The target-directed authority-handoff amendment was Approved and incorporated into the V1 baseline; amended M02 revalidation subsequently Passed and was merged.
+M03 is `Passed`. PR #5 was explicitly approved and merged to `main` at `57f89cac0672d6d98dda7dc3c9a8ba7b3434e292`. Its complete operator Windows/WPF acceptance is recorded in `implementation-status.md` and `implementation/milestone-03-worklog.md`.
 
-M03 is authorized and active on PR #5. Its original implementation and manual remediations through `M03-MANUAL-UI-LIVE-FILTER-FIX-12` have green automated evidence; FIX-12's live search/category/status filter behavior and FR ↔ zh-CN preservation were manually re-verified by the operator. M03 remains `Partial` because the approved 2026-08-30 filtered bulk activation/deactivation extension (AC-CAT-013) and the remaining M03 operator checklist must still be completed. PR #5 remains open/unmerged and M04 is not authorized.
+M04 — First complete order-entry vertical slice — is the current authorized milestone. Its approved contract is `implementation/milestone-04-order-entry.md`, authorization is `implementation/milestone-04-authorization.md`, and A1/B1/C1 clarification is `decisions/m04-order-entry-pricing-clarifications.md`. M04 implementation must use a fresh branch/PR and the issue #4 active-mailbox gate. M05 is not authorized by M04 preparation or completion.
