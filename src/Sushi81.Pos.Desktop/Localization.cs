@@ -4,6 +4,8 @@ using System.Globalization;
 using System.Resources;
 using System.Runtime.CompilerServices;
 using Sushi81.Pos.Application.Foundation.Configuration;
+using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.Settings;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -61,7 +63,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     private LanguageOption _selectedLanguage;
     private bool _isLanguageChangeInProgress;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
         _culture = Normalize(_cultureStore.Load());
@@ -69,6 +71,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         Languages = new ObservableCollection<LanguageOption>();
         RefreshResources();
         _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
+        Admin = startupSucceeded && catalogueService is not null && settingsService is not null ? new M03ShellViewModel(catalogueService, settingsService) : null;
+        Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -77,6 +81,10 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
     public bool StartupSucceeded { get; }
 
+    public M03ShellViewModel? Admin { get; }
+
+    public bool IsM03Available => Admin is not null;
+
     public string Title { get; private set; } = string.Empty;
 
     public string Status { get; private set; } = string.Empty;
@@ -84,6 +92,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged
     public string LanguageLabel { get; private set; } = string.Empty;
 
     public string LanguageSaveFailure { get; private set; } = string.Empty;
+
+    public IReadOnlyDictionary<string, string> Localized { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
     public LanguageOption SelectedLanguage
     {
@@ -118,6 +128,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged
 
             _culture = requestedCulture;
             RefreshResources();
+            Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
             _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
             OnPropertyChanged(nameof(SelectedLanguage));
         }
@@ -143,10 +154,13 @@ public sealed class ShellViewModel : INotifyPropertyChanged
         Languages.Clear();
         Languages.Add(new LanguageOption("fr-FR", Read("FrenchLanguage")));
         Languages.Add(new LanguageOption("zh-CN", Read("ChineseLanguage")));
+        var keys = new[] { "ShellTitle", "Catalogue", "Settings", "Search", "Category", "All", "Active", "Inactive", "NewProduct", "Edit", "Save", "Cancel", "Activate", "Deactivate", "BulkActivate", "BulkDeactivate", "BulkConfirm", "BulkNoChange", "BulkSuccess", "DeletePermanently", "ManageCategories", "Code", "Name", "PriceTtc", "Vat", "DiscountEligible", "OptionsEnabled", "OptionGroups", "Options", "SelectionMode", "Required", "Optional", "Single", "Multi", "Minimum", "Maximum", "AdjustmentTtc", "MoveUp", "MoveDown", "PickupDiscount", "PickupMinimum", "DeliveryMinimum", "DeliveryFee", "DeliveryFeeEnabled", "EmptyCatalogue", "DeleteConfirm", "M03StartupFailure", "DeliveryFeeVatFixed", "CreateCategory", "CreateCategoryFirst", "RenameCategory", "Close", "EnterValidValues", "Saved", "ValidationGeneric", "ValidationRequired", "ValidationCategoryDuplicate", "ValidationCategoryMissing", "ValidationProductMissing", "ValidationProductDuplicateCode", "ValidationPriceNegative", "ValidationVatRange", "ValidationRequiredChoices", "ValidationSettingsRange", "ValidationInvalidNumber", "ValidationBusy", "ValidationGroupStructure", "ValidationOptionStructure", "ValidationConflict", "ValidationField", "CategoryEdit", "CategoryCreateSave", "CategoryRenameSave", "CategoryEditCancel", "DirtyEditorClose", "Discard", "KeepEditing", "OptionName", "OptionActive" };
+        Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));
         OnPropertyChanged(nameof(LanguageLabel));
         OnPropertyChanged(nameof(LanguageSaveFailure));
+        OnPropertyChanged(nameof(Localized));
     }
 
     private string Read(string key) => ResourceManager.GetString(key, _culture) ?? throw new InvalidOperationException($"Missing required localization resource '{key}'.");
