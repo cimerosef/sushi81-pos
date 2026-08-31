@@ -762,6 +762,19 @@ public sealed class M03DesktopTests
     }
 
     [TestMethod]
+    public void LanguageSelectorUsesCompactSingleLineLayoutWithoutChangingItsWidth()
+    {
+        var xamlPath = Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml");
+        var languageSelector = File.ReadAllLines(xamlPath).Single(line => line.Contains("ItemsSource=\"{Binding Languages}\"", StringComparison.Ordinal));
+
+        StringAssert.Contains(languageSelector, "Width=\"150\"");
+        StringAssert.Contains(languageSelector, "Height=\"28\"");
+        StringAssert.Contains(languageSelector, "Padding=\"6,0\"");
+        StringAssert.Contains(languageSelector, "VerticalAlignment=\"Center\"");
+        StringAssert.Contains(languageSelector, "VerticalContentAlignment=\"Center\"");
+    }
+
+    [TestMethod]
     public void BulkButtonsRenderWithoutClippingAtSupportedSizesInFrenchAndChinese()
     {
         RunOnSta(() =>

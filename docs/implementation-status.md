@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation plus the review and manual-UI remediations through `M03-MANUAL-UI-LIVE-FILTER-FIX-12` are complete on `codex/m03-catalogue-settings`; the authorized AC-CAT-013 filtered bulk activation/deactivation extension and review remediations through `M03-FILTERED-BULK-FAILURE-REFRESH-FIX-15` are implemented with automated evidence, while interactive Windows/WPF M03 acceptance remains an explicit operator check.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation plus the review and manual-UI remediations through `M03-MANUAL-UI-LIVE-FILTER-FIX-12` are complete on `codex/m03-catalogue-settings`; the authorized AC-CAT-013 filtered bulk activation/deactivation extension and review remediations through `M03-LANGUAGE-COMBO-HEIGHT-FIX-16` are implemented with automated evidence, while interactive Windows/WPF M03 acceptance remains an explicit operator check.
 
 ## 1. Status vocabulary
 
@@ -422,6 +422,12 @@ Architecture regressions cover result failure refresh/filter preservation, unexp
 failure without masking the original exception. Final local verification for this remediation is **224 passed, 0 failed, 0 skipped**;
 interactive Windows/WPF acceptance remains outstanding, M03 and AC-CAT-013 remain `Partial`, PR #5 remains open/unmerged, and M04 is
 not started or authorized.
+
+### Language selector height remediation — `M03-LANGUAGE-COMBO-HEIGHT-FIX-16`
+
+The top-right language selector now uses a compact explicit height, centered vertical alignment/content alignment, and minimal horizontal padding while preserving its 150px width. A structural architecture regression protects these attributes; existing French/zh-CN switching and persistence tests remain unchanged. The main-window close behavior was not modified.
+
+Final local verification for this remediation is **225 passed, 0 failed, 0 skipped**; the required self-contained win-x64 publish uses the current M03 artifact. Interactive Windows/WPF acceptance of the compact selector remains outstanding, M03 and AC-CAT-013 remain `Partial`, PR #5 remains open/unmerged, and M04 is not started or authorized.
 
 ### Acceptance mapping and remaining checks
 

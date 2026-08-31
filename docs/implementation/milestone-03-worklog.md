@@ -280,11 +280,22 @@ Synthetic architecture regressions prove result failure refresh/filter preservat
 and refresh-failure handling that preserves the original exception without claiming success. Final local verification is **224 passed,
 0 failed, 0 skipped**; M03 and AC-CAT-013 remain Partial pending operator Windows/WPF acceptance, and M04 remains not started/unauthorized.
 
+## Language selector height remediation `M03-LANGUAGE-COMBO-HEIGHT-FIX-16`
+
+The remaining M03 UI polish defect was limited to the top-right language ComboBox rendering too tall. The XAML now sets a compact
+single-line height with centered alignment/content alignment and minimal padding while retaining the existing 150px width. No global
+style, dependency, business logic, Catalogue/Settings layout or main-window close behavior was changed.
+
+A narrow structural architecture regression protects the selector dimensions/alignment; the existing FR/zh-CN switching and persisted
+language tests remain green. Final local verification is **225 passed, 0 failed, 0 skipped**; the required self-contained win-x64 publish
+uses the current M03 artifact. Manual Windows/WPF verification of this selector remains outstanding, so M03 and AC-CAT-013 stay Partial;
+M04 remains not started/unauthorized.
+
 ## Outstanding
 
 - Operator must rerun the manual M03 Windows/WPF checklist from the contract against the latest M03 branch self-contained artifact,
-  including AC-CAT-013 and all accepted review remediations through FIX-15,
-  including visual confirmation that all six Catalogue headers are populated (`Code`, `Nom`, `Catégorie`, `Prix TTC`, `TVA`,
+  including AC-CAT-013 and all accepted review remediations through FIX-16. This includes visual confirmation that all six Catalogue
+  headers are populated (`Code`, `Nom`, `Catégorie`, `Prix TTC`, `TVA`,
   `Actifs` in French and the corresponding zh-CN labels), switch live in both directions, and remain readable at
   default/resized/maximized sizes. The operator must also confirm that search, category and status filters update the product
   list automatically (with debounced search), rapid changes settle on the latest result, `Tous`/`全部` category and status All
