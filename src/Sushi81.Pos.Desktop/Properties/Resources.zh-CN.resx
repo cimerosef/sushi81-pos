@@ -93,12 +93,16 @@
   <data name="BulkNoChange" xml:space="preserve"><value>筛选结果无需变更。</value></data>
   <data name="BulkSuccess" xml:space="preserve"><value>已更新 {0} 个商品。</value></data>
   <data name="Caisse" xml:space="preserve"><value>收银台</value></data>
+  <data name="Products" xml:space="preserve"><value>商品</value></data>
   <data name="OrderSearch" xml:space="preserve"><value>搜索编码/名称</value></data>
   <data name="Add" xml:space="preserve"><value>添加</value></data>
   <data name="Cart" xml:space="preserve"><value>购物车</value></data>
   <data name="Fulfilment" xml:space="preserve"><value>方式</value></data>
   <data name="PlannedDate" xml:space="preserve"><value>计划日期</value></data>
-  <data name="PlannedTime" xml:space="preserve"><value>时间（HH:mm）</value></data>
+  <data name="PlannedTime" xml:space="preserve"><value>计划时间</value></data>
+  <data name="TimeHour" xml:space="preserve"><value>小时</value></data>
+  <data name="TimeMinute" xml:space="preserve"><value>分钟</value></data>
+  <data name="TimeUnset" xml:space="preserve"><value>—</value></data>
   <data name="Telephone" xml:space="preserve"><value>电话</value></data>
   <data name="DeliveryAddress" xml:space="preserve"><value>地址</value></data>
   <data name="Comment" xml:space="preserve"><value>备注</value></data>
@@ -139,6 +143,7 @@
   <data name="TaxSnapshot" xml:space="preserve"><value>已记录税额</value></data>
   <data name="ValidationFulfilmentRequired" xml:space="preserve"><value>必须选择订单方式。</value></data>
   <data name="ValidationPlannedDateRequired" xml:space="preserve"><value>必须选择计划日期。</value></data>
+  <data name="ValidationPlannedDatePast" xml:space="preserve"><value>计划日期不能早于营业日期。</value></data>
   <data name="ValidationCartRequired" xml:space="preserve"><value>请添加至少一条明细。</value></data>
   <data name="ValidationDeliveryMinimum" xml:space="preserve"><value>未达到配送最低金额。</value></data>
   <data name="ValidationPickupDiscount" xml:space="preserve"><value>未应用自取折扣。</value></data>

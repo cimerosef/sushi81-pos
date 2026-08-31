@@ -11,6 +11,8 @@ namespace Sushi81.Pos.Desktop;
 
 public sealed record FulfilmentChoice(FulfilmentMode? Mode, string Label);
 
+public sealed record TimeChoice(int? Value, string Label);
+
 /// <summary>Presentation state for the M04 Caisse vertical slice.</summary>
 public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposable
 {
@@ -22,7 +24,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private FulfilmentMode? selectedFulfilment;
     private DateTime? plannedDate;
     private TimeSpan? plannedTime;
-    private string plannedTimeText = string.Empty;
+    private int? selectedPlannedHour;
+    private int? selectedPlannedMinute;
     private string telephone = string.Empty;
     private string deliveryAddress = string.Empty;
     private string comment = string.Empty;
@@ -50,7 +53,6 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private string manualTotalStateText = "Total manuel";
     private string newOrderLabel = "Nouvelle commande";
     private string quantityLabel = "Quantité";
-    private bool plannedTimeValid = true;
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>(StringComparer.Ordinal);
 
     public OrderEntryShellViewModel(OrderEntryService service)
@@ -59,6 +61,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         Categories = new ObservableCollection<CategorySummary>();
         Products = new ObservableCollection<ProductSummary>();
         Cart = new ObservableCollection<OrderEntryCartLineViewModel>();
+        PlannedHourChoices = new ObservableCollection<TimeChoice>(BuildTimeChoices(23));
+        PlannedMinuteChoices = new ObservableCollection<TimeChoice>(BuildTimeChoices(59));
         FulfilmentChoices = new ObservableCollection<FulfilmentChoice>
         {
             new(null, unselectedFulfilmentLabel),
@@ -74,6 +78,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public ObservableCollection<ProductSummary> Products { get; }
     public ObservableCollection<OrderEntryCartLineViewModel> Cart { get; }
     public ObservableCollection<FulfilmentChoice> FulfilmentChoices { get; }
+    public ObservableCollection<TimeChoice> PlannedHourChoices { get; }
+    public ObservableCollection<TimeChoice> PlannedMinuteChoices { get; }
     public string AllCategoriesLabel => allCategoriesLabel;
 
     public void ApplyLocalization(
@@ -95,6 +101,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         newOrderLabel = string.IsNullOrWhiteSpace(newOrder) ? "Nouvelle commande" : newOrder;
         this.quantityLabel = string.IsNullOrWhiteSpace(quantityLabel) ? "Quantité" : quantityLabel;
         if (Categories.Count > 0) Categories[0] = new CategorySummary(Guid.Empty, allCategoriesLabel);
+        if (PlannedHourChoices.Count > 0) PlannedHourChoices[0] = new TimeChoice(null, Localized("TimeUnset", "—"));
+        if (PlannedMinuteChoices.Count > 0) PlannedMinuteChoices[0] = new TimeChoice(null, Localized("TimeUnset", "—"));
         if (FulfilmentChoices.Count == 3)
         {
             FulfilmentChoices[0] = new FulfilmentChoice(null, unselectedFulfilmentLabel);
@@ -127,31 +135,47 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             _ = RepriceAsync(clearManualOverride: true);
         }
     }
-    public DateTime? PlannedDate { get => plannedDate; set { plannedDate = value; OnPropertyChanged(); _ = RepriceAsync(clearManualOverride: false); } }
-    public TimeSpan? PlannedTime { get => plannedTime; private set { plannedTime = value; OnPropertyChanged(); } }
-    public string PlannedTimeText
+    public DateTime? PlannedDate
     {
-        get => plannedTimeText;
+        get => plannedDate;
         set
         {
-            plannedTimeText = value ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(plannedTimeText))
-            {
-                PlannedTime = null;
-                plannedTimeValid = true;
-            }
-            else if (TimeSpan.TryParseExact(plannedTimeText.Trim(), ["hh\\:mm", "h\\:mm"], CultureInfo.InvariantCulture, out var parsed) && parsed >= TimeSpan.Zero && parsed < TimeSpan.FromDays(1))
-            {
-                PlannedTime = parsed;
-                plannedTimeValid = true;
-            }
-            else
-            {
-                PlannedTime = null;
-                plannedTimeValid = false;
-            }
+            plannedDate = value;
             OnPropertyChanged();
-            OnPropertyChanged(nameof(PlannedTimeValid));
+            OnPropertyChanged(nameof(PlannedDateValid));
+            OnPropertyChanged(nameof(CanConfirm));
+            _ = RepriceAsync(clearManualOverride: false);
+        }
+    }
+    public DateTime MinimumPlannedDate => service.BusinessDate.ToDateTime(TimeOnly.MinValue);
+    public bool PlannedDateValid => PlannedDate is { } value && value.Date >= MinimumPlannedDate.Date;
+    public TimeSpan? PlannedTime { get => plannedTime; private set { plannedTime = value; OnPropertyChanged(); OnPropertyChanged(nameof(PlannedTimeText)); } }
+    public string PlannedTimeText => PlannedTime?.ToString(@"hh\:mm", CultureInfo.InvariantCulture) ?? string.Empty;
+    public int? SelectedPlannedHour
+    {
+        get => selectedPlannedHour;
+        set
+        {
+            if (selectedPlannedHour == value) return;
+            selectedPlannedHour = value;
+            if (value is null) selectedPlannedMinute = null;
+            else if (selectedPlannedMinute is null) selectedPlannedMinute = 0;
+            UpdatePlannedTime();
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedPlannedMinute));
+            OnPropertyChanged(nameof(CanConfirm));
+            _ = RepriceAsync(clearManualOverride: false);
+        }
+    }
+    public int? SelectedPlannedMinute
+    {
+        get => selectedPlannedMinute;
+        set
+        {
+            if (selectedPlannedMinute == value) return;
+            selectedPlannedMinute = value;
+            UpdatePlannedTime();
+            OnPropertyChanged();
             OnPropertyChanged(nameof(CanConfirm));
             _ = RepriceAsync(clearManualOverride: false);
         }
@@ -174,9 +198,9 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanAddSelectedProduct)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
     public bool IsCommitted { get => isCommitted; private set { isCommitted = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
     public bool CanAddSelectedProduct => !IsBusy && !IsCommitted && SelectedProduct is not null;
-    public bool CanConfirm => !IsBusy && !IsCommitted && plannedTimeValid && pricing?.IsValid == true;
+    public bool CanConfirm => !IsBusy && !IsCommitted && PlannedDateValid && pricing?.IsValid == true;
     public bool CanStartNewOrder => IsCommitted && !IsBusy;
-    public bool PlannedTimeValid => plannedTimeValid;
+    public bool PlannedTimeValid => PlannedTime is null || PlannedTime.Value >= TimeSpan.Zero && PlannedTime.Value < TimeSpan.FromDays(1);
     public bool IsPickupDiscountEnabled => !IsBusy && !IsCommitted && SelectedFulfilment == FulfilmentMode.Retrait;
     public string TotalText { get => totalText; private set { totalText = value; OnPropertyChanged(); } }
     public string ValidationMessage { get => validationMessage; private set { validationMessage = value; OnPropertyChanged(); } }
@@ -377,8 +401,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         selectedFulfilment = null;
         plannedDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue);
         plannedTime = null;
-        plannedTimeText = string.Empty;
-        plannedTimeValid = true;
+        selectedPlannedHour = null;
+        selectedPlannedMinute = null;
         telephone = string.Empty;
         deliveryAddress = string.Empty;
         comment = string.Empty;
@@ -404,6 +428,20 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     private string Localized(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
 
+    private static IEnumerable<TimeChoice> BuildTimeChoices(int lastValue)
+    {
+        yield return new TimeChoice(null, "—");
+        for (var value = 0; value <= lastValue; value++)
+            yield return new TimeChoice(value, value.ToString("D2", CultureInfo.InvariantCulture));
+    }
+
+    private void UpdatePlannedTime()
+    {
+        PlannedTime = selectedPlannedHour is { } hour && selectedPlannedMinute is { } minute
+            ? new TimeSpan(hour, minute, 0)
+            : null;
+    }
+
     private void ApplyPricing(OrderPricingResult result)
     {
         pricing = result;
@@ -413,7 +451,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             .Concat(pricing.DiscountNotAppliedReason is { } reason && PickupDiscountRequested ? [reason] : [])
             .Select(message => LocalizeOrderMessage(message))
             .ToList();
-        if (!plannedTimeValid) messages.Insert(0, Localized("InvalidPlannedTime", "L’heure prévue est invalide. Saisissez HH:mm ou effacez-la."));
+        if (!PlannedDateValid && PlannedDate is not null)
+            messages.Insert(0, Localized("ValidationPlannedDatePast", "La date prévue ne peut pas être antérieure à la date d’activité."));
         ValidationMessage = string.Join(Environment.NewLine, messages);
         OnPropertyChanged(nameof(IsManualTotalOverrideActive));
         OnPropertyChanged(nameof(ManualTotalStateText));
@@ -459,6 +498,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private string LocalizeOrderMessage(string message)
     {
         if (message.Contains("fulfilment mode", StringComparison.OrdinalIgnoreCase)) return Localized("ValidationFulfilmentRequired", "Le mode de commande est obligatoire.");
+        if (message.Contains("cannot be in the past", StringComparison.OrdinalIgnoreCase)) return Localized("ValidationPlannedDatePast", "La date prévue ne peut pas être antérieure à la date d’activité.");
         if (message.Contains("planned fulfilment date", StringComparison.OrdinalIgnoreCase)) return Localized("ValidationPlannedDateRequired", "La date prévue est obligatoire.");
         if (message.Contains("at least one order line", StringComparison.OrdinalIgnoreCase)) return Localized("ValidationCartRequired", "Ajoutez au moins une ligne.");
         if (message.Contains("quantity", StringComparison.OrdinalIgnoreCase)) return Localized("InvalidQuantity", "La quantité doit être un entier positif.");

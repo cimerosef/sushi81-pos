@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Ids;
@@ -355,12 +356,16 @@ public sealed class M04DesktopTests
                 Assert.IsFalse(discount.IsEnabled);
                 Assert.IsFalse(entry.PickupDiscountRequested);
 
-                var plannedTime = FindLabeledTextBox(window, shell.Localized["PlannedTime"]);
-                plannedTime.Text = "25:99";
+                var plannedHour = VisualDescendants<ComboBox>(window).Single(combo => combo.Name == "plannedHourBox");
+                var plannedMinute = VisualDescendants<ComboBox>(window).Single(combo => combo.Name == "plannedMinuteBox");
+                plannedHour.SelectedValue = 9;
+                plannedMinute.SelectedValue = 30;
                 window.UpdateLayout();
-                Assert.IsFalse(entry.PlannedTimeValid);
-                Assert.IsFalse(VisualDescendants<Button>(window).Single(button => button.Content?.ToString() == shell.Localized["Confirm"]).IsEnabled);
-                plannedTime.Text = string.Empty;
+                Assert.AreEqual(new TimeSpan(9, 30, 0), entry.PlannedTime);
+                Assert.IsTrue(entry.PlannedTimeValid);
+                plannedHour.SelectedValue = null;
+                window.UpdateLayout();
+                Assert.IsNull(entry.PlannedTime);
                 entry.SelectedFulfilment = FulfilmentMode.Retrait;
                 window.UpdateLayout();
 
@@ -383,6 +388,91 @@ public sealed class M04DesktopTests
                 var second = entry.ConfirmAsync().GetAwaiter().GetResult();
                 Assert.IsTrue(second!.Succeeded);
                 Assert.AreNotEqual(first.CommittedOrder!.Id, second.CommittedOrder!.Id);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void MainWindowM04OperatorErgonomicsSupportsCategoryFirstDirectAddAndSavedOrderDiscovery()
+    {
+        RunOnSta(() =>
+        {
+            var firstCategoryId = Guid.NewGuid();
+            var secondCategoryId = Guid.NewGuid();
+            var first = SimpleProduct(Guid.NewGuid(), "P-001", "Plat du jour avec un nom suffisamment long pour tester la largeur", firstCategoryId, "Plats");
+            var second = SimpleProduct(Guid.NewGuid(), "P-002", "Boisson", secondCategoryId, "Boissons");
+            var catalogue = new MultiCategoryCatalogue(first, second);
+            var settings = BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { DeliveryMinMerchandiseTotalTtc = Money.Zero };
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(catalogue, new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var caisse = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]);
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+
+                var categories = (ListBox)typeof(MainWindow).GetField("orderCategoriesList", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var productsGrid = (DataGrid)typeof(MainWindow).GetField("orderProductsGrid", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var add = (Button)typeof(MainWindow).GetField("orderAddButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var address = (TextBox)typeof(MainWindow).GetField("orderDeliveryAddressBox", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var datePicker = (DatePicker)typeof(MainWindow).GetField("orderPlannedDatePicker", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var saved = (GroupBox)typeof(MainWindow).GetField("orderSavedGroup", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+
+                Assert.HasCount(3, categories.Items);
+                Assert.AreEqual(shell.Localized["Code"], productsGrid.Columns[0].Header?.ToString());
+                Assert.AreEqual(shell.Localized["Name"], productsGrid.Columns[1].Header?.ToString());
+                Assert.AreEqual(shell.Localized["PriceTtc"], productsGrid.Columns[2].Header?.ToString());
+                Assert.IsGreaterThan(145D, address.ActualWidth, "The delivery address must have usable width.");
+                Assert.AreEqual(Visibility.Visible, saved.Visibility);
+                Assert.AreEqual(entry.MinimumPlannedDate.Date, datePicker.DisplayDateStart?.Date);
+
+                productsGrid.SelectedItem = entry.Products.Single(product => product.Id == first.Aggregate.Product.Id);
+                window.UpdateLayout();
+                Assert.IsTrue(add.IsEnabled);
+                add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.HasCount(1, entry.Cart, "A simple product must be added without an options dialog.");
+
+                var productRow = VisualDescendants<DataGridRow>(productsGrid).First(row => row.DataContext is ProductSummary summary && summary.Id == first.Aggregate.Product.Id);
+                var doubleClick = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                {
+                    RoutedEvent = Control.MouseDoubleClickEvent,
+                    Source = productRow
+                };
+                productsGrid.RaiseEvent(doubleClick);
+                Assert.HasCount(2, entry.Cart, "Double-clicking a simple product must use the same direct-add path.");
+
+                entry.AddConfiguredLine(second, [], [], 1);
+                window.UpdateLayout();
+                var plusButtons = VisualDescendants<Button>(window).Where(button => button.Content?.ToString() == "+" && button.Tag is OrderEntryCartLineViewModel).ToArray();
+                Assert.HasCount(3, plusButtons);
+                var firstPlus = plusButtons[0].TranslatePoint(new Point(0, 0), window).X;
+                var lastPlus = plusButtons[^1].TranslatePoint(new Point(0, 0), window).X;
+                Assert.IsLessThan(1.0D, Math.Abs(firstPlus - lastPlus), "Cart quantity controls must share a fixed right edge.");
+
+                entry.SelectedFulfilment = FulfilmentMode.Retrait;
+                entry.PlannedDate = entry.MinimumPlannedDate.AddDays(-1);
+                entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
+                Assert.IsFalse(entry.PlannedDateValid);
+                Assert.IsFalse(entry.CanConfirm);
+                StringAssert.Contains(entry.ValidationMessage, shell.Localized["ValidationPlannedDatePast"]);
+                entry.PlannedDate = entry.MinimumPlannedDate;
+                entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
+                var result = entry.ConfirmAsync().GetAwaiter().GetResult();
+                Assert.IsTrue(result!.Succeeded);
+                window.UpdateLayout();
+                Assert.IsGreaterThan(0D, saved.ActualHeight);
+                StringAssert.Contains(((TextBlock)typeof(MainWindow).GetField("orderReloadedDisplay", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!).Text, result.CommittedOrder!.Id.ToString());
+
+                categories.SelectedValue = secondCategoryId;
+                entry.RefreshAsync().GetAwaiter().GetResult();
+                Assert.AreEqual(secondCategoryId, entry.SelectedCategoryId);
+                Assert.AreEqual(second.Aggregate.Product.Id, entry.Products.Single().Id);
             }
             finally { window.Close(); }
         });
@@ -446,6 +536,11 @@ public sealed class M04DesktopTests
         throw new AssertFailedException($"TextBox labelled '{label}' was not found.");
     }
 
+    private static OrderEntryProduct SimpleProduct(Guid id, string code, string name, Guid categoryId, string categoryName) =>
+        new(new ProductAggregate(
+            new Product(id, code, name, categoryId, Money.FromCents(1000), 10m, true, true, false, default, default),
+            [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), categoryName);
+
     private static IEnumerable<T> VisualDescendants<T>(DependencyObject root) where T : DependencyObject
     {
         if (root is T match) yield return match;
@@ -474,6 +569,30 @@ public sealed class M04DesktopTests
         public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([new(categoryId, "Plats")]);
         public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([new(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name, categoryId, product.CategoryName, product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, true, false)]);
         public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(productId == product.Aggregate.Product.Id ? product : null);
+    }
+
+    private sealed class MultiCategoryCatalogue(OrderEntryProduct first, OrderEntryProduct second) : IOrderEntryCatalogueQueries
+    {
+        private readonly IReadOnlyList<CategorySummary> categories =
+        [
+            new(first.Aggregate.Product.CategoryId, first.CategoryName),
+            new(second.Aggregate.Product.CategoryId, second.CategoryName)
+        ];
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult(categories);
+
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default)
+        {
+            var values = new[] { first, second }
+                .Where(product => !filterCategoryId.HasValue || product.Aggregate.Product.CategoryId == filterCategoryId.Value)
+                .Where(product => string.IsNullOrWhiteSpace(search) || product.Aggregate.Product.Code.Contains(search, StringComparison.OrdinalIgnoreCase) || product.Aggregate.Product.Name.Contains(search, StringComparison.OrdinalIgnoreCase))
+                .Select(product => new ProductSummary(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name, product.Aggregate.Product.CategoryId, product.CategoryName, product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, true, false))
+                .ToArray();
+            return Task.FromResult<IReadOnlyList<ProductSummary>>(values);
+        }
+
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new[] { first, second }.SingleOrDefault(product => product.Aggregate.Product.Id == productId));
     }
 
     private sealed class DisappearingCatalogue : IOrderEntryCatalogueQueries

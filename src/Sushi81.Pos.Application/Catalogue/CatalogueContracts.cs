@@ -20,6 +20,7 @@ public static class ValidationCodes
     public const string Busy = "busy";
     public const string Conflict = "conflict";
     public const string BulkRequestInvalid = "bulk-request-invalid";
+    public const string PastPlannedDate = "past-planned-date";
 
     public static string Infer(string message) => message switch
     {

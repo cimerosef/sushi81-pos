@@ -93,12 +93,16 @@ Changements effectifs : {2}</value></data>
   <data name="BulkNoChange" xml:space="preserve"><value>Aucun changement n’est nécessaire pour les produits filtrés.</value></data>
   <data name="BulkSuccess" xml:space="preserve"><value>{0} produit(s) mis à jour.</value></data>
   <data name="Caisse" xml:space="preserve"><value>Caisse</value></data>
+  <data name="Products" xml:space="preserve"><value>Produits</value></data>
   <data name="OrderSearch" xml:space="preserve"><value>Rechercher code/nom</value></data>
   <data name="Add" xml:space="preserve"><value>Ajouter</value></data>
   <data name="Cart" xml:space="preserve"><value>Panier</value></data>
   <data name="Fulfilment" xml:space="preserve"><value>Mode</value></data>
   <data name="PlannedDate" xml:space="preserve"><value>Date prévue</value></data>
-  <data name="PlannedTime" xml:space="preserve"><value>Heure (HH:mm)</value></data>
+  <data name="PlannedTime" xml:space="preserve"><value>Heure prévue</value></data>
+  <data name="TimeHour" xml:space="preserve"><value>Heure</value></data>
+  <data name="TimeMinute" xml:space="preserve"><value>Minutes</value></data>
+  <data name="TimeUnset" xml:space="preserve"><value>—</value></data>
   <data name="Telephone" xml:space="preserve"><value>Téléphone</value></data>
   <data name="DeliveryAddress" xml:space="preserve"><value>Adresse</value></data>
   <data name="Comment" xml:space="preserve"><value>Commentaire</value></data>
@@ -139,6 +143,7 @@ Changements effectifs : {2}</value></data>
   <data name="TaxSnapshot" xml:space="preserve"><value>TVA enregistrée</value></data>
   <data name="ValidationFulfilmentRequired" xml:space="preserve"><value>Le mode de commande est obligatoire.</value></data>
   <data name="ValidationPlannedDateRequired" xml:space="preserve"><value>La date prévue est obligatoire.</value></data>
+  <data name="ValidationPlannedDatePast" xml:space="preserve"><value>La date prévue ne peut pas être antérieure à la date d’activité.</value></data>
   <data name="ValidationCartRequired" xml:space="preserve"><value>Ajoutez au moins une ligne.</value></data>
   <data name="ValidationDeliveryMinimum" xml:space="preserve"><value>Le minimum Livraison n’est pas atteint.</value></data>
   <data name="ValidationPickupDiscount" xml:space="preserve"><value>La remise Retrait n’a pas été appliquée.</value></data>

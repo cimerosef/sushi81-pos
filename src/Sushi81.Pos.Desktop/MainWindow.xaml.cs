@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Domain;
@@ -13,6 +14,7 @@ namespace Sushi81.Pos.Desktop;
 public partial class MainWindow : Window
 {
     private bool loaded;
+    private bool orderProductAddInProgress;
     private readonly CatalogueHeaderSet catalogueHeaders = new();
 
     public MainWindow(ShellViewModel viewModel)
@@ -46,10 +48,19 @@ public partial class MainWindow : Window
 
     private void ApplyCatalogueHeaders()
     {
-        if (DataContext is not ShellViewModel viewModel || catalogueGrid.Columns.Count < 6) return;
-        catalogueHeaders.Apply(viewModel.Localized);
-        var values = catalogueHeaders.Values;
-        for (var index = 0; index < values.Count; index++) catalogueGrid.Columns[index].Header = values[index];
+        if (DataContext is not ShellViewModel viewModel) return;
+        if (catalogueGrid.Columns.Count >= 6)
+        {
+            catalogueHeaders.Apply(viewModel.Localized);
+            var values = catalogueHeaders.Values;
+            for (var index = 0; index < values.Count; index++) catalogueGrid.Columns[index].Header = values[index];
+        }
+        if (orderProductsGrid.Columns.Count >= 3)
+        {
+            orderProductsGrid.Columns[0].Header = LocalizedText(this, "Code", "Code");
+            orderProductsGrid.Columns[1].Header = LocalizedText(this, "Name", "Name");
+            orderProductsGrid.Columns[2].Header = LocalizedText(this, "PriceTtc", "TTC price");
+        }
     }
 
     private async void OnRefreshCatalogue(object sender, RoutedEventArgs e)
@@ -60,16 +71,41 @@ public partial class MainWindow : Window
     private async void OnAddOrderProduct(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { Entry: { } entry }) return;
+        if (orderProductAddInProgress) return;
+        if (ReferenceEquals(sender, orderProductsGrid))
+        {
+            if (FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject) is not { DataContext: ProductSummary productSummary }) return;
+            entry.SelectedProduct = productSummary;
+        }
+        if (!entry.CanAddSelectedProduct) return;
+        orderProductAddInProgress = true;
         try
         {
             await entry.AddSelectedProductAsync();
             if (entry.PendingProduct is { } product)
             {
+                if (!product.Aggregate.Product.OptionsEnabled)
+                {
+                    entry.AddConfiguredLine(product, [], [], 1);
+                    return;
+                }
+
                 var dialog = new OptionSelectionDialog(this, product, null);
                 if (dialog.ShowDialog() == true) entry.AddConfiguredLine(product, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
             }
         }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+        finally { orderProductAddInProgress = false; }
+    }
+
+    private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
+    {
+        while (child is not null)
+        {
+            if (child is T match) return match;
+            child = VisualTreeHelper.GetParent(child);
+        }
+        return null;
     }
 
     private void OnEditOrderLine(object sender, MouseButtonEventArgs e)

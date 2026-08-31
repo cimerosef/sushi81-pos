@@ -91,6 +91,25 @@ public sealed class OrderEntryApplicationTests
     }
 
     [TestMethod]
+    public async Task PastPlannedDateIsRejectedBeforePersistenceAndDispatch()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingDispatcher();
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, dispatcher);
+
+        var result = await service.ConfirmNewOrderAsync(Draft(product) with
+        {
+            PlannedFulfilmentDate = BusinessDate.AddDays(-1)
+        });
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(ValidationCodes.PastPlannedDate, result.Issues.Single().StableCode);
+        Assert.AreEqual(0, store.SaveCalls);
+        Assert.AreEqual(0, dispatcher.Calls);
+    }
+
+    [TestMethod]
     public async Task ConfirmationUsesCurrentSettingsAndNormalizesOptionalFields()
     {
         var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false, price: Money.FromCents(3000));

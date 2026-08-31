@@ -145,6 +145,9 @@ public sealed class OrderEntryService(
             if (normalizedDraft.Fulfilment is null || normalizedDraft.PlannedFulfilmentDate is null)
                 return ConfirmOrderResult.Failure(new ValidationIssue("order", "Fulfilment mode and planned date are required.", ValidationCodes.Required));
 
+            if (normalizedDraft.PlannedFulfilmentDate.Value < clock.BusinessDate)
+                return ConfirmOrderResult.Failure(new ValidationIssue("order", "The planned fulfilment date cannot be in the past.", ValidationCodes.PastPlannedDate));
+
             var now = clock.UtcNow;
             var orderId = idGenerator.NewId();
             var itemSnapshots = pricing.Lines.Select((line, index) => new OrderItemSnapshot(

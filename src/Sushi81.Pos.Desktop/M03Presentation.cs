@@ -63,6 +63,7 @@ public static class M03Presentation
             ValidationCodes.GroupStructure => "ValidationGroupStructure",
             ValidationCodes.OptionStructure => "ValidationOptionStructure",
             ValidationCodes.Conflict => "ValidationConflict",
+            ValidationCodes.PastPlannedDate => "ValidationPlannedDatePast",
             ValidationCodes.BulkRequestInvalid => "ValidationGeneric",
             _ => issue.Field switch
             {
