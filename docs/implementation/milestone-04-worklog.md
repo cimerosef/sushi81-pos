@@ -1,6 +1,6 @@
 # M04 implementation worklog
 
-**Status:** Authorized / `M04-REVIEW-FIX-03` complete pending ChatGPT review and project-owner merge approval
+**Status:** Authorized / `M04-REVIEW-FIX-04` complete pending ChatGPT review, manual rerun and project-owner merge approval
 **Milestone:** M04 — First complete order-entry vertical slice  
 **Implementation branch:** `codex/m04-order-entry`  
 **Approved branch base:** `0926decdcae59ed0aa4ea95c2d0f9d79aa44a36e`  
@@ -17,7 +17,7 @@ This worklog is the durable implementation/evidence record for M04.
 - A1/B1/C1 clarification is approved and durable.
 - M04 branch is created from the documented latest preparation `main` baseline.
 - Production implementation is now present on the implementation branch; final merge remains pending project-owner review.
-- GitHub issue #4 is OPEN for the authorized `M04-REVIEW-FIX-03` remediation; no later handoff or milestone is being inferred.
+- GitHub issue #4 is OPEN for the authorized `M04-REVIEW-FIX-04` remediation; the later time addendum is not processed in this run and no later milestone is being inferred.
 - M05 is not authorized.
 
 ## Evidence policy
@@ -41,6 +41,16 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 - The Windows/WPF helper launch was attempted, but the built application did not expose a target window in this environment; no manual operator acceptance is claimed. The remaining manual checklist in `milestone-04-order-entry.md` must be completed on a usable Windows session.
 - M05+ implementation was not started.
 
+## Implementation evidence — `M04-REVIEW-FIX-04`
+
+- The WPF Caisse now presents a category-first two-pane navigator: category names remain visible beside the active product list, with code/name search retained as the secondary filter. Product headers are assigned through the existing presentation seam so French and Simplified Chinese remain deterministic after language changes.
+- Simple products whose options workflow is disabled are added directly from the actual WPF Add and product-row double-click paths. Products with options enabled continue through the existing option-selection dialog; no shortcut category state or `RaccourciCat` persistence was introduced.
+- Planned time is now a structured optional hour/minute selection (`00`–`23`, `00`–`59`, or blank) and is converted exactly to `TimeOnly`; free-form HH:mm validation is no longer reachable. New-order dates are initialized and UI-limited from `IBusinessClock.BusinessDate`, while `OrderEntryService` rejects any past planned date with a stable localized validation code. Same-day and future dates remain valid, and historical snapshots remain reloadable.
+- The cart template uses a stretched row with fixed total/action columns so quantity/remove controls share one right edge across rows. Address/comment inputs receive usable stretch width, and the ID/snapshot panel stays visible so a successful confirmation is immediately discoverable and reloadable.
+- Automated evidence includes the new Application past-date no-write/no-dispatch test and an STA/WPF operator-path regression covering visible categories, localized product headers, direct Add, direct double-click, fixed cart alignment, date guard, address width and immediate saved-order discovery. Full local verification is recorded below; no manual Windows/WPF acceptance is claimed because the prior operator run stopped on the recorded first-use findings and must be rerun on the published artifact.
+- `POST_TASK_POWER_ACTION: NONE`.
+- The later `M04-REVIEW-FIX-04-TIME-ADDENDUM-01` handoff was observed but intentionally left queued for a later automation run.
+
 ## Delivery record
 
 - Prior implementation/evidence head: `358d7105bf51f39b5de4b514daafcaed63730a3b`.
@@ -52,4 +62,11 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 - Self-contained publish: `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --verbosity:minimal` passed to `src/Sushi81.Pos.Desktop/bin/Release/net10.0-windows/win-x64/publish/`.
 - CI: GitHub Actions `Continuous integration` run **#244** completed successfully for pushed head `7f1946b8e91211017c93ee7fcbd94c6889690312` (the final implementation/evidence head before this status-only CI-record update). Restore, build and test steps passed.
 - PR state: active M04 PR remains open and unmerged; project-owner merge approval is still required.
-- Execution gate: OPEN for `M04-REVIEW-FIX-03` at the last durable check.
+- Review-fix implementation commit: `f73a3939417642cc9633f2c779d13a45febd58b9` (`fix: remediate M04 order entry ergonomics`).
+- Release restore: `dotnet restore Sushi81.Pos.sln --verbosity:minimal` passed after the initial sandboxed NuGet vulnerability-feed failure (`NU1900`) was retried with authorized network access. The runtime-specific Desktop restore for `win-x64` likewise passed after the sandboxed repository-signature access failure (`NU1301`) was retried with authorized network access.
+- Release build: `dotnet build Sushi81.Pos.sln -c Release --no-restore --verbosity:minimal` passed with 0 warnings and 0 errors.
+- Release tests: `dotnet test Sushi81.Pos.sln -c Release --no-restore --no-build --verbosity:minimal` passed with 270 tests: Domain 26, Application 23, Infrastructure integration 41, Architecture 56, OneDrive feasibility 32, and OneDrive feasibility tools 92; 0 failed and 0 skipped.
+- Self-contained publish: `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --verbosity:minimal` passed to `src/Sushi81.Pos.Desktop/bin/Release/net10.0-windows/win-x64/publish/`.
+- CI: GitHub Actions `Continuous integration` run **#252** completed successfully for pushed head `f73a3939417642cc9633f2c779d13a45febd58b9`; the `build-and-test` job Restore, Build and Test steps all passed.
+- PR state: active M04 PR remains open and unmerged; project-owner merge approval is still required.
+- Execution gate: OPEN for `M04-REVIEW-FIX-04` at the last durable check.
