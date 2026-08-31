@@ -4,14 +4,14 @@ Private repository for the design and implementation of a Windows local point-of
 
 ## Project status
 
-**V1 Specification frozen — Phase 5 complete (2026-08-27).**
+**V1 Specification frozen — Phase 5 complete (2026-08-27), with approved post-freeze amendments.**
 
-The approved V1 product, business, architecture, data, storage, paste-import, printing, export and acceptance specifications are frozen in `docs/`.
+The approved V1 product, business, architecture, data, storage, paste-import, printing, export and acceptance specifications are frozen/amended in `docs/`.
 
 Formal freeze record: `docs/v1-specification-freeze.md`  
 Implementation acceptance contract: `docs/acceptance-criteria.md`
 
-M01 is complete. M02 GitHub transport revalidation is the only active implementation scope on `codex/m02-directed-handoff-revalidation`; M03 remains unauthorized. Normal target-directed handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. Historical OneDrive feasibility evidence is retained and is not the normal authority gate.
+M01, M02 and M03 are Passed and merged. M03 merged through PR #5 at `57f89cac0672d6d98dda7dc3c9a8ba7b3434e292`. M04 — First complete order-entry vertical slice — now has an approved implementation contract and is the next authorized implementation milestone; Codex execution remains controlled by GitHub issue #4 and the active M04 PR mailbox. Normal target-directed handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. Historical OneDrive feasibility evidence is retained and is not the normal authority gate.
 
 ## Working model
 
@@ -48,4 +48,4 @@ sushi81-pos/
 └── tests/
 ```
 
-See `docs/README.md` for the frozen V1 documentation baseline and authority rules.
+See `docs/README.md` for the frozen/amended V1 documentation baseline and authority rules.
