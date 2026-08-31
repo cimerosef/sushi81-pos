@@ -48,6 +48,6 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 - Release build: `dotnet build Sushi81.Pos.sln -c Release --no-restore --verbosity:minimal` passed with 0 warnings and 0 errors.
 - Release tests: `dotnet test Sushi81.Pos.sln -c Release --no-restore --no-build --verbosity:minimal` passed with 250 tests: Domain 21, Application 18, Infrastructure integration 38, Architecture 49, OneDrive feasibility 32, and OneDrive feasibility tools 92; 0 failed and 0 skipped.
 - Self-contained publish: `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --verbosity:minimal` passed to `src/Sushi81.Pos.Desktop/bin/Release/net10.0-windows/win-x64/publish/`.
-- CI: the final remediation head must be checked after push; no CI result is claimed in this worklog before that durable check.
+- CI: GitHub Actions `Continuous integration` run [238](https://github.com/cimerosef/sushi81-pos/actions/runs/33402197941) completed successfully for pushed head `75b0a7cd2c5ed140330cb093ec3678e4482a031e`; the code remediation is `c272e52aa33359206cb300844459b90ef725eae8` and this head adds evidence documentation only.
 - PR state: active M04 PR remains open and unmerged; project-owner merge approval is still required.
 - Execution gate: OPEN for `M04-REVIEW-FIX-02` at the last durable check.
