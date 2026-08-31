@@ -92,4 +92,24 @@
 实际变更数：{2}</value></data>
   <data name="BulkNoChange" xml:space="preserve"><value>筛选结果无需变更。</value></data>
   <data name="BulkSuccess" xml:space="preserve"><value>已更新 {0} 个商品。</value></data>
+  <data name="Caisse" xml:space="preserve"><value>收银台</value></data>
+  <data name="OrderSearch" xml:space="preserve"><value>搜索编码/名称</value></data>
+  <data name="Add" xml:space="preserve"><value>添加</value></data>
+  <data name="Cart" xml:space="preserve"><value>购物车</value></data>
+  <data name="Fulfilment" xml:space="preserve"><value>方式</value></data>
+  <data name="PlannedDate" xml:space="preserve"><value>计划日期</value></data>
+  <data name="PlannedTime" xml:space="preserve"><value>时间（HH:mm）</value></data>
+  <data name="Telephone" xml:space="preserve"><value>电话</value></data>
+  <data name="DeliveryAddress" xml:space="preserve"><value>地址</value></data>
+  <data name="Comment" xml:space="preserve"><value>备注</value></data>
+  <data name="PickupDiscountRequest" xml:space="preserve"><value>申请自取折扣</value></data>
+  <data name="TotalTtc" xml:space="preserve"><value>含税总额</value></data>
+  <data name="Confirm" xml:space="preserve"><value>确认</value></data>
+  <data name="ReloadOrder" xml:space="preserve"><value>按 ID 重新加载</value></data>
+  <data name="Quantity" xml:space="preserve"><value>数量</value></data>
+  <data name="CustomAdjustments" xml:space="preserve"><value>自定义调整（每件）</value></data>
+  <data name="AddAdjustment" xml:space="preserve"><value>调整</value></data>
+  <data name="InvalidQuantity" xml:space="preserve"><value>数量必须为正整数。</value></data>
+  <data name="InvalidOptions" xml:space="preserve"><value>选项组“{0}”的选择无效。</value></data>
+  <data name="InvalidAdjustment" xml:space="preserve"><value>每个调整必须有有效的名称和金额。</value></data>
 </root>

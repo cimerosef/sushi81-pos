@@ -92,4 +92,24 @@ Produits correspondants : {1}
 Changements effectifs : {2}</value></data>
   <data name="BulkNoChange" xml:space="preserve"><value>Aucun changement n’est nécessaire pour les produits filtrés.</value></data>
   <data name="BulkSuccess" xml:space="preserve"><value>{0} produit(s) mis à jour.</value></data>
+  <data name="Caisse" xml:space="preserve"><value>Caisse</value></data>
+  <data name="OrderSearch" xml:space="preserve"><value>Rechercher code/nom</value></data>
+  <data name="Add" xml:space="preserve"><value>Ajouter</value></data>
+  <data name="Cart" xml:space="preserve"><value>Panier</value></data>
+  <data name="Fulfilment" xml:space="preserve"><value>Mode</value></data>
+  <data name="PlannedDate" xml:space="preserve"><value>Date prévue</value></data>
+  <data name="PlannedTime" xml:space="preserve"><value>Heure (HH:mm)</value></data>
+  <data name="Telephone" xml:space="preserve"><value>Téléphone</value></data>
+  <data name="DeliveryAddress" xml:space="preserve"><value>Adresse</value></data>
+  <data name="Comment" xml:space="preserve"><value>Commentaire</value></data>
+  <data name="PickupDiscountRequest" xml:space="preserve"><value>Demander remise Retrait</value></data>
+  <data name="TotalTtc" xml:space="preserve"><value>Total TTC</value></data>
+  <data name="Confirm" xml:space="preserve"><value>Confirmer</value></data>
+  <data name="ReloadOrder" xml:space="preserve"><value>Recharger ID</value></data>
+  <data name="Quantity" xml:space="preserve"><value>Quantité</value></data>
+  <data name="CustomAdjustments" xml:space="preserve"><value>Ajustements personnalisés (par unité)</value></data>
+  <data name="AddAdjustment" xml:space="preserve"><value>Ajustement</value></data>
+  <data name="InvalidQuantity" xml:space="preserve"><value>La quantité doit être un entier positif.</value></data>
+  <data name="InvalidOptions" xml:space="preserve"><value>La sélection du groupe « {0} » est invalide.</value></data>
+  <data name="InvalidAdjustment" xml:space="preserve"><value>Chaque ajustement doit avoir un libellé et un montant valides.</value></data>
 </root>

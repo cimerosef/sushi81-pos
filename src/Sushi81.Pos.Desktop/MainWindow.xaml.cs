@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Domain;
 using DomainSelectionMode = Sushi81.Pos.Domain.SelectionMode;
 
@@ -20,13 +21,18 @@ public partial class MainWindow : Window
         DataContext = viewModel;
         if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
         ApplyCatalogueHeaders();
+        Closed += (_, _) => (DataContext as ShellViewModel)?.Dispose();
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (loaded || DataContext is not ShellViewModel { Admin: { } admin }) return;
+        if (loaded || DataContext is not ShellViewModel viewModel || viewModel.Admin is null && viewModel.Entry is null) return;
         loaded = true;
-        try { await admin.RefreshAsync(); await admin.LoadSettingsAsync(); }
+        try
+        {
+            if (viewModel.Admin is { } admin) { await admin.RefreshAsync(); await admin.LoadSettingsAsync(); }
+            if (viewModel.Entry is { } entry) await entry.RefreshAsync();
+        }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
         ApplyCatalogueHeaders();
     }
@@ -49,6 +55,76 @@ public partial class MainWindow : Window
     private async void OnRefreshCatalogue(object sender, RoutedEventArgs e)
     {
         if (DataContext is ShellViewModel { Admin: { } admin }) await admin.RefreshAsync();
+    }
+
+    private async void OnAddOrderProduct(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Entry: { } entry }) return;
+        try
+        {
+            await entry.AddSelectedProductAsync();
+            if (entry.PendingProduct is { } product)
+            {
+                var dialog = new OptionSelectionDialog(this, product, null);
+                if (dialog.ShowDialog() == true) entry.AddConfiguredLine(product, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
+            }
+        }
+        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private void OnEditOrderLine(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Entry: { } entry } || orderCartList.SelectedItem is not OrderEntryCartLineViewModel line) return;
+        var productId = line.Draft.Product.Product.Id;
+        _ = EditOrderLineAsync(entry, line, productId);
+        e.Handled = true;
+    }
+
+    private async Task EditOrderLineAsync(OrderEntryShellViewModel entry, OrderEntryCartLineViewModel line, Guid productId)
+    {
+        try
+        {
+            var product = await entry.GetActiveProductForEditAsync(productId);
+            if (product is null) { MessageBox.Show(this, "Le produit n'est plus actif.", "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+            var dialog = new OptionSelectionDialog(this, product, line);
+            if (dialog.ShowDialog() == true) entry.UpdateConfiguredLine(line, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
+        }
+        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private void OnDecreaseOrderQuantity(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry } && (sender as Button)?.Tag is OrderEntryCartLineViewModel line)
+            if (line.Quantity > 1) entry.ChangeQuantity(line, line.Quantity - 1);
+    }
+
+    private void OnIncreaseOrderQuantity(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry } && (sender as Button)?.Tag is OrderEntryCartLineViewModel line)
+            entry.ChangeQuantity(line, line.Quantity + 1);
+    }
+
+    private void OnRemoveOrderLine(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry } && (sender as Button)?.Tag is OrderEntryCartLineViewModel line) entry.RemoveLine(line);
+    }
+
+    private void OnManualOrderTotalChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry } && sender is TextBox box) entry.SetManualTotal(box.Text);
+    }
+
+    private async void OnConfirmOrder(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Entry: { } entry }) return;
+        try { await entry.ConfirmAsync(); }
+        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private async void OnReloadOrder(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Entry: { } entry }) return;
+        if (!await entry.ReloadOrderAsync()) MessageBox.Show(this, "Commande introuvable.", "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void OnFilterRefreshFailed(object? sender, EventArgs e)
@@ -181,6 +257,92 @@ public partial class MainWindow : Window
     {
         var localized = (DataContext as ShellViewModel)?.Localized ?? new Dictionary<string, string>();
         MessageBox.Show(this, result.Issues.Count == 0 ? LocalizedText(this, "ValidationGeneric", "The operation failed.") : M03Presentation.FormatIssues(result, localized), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private sealed class OptionSelectionDialog : Window
+    {
+        private readonly OrderEntryProduct product;
+        private readonly Dictionary<Guid, List<FrameworkElement>> controls = [];
+        private readonly StackPanel customPanel = new();
+        private readonly List<(TextBox Label, TextBox Amount, Button Remove)> customRows = [];
+        private readonly TextBox quantity;
+        private readonly IReadOnlyDictionary<string, string> localized;
+        public OptionSelectionDialog(Window owner, OrderEntryProduct product, OrderEntryCartLineViewModel? existing)
+        {
+            this.product = product;
+            localized = (owner.DataContext as ShellViewModel)?.Localized ?? new Dictionary<string, string>();
+            Owner = owner; WindowStartupLocation = WindowStartupLocation.CenterOwner; Title = Label("Options", "Options"); Width = 520; Height = 620; MinHeight = 420;
+            var root = new DockPanel { Margin = new Thickness(14) };
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancel = new Button { Content = Label("Cancel", "Annuler"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) }; cancel.Click += (_, _) => DialogResult = false;
+            var ok = new Button { Content = Label("Add", "Ajouter"), Padding = new Thickness(12, 5, 12, 5) }; ok.Click += (_, _) => Accept(); buttons.Children.Add(cancel); buttons.Children.Add(ok); DockPanel.SetDock(buttons, Dock.Bottom); root.Children.Add(buttons);
+            var panel = new StackPanel(); panel.Children.Add(new TextBlock { Text = $"{product.Aggregate.Product.Code} — {product.Aggregate.Product.Name}", FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
+            quantity = AddText(panel, Label("Quantity", "Quantité"), existing?.Quantity.ToString(CultureInfo.InvariantCulture) ?? "1");
+            if (product.Aggregate.Product.OptionsEnabled)
+                foreach (var group in product.Aggregate.Groups.OrderBy(group => group.DisplayOrder)) AddGroup(panel, group, existing?.Draft.SelectedOptionIds ?? []);
+            panel.Children.Add(new TextBlock { Text = Label("CustomAdjustments", "Ajustements personnalisés (par unité)"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
+            foreach (var current in existing?.Draft.CustomAdjustments ?? []) AddCustomRow(current);
+            var addCustom = new Button { Content = "+ " + Label("AddAdjustment", "Ajustement"), Padding = new Thickness(8, 3, 8, 3), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 4) }; addCustom.Click += (_, _) => AddCustomRow(null);
+            panel.Children.Add(customPanel); panel.Children.Add(addCustom);
+            root.Children.Add(new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }); Content = root;
+        }
+
+        public IReadOnlyList<Guid> SelectedOptionIds { get; private set; } = [];
+        public IReadOnlyList<OrderLineAdjustmentDraft> CustomAdjustments { get; private set; } = [];
+        public int Quantity { get; private set; }
+
+        private void AddCustomRow(OrderLineAdjustmentDraft? current)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
+            var label = new TextBox { Width = 210, ToolTip = "Libellé", Text = current?.Label ?? string.Empty };
+            var amount = new TextBox { Width = 90, Margin = new Thickness(6, 0, 0, 0), ToolTip = "Montant TTC", Text = current is null ? string.Empty : current.AmountTtcPerUnit.Euros.ToString("0.00", CultureInfo.InvariantCulture) };
+            var remove = new Button { Content = "×", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(5, 2, 5, 2) };
+            var tuple = (label, amount, remove); remove.Click += (_, _) => { customPanel.Children.Remove(row); customRows.Remove(tuple); }; row.Children.Add(label); row.Children.Add(amount); row.Children.Add(remove); customPanel.Children.Add(row); customRows.Add(tuple);
+        }
+
+        private void AddGroup(Panel panel, OptionGroup group, IReadOnlyList<Guid> existing)
+        {
+            var title = $"{group.Name} — {(group.SelectionMode == DomainSelectionMode.Single ? Label("Single", "SINGLE") : $"{Label("Multi", "MULTI")} {group.MinSelections}-{group.MaxSelections}")} {(group.IsRequired ? Label("Required", "requis") : Label("Optional", "optionnel"))}";
+            panel.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 2) });
+            var list = new List<FrameworkElement>(); controls[group.Id] = list;
+            foreach (var option in (product.Aggregate.OptionsByGroup.TryGetValue(group.Id, out var values) ? values : []).Where(option => option.IsActive).OrderBy(option => option.DisplayOrder))
+            {
+                FrameworkElement control = group.SelectionMode == DomainSelectionMode.Single
+                    ? new RadioButton { Content = $"{option.Name} ({option.PriceAdjustmentTtc.Euros:0.00} €)", GroupName = $"group-{group.Id}", IsChecked = existing.Contains(option.Id), Tag = option.Id }
+                    : new CheckBox { Content = $"{option.Name} ({option.PriceAdjustmentTtc.Euros:0.00} €)", IsChecked = existing.Contains(option.Id), Tag = option.Id };
+                list.Add(control); panel.Children.Add(control);
+            }
+        }
+
+        private static TextBox AddText(Panel panel, string label, string value)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) }; row.Children.Add(new TextBlock { Text = label, Width = 150, VerticalAlignment = VerticalAlignment.Center }); var box = new TextBox { Width = 100, Text = value }; row.Children.Add(box); panel.Children.Add(row); return box;
+        }
+
+        private void Accept()
+        {
+            if (!int.TryParse(quantity.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedQuantity) || parsedQuantity <= 0) { MessageBox.Show(this, Label("InvalidQuantity", "La quantité doit être un entier positif.")); return; }
+            var selected = new List<Guid>();
+            foreach (var group in product.Aggregate.Groups)
+            {
+                var values = controls[group.Id].Where(control => control is RadioButton radio && radio.IsChecked == true || control is CheckBox check && check.IsChecked == true).Select(control => (Guid)control.Tag!).ToArray();
+                var min = group.SelectionMode == DomainSelectionMode.Single ? (group.IsRequired ? 1 : 0) : group.MinSelections ?? 0;
+                var max = group.SelectionMode == DomainSelectionMode.Single ? 1 : group.MaxSelections ?? 0;
+                if (values.Length < min || values.Length > max) { MessageBox.Show(this, string.Format(CultureInfo.CurrentCulture, Label("InvalidOptions", "La sélection du groupe « {0} » est invalide."), group.Name)); return; }
+                selected.AddRange(values);
+            }
+            var custom = new List<OrderLineAdjustmentDraft>();
+            foreach (var row in customRows)
+            {
+                var label = row.Label.Text.Trim();
+                if (label.Length == 0 && string.IsNullOrWhiteSpace(row.Amount.Text)) continue;
+                if (label.Length == 0 || !decimal.TryParse(row.Amount.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var amount)) { MessageBox.Show(this, Label("InvalidAdjustment", "Chaque ajustement doit avoir un libellé et un montant valides.")); return; }
+                custom.Add(new(null, null, label, Money.FromEuros(amount), OrderAdjustmentKind.CustomAdjustment, custom.Count));
+            }
+            SelectedOptionIds = selected; CustomAdjustments = custom; Quantity = parsedQuantity; DialogResult = true;
+        }
+
+        private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
     }
 
     private static string LocalizedText(Window owner, string key, string fallback) => owner.DataContext is ShellViewModel viewModel && viewModel.Localized.TryGetValue(key, out var value) ? value : fallback;

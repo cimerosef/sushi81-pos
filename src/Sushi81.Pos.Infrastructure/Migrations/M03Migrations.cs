@@ -71,8 +71,3 @@ public static class M03Migrations
             """)
     ];
 }
-
-public static class ProductionMigrations
-{
-    public static IReadOnlyList<SqliteMigration> All { get; } = M01Migrations.All.Concat(M03Migrations.All).ToArray();
-}
