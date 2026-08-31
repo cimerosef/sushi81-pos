@@ -1,6 +1,6 @@
 # M03 implementation worklog
 
-**Status:** Remediation complete through FIX-12; automated evidence green; manual WPF acceptance outstanding
+**Status:** Remediation complete through FIX-16; automated evidence green; full operator Windows/WPF acceptance passed on the final head
 **Milestone:** M03 — In-application catalogue and business settings
 
 This worklog records the implementation/evidence handoff for the active M03 PR. The production scope is limited to
@@ -288,21 +288,31 @@ style, dependency, business logic, Catalogue/Settings layout or main-window clos
 
 A narrow structural architecture regression protects the selector dimensions/alignment; the existing FR/zh-CN switching and persisted
 language tests remain green. Final local verification is **225 passed, 0 failed, 0 skipped**; the required self-contained win-x64 publish
-uses the current M03 artifact. Manual Windows/WPF verification of this selector remains outstanding, so M03 and AC-CAT-013 stay Partial;
-M04 remains not started/unauthorized.
+uses the current M03 artifact. Manual Windows/WPF verification of this selector was subsequently completed and passed; M03 and
+AC-CAT-013 are now Passed for their authorized M03 scope. M04 remains not started/unauthorized.
+
+## Final operator acceptance closure — `M03-FINAL-ACCEPTANCE-DOCS-17`
+
+The operator completed the full M03 Windows/WPF checklist against head
+`40f6e3884af488e4dd496f26b29bf9f6ca97bece`; every authorized M03 path passed:
+
+- AC-CAT-013 three-filter intersection, precise bulk mutation and filter-preservation path;
+- single-product activation/deactivation regression and unchanged option hierarchy through bulk state changes;
+- active/inactive restart persistence;
+- category rename, save/cancel and restored state;
+- permanent Product delete confirmation, cascade behavior and code reuse;
+- all five BusinessSettings defaults and edited Save/restart persistence;
+- no editable delivery-fee VAT control and fixed 10% explanatory boundary;
+- M03 scope boundary with no future-feature controls exposed;
+- FIX-16 language selector compact/single-line visual presentation in both zh-CN and French;
+- existing main-window X-to-exit behavior intentionally unchanged, per the operator's explicit withdrawal of the proposed change.
+
+M03 and AC-CAT-001/AC-CAT-013 are therefore Passed for the authorized milestone scope. AC-CAT-003 historical-order independence
+and the AC-ORD-011 pricing-consumer cross-check remain explicitly deferred to M04; no M04 work is started or authorized.
 
 ## Outstanding
 
-- Operator must rerun the manual M03 Windows/WPF checklist from the contract against the latest M03 branch self-contained artifact,
-  including AC-CAT-013 and all accepted review remediations through FIX-16. This includes visual confirmation that all six Catalogue
-  headers are populated (`Code`, `Nom`, `Catégorie`, `Prix TTC`, `TVA`,
-  `Actifs` in French and the corresponding zh-CN labels), switch live in both directions, and remain readable at
-  default/resized/maximized sizes. The operator must also confirm that search, category and status filters update the product
-  list automatically (with debounced search), rapid changes settle on the latest result, `Tous`/`全部` category and status All
-  selections are stable through either language-switch direction and refresh, and category-manager/Product Editor layouts and
-  CRUD/settings workflows remain readable and safe. This automation run did not perform an interactive Windows/WPF session;
-  the earlier manual run stopped at the blank-header observation before FIX-09, so the post-FIX-12 checklist remains open.
-- AC-CAT-003 historical-order independence and pricing-consumer cross-check in AC-ORD-011 remain intentionally
-  deferred to M04, which is not started or authorized.
+- AC-CAT-003 historical-order independence and the pricing-consumer cross-check in AC-ORD-011 remain intentionally deferred to
+  M04, which is not started or authorized.
 
 No M04 work is authorized in this branch. No real customer, order, payment, credential or other sensitive data was added.

@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation plus the review and manual-UI remediations through `M03-MANUAL-UI-LIVE-FILTER-FIX-12` are complete on `codex/m03-catalogue-settings`; the authorized AC-CAT-013 filtered bulk activation/deactivation extension and review remediations through `M03-LANGUAGE-COMBO-HEIGHT-FIX-16` are implemented with automated evidence, while interactive Windows/WPF M03 acceptance remains an explicit operator check.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation, the authorized AC-CAT-013 extension, all review remediations through `M03-LANGUAGE-COMBO-HEIGHT-FIX-16`, and the complete operator Windows/WPF acceptance checklist are Passed on `codex/m03-catalogue-settings`. AC-CAT-003 historical-order independence and the AC-ORD-011 pricing-consumer cross-check remain explicitly deferred to M04; M04 is not started or authorized.
 
 ## 1. Status vocabulary
 
@@ -22,7 +22,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 |---|---|---|
 | M01 — Foundation and safe persistence spine | Passed | Merged to `main` via PR #1 after automated verification and successful Windows/WPF manual re-verification. |
 | M02 — remote handoff feasibility gate | Passed | Original competitive OneDrive model remains historically Blocked. Approved GitHub private Release Asset transport, automated failure evidence, real private-repository A → B v1 / B → A v2 round-trip evidence, and isolated destructive newest-three retention evidence are complete; the amended M02 gate is closed by evidence. |
-| M03 — Catalogue and settings | Partial — automated scope complete; manual WPF check pending | Authorized by `CODEX_HANDOFF_READY: M03-IMPLEMENT-01`; migration 2, layered catalogue/settings services, localized WPF maintenance shell and automated evidence are complete. The manual checklist is intentionally not marked Passed until an operator verifies it on Windows. |
+| M03 — Catalogue and settings | Passed | Authorized by `CODEX_HANDOFF_READY: M03-IMPLEMENT-01`; migration 2, layered catalogue/settings services, localized WPF maintenance shell, automated evidence, and the complete operator Windows/WPF checklist are recorded on the applicable head. Cross-milestone regressions explicitly owned by M04 remain deferred. |
 | M04 — Order-entry vertical slice | Not started | Pending M03 |
 | M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
 | M06 — Local recovery/read-only enforcement | Not started | Pending M05 |
@@ -51,7 +51,7 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 
 | Criterion | Owner | Status | Evidence |
 |---|---:|---|---|
-| AC-CAT-001 | M03 | Partial | Automated domain/integration coverage; manual WPF catalogue workflow pending |
+| AC-CAT-001 | M03 | Passed | Automated domain/integration coverage plus completed operator Windows/WPF catalogue workflow |
 | AC-CAT-002 | M03 | Passed | Normalized category uniqueness and rename tests in `tests/Sushi81.Pos.Infrastructure.IntegrationTests/M03CatalogueIntegrationTests.cs` |
 | AC-CAT-003 | M03 | Partial | Current-product maintenance is implemented/tested; historical-order independence remains an M04 snapshot regression |
 | AC-CAT-004 | M03 | Passed | Required-field, price and VAT boundary validation tests |
@@ -63,7 +63,7 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 | AC-CAT-010 | M10 | Not started | — |
 | AC-CAT-011 | M10 | Not started | — |
 | AC-CAT-012 | M04 | Not started | — |
-| AC-CAT-013 | M03 | Partial | Application/SQLite/presentation automation is implemented and green; manual filtered-bulk Windows/WPF checklist remains outstanding |
+| AC-CAT-013 | M03 | Passed | Application/SQLite/presentation automation plus completed three-filter intersection and precise bulk-mutation Windows/WPF checklist |
 
 ### Order creation and business rules
 
@@ -281,7 +281,7 @@ The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID 
 **Handoff authorization:** `CODEX_HANDOFF_READY: M03-IMPLEMENT-01` on the active M03 implementation PR
 **Implementation/evidence commits:** `466dd06e5f9e7d1e2ea7d75b8a02d14d5f569a64`, `5a36bf9e6e656db842c4bebc464289ade3e1b436`, `80647b131d7a52b410675ba2802d68be29f3d891`
 **Remediation handoffs:** `CODEX_HANDOFF_READY: M03-REVIEW-FIX-02`; post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run **#133** (success). Follow-up `CODEX_HANDOFF_READY: M03-MANUAL-UI-FILTER-FIX-03` is implemented at head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` and passed CI run **#137** (success; durable completion records include check URLs). The category-binding remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-BINDING-FIX-04` is implemented at head `1053c9b210cac15343959aac8f9ffa2c13ccd9b8`; its final CI result is recorded in the matching PR completion evidence. The first status-key remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-STATUS-BINDING-FIX-05` is implemented at head `e56ec77b4d13898c40d57be600652309d77938df`; the follow-up lifecycle remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-STATUS-LIFECYCLE-FIX-06` is implemented at head `a3bab3de2b43e14a415f4251ab1b6dd77cf61aa0`; the category-manager layout remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-LAYOUT-FIX-07` is implemented in the current final head; `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-CREATE-ACTION-FIX-08` is implemented in the current final head; `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATALOGUE-HEADER-FIX-09` is implemented at head `9bd4e057400abe0110ae95fdeb84efed43eb80a4`; `CODEX_HANDOFF_READY: M03-MANUAL-UI-OPTION-GROUP-ADD-CRASH-FIX-10` is implemented at head `64dc110bd2d6c6b9a623d4c3ba487210e014c178` and passed CI run **#173** (success); `CODEX_HANDOFF_READY: M03-MANUAL-UI-OPTION-GROUP-LAYOUT-FIX-11` is implemented in the current remediation head, with its final CI result recorded in the matching PR completion evidence; and `CODEX_HANDOFF_READY: M03-MANUAL-UI-LIVE-FILTER-FIX-12` implementation/evidence head `b3e34d0d79a4efd39dd3817d19cd107a0f7af50c` passed CI run **#189** (success). Each earlier final CI result is recorded in the matching PR completion evidence.
-**Status:** Partial pending the operator's interactive Windows/WPF checklist; no automated blocker remains.
+**Status:** Passed for the authorized M03 milestone scope after the complete operator Windows/WPF checklist passed on head `40f6e3884af488e4dd496f26b29bf9f6ca97bece`; AC-CAT-003 historical-order independence and the AC-ORD-011 pricing-consumer cross-check remain explicitly deferred to M04.
 
 ### Delivered scope
 
@@ -384,8 +384,8 @@ and rolls back on missing/stale targets or injected mid-operation failure; only 
 The WPF shell exposes exactly localized bulk Activate/Deactivate actions, waits for the latest live/debounced composed filter result,
 shows target/matched/effective confirmation counts, supports cancel/no-op/error feedback and refreshes while preserving filters.
 Automated Application, SQLite integration and desktop presentation tests cover these invariants, including option aggregate and
-unrelated-field preservation. No migration/schema change was made. Manual Windows/WPF execution of the extension checklist remains
-outstanding, so M03 and AC-CAT-013 remain `Partial` rather than `Passed`.
+unrelated-field preservation. No migration/schema change was made. The complete operator Windows/WPF extension checklist later
+passed on the final FIX-16 artifact; AC-CAT-013 is therefore `Passed` for its M03 scope.
 
 Final extension head: `37ab7c5d156a7aa0b7aec90ffa3523fb6c75551f`; incorporated `main` at `4c971afda3ff5f2bc047f083bf962ee46d74f1f7`; CI
 run **#208** passed. Follow-up evidence-documentation head `4b67bc7e0787008deb5a5033ea941f265817c967` passed CI **#210**. The required default publish directory was occupied by the running desktop process; a self-contained
@@ -407,8 +407,8 @@ refresh while preserving search/category/status filters and clear a selected Pro
 Final review-remediation verification is **221 passed, 0 failed, 0 skipped** (Domain 10; Application 11; Infrastructure integration 34;
 Architecture/localization 42; protocol 32; GitHub wrapper/harness 92). Release build remains 0 warnings/0 errors. The required default
 publish path was truthfully recorded as locked by the running process; equivalent self-contained output succeeded under the ignored
-alternate path. Interactive Windows/WPF acceptance remains outstanding, M03 and AC-CAT-013 remain `Partial`, PR #5 remains open/unmerged,
-and M04 is not started or authorized.
+alternate path. This earlier remediation record predates the final operator acceptance closure; PR #5 remains open/unmerged, and M04
+is not started or authorized.
 
 ### Failure-path refresh remediation — `M03-FILTERED-BULK-FAILURE-REFRESH-FIX-15`
 
@@ -420,14 +420,13 @@ unexpected-exception path are swallowed only for that best-effort refresh, so th
 
 Architecture regressions cover result failure refresh/filter preservation, unexpected exception refresh before propagation, and refresh
 failure without masking the original exception. Final local verification for this remediation is **224 passed, 0 failed, 0 skipped**;
-interactive Windows/WPF acceptance remains outstanding, M03 and AC-CAT-013 remain `Partial`, PR #5 remains open/unmerged, and M04 is
-not started or authorized.
+the subsequent final operator acceptance closure is recorded below; PR #5 remains open/unmerged, and M04 is not started or authorized.
 
 ### Language selector height remediation — `M03-LANGUAGE-COMBO-HEIGHT-FIX-16`
 
 The top-right language selector now uses a compact explicit height, centered vertical alignment/content alignment, and minimal horizontal padding while preserving its 150px width. A structural architecture regression protects these attributes; existing French/zh-CN switching and persistence tests remain unchanged. The main-window close behavior was not modified.
 
-Final local verification for this remediation is **225 passed, 0 failed, 0 skipped**; the required self-contained win-x64 publish uses the current M03 artifact. Interactive Windows/WPF acceptance of the compact selector remains outstanding, M03 and AC-CAT-013 remain `Partial`, PR #5 remains open/unmerged, and M04 is not started or authorized.
+Final local verification for this remediation is **225 passed, 0 failed, 0 skipped**; the required self-contained win-x64 publish uses the current M03 artifact. The operator subsequently verified the compact selector as single-line in both zh-CN and French; M03 and AC-CAT-013 are now `Passed` for their authorized M03 scope. PR #5 remains open/unmerged, and M04 is not started or authorized.
 
 ### Acceptance mapping and remaining checks
 
@@ -436,14 +435,27 @@ Final local verification for this remediation is **225 passed, 0 failed, 0 skipp
   reuse and exact settings round-trip are covered in
   `tests/Sushi81.Pos.Infrastructure.IntegrationTests/M03CatalogueIntegrationTests.cs` and
   `tests/Sushi81.Pos.Domain.Tests/CatalogueDomainTests.cs`.
-- **Partial by design:** AC-CAT-001 awaits interactive catalogue-screen verification; AC-CAT-003 current-product
-  maintenance is implemented, while historical-order independence remains the M04 snapshot regression; AC-ORD-011
-  pricing-consumer integration is re-exercised by M04.
-- **Manual Windows/WPF verification:** not performed after `M03-MANUAL-UI-LIVE-FILTER-FIX-12` in this non-interactive
-  automation run. Earlier operator evidence predates the header/layout/filter remediations; the operator must launch the latest
-  self-contained artifact and rerun the M03 checklist (including visual French and zh-CN header labels, automatic debounced
-  search/category/status filtering, latest-wins rapid changes, `Tous`/`全部` selection across both language directions and
-  refresh, category-manager/Product Editor readability, category/product/group/option CRUD and ordering, activation/deletion,
-  settings restart round-trip, and confirmation that no future features appear). This is intentionally not marked Passed.
-- **M04:** not started and not authorized by this handoff. **Blockers:** none for the automated M03 implementation; only
-  the explicitly outstanding manual WPF acceptance remains.
+- **Passed by operator evidence:** AC-CAT-001 includes the completed Windows/WPF catalogue workflow; AC-CAT-013 includes the
+  completed three-filter intersection, precise bulk mutation, filter-preservation and localized-control checklist recorded below.
+- **Partial by design:** AC-CAT-003 current-product maintenance is implemented, while historical-order independence remains the
+  M04 snapshot regression; AC-ORD-011 pricing-consumer integration remains explicitly deferred to M04.
+- **Manual Windows/WPF verification:** the complete M03 checklist passed on the final FIX-16 artifact, including both French and
+  zh-CN presentation and persistence paths. No manual M03 acceptance work remains outstanding.
+- **M04:** not started and not authorized by this handoff. **Blockers:** none for the authorized M03 scope.
+
+### Final operator acceptance closure — head `40f6e3884af488e4dd496f26b29bf9f6ca97bece`
+
+The operator completed the full M03 Windows/WPF checklist on the final published artifact. The following paths passed:
+
+- AC-CAT-013 three-filter intersection, exact target/matched/effective counts, precise bulk mutation and filter preservation;
+- single-product activation/deactivation regression and option hierarchy preservation through bulk state changes;
+- active/inactive restart persistence;
+- category rename with save/cancel and restored state;
+- permanent Product delete confirmation, cascade behavior and code reuse;
+- all five BusinessSettings defaults and edited Save/restart persistence;
+- no editable delivery-fee VAT control and fixed 10% explanatory boundary;
+- M03 scope boundary with no future-feature controls exposed;
+- FIX-16 language selector compact/single-line visual presentation in zh-CN and French;
+- the operator's explicit decision to retain the existing main-window X-to-exit behavior unchanged.
+
+Together with the automated evidence above, this closes M03 and AC-CAT-001/AC-CAT-013 as `Passed` for the authorized M03 scope.
