@@ -76,5 +76,13 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 - Self-contained publish: `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --verbosity:minimal` passed to `src/Sushi81.Pos.Desktop/bin/Release/net10.0-windows/win-x64/publish/`.
 - CI: GitHub Actions `Continuous integration` run **#252** completed successfully for pushed head `f73a3939417642cc9633f2c779d13a45febd58b9`; the `build-and-test` job Restore, Build and Test steps all passed.
 - PR state: active M04 PR remains open and unmerged; project-owner merge approval is still required.
-- Execution gate: OPEN for `M04-REVIEW-FIX-04` at the last durable check.
-- Addendum implementation head and verification are recorded in the `CODEX_DONE: M04-REVIEW-FIX-04-TIME-ADDENDUM-01` delivery record below after push/CI completion.
+- Execution gate: OPEN for `M04-REVIEW-FIX-04-TIME-ADDENDUM-01` at the last durable check.
+
+## Delivery record — `M04-REVIEW-FIX-04-TIME-ADDENDUM-01`
+
+- Implementation commit: `09d289b7499258dc550f463fcb05bce1d931fd23` (`fix: enforce approved M04 planned time slots`); branch `codex/m04-order-entry` was pushed to PR #6.
+- Release build: `dotnet build Sushi81.Pos.sln -c Release --no-restore --verbosity:minimal` passed with 0 warnings and 0 errors.
+- Release tests: `dotnet test Sushi81.Pos.sln -c Release --no-restore --no-build --verbosity:minimal` passed with 274 tests: Domain 26, Application 27, Infrastructure integration 41, Architecture 56, OneDrive feasibility 32, and OneDrive feasibility tools 92; 0 failed and 0 skipped.
+- Self-contained publish: `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --verbosity:minimal` passed to `src/Sushi81.Pos.Desktop/bin/Release/net10.0-windows/win-x64/publish/`.
+- CI: GitHub Actions `Continuous integration` run **#256** completed successfully for implementation commit `09d289b7499258dc550f463fcb05bce1d931fd23`; Restore, Build and Test all passed.
+- Manual acceptance remains unclaimed. PR #6 remains open and unmerged, `POST_TASK_POWER_ACTION: NONE`, and M05 was not started.
