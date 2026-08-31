@@ -1,6 +1,6 @@
 # M04 implementation worklog
 
-**Status:** Authorized / `M04-REVIEW-FIX-04-TIME-ADDENDUM-01` complete pending ChatGPT review, manual rerun and project-owner merge approval
+**Status:** Authorized / `M04-REVIEW-FIX-05` complete pending ChatGPT review, manual rerun and project-owner merge approval
 **Milestone:** M04 — First complete order-entry vertical slice  
 **Implementation branch:** `codex/m04-order-entry`  
 **Approved branch base:** `0926decdcae59ed0aa4ea95c2d0f9d79aa44a36e`  
@@ -17,7 +17,7 @@ This worklog is the durable implementation/evidence record for M04.
 - A1/B1/C1 clarification is approved and durable.
 - M04 branch is created from the documented latest preparation `main` baseline.
 - Production implementation is now present on the implementation branch; final merge remains pending project-owner review.
-- GitHub issue #4 is OPEN for the authorized `M04-REVIEW-FIX-04-TIME-ADDENDUM-01` remediation; no later milestone is being inferred.
+- GitHub issue #4 is OPEN for the authorized `M04-REVIEW-FIX-05` remediation; no later milestone is being inferred.
 - M05 is not authorized.
 
 ## Evidence policy
@@ -58,6 +58,13 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 - Automated application and STA/WPF coverage for the addendum is recorded in the delivery record below after verification. No manual acceptance is claimed.
 - `POST_TASK_POWER_ACTION: NONE`.
 
+## Implementation evidence — `M04-REVIEW-FIX-05`
+
+- The Application approved-time predicate now requires the approved hour, a five-minute minute value, and zero seconds/sub-minute `TimeOnly` ticks. Invalid programmatic values such as `11:05:30` and `11:05:00.0000001` fail with `PlannedTimeInvalid` before persistence or dispatch; exact `11:05:00` remains valid.
+- Focused Application tests cover the exact approved success, non-zero seconds rejection, non-zero sub-second tick rejection, zero persistence/dispatch on both failures, and the existing missing-time/invalid-hour boundaries. WPF slot tests remain green and unchanged.
+- No WPF choice, historical null-time compatibility, schema, or M05 scope changed. Manual acceptance remains unclaimed.
+- `POST_TASK_POWER_ACTION: NONE`.
+
 ## Delivery record
 
 - Prior implementation/evidence head: `358d7105bf51f39b5de4b514daafcaed63730a3b`.
@@ -85,4 +92,13 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 - Release tests: `dotnet test Sushi81.Pos.sln -c Release --no-restore --no-build --verbosity:minimal` passed with 274 tests: Domain 26, Application 27, Infrastructure integration 41, Architecture 56, OneDrive feasibility 32, and OneDrive feasibility tools 92; 0 failed and 0 skipped.
 - Self-contained publish: `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --verbosity:minimal` passed to `src/Sushi81.Pos.Desktop/bin/Release/net10.0-windows/win-x64/publish/`.
 - CI: GitHub Actions `Continuous integration` run **#256** completed successfully for implementation commit `09d289b7499258dc550f463fcb05bce1d931fd23`; Restore, Build and Test all passed.
+- Manual acceptance remains unclaimed. PR #6 remains open and unmerged, `POST_TASK_POWER_ACTION: NONE`, and M05 was not started.
+
+## Delivery record — `M04-REVIEW-FIX-05`
+
+- Implementation commit: `bf0a6e7888619bcb573500591500c46eae0434ef` (`fix: reject non-exact planned time values`); branch `codex/m04-order-entry` was pushed to PR #6.
+- Release build: `dotnet build Sushi81.Pos.sln -c Release --no-restore --verbosity:minimal` passed with 0 warnings and 0 errors.
+- Release tests: `dotnet test Sushi81.Pos.sln -c Release --no-restore --no-build --verbosity:minimal` passed with 277 tests: Domain 26, Application 30, Infrastructure integration 41, Architecture 56, OneDrive feasibility 32, and OneDrive feasibility tools 92; 0 failed and 0 skipped.
+- Self-contained publish: `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --verbosity:minimal` passed to `src/Sushi81.Pos.Desktop/bin/Release/net10.0-windows/win-x64/publish/`.
+- CI: GitHub Actions `Continuous integration` run **#259** completed successfully for implementation commit `bf0a6e7888619bcb573500591500c46eae0434ef`; Restore, Build and Test all passed.
 - Manual acceptance remains unclaimed. PR #6 remains open and unmerged, `POST_TASK_POWER_ACTION: NONE`, and M05 was not started.
