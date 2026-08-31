@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation, the authorized AC-CAT-013 extension, all review remediations through `M03-LANGUAGE-COMBO-HEIGHT-FIX-16`, and the complete operator Windows/WPF acceptance checklist are Passed on `codex/m03-catalogue-settings`. M04 is authorized and implementation is in progress on `codex/m04-order-entry`; automated evidence is passing, while final Windows/WPF operator acceptance and project-owner merge approval remain outstanding.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation, the authorized AC-CAT-013 extension, all review remediations through `M03-LANGUAGE-COMBO-HEIGHT-FIX-16`, and the complete operator Windows/WPF acceptance checklist are Passed on `codex/m03-catalogue-settings`. M04 is authorized on `codex/m04-order-entry`; the implementation and review-remediation automated evidence are complete on `c272e52aa33359206cb300844459b90ef725eae8`, while final Windows/WPF operator acceptance and project-owner merge approval remain outstanding.
 
 ## 1. Status vocabulary
 
@@ -23,7 +23,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 | M01 — Foundation and safe persistence spine | Passed | Merged to `main` via PR #1 after automated verification and successful Windows/WPF manual re-verification. |
 | M02 — remote handoff feasibility gate | Passed | Original competitive OneDrive model remains historically Blocked. Approved GitHub private Release Asset transport, automated failure evidence, real private-repository A → B v1 / B → A v2 round-trip evidence, and isolated destructive newest-three retention evidence are complete; the amended M02 gate is closed by evidence. |
 | M03 — Catalogue and settings | Passed | Authorized by `CODEX_HANDOFF_READY: M03-IMPLEMENT-01`; migration 2, layered catalogue/settings services, localized WPF maintenance shell, automated evidence, and the complete operator Windows/WPF checklist are recorded on the applicable head. Cross-milestone regressions explicitly owned by M04 remain deferred. |
-| M04 — Order-entry vertical slice | In progress | Authorized by `CODEX_HANDOFF_READY: M04-IMPLEMENT-01`; implementation and automated verification are present on `codex/m04-order-entry`, with manual Windows/WPF acceptance pending. |
+| M04 — Order-entry vertical slice | In progress | Authorized by `CODEX_HANDOFF_READY: M04-IMPLEMENT-01`; implementation and `M04-REVIEW-FIX-02` remediation automated verification are present on `codex/m04-order-entry`, with manual Windows/WPF acceptance and merge approval pending. |
 | M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
 | M06 — Local recovery/read-only enforcement | Not started | Pending M05 |
 | M07 — Handoff and disaster recovery | Not started | Pending M06; must implement amended target-directed protocol |
@@ -56,21 +56,21 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 | AC-CAT-003 | M03 | Partial | Current-product maintenance is implemented/tested; historical-order independence remains an M04 snapshot regression |
 | AC-CAT-004 | M03 | Passed | Required-field, price and VAT boundary validation tests |
 | AC-CAT-005 | M03 | Passed | Structured group/option validation, ordering, signed adjustments and aggregate persistence tests |
-| AC-CAT-006 | M04 | Not started | — |
-| AC-CAT-007 | M04 | Not started | — |
+| AC-CAT-006 | M04 | Partial | Active-product order-entry selection and catalogue revalidation are implemented/tested; full milestone acceptance remains pending operator review |
+| AC-CAT-007 | M04 | Partial | Sale-time catalogue/product/option snapshot persistence and historical reload are implemented/tested; full milestone acceptance remains pending operator review |
 | AC-CAT-008 | M10 | Not started | — |
 | AC-CAT-009 | M10 | Not started | — |
 | AC-CAT-010 | M10 | Not started | — |
 | AC-CAT-011 | M10 | Not started | — |
-| AC-CAT-012 | M04 | Not started | — |
+| AC-CAT-012 | M04 | Partial | Current product/option rehydration rejects stale, unknown, wrong-product and inactive selections before save/dispatch |
 | AC-CAT-013 | M03 | Passed | Application/SQLite/presentation automation plus completed three-filter intersection and precise bulk-mutation Windows/WPF checklist |
 
 ### Order creation and business rules
 
 | Criterion | Owner | Status | Evidence |
 |---|---:|---|---|
-| AC-ORD-001 through AC-ORD-010 | M04 | Not started | Record individual tests before marking Passed |
-| AC-ORD-011 | M03 | Partial | BusinessSettings UI/persistence contract and exact round-trip tests; pricing-consumer cross-check remains in M04 |
+| AC-ORD-001 through AC-ORD-010 | M04 | Partial | Domain/Application/SQLite/STA-WPF evidence is present on the M04 remediation head; manual operator acceptance remains pending |
+| AC-ORD-011 | M03 | Passed | BusinessSettings UI/persistence plus M04 pricing-consumer current-settings/repricing evidence |
 
 ### Lifecycle, payments and operational views
 
