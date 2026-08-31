@@ -221,7 +221,8 @@ public sealed class OrderEntryService(
 
     private static bool IsApprovedPlannedTime(TimeOnly time) =>
         time.Hour is 11 or 12 or 13 or 14 or 18 or 19 or 20 or 21 or 22 &&
-        time.Minute % 5 == 0;
+        time.Minute % 5 == 0 &&
+        time.Ticks % TimeSpan.TicksPerMinute == 0;
 
     public void Dispose() => confirmationGate.Dispose();
 }

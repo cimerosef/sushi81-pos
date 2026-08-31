@@ -162,6 +162,55 @@ public sealed class OrderEntryApplicationTests
     }
 
     [TestMethod]
+    public async Task ExactApprovedPlannedTimeSucceeds()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingDispatcher();
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, dispatcher);
+
+        var result = await service.ConfirmNewOrderAsync(Draft(product) with { PlannedFulfilmentTime = new TimeOnly(11, 5) });
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(new TimeOnly(11, 5), result.CommittedOrder!.PlannedFulfilmentTime);
+        Assert.AreEqual(1, store.SaveCalls);
+        Assert.AreEqual(1, dispatcher.Calls);
+    }
+
+    [TestMethod]
+    public async Task PlannedTimeWithNonZeroSecondsIsRejectedBeforePersistenceAndDispatch()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingDispatcher();
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, dispatcher);
+
+        var result = await service.ConfirmNewOrderAsync(Draft(product) with { PlannedFulfilmentTime = new TimeOnly(11, 5, 30) });
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(ValidationCodes.PlannedTimeInvalid, result.Issues.Single().StableCode);
+        Assert.AreEqual(0, store.SaveCalls);
+        Assert.AreEqual(0, dispatcher.Calls);
+    }
+
+    [TestMethod]
+    public async Task PlannedTimeWithNonZeroSubSecondTicksIsRejectedBeforePersistenceAndDispatch()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingDispatcher();
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, dispatcher);
+
+        var invalidTime = TimeOnly.FromTimeSpan(new TimeSpan(11, 5, 0).Add(TimeSpan.FromTicks(1)));
+        var result = await service.ConfirmNewOrderAsync(Draft(product) with { PlannedFulfilmentTime = invalidTime });
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(ValidationCodes.PlannedTimeInvalid, result.Issues.Single().StableCode);
+        Assert.AreEqual(0, store.SaveCalls);
+        Assert.AreEqual(0, dispatcher.Calls);
+    }
+
+    [TestMethod]
     public async Task ConfirmationUsesCurrentSettingsAndNormalizesOptionalFields()
     {
         var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false, price: Money.FromCents(3000));
