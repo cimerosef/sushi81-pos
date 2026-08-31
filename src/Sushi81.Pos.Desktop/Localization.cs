@@ -160,9 +160,11 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         Entry?.Dispose();
     }
 
-    private void OnSettingsSaved(object? sender, EventArgs e)
+    private void OnSettingsSaved(object? sender, BusinessSettingsSavedEventArgs e)
     {
-        if (Entry is not null) _ = Entry.RepriceAsync(clearManualOverride: true);
+        // A committed/reloaded order is a historical snapshot. Later settings saves may
+        // update the maintenance screen, but must never recompute that committed state.
+        Entry?.ApplySettingsSaved(e.Previous, e.Current);
     }
 
     private void RefreshResources()

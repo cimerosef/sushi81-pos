@@ -155,6 +155,80 @@ public sealed class OrderEntryApplicationTests
         Assert.AreEqual(1, dispatcher.Calls);
     }
 
+    [TestMethod]
+    public async Task ActiveCatalogueListingSupportsCodeNameAndCategoryFilters()
+    {
+        var categoryId = Guid.NewGuid();
+        var catalogue = new FilterCatalogue(categoryId);
+        using var service = CreateService(catalogue, new RecordingOrderStore(), new RecordingDispatcher());
+
+        var byCode = await service.ListActiveProductsAsync("P-001", categoryId);
+        var byName = await service.ListActiveProductsAsync("Sushi", categoryId);
+        var byCategory = await service.ListActiveProductsAsync(null, categoryId);
+
+        Assert.HasCount(1, byCode);
+        Assert.AreEqual("P-001", byCode[0].Code);
+        Assert.HasCount(1, byName);
+        Assert.AreEqual("Sushi saumon", byName[0].Name);
+        Assert.HasCount(1, byCategory);
+        Assert.IsTrue(byCategory.All(product => product.IsActive));
+        CollectionAssert.AreEqual(new string?[] { "P-001", "Sushi", null }, catalogue.Searches.ToArray());
+        Assert.IsTrue(catalogue.CategoryIds.All(id => id == categoryId));
+    }
+
+    [TestMethod]
+    public async Task OptionalTelephoneAndInitialLivraisonAddressAreAllowed()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false, price: Money.FromCents(3000));
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingDispatcher();
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, dispatcher, BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+
+        var result = await service.ConfirmNewOrderAsync(Draft(product) with { Fulfilment = FulfilmentMode.Livraison, Telephone = null, DeliveryAddress = null });
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.IsNull(result.CommittedOrder!.Telephone);
+        Assert.IsNull(result.CommittedOrder.DeliveryAddress);
+    }
+
+    [TestMethod]
+    public async Task ConfirmationAllocatesStableOpenPosIdsAndAdvanceMarker()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingDispatcher();
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, dispatcher);
+
+        var sameDay = await service.ConfirmNewOrderAsync(Draft(product));
+        var future = await service.ConfirmNewOrderAsync(Draft(product) with { PlannedFulfilmentDate = BusinessDate.AddDays(1) });
+
+        Assert.IsTrue(sameDay.Succeeded);
+        Assert.IsFalse(sameDay.CommittedOrder!.AdvanceOrderMarker);
+        Assert.AreNotEqual(Guid.Empty, sameDay.CommittedOrder.Id);
+        Assert.AreEqual(OrderSourceType.Pos, sameDay.CommittedOrder.SourceType);
+        Assert.AreEqual(OrderStatus.Open, sameDay.CommittedOrder.Status);
+        Assert.IsTrue(future.Succeeded);
+        Assert.IsTrue(future.CommittedOrder!.AdvanceOrderMarker);
+        Assert.AreNotEqual(sameDay.CommittedOrder.Id, future.CommittedOrder.Id);
+    }
+
+    [TestMethod]
+    public async Task DispatcherReceivesThePersistedCommittedSnapshot()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingDispatcher();
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, dispatcher);
+
+        var result = await service.ConfirmNewOrderAsync(Draft(product));
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsNotNull(store.Snapshot);
+        Assert.IsNotNull(dispatcher.LastOrder);
+        Assert.AreEqual(store.Snapshot, dispatcher.LastOrder);
+        Assert.AreEqual(result.CommittedOrder, dispatcher.LastOrder);
+    }
+
     private static OrderEntryService CreateService(
         IOrderEntryCatalogueQueries catalogue,
         IOrderStore store,
@@ -186,6 +260,26 @@ public sealed class OrderEntryApplicationTests
         public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([]);
         public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? categoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([]);
         public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) { GetCalls++; return Task.FromResult(current); }
+    }
+
+    private sealed class FilterCatalogue(Guid categoryId) : IOrderEntryCatalogueQueries
+    {
+        private readonly IReadOnlyList<ProductSummary> products =
+        [
+            new(Guid.NewGuid(), "P-001", "Sushi saumon", categoryId, "Plats", Money.FromCents(1000), 10m, true, true, false),
+            new(Guid.NewGuid(), "P-002", "Sushi thon", categoryId, "Plats", Money.FromCents(1100), 10m, false, true, false)
+        ];
+        public List<string?> Searches { get; } = [];
+        public List<Guid?> CategoryIds { get; } = [];
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([new(categoryId, "Plats")]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default)
+        {
+            Searches.Add(search); CategoryIds.Add(filterCategoryId);
+            var query = products.Where(product => product.IsActive && (!filterCategoryId.HasValue || product.CategoryId == filterCategoryId.Value));
+            if (!string.IsNullOrWhiteSpace(search)) query = query.Where(product => product.Code.Contains(search, StringComparison.OrdinalIgnoreCase) || product.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+            return Task.FromResult<IReadOnlyList<ProductSummary>>(query.ToArray());
+        }
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(null);
     }
 
     private sealed class FakeSettingsStore(BusinessSettings settings) : IBusinessSettingsStore
@@ -222,7 +316,8 @@ public sealed class OrderEntryApplicationTests
     private sealed class RecordingDispatcher : IOrderPrintDispatcher
     {
         public int Calls { get; private set; }
-        public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) { Calls++; return Task.CompletedTask; }
+        public OrderSnapshot? LastOrder { get; private set; }
+        public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) { Calls++; LastOrder = committedOrder; return Task.CompletedTask; }
     }
 
     private sealed class FixedClock : IBusinessClock

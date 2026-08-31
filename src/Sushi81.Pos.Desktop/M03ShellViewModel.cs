@@ -8,6 +8,12 @@ using Sushi81.Pos.Domain;
 
 namespace Sushi81.Pos.Desktop;
 
+public sealed class BusinessSettingsSavedEventArgs(BusinessSettings previous, BusinessSettings current) : EventArgs
+{
+    public BusinessSettings Previous { get; } = previous ?? throw new ArgumentNullException(nameof(previous));
+    public BusinessSettings Current { get; } = current ?? throw new ArgumentNullException(nameof(current));
+}
+
 /// <summary>Small testable presentation seam for M03 maintenance workflows.</summary>
 public sealed class M03ShellViewModel : INotifyPropertyChanged
 {
@@ -54,7 +60,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    public event EventHandler? SettingsSaved;
+    public event EventHandler<BusinessSettingsSavedEventArgs>? SettingsSaved;
     public event EventHandler? FilterRefreshFailed;
 
     public ObservableCollection<CategorySummary> Categories { get; }
@@ -415,7 +421,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
             if (result.Succeeded)
             {
                 loadedSettings = updated;
-                SettingsSaved?.Invoke(this, EventArgs.Empty);
+                SettingsSaved?.Invoke(this, new BusinessSettingsSavedEventArgs(current, updated));
             }
             return result;
         }

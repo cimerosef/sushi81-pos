@@ -171,6 +171,281 @@ public sealed class M04DesktopTests
         });
     }
 
+    [TestMethod]
+    public void SettingsSavePreservesManualOverrideWhenUnchangedOrIrrelevant()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(productId, "P1", "Plat", categoryId, Money.FromCents(3000), 10m, true, true, false, default, default), [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Plats");
+            var initial = BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountMinTotalTtc = Money.Zero, DeliveryMinMerchandiseTotalTtc = Money.Zero };
+            var settingsStore = new MutableSettingsStore(initial);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                new CatalogueService(new SettingsCatalogueStore(product, categoryId)),
+                new BusinessSettingsService(settingsStore),
+                new OrderEntryService(new DesktopCatalogue(product, categoryId), settingsStore, new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            var admin = shell.Admin!;
+            admin.LoadSettingsAsync().GetAwaiter().GetResult();
+            entry.AddConfiguredLine(product, [], [], 1);
+            entry.SelectedFulfilment = FulfilmentMode.Retrait;
+            entry.SetManualTotal("25");
+            entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
+            Assert.IsTrue(entry.IsManualTotalOverrideActive);
+
+            Assert.IsTrue(admin.SaveSettingsAsync().GetAwaiter().GetResult().Succeeded);
+            Assert.IsTrue(entry.IsManualTotalOverrideActive, "Saving unchanged settings must preserve the manual total.");
+            Assert.AreEqual(2500L, Money.FromEuros(decimal.Parse(entry.TotalText, CultureInfo.CurrentCulture)).Cents);
+
+            entry.SelectedFulfilment = FulfilmentMode.Retrait;
+            admin.DeliveryMinText = "99.00";
+            Assert.IsTrue(admin.SaveSettingsAsync().GetAwaiter().GetResult().Succeeded);
+            Assert.IsTrue(entry.IsManualTotalOverrideActive, "Delivery settings are irrelevant to a Retrait draft.");
+            Assert.AreEqual(2500L, Money.FromEuros(decimal.Parse(entry.TotalText, CultureInfo.CurrentCulture)).Cents);
+        });
+    }
+
+    [TestMethod]
+    public void SettingsSaveOnlyRepricesTheApplicableUncommittedFulfilmentPath()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(productId, "P1", "Plat", categoryId, Money.FromCents(3000), 10m, true, true, false, default, default), [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Plats");
+            var initial = BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountMinTotalTtc = Money.Zero, DeliveryMinMerchandiseTotalTtc = Money.FromCents(3000) };
+            var settingsStore = new MutableSettingsStore(initial);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                new CatalogueService(new SettingsCatalogueStore(product, categoryId)),
+                new BusinessSettingsService(settingsStore),
+                new OrderEntryService(new DesktopCatalogue(product, categoryId), settingsStore, new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            var admin = shell.Admin!;
+            admin.LoadSettingsAsync().GetAwaiter().GetResult();
+
+            entry.AddConfiguredLine(product, [], [], 1);
+            entry.SelectedFulfilment = FulfilmentMode.Livraison;
+            entry.RepriceAsync(clearManualOverride: true).GetAwaiter().GetResult();
+            Assert.IsTrue(entry.CanConfirm);
+            entry.SetManualTotal("25");
+            entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
+            Assert.IsTrue(entry.IsManualTotalOverrideActive);
+
+            admin.DeliveryMinText = "30.01";
+            Assert.IsTrue(admin.SaveSettingsAsync().GetAwaiter().GetResult().Succeeded);
+            Assert.IsFalse(entry.CanConfirm, "A relevant delivery minimum change must revalidate the draft.");
+            Assert.IsFalse(entry.IsManualTotalOverrideActive);
+            StringAssert.Contains(entry.ValidationMessage, shell.Localized["ValidationDeliveryMinimum"]);
+        });
+    }
+
+    [TestMethod]
+    public void CommittedOrderStateIgnoresLaterSettingsSaves()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(productId, "P1", "Plat historique", categoryId, Money.FromCents(3000), 10m, true, true, false, default, default), [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Plats");
+            var initial = BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountMinTotalTtc = Money.Zero, DeliveryMinMerchandiseTotalTtc = Money.Zero };
+            var settingsStore = new MutableSettingsStore(initial);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                new CatalogueService(new SettingsCatalogueStore(product, categoryId)),
+                new BusinessSettingsService(settingsStore),
+                new OrderEntryService(new DesktopCatalogue(product, categoryId), settingsStore, new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            var admin = shell.Admin!;
+            admin.LoadSettingsAsync().GetAwaiter().GetResult();
+            entry.AddConfiguredLine(product, [], [], 1);
+            entry.SelectedFulfilment = FulfilmentMode.Retrait;
+            entry.RepriceAsync(clearManualOverride: true).GetAwaiter().GetResult();
+            var result = entry.ConfirmAsync().GetAwaiter().GetResult();
+            Assert.IsTrue(result!.Succeeded);
+            var total = entry.TotalText;
+            var lineTotal = entry.Cart[0].LineTotalText;
+            var snapshotText = entry.ReloadedOrderDisplay;
+            var manual = entry.IsManualTotalOverrideActive;
+
+            admin.PickupDiscountRateText = "50";
+            admin.DeliveryMinText = "999.00";
+            Assert.IsTrue(admin.SaveSettingsAsync().GetAwaiter().GetResult().Succeeded);
+
+            Assert.AreEqual(total, entry.TotalText);
+            Assert.AreEqual(lineTotal, entry.Cart[0].LineTotalText);
+            Assert.AreEqual(snapshotText, entry.ReloadedOrderDisplay);
+            Assert.AreEqual(manual, entry.IsManualTotalOverrideActive);
+        });
+    }
+
+    [TestMethod]
+    public async Task DisappearingProductMessageFollowsFrAndChineseLocalization()
+    {
+        var catalogue = new DisappearingCatalogue();
+        using var shell = new ShellViewModel(
+            new InMemorySelectedCultureStore(), true,
+            orderEntryService: new OrderEntryService(catalogue, new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+        var entry = shell.Entry!;
+        entry.SelectedProduct = catalogue.Summary;
+        await entry.AddSelectedProductAsync();
+        Assert.AreEqual(shell.Localized["ProductInactive"], entry.ValidationMessage);
+
+        await shell.ChangeLanguageAsync(shell.Languages.Single(option => option.CultureName == "zh-CN"));
+        entry.SelectedProduct = catalogue.Summary;
+        await entry.AddSelectedProductAsync();
+        Assert.AreEqual(shell.Localized["ProductInactive"], entry.ValidationMessage);
+        StringAssert.Contains(entry.ValidationMessage, "商品");
+    }
+
+    [TestMethod]
+    public void MainWindowM04ControlsDriveQuantityRemoveTimeManualAndNewOrderState()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(productId, "P1", "Plat", categoryId, Money.FromCents(1000), 10m, true, true, false, default, default), [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Plats");
+            var settingsStore = new MutableSettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { DeliveryMinMerchandiseTotalTtc = Money.Zero });
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                new CatalogueService(new SettingsCatalogueStore(product, categoryId)),
+                new BusinessSettingsService(settingsStore),
+                orderEntryService: new OrderEntryService(new DesktopCatalogue(product, categoryId), settingsStore, new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var entry = shell.Entry!;
+                entry.AddConfiguredLine(product, [], [], 1);
+                entry.AddConfiguredLine(product, [], [], 1);
+                window.UpdateLayout();
+                var caisse = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]);
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+                Assert.HasCount(2, entry.Cart);
+
+                var firstLine = entry.Cart[0];
+                var plus = VisualDescendants<Button>(window).Single(button => button.Content?.ToString() == "+" && ReferenceEquals(button.Tag, firstLine));
+                plus.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.AreEqual(2, firstLine.Quantity);
+                window.UpdateLayout();
+                StringAssert.Contains(VisualDescendants<TextBlock>(window).Single(text => text.Text.Contains("Quantité", StringComparison.Ordinal) && text.Text.Contains('2')).Text, "2");
+
+                var minus = VisualDescendants<Button>(window).Single(button => button.Content?.ToString() == "−" && ReferenceEquals(button.Tag, firstLine));
+                minus.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.AreEqual(1, firstLine.Quantity);
+                var remove = VisualDescendants<Button>(window).Single(button => button.Content?.ToString() == "×" && ReferenceEquals(button.Tag, firstLine));
+                remove.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.HasCount(1, entry.Cart);
+
+                var fulfilment = VisualDescendants<ComboBox>(window).Single(combo => combo.ItemsSource is System.Collections.IEnumerable items && items.Cast<object>().OfType<FulfilmentChoice>().Any());
+                fulfilment.SelectedValue = FulfilmentMode.Retrait;
+                window.UpdateLayout();
+                var discount = VisualDescendants<CheckBox>(window).Single(check => check.Content?.ToString() == shell.Localized["PickupDiscountRequest"]);
+                Assert.IsTrue(discount.IsEnabled);
+                fulfilment.SelectedValue = FulfilmentMode.Livraison;
+                window.UpdateLayout();
+                Assert.IsFalse(discount.IsEnabled);
+                Assert.IsFalse(entry.PickupDiscountRequested);
+
+                var plannedTime = FindLabeledTextBox(window, shell.Localized["PlannedTime"]);
+                plannedTime.Text = "25:99";
+                window.UpdateLayout();
+                Assert.IsFalse(entry.PlannedTimeValid);
+                Assert.IsFalse(VisualDescendants<Button>(window).Single(button => button.Content?.ToString() == shell.Localized["Confirm"]).IsEnabled);
+                plannedTime.Text = string.Empty;
+                entry.SelectedFulfilment = FulfilmentMode.Retrait;
+                window.UpdateLayout();
+
+                var totalBox = (TextBox)typeof(MainWindow).GetField("orderTotalBox", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                totalBox.Text = "25";
+                totalBox.RaiseEvent(new RoutedEventArgs(UIElement.LostFocusEvent));
+                entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
+                Assert.IsTrue(entry.IsManualTotalOverrideActive);
+                entry.ChangeQuantity(entry.Cart[0], 2);
+                entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
+                Assert.IsFalse(entry.IsManualTotalOverrideActive);
+
+                var first = entry.ConfirmAsync().GetAwaiter().GetResult();
+                Assert.IsTrue(first!.Succeeded);
+                var newOrder = VisualDescendants<Button>(window).Single(button => button.Content?.ToString() == shell.Localized["NewOrder"]);
+                newOrder.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.IsFalse(entry.IsCommitted);
+                entry.AddConfiguredLine(product, [], [], 1);
+                entry.SelectedFulfilment = FulfilmentMode.Retrait;
+                var second = entry.ConfirmAsync().GetAwaiter().GetResult();
+                Assert.IsTrue(second!.Succeeded);
+                Assert.AreNotEqual(first.CommittedOrder!.Id, second.CommittedOrder!.Id);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void OptionDialogControlsAcceptConfiguredMultiSelectionAndCustomAdjustmentOnSta()
+    {
+        RunOnSta(() =>
+        {
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+            var owner = new Window { DataContext = shell, ShowInTaskbar = false };
+            owner.Show();
+            try
+            {
+                var groupId = Guid.NewGuid();
+                var optionA = Guid.NewGuid();
+                var optionB = Guid.NewGuid();
+                var product = new OrderEntryProduct(new ProductAggregate(
+                    new Product(Guid.NewGuid(), "P1", "Plat", Guid.NewGuid(), Money.FromCents(1000), 10m, true, true, true, default, default),
+                    [new OptionGroup(groupId, Guid.Empty, "Choix", DomainSelectionMode.Multi, true, 1, 2, 0, default, default)],
+                    new Dictionary<Guid, IReadOnlyList<ProductOption>> { [groupId] = [new(optionA, groupId, "A", Money.Zero, true, 0, default, default), new(optionB, groupId, "B", Money.Zero, true, 1, default, default)] }), "Plats");
+                var dialogType = typeof(MainWindow).GetNestedType("OptionSelectionDialog", BindingFlags.NonPublic)!;
+                var constructor = dialogType.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, [typeof(Window), typeof(OrderEntryProduct), typeof(OrderEntryCartLineViewModel)], null)!;
+                var dialog = (Window)constructor.Invoke([owner, product, null]);
+                dialog.ContentRendered += (_, _) =>
+                {
+                    var options = VisualDescendants<CheckBox>(dialog).Where(check => check.Tag is Guid).Take(2).ToArray();
+                    Assert.HasCount(2, options);
+                    options[0].IsChecked = true;
+                    var addAdjustment = VisualDescendants<Button>(dialog).Single(button => button.Content?.ToString() == "+ " + shell.Localized["AddAdjustment"]);
+                    addAdjustment.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    var textBoxes = VisualDescendants<TextBox>(dialog).ToArray();
+                    var label = textBoxes[^2];
+                    var amount = textBoxes[^1];
+                    label.Text = "Préparation";
+                    amount.Text = "0";
+                    var add = VisualDescendants<Button>(dialog).Single(button => button.Content?.ToString() == shell.Localized["Add"]);
+                    add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                };
+                Assert.IsTrue(dialog.ShowDialog());
+                var selected = (IReadOnlyList<Guid>)dialogType.GetProperty("SelectedOptionIds")!.GetValue(dialog)!;
+                var adjustments = (IReadOnlyList<OrderLineAdjustmentDraft>)dialogType.GetProperty("CustomAdjustments")!.GetValue(dialog)!;
+                CollectionAssert.Contains(selected.ToArray(), optionA);
+                Assert.HasCount(1, adjustments);
+                Assert.AreEqual("Préparation", adjustments[0].Label);
+                dialog.Close();
+            }
+            finally { owner.Close(); }
+        });
+    }
+
+    private static TextBox FindLabeledTextBox(DependencyObject root, string label)
+    {
+        foreach (var panel in VisualDescendants<StackPanel>(root))
+        {
+            if (!VisualDescendants<TextBlock>(panel).Any(text => text.Text == label)) continue;
+            var box = VisualDescendants<TextBox>(panel).FirstOrDefault();
+            if (box is not null) return box;
+        }
+        throw new AssertFailedException($"TextBox labelled '{label}' was not found.");
+    }
+
     private static IEnumerable<T> VisualDescendants<T>(DependencyObject root) where T : DependencyObject
     {
         if (root is T match) yield return match;
@@ -199,6 +474,15 @@ public sealed class M04DesktopTests
         public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([new(categoryId, "Plats")]);
         public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([new(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name, categoryId, product.CategoryName, product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, true, false)]);
         public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(productId == product.Aggregate.Product.Id ? product : null);
+    }
+
+    private sealed class DisappearingCatalogue : IOrderEntryCatalogueQueries
+    {
+        private readonly Guid productId = Guid.NewGuid();
+        public ProductSummary Summary => new(productId, "P1", "Plat", Guid.NewGuid(), "Plats", Money.FromCents(1000), 10m, true, true, false);
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([Summary]);
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(null);
     }
 
     private sealed class DesktopSettingsStore : IBusinessSettingsStore

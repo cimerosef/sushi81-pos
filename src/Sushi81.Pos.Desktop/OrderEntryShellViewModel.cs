@@ -228,7 +228,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     {
         if (SelectedProduct is not { } selected || IsCommitted) return;
         var product = await service.GetActiveProductAsync(selected.Id, cancellationToken);
-        if (product is null) { ValidationMessage = "Le produit n'est plus actif."; return; }
+        if (product is null) { ValidationMessage = Localized("ProductInactive", "Le produit n’est plus actif."); return; }
         PendingProduct = product;
         OnPropertyChanged(nameof(PendingProduct));
     }
@@ -304,22 +304,31 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         {
             var result = await service.PriceAsync(BuildDraft(), request.Cancellation.Token);
             if (!IsCurrent(request)) return;
-            pricing = result;
-            TotalText = pricing.TotalTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
-            for (var index = 0; index < Math.Min(Cart.Count, pricing.Lines.Count); index++) Cart[index].SetLineTotal(pricing.Lines[index].CalculatedLineTotalTtc);
-            var messages = pricing.ValidationErrors
-                .Concat(pricing.DiscountNotAppliedReason is { } reason && PickupDiscountRequested ? [reason] : [])
-                .Select(message => LocalizeOrderMessage(message))
-                .ToList();
-            if (!plannedTimeValid) messages.Insert(0, Localized("InvalidPlannedTime", "L’heure prévue est invalide. Saisissez HH:mm ou effacez-la."));
-            ValidationMessage = string.Join(Environment.NewLine, messages);
-            OnPropertyChanged(nameof(IsManualTotalOverrideActive));
-            OnPropertyChanged(nameof(ManualTotalStateText));
-            OnPropertyChanged(nameof(CanConfirm));
+            ApplyPricing(result);
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
         catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; OnPropertyChanged(nameof(CanConfirm)); }
         finally { EndPrice(request); }
+    }
+
+    /// <summary>
+    /// Applies a successful M03 settings save to an uncommitted draft. The before/after
+    /// comparison intentionally uses normal pricing (without a manual override), so an
+    /// unchanged or irrelevant settings save preserves an operator-entered authoritative
+    /// total while a pricing-relevant change restores the current normal calculation.
+    /// </summary>
+    public void ApplySettingsSaved(BusinessSettings previous, BusinessSettings current)
+    {
+        ArgumentNullException.ThrowIfNull(previous);
+        ArgumentNullException.ThrowIfNull(current);
+        if (IsCommitted) return;
+
+        InvalidatePendingPrice();
+        var normalDraft = BuildDraft() with { ManualTotalOverride = null };
+        var before = OrderEntryService.PriceWithSettings(normalDraft, previous);
+        var after = OrderEntryService.PriceWithSettings(normalDraft, current);
+        if (!PricingOutcomeEquals(before, after)) manualTotalOverride = null;
+        ApplyPricing(OrderEntryService.PriceWithSettings(BuildDraft(), current));
     }
 
     public async Task<ConfirmOrderResult?> ConfirmAsync(CancellationToken cancellationToken = default)
@@ -394,6 +403,58 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         Telephone, DeliveryAddress, Comment, PickupDiscountRequested, manualTotalOverride);
 
     private string Localized(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
+
+    private void ApplyPricing(OrderPricingResult result)
+    {
+        pricing = result;
+        TotalText = pricing.TotalTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
+        for (var index = 0; index < Math.Min(Cart.Count, pricing.Lines.Count); index++) Cart[index].SetLineTotal(pricing.Lines[index].CalculatedLineTotalTtc);
+        var messages = pricing.ValidationErrors
+            .Concat(pricing.DiscountNotAppliedReason is { } reason && PickupDiscountRequested ? [reason] : [])
+            .Select(message => LocalizeOrderMessage(message))
+            .ToList();
+        if (!plannedTimeValid) messages.Insert(0, Localized("InvalidPlannedTime", "L’heure prévue est invalide. Saisissez HH:mm ou effacez-la."));
+        ValidationMessage = string.Join(Environment.NewLine, messages);
+        OnPropertyChanged(nameof(IsManualTotalOverrideActive));
+        OnPropertyChanged(nameof(ManualTotalStateText));
+        OnPropertyChanged(nameof(CanConfirm));
+    }
+
+    private static bool PricingOutcomeEquals(OrderPricingResult left, OrderPricingResult right) =>
+        left.IsValid == right.IsValid &&
+        left.ValidationErrors.SequenceEqual(right.ValidationErrors, StringComparer.Ordinal) &&
+        left.TotalBeforeManualOverride == right.TotalBeforeManualOverride &&
+        left.TotalTtc == right.TotalTtc &&
+        left.PickupDiscountRequested == right.PickupDiscountRequested &&
+        left.PickupDiscountApplied == right.PickupDiscountApplied &&
+        left.PickupDiscountRate == right.PickupDiscountRate &&
+        string.Equals(left.DiscountNotAppliedReason, right.DiscountNotAppliedReason, StringComparison.Ordinal) &&
+        left.DeliveryCommercialAmountTtc == right.DeliveryCommercialAmountTtc &&
+        left.DeliveryFeeTtc == right.DeliveryFeeTtc &&
+        left.Lines.Count == right.Lines.Count &&
+        left.Lines.Zip(right.Lines).All(pair => LinePricingEquals(pair.First, pair.Second)) &&
+        left.TaxBreakdown.Count == right.TaxBreakdown.Count &&
+        left.TaxBreakdown.Zip(right.TaxBreakdown).All(pair =>
+            pair.First.VatRate == pair.Second.VatRate &&
+            pair.First.TaxableTtc == pair.Second.TaxableTtc &&
+            pair.First.IncludedVatTtc == pair.Second.IncludedVatTtc);
+
+    private static bool LinePricingEquals(OrderLinePricing left, OrderLinePricing right) =>
+        left.ExtendedBaseTtc == right.ExtendedBaseTtc &&
+        left.ExtendedAdjustmentTtc == right.ExtendedAdjustmentTtc &&
+        left.CalculatedLineTotalTtc == right.CalculatedLineTotalTtc &&
+        left.ProductVatComponentTtc == right.ProductVatComponentTtc &&
+        left.PositiveAdjustmentComponentTtc == right.PositiveAdjustmentComponentTtc &&
+        left.DiscountTtc == right.DiscountTtc &&
+        left.Adjustments.Count == right.Adjustments.Count &&
+        left.Adjustments.Zip(right.Adjustments).All(pair =>
+            pair.First.OptionId == pair.Second.OptionId &&
+            string.Equals(pair.First.GroupName, pair.Second.GroupName, StringComparison.Ordinal) &&
+            string.Equals(pair.First.Label, pair.Second.Label, StringComparison.Ordinal) &&
+            pair.First.AmountTtcPerUnit == pair.Second.AmountTtcPerUnit &&
+            pair.First.VatRate == pair.Second.VatRate &&
+            pair.First.Kind == pair.Second.Kind &&
+            pair.First.DisplayOrder == pair.Second.DisplayOrder);
 
     private string LocalizeOrderMessage(string message)
     {
@@ -514,6 +575,16 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             if (ReferenceEquals(request.Cancellation, priceCancellation)) priceCancellation = null;
         }
         request.Cancellation.Dispose();
+    }
+
+    private void InvalidatePendingPrice()
+    {
+        lock (priceLock)
+        {
+            priceCancellation?.Cancel();
+            priceCancellation = null;
+            priceVersion++;
+        }
     }
 
     private readonly record struct RefreshRequest(long Version, string SearchText, Guid CategoryId, CancellationTokenSource Cancellation);

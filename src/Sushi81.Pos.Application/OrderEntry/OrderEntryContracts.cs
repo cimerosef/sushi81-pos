@@ -100,6 +100,14 @@ public sealed class OrderEntryService(
         return OrderPricingService.Calculate(draft, await settings.GetAsync(cancellationToken));
     }
 
+    /// <summary>Calculates a draft against an explicitly supplied settings snapshot.</summary>
+    public static OrderPricingResult PriceWithSettings(NewOrderDraft draft, BusinessSettings businessSettings)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        ArgumentNullException.ThrowIfNull(businessSettings);
+        return OrderPricingService.Calculate(draft, businessSettings);
+    }
+
     public async Task<ConfirmOrderResult> ConfirmNewOrderAsync(NewOrderDraft draft, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);

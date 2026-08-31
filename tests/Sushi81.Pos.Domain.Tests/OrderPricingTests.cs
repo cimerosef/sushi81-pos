@@ -6,6 +6,7 @@ namespace Sushi81.Pos.Domain.Tests;
 public sealed class OrderPricingTests
 {
     private static readonly decimal[] DeliveryTaxRates = [10m, 20m];
+    private static readonly decimal[] MixedTaxRates = [5.5m, 10m];
     [TestMethod]
     public void A1QuantityMultipliesBasePredefinedAndCustomAdjustments()
     {
@@ -125,6 +126,133 @@ public sealed class OrderPricingTests
     }
 
     [TestMethod]
+    public void OptionSelectionMatrixCoversEveryConfiguredBoundary()
+    {
+        var requiredSingle = ProductWithGroup(SelectionMode.Single, true, null, null, 2);
+        var optionalSingle = ProductWithGroup(SelectionMode.Single, false, null, null, 2);
+        var requiredMulti = ProductWithGroup(SelectionMode.Multi, true, 1, 2, 3);
+        var optionalMulti = ProductWithGroup(SelectionMode.Multi, false, 0, 2, 3);
+
+        var requiredSingleIds = requiredSingle.OptionsByGroup.Values.Single().Select(option => option.Id).ToArray();
+        var optionalSingleIds = optionalSingle.OptionsByGroup.Values.Single().Select(option => option.Id).ToArray();
+        var requiredMultiIds = requiredMulti.OptionsByGroup.Values.Single().Select(option => option.Id).ToArray();
+        var optionalMultiIds = optionalMulti.OptionsByGroup.Values.Single().Select(option => option.Id).ToArray();
+
+        Assert.IsFalse(Price(requiredSingle, [] ).IsValid);
+        Assert.IsTrue(Price(requiredSingle, [requiredSingleIds[0]]).IsValid);
+        Assert.IsFalse(Price(requiredSingle, requiredSingleIds).IsValid);
+        Assert.IsTrue(Price(optionalSingle, []).IsValid);
+        Assert.IsTrue(Price(optionalSingle, [optionalSingleIds[0]]).IsValid);
+        Assert.IsFalse(Price(optionalSingle, optionalSingleIds).IsValid);
+        Assert.IsFalse(Price(requiredMulti, []).IsValid);
+        Assert.IsTrue(Price(requiredMulti, [requiredMultiIds[0]]).IsValid);
+        Assert.IsTrue(Price(requiredMulti, requiredMultiIds[..2]).IsValid);
+        Assert.IsFalse(Price(requiredMulti, requiredMultiIds).IsValid);
+        Assert.IsTrue(Price(optionalMulti, []).IsValid);
+        Assert.IsTrue(Price(optionalMulti, optionalMultiIds[..2]).IsValid);
+        Assert.IsFalse(Price(optionalMulti, optionalMultiIds).IsValid);
+    }
+
+    [TestMethod]
+    public void A1MultipliesPositiveAndNegativePredefinedAndCustomAdjustmentsPerUnit()
+    {
+        var negativeId = Guid.NewGuid();
+        var positiveId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var aggregate = new ProductAggregate(
+            new Product(Guid.NewGuid(), "P", "Plat", Guid.NewGuid(), Money.FromCents(1000), 10m, true, true, true, default, default),
+            [new OptionGroup(groupId, Guid.Empty, "Options", SelectionMode.Multi, false, 0, 2, 0, default, default)],
+            new Dictionary<Guid, IReadOnlyList<ProductOption>>
+            {
+                [groupId] = [
+                    new ProductOption(negativeId, groupId, "Moins", Money.FromCents(-25), true, 0, default, default),
+                    new ProductOption(positiveId, groupId, "Plus", Money.FromCents(40), true, 1, default, default)]
+            });
+
+        var result = OrderPricingService.Calculate(Draft(new OrderLineDraft(Guid.Empty, aggregate, [negativeId, positiveId], [
+            new(null, null, "Remise", Money.FromCents(-15)),
+            new(null, null, "Service", Money.FromCents(20))
+        ], 3), FulfilmentMode.Retrait), Settings(minPickup: Money.Zero));
+
+        Assert.IsTrue(result.IsValid, string.Join(";", result.ValidationErrors));
+        Assert.AreEqual(3000L, result.Lines[0].ExtendedBaseTtc.Cents);
+        Assert.AreEqual(60L, result.Lines[0].ExtendedAdjustmentTtc.Cents);
+        Assert.AreEqual(3060L, result.TotalTtc.Cents);
+        CollectionAssert.AreEqual(new long[] { -25, 40, -15, 20 }, result.Lines[0].Adjustments.Select(adjustment => adjustment.AmountTtcPerUnit.Cents).ToArray());
+    }
+
+    [TestMethod]
+    public void RetraitDiscountUsesEligibleLinesAndSignedComponentsAtEachThreshold()
+    {
+        var eligible = ProductWithOptions(Guid.NewGuid(), Money.FromCents(1000), 10m, true);
+        var nonEligible = eligible with { Product = eligible.Product with { DiscountEligible = false, Code = "P2" } };
+        var line = new OrderLineDraft(Guid.Empty, eligible, [], [new(null, null, "Moins", Money.FromCents(-100)), new(null, null, "Plus", Money.FromCents(200))], 1);
+        var other = new OrderLineDraft(Guid.NewGuid(), nonEligible, [], [], 1);
+        var draft = Draft(line, FulfilmentMode.Retrait) with { Lines = [line, other], PickupDiscountRequested = true };
+
+        var below = OrderPricingService.Calculate(draft, Settings(rate: 0.1m, minPickup: Money.FromCents(2011)));
+        var exact = OrderPricingService.Calculate(draft, Settings(rate: 0.1m, minPickup: Money.FromCents(2010)));
+        var above = OrderPricingService.Calculate(draft, Settings(rate: 0.1m, minPickup: Money.FromCents(2009)));
+
+        Assert.IsFalse(below.PickupDiscountApplied);
+        Assert.AreEqual(2100L, below.TotalTtc.Cents);
+        Assert.IsTrue(exact.PickupDiscountApplied);
+        Assert.IsTrue(above.PickupDiscountApplied);
+        Assert.AreEqual(90L, exact.Lines[0].DiscountTtc.Cents);
+        Assert.AreEqual(200L, exact.Lines[0].PositiveAdjustmentComponentTtc.Cents);
+        Assert.AreEqual(2010L, exact.TotalTtc.Cents);
+        Assert.AreEqual(0L, exact.Lines[1].DiscountTtc.Cents);
+    }
+
+    [TestMethod]
+    public void LivraisonBoundariesFeesAndSignedCommercialAmountAreExplicit()
+    {
+        var product = ProductWithOptions(Guid.NewGuid(), Money.FromCents(2999), 10m, true);
+        var positive = new OrderLineAdjustmentDraft(null, null, "Plus", Money.FromCents(1));
+        var negative = new OrderLineAdjustmentDraft(null, null, "Moins", Money.FromCents(-1));
+        var line = new OrderLineDraft(Guid.Empty, product, [], [positive, negative], 1);
+        var under = OrderPricingService.Calculate(Draft(line, FulfilmentMode.Livraison), Settings(minPickup: Money.Zero) with { DeliveryMinMerchandiseTotalTtc = Money.FromCents(3000) });
+        var at = OrderPricingService.Calculate(Draft(line, FulfilmentMode.Livraison), Settings(minPickup: Money.Zero) with { DeliveryMinMerchandiseTotalTtc = Money.FromCents(2999), DeliveryFeeEnabled = true, DeliveryFeeAmountTtc = Money.FromCents(500) });
+        var belowBoundary = OrderPricingService.Calculate(Draft(new OrderLineDraft(Guid.Empty, product, [], [], 1), FulfilmentMode.Livraison), Settings(minPickup: Money.Zero) with { DeliveryMinMerchandiseTotalTtc = Money.FromCents(3000) });
+        var atBoundary = OrderPricingService.Calculate(Draft(new OrderLineDraft(Guid.Empty, product with { Product = product.Product with { PriceTtc = Money.FromCents(3000) } }, [], [], 1), FulfilmentMode.Livraison), Settings(minPickup: Money.Zero) with { DeliveryMinMerchandiseTotalTtc = Money.FromCents(3000) });
+        var disabledFee = OrderPricingService.Calculate(Draft(new OrderLineDraft(Guid.Empty, product with { Product = product.Product with { PriceTtc = Money.FromCents(3000) } }, [], [], 1), FulfilmentMode.Livraison), Settings(minPickup: Money.Zero) with { DeliveryMinMerchandiseTotalTtc = Money.FromCents(3000), DeliveryFeeEnabled = false, DeliveryFeeAmountTtc = Money.FromCents(500) });
+        var zeroFee = OrderPricingService.Calculate(Draft(new OrderLineDraft(Guid.Empty, product with { Product = product.Product with { PriceTtc = Money.FromCents(3000) } }, [], [], 1), FulfilmentMode.Livraison), Settings(minPickup: Money.Zero) with { DeliveryMinMerchandiseTotalTtc = Money.FromCents(3000), DeliveryFeeEnabled = true, DeliveryFeeAmountTtc = Money.Zero });
+
+        Assert.IsFalse(under.IsValid, "€29.99 merchandise must fail the €30.00 minimum.");
+        Assert.IsTrue(at.IsValid);
+        Assert.AreEqual(2999L, at.DeliveryCommercialAmountTtc.Cents);
+        Assert.AreEqual(500L, at.DeliveryFeeTtc.Cents);
+        Assert.IsFalse(belowBoundary.IsValid);
+        Assert.IsTrue(atBoundary.IsValid);
+        Assert.IsTrue(disabledFee.IsValid);
+        Assert.AreEqual(0L, disabledFee.DeliveryFeeTtc.Cents);
+        Assert.IsTrue(zeroFee.IsValid);
+        Assert.AreEqual(0L, zeroFee.DeliveryFeeTtc.Cents);
+    }
+
+    [TestMethod]
+    public void MixedVatAndIncludedVatHalfUpRoundingSurvivePricingVariants()
+    {
+        var product = ProductWithOptions(Guid.NewGuid(), Money.FromCents(6), 10m, true);
+        var positive = new OrderLineAdjustmentDraft(null, null, "Service", Money.FromCents(10));
+        var deliverySettings = Settings(minPickup: Money.Zero) with { DeliveryMinMerchandiseTotalTtc = Money.Zero, DeliveryFeeEnabled = true, DeliveryFeeAmountTtc = Money.FromCents(6) };
+        var delivery = OrderPricingService.Calculate(Draft(new OrderLineDraft(Guid.Empty, product, [], [positive], 1), FulfilmentMode.Livraison), deliverySettings);
+        var rounding = OrderPricingService.Calculate(Draft(new OrderLineDraft(Guid.Empty, product, [], [], 1), FulfilmentMode.Retrait), deliverySettings with { DeliveryFeeEnabled = false });
+        var manualAbove = OrderPricingService.Calculate(Draft(new OrderLineDraft(Guid.Empty, product, [], [], 1), FulfilmentMode.Retrait) with { ManualTotalOverride = Money.FromCents(5000) }, deliverySettings);
+        var manualBelow = OrderPricingService.Calculate(Draft(new OrderLineDraft(Guid.Empty, product, [], [], 1), FulfilmentMode.Retrait) with { ManualTotalOverride = Money.FromCents(1) }, deliverySettings);
+
+        Assert.IsTrue(delivery.IsValid);
+        CollectionAssert.AreEquivalent(MixedTaxRates, delivery.TaxBreakdown.Select(tax => tax.VatRate).ToArray());
+        Assert.AreEqual(1L, rounding.TaxBreakdown.Single(tax => tax.VatRate == 10m && tax.TaxableTtc == Money.FromCents(6)).IncludedVatTtc.Cents, "€0.06 at 10% must round 0.545 cents half-up to €0.01.");
+        Assert.AreEqual(5000L, manualAbove.TaxBreakdown.Single().TaxableTtc.Cents);
+        Assert.AreEqual(1L, manualBelow.TaxBreakdown.Single().TaxableTtc.Cents);
+        Assert.HasCount(1, manualAbove.TaxBreakdown);
+        Assert.HasCount(1, manualBelow.TaxBreakdown);
+        Assert.AreEqual(10m, manualAbove.TaxBreakdown[0].VatRate);
+        Assert.AreEqual(10m, manualBelow.TaxBreakdown[0].VatRate);
+    }
+
+    [TestMethod]
     public void DisabledOptionsIgnoreDormantGroupsButKeepCustomAdjustments()
     {
         var groupId = Guid.NewGuid();
@@ -210,4 +338,6 @@ public sealed class OrderPricingTests
 
     private static NewOrderDraft Draft(OrderLineDraft line, FulfilmentMode mode) => new([line], mode, new DateOnly(2026, 8, 31), null, null, null, null, false);
     private static BusinessSettings Settings(decimal rate = 0.10m, Money? minPickup = null) => new(rate, minPickup ?? Money.FromCents(1500), Money.FromCents(3000), false, Money.Zero, default);
+    private static OrderPricingResult Price(ProductAggregate product, IReadOnlyList<Guid> selected) =>
+        OrderPricingService.Calculate(Draft(new OrderLineDraft(Guid.Empty, product, selected, [], 1), FulfilmentMode.Retrait), Settings(minPickup: Money.Zero));
 }
