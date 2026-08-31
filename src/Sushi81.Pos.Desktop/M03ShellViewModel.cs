@@ -54,6 +54,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+    public event EventHandler? SettingsSaved;
     public event EventHandler? FilterRefreshFailed;
 
     public ObservableCollection<CategorySummary> Categories { get; }
@@ -411,7 +412,11 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
             var current = loadedSettings ?? await settings.GetAsync(cancellationToken);
             var updated = current with { PickupDiscountRate = percent / 100m, PickupDiscountMinTotalTtc = pickupMoney, DeliveryMinMerchandiseTotalTtc = deliveryMoney, DeliveryFeeEnabled = DeliveryFeeEnabled, DeliveryFeeAmountTtc = feeMoney };
             var result = await settings.UpdateAsync(updated, cancellationToken);
-            if (result.Succeeded) loadedSettings = updated;
+            if (result.Succeeded)
+            {
+                loadedSettings = updated;
+                SettingsSaved?.Invoke(this, EventArgs.Empty);
+            }
             return result;
         }
         finally { mutationBusy = false; IsBusy = false; }

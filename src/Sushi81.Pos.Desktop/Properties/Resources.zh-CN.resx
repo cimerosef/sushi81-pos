@@ -112,4 +112,34 @@
   <data name="InvalidQuantity" xml:space="preserve"><value>数量必须为正整数。</value></data>
   <data name="InvalidOptions" xml:space="preserve"><value>选项组“{0}”的选择无效。</value></data>
   <data name="InvalidAdjustment" xml:space="preserve"><value>每个调整必须有有效的名称和金额。</value></data>
+  <data name="FulfilmentUnselected" xml:space="preserve"><value>—</value></data>
+  <data name="Retrait" xml:space="preserve"><value>自取</value></data>
+  <data name="Livraison" xml:space="preserve"><value>配送</value></data>
+  <data name="NewOrder" xml:space="preserve"><value>新订单</value></data>
+  <data name="ManualTotalActive" xml:space="preserve"><value>手动总额为最终金额</value></data>
+  <data name="ReloadOrderTooltip" xml:space="preserve"><value>订单 ID</value></data>
+  <data name="ReloadedOrder" xml:space="preserve"><value>已加载订单</value></data>
+  <data name="AdjustmentLabel" xml:space="preserve"><value>名称</value></data>
+  <data name="AdjustmentAmount" xml:space="preserve"><value>含税金额</value></data>
+  <data name="ProductInactive" xml:space="preserve"><value>该商品已停用。</value></data>
+  <data name="InvalidOrderId" xml:space="preserve"><value>订单 ID 无效。</value></data>
+  <data name="OrderNotFound" xml:space="preserve"><value>找不到订单。</value></data>
+  <data name="OrderSaved" xml:space="preserve"><value>订单 {0} 已保存。</value></data>
+  <data name="OrderSavedOutputFailed" xml:space="preserve"><value>订单 {0} 已保存，但输出发送失败。</value></data>
+  <data name="InvalidPlannedTime" xml:space="preserve"><value>计划时间无效。请输入 HH:mm 或清空。</value></data>
+  <data name="InvalidManualTotal" xml:space="preserve"><value>输入的含税总额无效。</value></data>
+  <data name="OrderId" xml:space="preserve"><value>订单 ID</value></data>
+  <data name="OrderStatus" xml:space="preserve"><value>状态</value></data>
+  <data name="OrderStatusOpen" xml:space="preserve"><value>开放</value></data>
+  <data name="OrderStatusClosed" xml:space="preserve"><value>已关闭</value></data>
+  <data name="OrderStatusCancelled" xml:space="preserve"><value>已取消</value></data>
+  <data name="OrderLines" xml:space="preserve"><value>明细</value></data>
+  <data name="Unit" xml:space="preserve"><value>件</value></data>
+  <data name="PickupDiscountApplied" xml:space="preserve"><value>自取折扣</value></data>
+  <data name="TaxSnapshot" xml:space="preserve"><value>已记录税额</value></data>
+  <data name="ValidationFulfilmentRequired" xml:space="preserve"><value>必须选择订单方式。</value></data>
+  <data name="ValidationPlannedDateRequired" xml:space="preserve"><value>必须选择计划日期。</value></data>
+  <data name="ValidationCartRequired" xml:space="preserve"><value>请添加至少一条明细。</value></data>
+  <data name="ValidationDeliveryMinimum" xml:space="preserve"><value>未达到配送最低金额。</value></data>
+  <data name="ValidationPickupDiscount" xml:space="preserve"><value>未应用自取折扣。</value></data>
 </root>

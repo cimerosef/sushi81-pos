@@ -113,13 +113,10 @@ public sealed class OrderEntryService(
             foreach (var line in draft.Lines ?? [])
             {
                 if (line.Product.Product.Id == Guid.Empty)
-                {
-                    currentLines.Add(line);
-                    continue;
-                }
+                    return ConfirmOrderResult.Failure(new ValidationIssue("product", "A current Catalogue product is required for a POS order line.", ValidationCodes.ProductMissing));
 
                 var current = await catalogue.GetActiveProductAsync(line.Product.Product.Id, cancellationToken);
-                if (current is null)
+                if (current is null || current.Aggregate.Product.Id != line.Product.Product.Id)
                     return ConfirmOrderResult.Failure(new ValidationIssue("product", $"Product '{line.Product.Product.Name}' is no longer active or no longer exists.", ValidationCodes.ProductMissing));
                 currentLines.Add(line with { Product = current.Aggregate, CategoryName = current.CategoryName });
             }

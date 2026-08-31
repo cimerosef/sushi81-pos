@@ -85,7 +85,7 @@ public partial class MainWindow : Window
         try
         {
             var product = await entry.GetActiveProductForEditAsync(productId);
-            if (product is null) { MessageBox.Show(this, "Le produit n'est plus actif.", "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+            if (product is null) { MessageBox.Show(this, LocalizedText(this, "ProductInactive", "Le produit n’est plus actif."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Warning); return; }
             var dialog = new OptionSelectionDialog(this, product, line);
             if (dialog.ShowDialog() == true) entry.UpdateConfiguredLine(line, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
         }
@@ -121,10 +121,16 @@ public partial class MainWindow : Window
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
+    private void OnNewOrder(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry }) entry.StartNewOrder();
+    }
+
     private async void OnReloadOrder(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { Entry: { } entry }) return;
-        if (!await entry.ReloadOrderAsync()) MessageBox.Show(this, "Commande introuvable.", "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Information);
+        if (!await entry.ReloadOrderAsync())
+            MessageBox.Show(this, entry.ValidationMessage, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void OnFilterRefreshFailed(object? sender, EventArgs e)
@@ -294,8 +300,8 @@ public partial class MainWindow : Window
         private void AddCustomRow(OrderLineAdjustmentDraft? current)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
-            var label = new TextBox { Width = 210, ToolTip = "Libellé", Text = current?.Label ?? string.Empty };
-            var amount = new TextBox { Width = 90, Margin = new Thickness(6, 0, 0, 0), ToolTip = "Montant TTC", Text = current is null ? string.Empty : current.AmountTtcPerUnit.Euros.ToString("0.00", CultureInfo.InvariantCulture) };
+            var label = new TextBox { Width = 210, ToolTip = Label("AdjustmentLabel", "Libellé"), Text = current?.Label ?? string.Empty };
+            var amount = new TextBox { Width = 90, Margin = new Thickness(6, 0, 0, 0), ToolTip = Label("AdjustmentAmount", "Montant TTC"), Text = current is null ? string.Empty : current.AmountTtcPerUnit.Euros.ToString("0.00", CultureInfo.InvariantCulture) };
             var remove = new Button { Content = "×", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(5, 2, 5, 2) };
             var tuple = (label, amount, remove); remove.Click += (_, _) => { customPanel.Children.Remove(row); customRows.Remove(tuple); }; row.Children.Add(label); row.Children.Add(amount); row.Children.Add(remove); customPanel.Children.Add(row); customRows.Add(tuple);
         }
@@ -323,13 +329,16 @@ public partial class MainWindow : Window
         {
             if (!int.TryParse(quantity.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedQuantity) || parsedQuantity <= 0) { MessageBox.Show(this, Label("InvalidQuantity", "La quantité doit être un entier positif.")); return; }
             var selected = new List<Guid>();
-            foreach (var group in product.Aggregate.Groups)
+            if (product.Aggregate.Product.OptionsEnabled)
             {
-                var values = controls[group.Id].Where(control => control is RadioButton radio && radio.IsChecked == true || control is CheckBox check && check.IsChecked == true).Select(control => (Guid)control.Tag!).ToArray();
-                var min = group.SelectionMode == DomainSelectionMode.Single ? (group.IsRequired ? 1 : 0) : group.MinSelections ?? 0;
-                var max = group.SelectionMode == DomainSelectionMode.Single ? 1 : group.MaxSelections ?? 0;
-                if (values.Length < min || values.Length > max) { MessageBox.Show(this, string.Format(CultureInfo.CurrentCulture, Label("InvalidOptions", "La sélection du groupe « {0} » est invalide."), group.Name)); return; }
-                selected.AddRange(values);
+                foreach (var group in product.Aggregate.Groups)
+                {
+                    var values = controls[group.Id].Where(control => control is RadioButton radio && radio.IsChecked == true || control is CheckBox check && check.IsChecked == true).Select(control => (Guid)control.Tag!).ToArray();
+                    var min = group.SelectionMode == DomainSelectionMode.Single ? (group.IsRequired ? 1 : 0) : group.MinSelections ?? 0;
+                    var max = group.SelectionMode == DomainSelectionMode.Single ? 1 : group.MaxSelections ?? 0;
+                    if (values.Length < min || values.Length > max) { MessageBox.Show(this, string.Format(CultureInfo.CurrentCulture, Label("InvalidOptions", "La sélection du groupe « {0} » est invalide."), group.Name)); return; }
+                    selected.AddRange(values);
+                }
             }
             var custom = new List<OrderLineAdjustmentDraft>();
             foreach (var row in customRows)

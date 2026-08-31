@@ -112,4 +112,34 @@ Changements effectifs : {2}</value></data>
   <data name="InvalidQuantity" xml:space="preserve"><value>La quantité doit être un entier positif.</value></data>
   <data name="InvalidOptions" xml:space="preserve"><value>La sélection du groupe « {0} » est invalide.</value></data>
   <data name="InvalidAdjustment" xml:space="preserve"><value>Chaque ajustement doit avoir un libellé et un montant valides.</value></data>
+  <data name="FulfilmentUnselected" xml:space="preserve"><value>—</value></data>
+  <data name="Retrait" xml:space="preserve"><value>Retrait</value></data>
+  <data name="Livraison" xml:space="preserve"><value>Livraison</value></data>
+  <data name="NewOrder" xml:space="preserve"><value>Nouvelle commande</value></data>
+  <data name="ManualTotalActive" xml:space="preserve"><value>Total manuel faisant autorité</value></data>
+  <data name="ReloadOrderTooltip" xml:space="preserve"><value>ID commande</value></data>
+  <data name="ReloadedOrder" xml:space="preserve"><value>Commande rechargée</value></data>
+  <data name="AdjustmentLabel" xml:space="preserve"><value>Libellé</value></data>
+  <data name="AdjustmentAmount" xml:space="preserve"><value>Montant TTC</value></data>
+  <data name="ProductInactive" xml:space="preserve"><value>Le produit n’est plus actif.</value></data>
+  <data name="InvalidOrderId" xml:space="preserve"><value>L’identifiant de commande est invalide.</value></data>
+  <data name="OrderNotFound" xml:space="preserve"><value>Commande introuvable.</value></data>
+  <data name="OrderSaved" xml:space="preserve"><value>Commande {0} enregistrée.</value></data>
+  <data name="OrderSavedOutputFailed" xml:space="preserve"><value>Commande {0} enregistrée ; l’envoi de sortie a échoué.</value></data>
+  <data name="InvalidPlannedTime" xml:space="preserve"><value>L’heure prévue est invalide. Saisissez HH:mm ou effacez-la.</value></data>
+  <data name="InvalidManualTotal" xml:space="preserve"><value>Le total TTC saisi est invalide.</value></data>
+  <data name="OrderId" xml:space="preserve"><value>ID commande</value></data>
+  <data name="OrderStatus" xml:space="preserve"><value>Statut</value></data>
+  <data name="OrderStatusOpen" xml:space="preserve"><value>Ouverte</value></data>
+  <data name="OrderStatusClosed" xml:space="preserve"><value>Clôturée</value></data>
+  <data name="OrderStatusCancelled" xml:space="preserve"><value>Annulée</value></data>
+  <data name="OrderLines" xml:space="preserve"><value>Lignes</value></data>
+  <data name="Unit" xml:space="preserve"><value>unité</value></data>
+  <data name="PickupDiscountApplied" xml:space="preserve"><value>Remise Retrait</value></data>
+  <data name="TaxSnapshot" xml:space="preserve"><value>TVA enregistrée</value></data>
+  <data name="ValidationFulfilmentRequired" xml:space="preserve"><value>Le mode de commande est obligatoire.</value></data>
+  <data name="ValidationPlannedDateRequired" xml:space="preserve"><value>La date prévue est obligatoire.</value></data>
+  <data name="ValidationCartRequired" xml:space="preserve"><value>Ajoutez au moins une ligne.</value></data>
+  <data name="ValidationDeliveryMinimum" xml:space="preserve"><value>Le minimum Livraison n’est pas atteint.</value></data>
+  <data name="ValidationPickupDiscount" xml:space="preserve"><value>La remise Retrait n’a pas été appliquée.</value></data>
 </root>

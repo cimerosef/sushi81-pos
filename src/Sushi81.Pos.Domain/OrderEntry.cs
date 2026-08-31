@@ -279,8 +279,9 @@ public static class OrderPricingService
     private static List<ResolvedOrderAdjustment> ResolveAdjustments(OrderLineDraft line, List<string> errors)
     {
         var result = new List<ResolvedOrderAdjustment>();
-        var selected = (line.SelectedOptionIds ?? []).ToHashSet();
-        if (selected.Count != (line.SelectedOptionIds ?? []).Count) errors.Add($"Product '{line.Product.Product.Name}' contains duplicate option selections.");
+        var selectedOptionIds = (line.SelectedOptionIds ?? []).ToArray();
+        var selected = selectedOptionIds.ToHashSet();
+        if (selected.Count != selectedOptionIds.Length) errors.Add($"Product '{line.Product.Product.Name}' contains duplicate option selections.");
         if (!line.Product.Product.OptionsEnabled && selected.Count > 0) errors.Add($"Product '{line.Product.Product.Name}' does not accept options.");
 
         var knownOptions = new Dictionary<Guid, (OptionGroup Group, ProductOption Option)>();
@@ -289,7 +290,20 @@ public static class OrderPricingService
             foreach (var group in line.Product.Groups.OrderBy(group => group.DisplayOrder))
             {
                 var options = line.Product.OptionsByGroup.TryGetValue(group.Id, out var values) ? values : [];
-                foreach (var option in options) knownOptions[option.Id] = (group, option);
+                foreach (var option in options)
+                {
+                    if (!knownOptions.TryAdd(option.Id, (group, option))) errors.Add($"Option '{option.Name}' has a duplicate identity in the product.");
+                }
+            }
+
+            foreach (var selectedId in selected)
+            {
+                if (!knownOptions.ContainsKey(selectedId)) errors.Add("An option selection is no longer available.");
+            }
+
+            foreach (var group in line.Product.Groups.OrderBy(group => group.DisplayOrder))
+            {
+                var options = line.Product.OptionsByGroup.TryGetValue(group.Id, out var values) ? values : [];
                 var groupSelected = selected.Where(id => knownOptions.TryGetValue(id, out var value) && value.Group.Id == group.Id).ToArray();
                 var activeSelected = groupSelected.Where(id => knownOptions[id].Option.IsActive).ToArray();
                 if (groupSelected.Length != activeSelected.Length) errors.Add($"Option group '{group.Name}' contains an inactive option.");
@@ -310,11 +324,7 @@ public static class OrderPricingService
             .ToArray();
         foreach (var id in orderedSelectedIds)
         {
-            if (!knownOptions.TryGetValue(id, out var selectedOption) || !selectedOption.Option.IsActive)
-            {
-                errors.Add("An option selection is no longer available.");
-                continue;
-            }
+            if (!knownOptions.TryGetValue(id, out var selectedOption) || !selectedOption.Option.IsActive) continue;
 
             var option = selectedOption.Option;
             result.Add(new(id, selectedOption.Group.Name, option.Name, option.PriceAdjustmentTtc, AdjustmentVat(option.PriceAdjustmentTtc, line.Product.Product.VatRate), OrderAdjustmentKind.PredefinedOption, result.Count));

@@ -2,7 +2,9 @@ using Microsoft.Data.Sqlite;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Paths;
+using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
+using Sushi81.Pos.Application.Foundation.Transactions;
 using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Domain;
@@ -18,6 +20,30 @@ namespace Sushi81.Pos.Infrastructure.IntegrationTests;
 [TestClass]
 public sealed class M04OrderIntegrationTests
 {
+    [TestMethod]
+    public async Task FailedSchemaUpgradeLeavesLiveDatabaseAtPreviousVersion()
+    {
+        using var paths = new TestPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, M01Migrations.All, clock).InitializeAsync();
+        await using (var connection = await factory.OpenLiveConnectionAsync())
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "INSERT INTO foundation_metadata(key,value) VALUES ('sentinel','kept');";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var broken = M01Migrations.All.Concat([new SqliteMigration(2, "broken-upgrade", "CREATE TABLE foundation_metadata (key TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL);")]).ToArray();
+        var snapshots = new RecordingSnapshotService();
+        var runner = new SqliteMigrationRunner(factory, broken, clock, snapshots);
+        await Assert.ThrowsAsync<DatabaseMigrationException>(() => runner.InitializeAsync());
+
+        Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM foundation_metadata WHERE key='sentinel' AND value='kept';"));
+        Assert.HasCount(1, snapshots.Changes);
+    }
+
     [TestMethod]
     public async Task PopulatedM03DatabaseMigratesToV3WithoutChangingCatalogueRows()
     {
@@ -51,8 +77,9 @@ public sealed class M04OrderIntegrationTests
         var category = (await catalogue.CreateCategoryAsync("Plats")).Value!;
         var productId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P1", "Plat initial", category.Id, Money.FromCents(1250), 10m, true, true, false, []))).Value!;
         var settings = new SqliteBusinessSettingsStore(factory, runner, clock);
-        var sink = new RecordingDispatcher();
-        using var orderService = new OrderEntryService(new OrderEntryCatalogueService(catalogueStore), settings, new SqliteOrderStore(factory, runner), sink, ids, clock);
+        var orderStore = new SqliteOrderStore(factory, runner);
+        var sink = new RecordingDispatcher(factory, runner);
+        using var orderService = new OrderEntryService(new OrderEntryCatalogueService(catalogueStore), settings, orderStore, sink, ids, clock);
         var selected = (await orderService.GetActiveProductAsync(productId))!;
         var result = await orderService.ConfirmNewOrderAsync(new NewOrderDraft(
             [new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [new(null, null, "Emballage", Money.FromCents(25))], 2, selected.CategoryName)],
@@ -96,25 +123,37 @@ public sealed class M04OrderIntegrationTests
         var productId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P1", "Plat", category.Id, Money.FromCents(1250), 10m, true, true, false, []))).Value!;
         var selected = (await new OrderEntryCatalogueService(catalogueStore).GetActiveProductAsync(productId))!;
         var settings = new SqliteBusinessSettingsStore(factory, runner, clock);
-        var failingSink = new RecordingDispatcher { ThrowOnDispatch = true };
+        var failingSink = new RecordingDispatcher(factory, runner) { ThrowOnDispatch = true };
         var store = new SqliteOrderStore(factory, runner);
         using var service = new OrderEntryService(new OrderEntryCatalogueService(catalogueStore), settings, store, failingSink, ids, clock);
-        var result = await service.ConfirmNewOrderAsync(new NewOrderDraft([new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [], 1, selected.CategoryName)], FulfilmentMode.Retrait, clock.BusinessDate, null, null, null, null, false));
+        var result = await service.ConfirmNewOrderAsync(new NewOrderDraft([new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [new(null, null, "Emballage", Money.FromCents(1))], 1, selected.CategoryName)], FulfilmentMode.Retrait, clock.BusinessDate, null, null, null, null, false));
         Assert.IsTrue(result.Succeeded);
         Assert.IsFalse(result.DispatchSucceeded);
         Assert.IsNotNull(await service.GetOrderByIdAsync(result.CommittedOrder!.Id));
 
-        var before = await ScalarAsync(factory, "SELECT COUNT(*) FROM orders;");
-        var failingStore = new SqliteOrderStore(factory, runner, stage => stage == "adjustment" ? new InvalidOperationException("synthetic adjustment failure") : null);
-        var invalidSnapshot = result.CommittedOrder with
+        var beforeOrders = await ScalarAsync(factory, "SELECT COUNT(*) FROM orders;");
+        var beforeItems = await ScalarAsync(factory, "SELECT COUNT(*) FROM order_items;");
+        var beforeAdjustments = await ScalarAsync(factory, "SELECT COUNT(*) FROM order_item_adjustments;");
+        var beforeTaxes = await ScalarAsync(factory, "SELECT COUNT(*) FROM order_tax_breakdown;");
+        foreach (var stage in new[] { "order", "item", "adjustment", "tax" })
         {
-            Id = Guid.NewGuid(),
-            Items = [result.CommittedOrder.Items[0] with { Id = Guid.NewGuid(), Adjustments = [new OrderLineAdjustmentSnapshot(Guid.NewGuid(), 0, OrderAdjustmentKind.CustomAdjustment, null, null, "Fail", Money.FromCents(1), 5.5m)] }],
-            TaxBreakdown = result.CommittedOrder.TaxBreakdown.Select(tax => tax with { Id = Guid.NewGuid() }).ToArray()
-        };
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await failingStore.SaveAsync(invalidSnapshot));
-        Assert.AreEqual(before, await ScalarAsync(factory, "SELECT COUNT(*) FROM orders;"));
-        Assert.AreEqual(0L, await ScalarAsync(factory, "SELECT COUNT(*) FROM order_item_adjustments WHERE label_snapshot='Fail';"));
+            var failingStore = new SqliteOrderStore(factory, runner, current => current == stage ? new InvalidOperationException($"synthetic {stage} failure") : null);
+            var invalidSnapshot = result.CommittedOrder with
+            {
+                Id = Guid.NewGuid(),
+                Items = result.CommittedOrder.Items.Select(item => item with
+                {
+                    Id = Guid.NewGuid(),
+                    Adjustments = item.Adjustments.Select(adjustment => adjustment with { Id = Guid.NewGuid() }).ToArray()
+                }).ToArray(),
+                TaxBreakdown = result.CommittedOrder.TaxBreakdown.Select(tax => tax with { Id = Guid.NewGuid() }).ToArray()
+            };
+            await Assert.ThrowsAsync<InvalidOperationException>(async () => await failingStore.SaveAsync(invalidSnapshot));
+            Assert.AreEqual(beforeOrders, await ScalarAsync(factory, "SELECT COUNT(*) FROM orders;"), stage);
+            Assert.AreEqual(beforeItems, await ScalarAsync(factory, "SELECT COUNT(*) FROM order_items;"), stage);
+            Assert.AreEqual(beforeAdjustments, await ScalarAsync(factory, "SELECT COUNT(*) FROM order_item_adjustments;"), stage);
+            Assert.AreEqual(beforeTaxes, await ScalarAsync(factory, "SELECT COUNT(*) FROM order_tax_breakdown;"), stage);
+        }
     }
 
     private static async Task<SqliteConnectionFactory> InitializeAsync(IAppPaths paths, IBusinessClock clock)
@@ -131,16 +170,29 @@ public sealed class M04OrderIntegrationTests
         return Convert.ToInt64(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private sealed class RecordingDispatcher : IOrderPrintDispatcher
+    private sealed class RecordingDispatcher(SqliteConnectionFactory factory, ITransactionRunner runner) : IOrderPrintDispatcher
     {
+        private readonly SqliteConnectionFactory factory = factory;
+        private readonly ITransactionRunner runner = runner;
         public Guid OrderId { get; private set; }
         public bool CalledAfterCommit { get; private set; }
         public bool ThrowOnDispatch { get; init; }
-        public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default)
+        public async Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default)
         {
-            OrderId = committedOrder.Id; CalledAfterCommit = committedOrder.Items.Count > 0;
+            OrderId = committedOrder.Id;
+            var separateConnectionSnapshot = await new SqliteOrderStore(factory, runner).GetByIdAsync(committedOrder.Id, cancellationToken);
+            CalledAfterCommit = separateConnectionSnapshot is not null && separateConnectionSnapshot.Items.Count > 0;
             if (ThrowOnDispatch) throw new InvalidOperationException("synthetic dispatch failure");
-            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingSnapshotService : ILocalRecoverySnapshotService
+    {
+        public List<DurableChange> Changes { get; } = [];
+        public Task<RecoverySnapshotResult> CreateAsync(DurableChange change, CancellationToken cancellationToken = default)
+        {
+            Changes.Add(change);
+            return Task.FromResult(new RecoverySnapshotResult("synthetic.db", "synthetic.json", "checksum", change.CommittedAtUtc, change.Sequence, 1));
         }
     }
 
