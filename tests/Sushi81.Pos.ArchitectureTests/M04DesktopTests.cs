@@ -102,6 +102,9 @@ public sealed class M04DesktopTests
                 window.UpdateLayout();
                 Assert.IsFalse(discount.IsEnabled);
                 Assert.IsFalse(entry.PickupDiscountRequested);
+                entry.SelectedPlannedHour = 11;
+                entry.SelectedPlannedMinute = 0;
+                entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
 
                 var first = entry.ConfirmAsync().GetAwaiter().GetResult();
                 Assert.IsTrue(first!.Succeeded);
@@ -109,6 +112,8 @@ public sealed class M04DesktopTests
                 entry.StartNewOrder();
                 entry.AddConfiguredLine(product, [], [], 1);
                 entry.SelectedFulfilment = FulfilmentMode.Retrait;
+                entry.SelectedPlannedHour = 11;
+                entry.SelectedPlannedMinute = 0;
                 var second = entry.ConfirmAsync().GetAwaiter().GetResult();
                 Assert.IsTrue(second!.Succeeded);
                 Assert.AreNotEqual(firstId, second.CommittedOrder!.Id);
@@ -152,6 +157,8 @@ public sealed class M04DesktopTests
             admin.LoadSettingsAsync().GetAwaiter().GetResult();
             entry.AddConfiguredLine(product, [], [], 1);
             entry.SelectedFulfilment = FulfilmentMode.Retrait;
+            entry.SelectedPlannedHour = 11;
+            entry.SelectedPlannedMinute = 0;
             entry.PickupDiscountRequested = true;
             entry.RepriceAsync(clearManualOverride: true).GetAwaiter().GetResult();
             Assert.AreEqual(2700L, Money.FromEuros(decimal.Parse(entry.TotalText, CultureInfo.CurrentCulture)).Cents);
@@ -193,6 +200,8 @@ public sealed class M04DesktopTests
             admin.LoadSettingsAsync().GetAwaiter().GetResult();
             entry.AddConfiguredLine(product, [], [], 1);
             entry.SelectedFulfilment = FulfilmentMode.Retrait;
+            entry.SelectedPlannedHour = 11;
+            entry.SelectedPlannedMinute = 0;
             entry.SetManualTotal("25");
             entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
             Assert.IsTrue(entry.IsManualTotalOverrideActive);
@@ -231,6 +240,8 @@ public sealed class M04DesktopTests
 
             entry.AddConfiguredLine(product, [], [], 1);
             entry.SelectedFulfilment = FulfilmentMode.Livraison;
+            entry.SelectedPlannedHour = 11;
+            entry.SelectedPlannedMinute = 0;
             entry.RepriceAsync(clearManualOverride: true).GetAwaiter().GetResult();
             Assert.IsTrue(entry.CanConfirm);
             entry.SetManualTotal("25");
@@ -266,6 +277,8 @@ public sealed class M04DesktopTests
             admin.LoadSettingsAsync().GetAwaiter().GetResult();
             entry.AddConfiguredLine(product, [], [], 1);
             entry.SelectedFulfilment = FulfilmentMode.Retrait;
+            entry.SelectedPlannedHour = 11;
+            entry.SelectedPlannedMinute = 0;
             entry.RepriceAsync(clearManualOverride: true).GetAwaiter().GetResult();
             var result = entry.ConfirmAsync().GetAwaiter().GetResult();
             Assert.IsTrue(result!.Succeeded);
@@ -358,15 +371,53 @@ public sealed class M04DesktopTests
 
                 var plannedHour = VisualDescendants<ComboBox>(window).Single(combo => combo.Name == "plannedHourBox");
                 var plannedMinute = VisualDescendants<ComboBox>(window).Single(combo => combo.Name == "plannedMinuteBox");
-                plannedHour.SelectedValue = 9;
-                plannedMinute.SelectedValue = 30;
+                Assert.IsNull(entry.SelectedPlannedHour);
+                Assert.IsNull(entry.SelectedPlannedMinute);
+                Assert.IsFalse(entry.CanConfirm);
+                CollectionAssert.AreEqual(
+                    new int?[] { null, 11, 12, 13, 14, 18, 19, 20, 21, 22 },
+                    plannedHour.Items.Cast<TimeChoice>().Select(choice => choice.Value).ToArray());
+                CollectionAssert.AreEqual(
+                    new int?[] { null, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55 },
+                    plannedMinute.Items.Cast<TimeChoice>().Select(choice => choice.Value).ToArray());
+                Assert.IsFalse(VisualDescendants<TextBox>(window).Any(textBox => textBox.Name.Contains("plannedTime", StringComparison.OrdinalIgnoreCase)));
+
+                plannedHour.SelectedValue = 11;
+                plannedMinute.SelectedValue = 0;
                 window.UpdateLayout();
-                Assert.AreEqual(new TimeSpan(9, 30, 0), entry.PlannedTime);
+                Assert.AreEqual(new TimeSpan(11, 0, 0), entry.PlannedTime);
                 Assert.IsTrue(entry.PlannedTimeValid);
+                plannedHour.SelectedValue = 22;
+                plannedMinute.SelectedValue = 55;
+                entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
+                Assert.AreEqual(new TimeSpan(22, 55, 0), entry.PlannedTime);
+                Assert.IsTrue(entry.CanConfirm);
+
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                window.UpdateLayout();
+                Assert.AreEqual(22, entry.SelectedPlannedHour);
+                Assert.AreEqual(55, entry.SelectedPlannedMinute);
+                Assert.AreEqual(new TimeSpan(22, 55, 0), entry.PlannedTime);
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                window.UpdateLayout();
+                Assert.AreEqual(22, entry.SelectedPlannedHour);
+                Assert.AreEqual(55, entry.SelectedPlannedMinute);
+
+                entry.SelectedFulfilment = FulfilmentMode.Retrait;
+                entry.SetManualTotal("25");
+                entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
+                Assert.IsTrue(entry.IsManualTotalOverrideActive);
+                plannedHour.SelectedValue = 11;
+                plannedMinute.SelectedValue = 0;
+                entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
+                Assert.IsTrue(entry.IsManualTotalOverrideActive, "A time-only change must preserve the manual total.");
                 plannedHour.SelectedValue = null;
                 window.UpdateLayout();
                 Assert.IsNull(entry.PlannedTime);
+                Assert.IsFalse(entry.CanConfirm);
                 entry.SelectedFulfilment = FulfilmentMode.Retrait;
+                plannedHour.SelectedValue = 11;
+                plannedMinute.SelectedValue = 0;
                 window.UpdateLayout();
 
                 var totalBox = (TextBox)typeof(MainWindow).GetField("orderTotalBox", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
@@ -385,6 +436,8 @@ public sealed class M04DesktopTests
                 Assert.IsFalse(entry.IsCommitted);
                 entry.AddConfiguredLine(product, [], [], 1);
                 entry.SelectedFulfilment = FulfilmentMode.Retrait;
+                entry.SelectedPlannedHour = 11;
+                entry.SelectedPlannedMinute = 0;
                 var second = entry.ConfirmAsync().GetAwaiter().GetResult();
                 Assert.IsTrue(second!.Succeeded);
                 Assert.AreNotEqual(first.CommittedOrder!.Id, second.CommittedOrder!.Id);
@@ -462,6 +515,8 @@ public sealed class M04DesktopTests
                 Assert.IsFalse(entry.CanConfirm);
                 StringAssert.Contains(entry.ValidationMessage, shell.Localized["ValidationPlannedDatePast"]);
                 entry.PlannedDate = entry.MinimumPlannedDate;
+                entry.SelectedPlannedHour = 11;
+                entry.SelectedPlannedMinute = 0;
                 entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
                 var result = entry.ConfirmAsync().GetAwaiter().GetResult();
                 Assert.IsTrue(result!.Succeeded);

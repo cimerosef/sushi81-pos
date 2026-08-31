@@ -110,6 +110,58 @@ public sealed class OrderEntryApplicationTests
     }
 
     [TestMethod]
+    public async Task MissingPlannedTimeIsRejectedBeforePersistenceAndDispatch()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingDispatcher();
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, dispatcher);
+
+        var result = await service.ConfirmNewOrderAsync(Draft(product) with { PlannedFulfilmentTime = null });
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(ValidationCodes.PlannedTimeRequired, result.Issues.Single().StableCode);
+        Assert.AreEqual(0, store.SaveCalls);
+        Assert.AreEqual(0, dispatcher.Calls);
+    }
+
+    [TestMethod]
+    public async Task ManualTotalDoesNotBypassMissingPlannedTime()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingDispatcher();
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, dispatcher);
+
+        var result = await service.ConfirmNewOrderAsync(Draft(product) with
+        {
+            PlannedFulfilmentTime = null,
+            ManualTotalOverride = Money.FromCents(2500)
+        });
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(ValidationCodes.PlannedTimeRequired, result.Issues.Single().StableCode);
+        Assert.AreEqual(0, store.SaveCalls);
+        Assert.AreEqual(0, dispatcher.Calls);
+    }
+
+    [TestMethod]
+    public async Task InvalidPlannedTimeIsRejectedBeforePersistenceAndDispatch()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingDispatcher();
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, dispatcher);
+
+        var result = await service.ConfirmNewOrderAsync(Draft(product) with { PlannedFulfilmentTime = new TimeOnly(15, 1) });
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(ValidationCodes.PlannedTimeInvalid, result.Issues.Single().StableCode);
+        Assert.AreEqual(0, store.SaveCalls);
+        Assert.AreEqual(0, dispatcher.Calls);
+    }
+
+    [TestMethod]
     public async Task ConfirmationUsesCurrentSettingsAndNormalizesOptionalFields()
     {
         var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false, price: Money.FromCents(3000));
@@ -132,6 +184,7 @@ public sealed class OrderEntryApplicationTests
         Assert.AreEqual("12 rue des Tests", result.CommittedOrder.DeliveryAddress);
         Assert.AreEqual("note", result.CommittedOrder.Comment);
         Assert.AreEqual(2400L, result.CommittedOrder.TotalTtc.Cents);
+        Assert.AreEqual(new TimeOnly(11, 0), result.CommittedOrder.PlannedFulfilmentTime);
         Assert.AreEqual(OrderSourceType.Pos, result.CommittedOrder.SourceType);
         Assert.AreEqual(1, dispatcher.Calls);
     }
@@ -208,6 +261,7 @@ public sealed class OrderEntryApplicationTests
         Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
         Assert.IsNull(result.CommittedOrder!.Telephone);
         Assert.IsNull(result.CommittedOrder.DeliveryAddress);
+        Assert.AreEqual(new TimeOnly(11, 0), result.CommittedOrder.PlannedFulfilmentTime);
     }
 
     [TestMethod]
@@ -248,6 +302,24 @@ public sealed class OrderEntryApplicationTests
         Assert.AreEqual(result.CommittedOrder, dispatcher.LastOrder);
     }
 
+    [TestMethod]
+    public async Task HistoricalSnapshotWithNullPlannedTimeRemainsReadable()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingDispatcher();
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, dispatcher);
+
+        var result = await service.ConfirmNewOrderAsync(Draft(product));
+        Assert.IsTrue(result.Succeeded);
+        await store.SaveAsync(result.CommittedOrder! with { PlannedFulfilmentTime = null });
+
+        var reloaded = await service.GetOrderByIdAsync(result.CommittedOrder.Id);
+
+        Assert.IsNotNull(reloaded);
+        Assert.IsNull(reloaded!.PlannedFulfilmentTime);
+    }
+
     private static OrderEntryService CreateService(
         IOrderEntryCatalogueQueries catalogue,
         IOrderStore store,
@@ -256,7 +328,7 @@ public sealed class OrderEntryApplicationTests
         new(catalogue, new FakeSettingsStore(settings ?? BusinessSettings.Defaults(DateTimeOffset.UtcNow)), store, dispatcher, new DeterministicIds(), new FixedClock());
 
     private static NewOrderDraft Draft(ProductAggregate product, IReadOnlyList<Guid>? selected = null) =>
-        new([new OrderLineDraft(Guid.Empty, product, selected ?? [], [], 1, "Plats")], FulfilmentMode.Retrait, BusinessDate, null, null, null, null, false);
+        new([new OrderLineDraft(Guid.Empty, product, selected ?? [], [], 1, "Plats")], FulfilmentMode.Retrait, BusinessDate, new TimeOnly(11, 0), null, null, null, false);
 
     private static OrderEntryProduct? Entry(ProductAggregate? product) => product is null ? null : new OrderEntryProduct(product, "Plats");
 

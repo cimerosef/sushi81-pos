@@ -130,7 +130,7 @@ Changements effectifs : {2}</value></data>
   <data name="OrderNotFound" xml:space="preserve"><value>Commande introuvable.</value></data>
   <data name="OrderSaved" xml:space="preserve"><value>Commande {0} enregistrée.</value></data>
   <data name="OrderSavedOutputFailed" xml:space="preserve"><value>Commande {0} enregistrée ; l’envoi de sortie a échoué.</value></data>
-  <data name="InvalidPlannedTime" xml:space="preserve"><value>L’heure prévue est invalide. Saisissez HH:mm ou effacez-la.</value></data>
+  <data name="InvalidPlannedTime" xml:space="preserve"><value>L’heure prévue est invalide. Sélectionnez un créneau autorisé de 5 minutes.</value></data>
   <data name="InvalidManualTotal" xml:space="preserve"><value>Le total TTC saisi est invalide.</value></data>
   <data name="OrderId" xml:space="preserve"><value>ID commande</value></data>
   <data name="OrderStatus" xml:space="preserve"><value>Statut</value></data>
@@ -144,6 +144,8 @@ Changements effectifs : {2}</value></data>
   <data name="ValidationFulfilmentRequired" xml:space="preserve"><value>Le mode de commande est obligatoire.</value></data>
   <data name="ValidationPlannedDateRequired" xml:space="preserve"><value>La date prévue est obligatoire.</value></data>
   <data name="ValidationPlannedDatePast" xml:space="preserve"><value>La date prévue ne peut pas être antérieure à la date d’activité.</value></data>
+  <data name="ValidationPlannedTimeRequired" xml:space="preserve"><value>Sélectionnez une heure prévue.</value></data>
+  <data name="ValidationPlannedTimeInvalid" xml:space="preserve"><value>L’heure prévue doit utiliser un créneau autorisé de 5 minutes.</value></data>
   <data name="ValidationCartRequired" xml:space="preserve"><value>Ajoutez au moins une ligne.</value></data>
   <data name="ValidationDeliveryMinimum" xml:space="preserve"><value>Le minimum Livraison n’est pas atteint.</value></data>
   <data name="ValidationPickupDiscount" xml:space="preserve"><value>La remise Retrait n’a pas été appliquée.</value></data>

@@ -61,8 +61,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         Categories = new ObservableCollection<CategorySummary>();
         Products = new ObservableCollection<ProductSummary>();
         Cart = new ObservableCollection<OrderEntryCartLineViewModel>();
-        PlannedHourChoices = new ObservableCollection<TimeChoice>(BuildTimeChoices(23));
-        PlannedMinuteChoices = new ObservableCollection<TimeChoice>(BuildTimeChoices(59));
+        PlannedHourChoices = new ObservableCollection<TimeChoice>(BuildTimeChoices([11, 12, 13, 14, 18, 19, 20, 21, 22]));
+        PlannedMinuteChoices = new ObservableCollection<TimeChoice>(BuildTimeChoices([0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]));
         FulfilmentChoices = new ObservableCollection<FulfilmentChoice>
         {
             new(null, unselectedFulfilmentLabel),
@@ -159,7 +159,6 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             if (selectedPlannedHour == value) return;
             selectedPlannedHour = value;
             if (value is null) selectedPlannedMinute = null;
-            else if (selectedPlannedMinute is null) selectedPlannedMinute = 0;
             UpdatePlannedTime();
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedPlannedMinute));
@@ -198,9 +197,9 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanAddSelectedProduct)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
     public bool IsCommitted { get => isCommitted; private set { isCommitted = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
     public bool CanAddSelectedProduct => !IsBusy && !IsCommitted && SelectedProduct is not null;
-    public bool CanConfirm => !IsBusy && !IsCommitted && PlannedDateValid && pricing?.IsValid == true;
+    public bool CanConfirm => !IsBusy && !IsCommitted && PlannedDateValid && PlannedTime is { } time && IsApprovedPlannedTime(time) && pricing?.IsValid == true;
     public bool CanStartNewOrder => IsCommitted && !IsBusy;
-    public bool PlannedTimeValid => PlannedTime is null || PlannedTime.Value >= TimeSpan.Zero && PlannedTime.Value < TimeSpan.FromDays(1);
+    public bool PlannedTimeValid => PlannedTime is null || IsApprovedPlannedTime(PlannedTime.Value);
     public bool IsPickupDiscountEnabled => !IsBusy && !IsCommitted && SelectedFulfilment == FulfilmentMode.Retrait;
     public string TotalText { get => totalText; private set { totalText = value; OnPropertyChanged(); } }
     public string ValidationMessage { get => validationMessage; private set { validationMessage = value; OnPropertyChanged(); } }
@@ -428,12 +427,18 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     private string Localized(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
 
-    private static IEnumerable<TimeChoice> BuildTimeChoices(int lastValue)
+    private static IEnumerable<TimeChoice> BuildTimeChoices(IEnumerable<int> values)
     {
         yield return new TimeChoice(null, "—");
-        for (var value = 0; value <= lastValue; value++)
+        foreach (var value in values)
             yield return new TimeChoice(value, value.ToString("D2", CultureInfo.InvariantCulture));
     }
+
+    private static bool IsApprovedPlannedTime(TimeSpan time) =>
+        time >= TimeSpan.Zero && time < TimeSpan.FromDays(1) &&
+        time.Seconds == 0 && time.Milliseconds == 0 &&
+        time.Hours is 11 or 12 or 13 or 14 or 18 or 19 or 20 or 21 or 22 &&
+        time.Minutes % 5 == 0;
 
     private void UpdatePlannedTime()
     {
@@ -453,6 +458,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             .ToList();
         if (!PlannedDateValid && PlannedDate is not null)
             messages.Insert(0, Localized("ValidationPlannedDatePast", "La date prévue ne peut pas être antérieure à la date d’activité."));
+        if (PlannedTime is null)
+            messages.Insert(0, Localized("ValidationPlannedTimeRequired", "Sélectionnez une heure prévue."));
+        else if (!PlannedTimeValid)
+            messages.Insert(0, Localized("ValidationPlannedTimeInvalid", "L’heure prévue doit utiliser un créneau autorisé de 5 minutes."));
         ValidationMessage = string.Join(Environment.NewLine, messages);
         OnPropertyChanged(nameof(IsManualTotalOverrideActive));
         OnPropertyChanged(nameof(ManualTotalStateText));
@@ -500,6 +509,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         if (message.Contains("fulfilment mode", StringComparison.OrdinalIgnoreCase)) return Localized("ValidationFulfilmentRequired", "Le mode de commande est obligatoire.");
         if (message.Contains("cannot be in the past", StringComparison.OrdinalIgnoreCase)) return Localized("ValidationPlannedDatePast", "La date prévue ne peut pas être antérieure à la date d’activité.");
         if (message.Contains("planned fulfilment date", StringComparison.OrdinalIgnoreCase)) return Localized("ValidationPlannedDateRequired", "La date prévue est obligatoire.");
+        if (message.Contains("planned fulfilment time", StringComparison.OrdinalIgnoreCase) && message.Contains("required", StringComparison.OrdinalIgnoreCase)) return Localized("ValidationPlannedTimeRequired", "Sélectionnez une heure prévue.");
+        if (message.Contains("planned fulfilment time", StringComparison.OrdinalIgnoreCase)) return Localized("ValidationPlannedTimeInvalid", "L’heure prévue doit utiliser un créneau autorisé de 5 minutes.");
         if (message.Contains("at least one order line", StringComparison.OrdinalIgnoreCase)) return Localized("ValidationCartRequired", "Ajoutez au moins une ligne.");
         if (message.Contains("quantity", StringComparison.OrdinalIgnoreCase)) return Localized("InvalidQuantity", "La quantité doit être un entier positif.");
         if (message.Contains("no longer active", StringComparison.OrdinalIgnoreCase) || message.Contains("current Catalogue", StringComparison.OrdinalIgnoreCase)) return Localized("ProductInactive", "Le produit n’est plus actif.");

@@ -64,6 +64,8 @@ public static class M03Presentation
             ValidationCodes.OptionStructure => "ValidationOptionStructure",
             ValidationCodes.Conflict => "ValidationConflict",
             ValidationCodes.PastPlannedDate => "ValidationPlannedDatePast",
+            ValidationCodes.PlannedTimeRequired => "ValidationPlannedTimeRequired",
+            ValidationCodes.PlannedTimeInvalid => "ValidationPlannedTimeInvalid",
             ValidationCodes.BulkRequestInvalid => "ValidationGeneric",
             _ => issue.Field switch
             {

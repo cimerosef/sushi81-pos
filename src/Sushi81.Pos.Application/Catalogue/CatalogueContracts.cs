@@ -21,6 +21,8 @@ public static class ValidationCodes
     public const string Conflict = "conflict";
     public const string BulkRequestInvalid = "bulk-request-invalid";
     public const string PastPlannedDate = "past-planned-date";
+    public const string PlannedTimeRequired = "planned-time-required";
+    public const string PlannedTimeInvalid = "planned-time-invalid";
 
     public static string Infer(string message) => message switch
     {

@@ -148,6 +148,12 @@ public sealed class OrderEntryService(
             if (normalizedDraft.PlannedFulfilmentDate.Value < clock.BusinessDate)
                 return ConfirmOrderResult.Failure(new ValidationIssue("order", "The planned fulfilment date cannot be in the past.", ValidationCodes.PastPlannedDate));
 
+            if (normalizedDraft.PlannedFulfilmentTime is null)
+                return ConfirmOrderResult.Failure(new ValidationIssue("order", "A planned fulfilment time is required.", ValidationCodes.PlannedTimeRequired));
+
+            if (!IsApprovedPlannedTime(normalizedDraft.PlannedFulfilmentTime.Value))
+                return ConfirmOrderResult.Failure(new ValidationIssue("order", "The planned fulfilment time is not valid.", ValidationCodes.PlannedTimeInvalid));
+
             var now = clock.UtcNow;
             var orderId = idGenerator.NewId();
             var itemSnapshots = pricing.Lines.Select((line, index) => new OrderItemSnapshot(
@@ -212,6 +218,10 @@ public sealed class OrderEntryService(
         var display = (value ?? string.Empty).Trim();
         return display.Length == 0 ? null : display;
     }
+
+    private static bool IsApprovedPlannedTime(TimeOnly time) =>
+        time.Hour is 11 or 12 or 13 or 14 or 18 or 19 or 20 or 21 or 22 &&
+        time.Minute % 5 == 0;
 
     public void Dispose() => confirmationGate.Dispose();
 }

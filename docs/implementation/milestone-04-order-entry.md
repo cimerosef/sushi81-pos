@@ -143,14 +143,14 @@ New order entry includes:
 
 - fulfilment mode;
 - planned fulfilment date;
-- optional planned fulfilment time;
+- required planned fulfilment time for new POS confirmation;
 - optional telephone;
 - optional delivery address;
 - optional free-text comment.
 
 Fulfilment mode is initially unselected. Confirmation requires exactly one of `RETRAIT` or `LIVRAISON`.
 
-Planned fulfilment date is required persisted data; UI may initialize it from `IBusinessClock.BusinessDate`. Planned time is optional.
+Planned fulfilment date and time are required for new POS confirmation; the UI may initialize the date from `IBusinessClock.BusinessDate`, but must start a new order with no selected time until the operator chooses an approved slot. The selectable time is exactly hours `11, 12, 13, 14, 18, 19, 20, 21, 22` and minutes `00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55`. The persisted time field remains nullable only so historical snapshots with no time remain readable.
 
 Telephone is optional for both modes. Delivery address is optional even for initial Livraison confirmation. Do not introduce mandatory telephone/address validation absent from Approved sources.
 
@@ -416,7 +416,7 @@ Physical schema must equivalently store:
 - created/updated timestamps;
 - nullable closed/cancelled timestamps;
 - fulfilment mode;
-- planned date and nullable time;
+- planned date and nullable historical-compatible time;
 - advance marker;
 - nullable telephone/address/comment;
 - total TTC cents;

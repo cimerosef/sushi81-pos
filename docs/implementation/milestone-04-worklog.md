@@ -1,6 +1,6 @@
 # M04 implementation worklog
 
-**Status:** Authorized / `M04-REVIEW-FIX-04` complete pending ChatGPT review, manual rerun and project-owner merge approval
+**Status:** Authorized / `M04-REVIEW-FIX-04-TIME-ADDENDUM-01` complete pending ChatGPT review, manual rerun and project-owner merge approval
 **Milestone:** M04 — First complete order-entry vertical slice  
 **Implementation branch:** `codex/m04-order-entry`  
 **Approved branch base:** `0926decdcae59ed0aa4ea95c2d0f9d79aa44a36e`  
@@ -17,7 +17,7 @@ This worklog is the durable implementation/evidence record for M04.
 - A1/B1/C1 clarification is approved and durable.
 - M04 branch is created from the documented latest preparation `main` baseline.
 - Production implementation is now present on the implementation branch; final merge remains pending project-owner review.
-- GitHub issue #4 is OPEN for the authorized `M04-REVIEW-FIX-04` remediation; the later time addendum is not processed in this run and no later milestone is being inferred.
+- GitHub issue #4 is OPEN for the authorized `M04-REVIEW-FIX-04-TIME-ADDENDUM-01` remediation; no later milestone is being inferred.
 - M05 is not authorized.
 
 ## Evidence policy
@@ -45,11 +45,18 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 
 - The WPF Caisse now presents a category-first two-pane navigator: category names remain visible beside the active product list, with code/name search retained as the secondary filter. Product headers are assigned through the existing presentation seam so French and Simplified Chinese remain deterministic after language changes.
 - Simple products whose options workflow is disabled are added directly from the actual WPF Add and product-row double-click paths. Products with options enabled continue through the existing option-selection dialog; no shortcut category state or `RaccourciCat` persistence was introduced.
-- Planned time is now a structured optional hour/minute selection (`00`–`23`, `00`–`59`, or blank) and is converted exactly to `TimeOnly`; free-form HH:mm validation is no longer reachable. New-order dates are initialized and UI-limited from `IBusinessClock.BusinessDate`, while `OrderEntryService` rejects any past planned date with a stable localized validation code. Same-day and future dates remain valid, and historical snapshots remain reloadable.
+- Planned time was initially implemented as a broad structured selection; the superseding addendum below now requires an approved hour/minute slot for every new POS confirmation while retaining exact `TimeOnly` conversion and historical null-time readability. New-order dates are initialized and UI-limited from `IBusinessClock.BusinessDate`, while `OrderEntryService` rejects any past planned date with a stable localized validation code. Same-day and future dates remain valid.
 - The cart template uses a stretched row with fixed total/action columns so quantity/remove controls share one right edge across rows. Address/comment inputs receive usable stretch width, and the ID/snapshot panel stays visible so a successful confirmation is immediately discoverable and reloadable.
 - Automated evidence includes the new Application past-date no-write/no-dispatch test and an STA/WPF operator-path regression covering visible categories, localized product headers, direct Add, direct double-click, fixed cart alignment, date guard, address width and immediate saved-order discovery. Full local verification is recorded below; no manual Windows/WPF acceptance is claimed because the prior operator run stopped on the recorded first-use findings and must be rerun on the published artifact.
 - `POST_TASK_POWER_ACTION: NONE`.
-- The later `M04-REVIEW-FIX-04-TIME-ADDENDUM-01` handoff was observed but intentionally left queued for a later automation run.
+
+## Implementation evidence — `M04-REVIEW-FIX-04-TIME-ADDENDUM-01`
+
+- New POS confirmation requires `PlannedFulfilmentTime` for both Retrait and Livraison. Missing or programmatically invalid time fails before persistence and dispatch; a manual total override cannot bypass the requirement.
+- The WPF Caisse exposes exactly the approved hour choices `11, 12, 13, 14, 18, 19, 20, 21, 22` and minute choices `00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55` through two click-friendly selectors. There is no free-form time textbox, a new order starts unselected, blank time keeps confirmation unavailable, and time-only changes preserve a manual total override.
+- FR → zh-CN → FR switching preserves the selected time. The nullable persistence field is unchanged so historical snapshots with a null planned time remain readable; no destructive migration was introduced.
+- Automated application and STA/WPF coverage for the addendum is recorded in the delivery record below after verification. No manual acceptance is claimed.
+- `POST_TASK_POWER_ACTION: NONE`.
 
 ## Delivery record
 
@@ -70,3 +77,4 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 - CI: GitHub Actions `Continuous integration` run **#252** completed successfully for pushed head `f73a3939417642cc9633f2c779d13a45febd58b9`; the `build-and-test` job Restore, Build and Test steps all passed.
 - PR state: active M04 PR remains open and unmerged; project-owner merge approval is still required.
 - Execution gate: OPEN for `M04-REVIEW-FIX-04` at the last durable check.
+- Addendum implementation head and verification are recorded in the `CODEX_DONE: M04-REVIEW-FIX-04-TIME-ADDENDUM-01` delivery record below after push/CI completion.

@@ -117,7 +117,7 @@ public sealed class M04OrderIntegrationTests
         optionId = selected.Aggregate.OptionsByGroup.Values.Single().Single().Id;
         var result = await orderService.ConfirmNewOrderAsync(new NewOrderDraft(
             [new OrderLineDraft(Guid.Empty, selected.Aggregate, [optionId], [new(null, null, "Emballage", Money.FromCents(25))], 2, selected.CategoryName)],
-            FulfilmentMode.Retrait, new DateOnly(2026, 9, 1), null, "0612345678", null, "  commande test ", false));
+            FulfilmentMode.Retrait, new DateOnly(2026, 9, 1), new TimeOnly(11, 0), "0612345678", null, "  commande test ", false));
 
         Assert.IsTrue(result.Succeeded, result.Issues.Count == 0 ? null : result.Issues[0].Message);
         Assert.IsTrue(result.DispatchSucceeded);
@@ -177,7 +177,7 @@ public sealed class M04OrderIntegrationTests
 
         var result = await service.ConfirmNewOrderAsync(new NewOrderDraft(
             [new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [], 1, selected.CategoryName)],
-            FulfilmentMode.Retrait, clock.BusinessDate, null, null, null, null, false, Money.FromCents(1234)));
+            FulfilmentMode.Retrait, clock.BusinessDate, new TimeOnly(11, 0), null, null, null, false, Money.FromCents(1234)));
 
         Assert.IsTrue(result.Succeeded, result.Issues.Count == 0 ? null : result.Issues[0].Message);
         Assert.IsNotNull(result.CommittedOrder);
@@ -213,7 +213,7 @@ public sealed class M04OrderIntegrationTests
         var failingSink = new RecordingDispatcher(factory, runner) { ThrowOnDispatch = true };
         var store = new SqliteOrderStore(factory, runner);
         using var service = new OrderEntryService(new OrderEntryCatalogueService(catalogueStore), settings, store, failingSink, ids, clock);
-        var result = await service.ConfirmNewOrderAsync(new NewOrderDraft([new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [new(null, null, "Emballage", Money.FromCents(1))], 1, selected.CategoryName)], FulfilmentMode.Retrait, clock.BusinessDate, null, null, null, null, false));
+        var result = await service.ConfirmNewOrderAsync(new NewOrderDraft([new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [new(null, null, "Emballage", Money.FromCents(1))], 1, selected.CategoryName)], FulfilmentMode.Retrait, clock.BusinessDate, new TimeOnly(11, 0), null, null, null, false));
         Assert.IsTrue(result.Succeeded);
         Assert.IsFalse(result.DispatchSucceeded);
         Assert.IsNotNull(await service.GetOrderByIdAsync(result.CommittedOrder!.Id));
@@ -266,7 +266,7 @@ public sealed class M04OrderIntegrationTests
         var dispatcher = new RecordingDispatcher(factory, new SqliteTransactionRunner(factory));
         using var service = new OrderEntryService(new OrderEntryCatalogueService(catalogueStore), new SqliteBusinessSettingsStore(factory, new SqliteTransactionRunner(factory), clock), new SqliteOrderStore(factory, commitFailingRunner), dispatcher, ids, clock);
 
-        var result = await service.ConfirmNewOrderAsync(new NewOrderDraft([new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [new(null, null, "Emballage", Money.FromCents(25))], 1, selected.CategoryName)], FulfilmentMode.Retrait, clock.BusinessDate, null, null, null, null, false));
+        var result = await service.ConfirmNewOrderAsync(new NewOrderDraft([new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [new(null, null, "Emballage", Money.FromCents(25))], 1, selected.CategoryName)], FulfilmentMode.Retrait, clock.BusinessDate, new TimeOnly(11, 0), null, null, null, false));
 
         Assert.IsFalse(result.Succeeded);
         Assert.AreEqual(0, dispatcher.Calls);

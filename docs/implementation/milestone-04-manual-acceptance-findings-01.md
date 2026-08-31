@@ -133,6 +133,10 @@ After remediation, repeat the M04 manual acceptance from the beginning. Automate
 - immediate post-confirm committed-order visibility;
 - FR/zh-CN state preservation and default/min/resized/maximized layout.
 
+## 10. Approved planned-time addendum
+
+The project-owner-approved 2026-08-31 addendum supersedes the earlier optional/all-day-slot wording for the current M04 contract. New POS confirmation now requires a selected planned time for both Retrait and Livraison. The WPF controls must expose only hours `11, 12, 13, 14, 18, 19, 20, 21, 22` and minutes `00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55`; no ordinary blank confirmation or free-form time text is allowed. Historical snapshots with a null planned time remain readable. The manual acceptance rerun must include the required-time and exact-choice checks.
+
 ## Governance
 
 - No merge authorization is granted.

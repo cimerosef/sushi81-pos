@@ -30,20 +30,31 @@ The legacy workbook used operator-facing letter shortcuts/order for categories. 
 
 ## B — Structured but ergonomic planned-time selection
 
+The 2026-08-31 approved addendum at the end of this document supersedes the original optional-time and all-day-slot wording in this section for current M04 new-order confirmation. The nullable persisted field remains for historical compatibility only.
+
 The persisted planned fulfilment time remains structured, exact time data. It is **not** converted to free text.
 
 However, the operator must not be required to type a colon or remember an `HH:mm` text format.
 
 Required interaction:
 
-- planned time remains optional;
+- planned time is required for every new POS order confirmation;
 - the UI provides click-friendly structured selection for hour and minute;
 - no manual `:` entry is required for the normal path;
-- all hours 00–23 and minutes 00–59 remain representable;
-- empty/no-time state remains easy to select;
+- selectable hours are exactly `11`, `12`, `13`, `14`, `18`, `19`, `20`, `21`, and `22`;
+- selectable minutes are exactly `00`, `05`, `10`, `15`, `20`, `25`, `30`, `35`, `40`, `45`, `50`, and `55`;
+- a new order starts with no selected time, and the empty state cannot be confirmed;
 - the selected result is shown clearly as a conventional `HH:mm` value;
 - mouse use must be practical for rapid counter operation; keyboard/type-to-select support may be added but is not a substitute for clickable selection;
 - invalid free-text states such as `25:99` must no longer be part of the normal operator journey.
+
+## Superseding addendum — required approved time slots
+
+Status: Approved by the project owner on 2026-08-31 for M04 implementation.
+
+For every new POS order, `PlannedFulfilmentTime` is required for confirmation for both Retrait and Livraison. The operator selects the hour and minute through two structured controls. Only hours `11`, `12`, `13`, `14`, `18`, `19`, `20`, `21`, and `22`, together with five-minute minutes `00` through `55`, are exposed. No free-form `HH:mm` input, colon entry, one-minute precision, or ordinary blank/no-time confirmation path is allowed.
+
+The selected value remains exact `TimeOnly` data. Changing only the planned time is non-price-affecting and preserves an active manual total override. Starting a new order resets the time to unselected. French and Simplified Chinese language changes preserve the selected time. Existing historical snapshots with a null planned time remain readable; this addendum does not authorize a destructive schema migration or a `NOT NULL` change.
 
 A compact two-control hour/minute picker or an equally simple native WPF interaction is acceptable. Do not add a heavy UI framework solely for this control.
 

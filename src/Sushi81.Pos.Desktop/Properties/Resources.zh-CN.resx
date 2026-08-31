@@ -130,7 +130,7 @@
   <data name="OrderNotFound" xml:space="preserve"><value>找不到订单。</value></data>
   <data name="OrderSaved" xml:space="preserve"><value>订单 {0} 已保存。</value></data>
   <data name="OrderSavedOutputFailed" xml:space="preserve"><value>订单 {0} 已保存，但输出发送失败。</value></data>
-  <data name="InvalidPlannedTime" xml:space="preserve"><value>计划时间无效。请输入 HH:mm 或清空。</value></data>
+  <data name="InvalidPlannedTime" xml:space="preserve"><value>计划时间无效。请选择有效的 5 分钟时间段。</value></data>
   <data name="InvalidManualTotal" xml:space="preserve"><value>输入的含税总额无效。</value></data>
   <data name="OrderId" xml:space="preserve"><value>订单 ID</value></data>
   <data name="OrderStatus" xml:space="preserve"><value>状态</value></data>
@@ -144,6 +144,8 @@
   <data name="ValidationFulfilmentRequired" xml:space="preserve"><value>必须选择订单方式。</value></data>
   <data name="ValidationPlannedDateRequired" xml:space="preserve"><value>必须选择计划日期。</value></data>
   <data name="ValidationPlannedDatePast" xml:space="preserve"><value>计划日期不能早于营业日期。</value></data>
+  <data name="ValidationPlannedTimeRequired" xml:space="preserve"><value>请选择计划时间。</value></data>
+  <data name="ValidationPlannedTimeInvalid" xml:space="preserve"><value>计划时间必须使用有效的 5 分钟时间段。</value></data>
   <data name="ValidationCartRequired" xml:space="preserve"><value>请添加至少一条明细。</value></data>
   <data name="ValidationDeliveryMinimum" xml:space="preserve"><value>未达到配送最低金额。</value></data>
   <data name="ValidationPickupDiscount" xml:space="preserve"><value>未应用自取折扣。</value></data>
