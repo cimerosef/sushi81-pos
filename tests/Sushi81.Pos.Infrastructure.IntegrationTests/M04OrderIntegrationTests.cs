@@ -67,7 +67,7 @@ public sealed class M04OrderIntegrationTests
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM products WHERE product_id='" + product + "' AND code='V2-P1';"));
 
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, snapshots).InitializeAsync();
-        Assert.AreEqual(3L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(4L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM categories WHERE category_id='" + category.Id + "' AND name='Plats v2';"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM products WHERE product_id='" + product + "' AND code='V2-P1';"));
         Assert.IsTrue(snapshots.Changes.Any(change => change.Sequence == 2));
@@ -86,7 +86,7 @@ public sealed class M04OrderIntegrationTests
         var product = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P1", "Plat", category.Id, Money.FromCents(1250), 10m, true, true, false, []))).Value!;
         var snapshot = new SqliteLocalRecoverySnapshotService(paths, factory, clock);
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, snapshot).InitializeAsync();
-        Assert.AreEqual(3L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(4L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM categories WHERE category_id='" + category.Id + "';"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM products WHERE product_id='" + product + "';"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM business_settings;"));
@@ -276,6 +276,121 @@ public sealed class M04OrderIntegrationTests
         Assert.AreEqual(0L, await ScalarAsync(factory, "SELECT COUNT(*) FROM order_tax_breakdown;"));
     }
 
+    [TestMethod]
+    public async Task V3DataMigratesToV4WithoutInventingCategoryCodesAndAddsNarrowIndexes()
+    {
+        using var paths = new TestPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        var v3 = M01Migrations.All.Concat(M03Migrations.All).Concat(M04Migrations.All.Take(1)).ToArray();
+        await new SqliteMigrationRunner(factory, v3, clock).InitializeAsync();
+        var runner = new SqliteTransactionRunner(factory);
+        var ids = new DeterministicIds();
+        var catalogueStore = new SqliteCatalogueStore(factory, runner, ids, clock);
+        var catalogue = new CatalogueService(catalogueStore);
+        var category = (await catalogue.CreateCategoryAsync("Migration Plats")).Value!;
+        var productId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "MIG-1", "Migration product", category.Id, Money.FromCents(1250), 10m, true, true, false, []))).Value!;
+        var selected = (await new OrderEntryCatalogueService(catalogueStore).GetActiveProductAsync(productId))!;
+        using var orderService = new OrderEntryService(new OrderEntryCatalogueService(catalogueStore), new SqliteBusinessSettingsStore(factory, runner, clock), new SqliteOrderStore(factory, runner), new NoopDispatcher(), ids, clock);
+        var order = await orderService.ConfirmNewOrderAsync(new NewOrderDraft([new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [], 1, selected.CategoryName)], FulfilmentMode.Retrait, clock.BusinessDate, new TimeOnly(18, 25), null, null, null, false));
+        Assert.IsTrue(order.Succeeded, string.Join("; ", order.Issues.Select(issue => issue.Message)));
+
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, new SqliteLocalRecoverySnapshotService(paths, factory, clock)).InitializeAsync();
+
+        Assert.AreEqual(4L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(1L, await ScalarAsync(factory, $"SELECT COUNT(*) FROM categories WHERE category_id='{category.Id}' AND short_code IS NULL AND normalized_short_code IS NULL;"));
+        Assert.AreEqual(1L, await ScalarAsync(factory, $"SELECT COUNT(*) FROM products WHERE product_id='{productId}' AND category_id='{category.Id}';"));
+        Assert.AreEqual(1L, await ScalarAsync(factory, $"SELECT COUNT(*) FROM orders WHERE order_id='{order.CommittedOrder!.Id}';"));
+        Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='ux_categories_normalized_short_code';"));
+        Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='ix_orders_planned_date_time';"));
+    }
+
+    [TestMethod]
+    public async Task CategoryShortCodesPersistIndependentlyWithNormalizedUniquenessAndDeterministicOrder()
+    {
+        using var paths = new TestPaths();
+        var clock = new FixedClock();
+        var factory = await InitializeAsync(paths, clock);
+        var runner = new SqliteTransactionRunner(factory);
+        var ids = new DeterministicIds();
+        var store = new SqliteCatalogueStore(factory, runner, ids, clock);
+        var service = new CatalogueService(store);
+
+        var coded = (await service.CreateCategoryWithCodeAsync(" Plats ", " pl ")).Value!;
+        var otherCoded = (await service.CreateCategoryWithCodeAsync("Desserts", " A ")).Value!;
+        var uncoded = (await service.CreateCategoryAsync("Boissons")).Value!;
+        var productId = (await service.CreateProductAsync(new ProductDraft(Guid.Empty, "P1", "Produit", coded.Id, Money.FromCents(1000), 10m, true, true, false, []))).Value!;
+
+        var listed = await service.ListCategoriesAsync();
+        CollectionAssert.AreEqual(new[] { otherCoded.Id, coded.Id, uncoded.Id }, listed.Select(category => category.Id).ToArray());
+        Assert.AreEqual("A", listed[0].NavigationLabel);
+        Assert.AreEqual("pl — Plats", listed[1].MaintenanceLabel);
+
+        var renamedWithoutCode = await service.RenameCategoryAsync(coded.Id, " Plats renommés ");
+        Assert.IsTrue(renamedWithoutCode.Succeeded, renamedWithoutCode.ErrorMessage);
+        Assert.AreEqual("pl", renamedWithoutCode.Value!.ShortCode);
+        Assert.AreEqual(coded.Id, (await service.GetProductForEditAsync(productId))!.CategoryId);
+
+        var duplicate = await service.RenameCategoryWithCodeAsync(uncoded.Id, "Boissons", " a ");
+        Assert.IsFalse(duplicate.Succeeded);
+        Assert.AreEqual(ValidationCodes.CategoryShortCodeDuplicate, duplicate.Issues.Single().StableCode);
+        Assert.AreEqual(uncoded.Id, (await service.ListCategoriesAsync()).Single(category => category.Name == "Boissons").Id);
+
+        var edited = await service.RenameCategoryWithCodeAsync(coded.Id, "Plats servis", " ps ");
+        Assert.IsTrue(edited.Succeeded, edited.ErrorMessage);
+        Assert.AreEqual("ps", edited.Value!.ShortCode);
+        Assert.AreEqual("Plats servis", (await service.ListCategoriesAsync()).Single(category => category.Id == coded.Id).Name);
+
+        var cleared = await service.RenameCategoryWithCodeAsync(coded.Id, "Plats servis", " ");
+        Assert.IsTrue(cleared.Succeeded, cleared.ErrorMessage);
+        Assert.IsNull(cleared.Value!.ShortCode);
+        Assert.IsNull((await service.ListCategoriesAsync()).Single(category => category.Id == coded.Id).ShortCode);
+    }
+
+    [TestMethod]
+    public async Task OrderBrowserFiltersAnyPersistedDateIncludesEveryStatusAndUsesStableTimeOrder()
+    {
+        using var paths = new TestPaths();
+        var clock = new FixedClock();
+        var factory = await InitializeAsync(paths, clock);
+        var runner = new SqliteTransactionRunner(factory);
+        var ids = new DeterministicIds();
+        var catalogueStore = new SqliteCatalogueStore(factory, runner, ids, clock);
+        var catalogue = new CatalogueService(catalogueStore);
+        var category = (await catalogue.CreateCategoryAsync("Plats")).Value!;
+        var productId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P1", "Plat", category.Id, Money.FromCents(1250), 10m, true, true, false, []))).Value!;
+        var selected = (await new OrderEntryCatalogueService(catalogueStore).GetActiveProductAsync(productId))!;
+        using var service = new OrderEntryService(new OrderEntryCatalogueService(catalogueStore), new SqliteBusinessSettingsStore(factory, runner, clock), new SqliteOrderStore(factory, runner), new NoopDispatcher(), ids, clock);
+
+        var firstSameDay = await CreateOrderAsync(service, selected, clock.BusinessDate, new TimeOnly(18, 25), "0612345678");
+        var secondSameDay = await CreateOrderAsync(service, selected, clock.BusinessDate, new TimeOnly(18, 25), null);
+        var morningSameDay = await CreateOrderAsync(service, selected, clock.BusinessDate, new TimeOnly(11, 0), "0600000000");
+        var future = await CreateOrderAsync(service, selected, clock.BusinessDate.AddDays(1), new TimeOnly(11, 0), null);
+
+        await ExecuteSqlAsync(factory, $"UPDATE orders SET planned_fulfilment_date='2026-08-30', planned_fulfilment_time=NULL WHERE order_id='{firstSameDay}';");
+        await ExecuteSqlAsync(factory, $"UPDATE orders SET status='CLOSED' WHERE order_id='{secondSameDay}';");
+
+        var store = new SqliteOrderStore(factory, new SqliteTransactionRunner(factory));
+        var today = await store.ListByPlannedDateAsync(clock.BusinessDate);
+        var yesterday = await store.ListByPlannedDateAsync(clock.BusinessDate.AddDays(-1));
+        var tomorrow = await store.ListByPlannedDateAsync(clock.BusinessDate.AddDays(1));
+
+        Assert.HasCount(2, today);
+        Assert.AreEqual(morningSameDay, today[0].Id);
+        Assert.AreEqual(secondSameDay, today[1].Id);
+        Assert.AreEqual(OrderStatus.Closed, today[1].Status);
+        Assert.AreEqual("06 00 00 00 00", today[0].Telephone);
+        Assert.HasCount(1, yesterday);
+        Assert.AreEqual(firstSameDay, yesterday[0].Id);
+        Assert.IsNull(yesterday[0].PlannedFulfilmentTime);
+        Assert.HasCount(1, tomorrow);
+        Assert.AreEqual(future, tomorrow[0].Id);
+        Assert.AreEqual(4L, await ScalarAsync(factory, "SELECT COUNT(*) FROM orders;"));
+
+        var restarted = await new SqliteOrderStore(factory, new SqliteTransactionRunner(factory)).ListByPlannedDateAsync(clock.BusinessDate);
+        CollectionAssert.AreEqual(today.ToArray(), restarted.ToArray());
+    }
+
     private static async Task<SqliteConnectionFactory> InitializeAsync(IAppPaths paths, IBusinessClock clock)
     {
         var factory = new SqliteConnectionFactory(paths);
@@ -288,6 +403,21 @@ public sealed class M04OrderIntegrationTests
         await using var connection = await factory.OpenLiveConnectionAsync();
         await using var command = connection.CreateCommand(); command.CommandText = sql;
         return Convert.ToInt64(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<Guid> CreateOrderAsync(OrderEntryService service, OrderEntryProduct product, DateOnly date, TimeOnly time, string? telephone)
+    {
+        var result = await service.ConfirmNewOrderAsync(new NewOrderDraft([new OrderLineDraft(Guid.Empty, product.Aggregate, [], [], 1, product.CategoryName)], FulfilmentMode.Retrait, date, time, telephone, null, null, false));
+        Assert.IsTrue(result.Succeeded, string.Join("; ", result.Issues.Select(issue => issue.Message)));
+        return result.CommittedOrder!.Id;
+    }
+
+    private static async Task ExecuteSqlAsync(SqliteConnectionFactory factory, string sql)
+    {
+        await using var connection = await factory.OpenLiveConnectionAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        await command.ExecuteNonQueryAsync();
     }
 
     private sealed class RecordingDispatcher(SqliteConnectionFactory factory, ITransactionRunner runner) : IOrderPrintDispatcher
@@ -306,6 +436,11 @@ public sealed class M04OrderIntegrationTests
             CalledAfterCommit = separateConnectionSnapshot is not null && separateConnectionSnapshot.Items.Count > 0;
             if (ThrowOnDispatch) throw new InvalidOperationException("synthetic dispatch failure");
         }
+    }
+
+    private sealed class NoopDispatcher : IOrderPrintDispatcher
+    {
+        public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class RecordingSnapshotService : ILocalRecoverySnapshotService

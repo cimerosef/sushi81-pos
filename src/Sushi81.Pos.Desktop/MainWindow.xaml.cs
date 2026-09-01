@@ -33,7 +33,11 @@ public partial class MainWindow : Window
         try
         {
             if (viewModel.Admin is { } admin) { await admin.RefreshAsync(); await admin.LoadSettingsAsync(); }
-            if (viewModel.Entry is { } entry) await entry.RefreshAsync();
+            if (viewModel.Entry is { } entry)
+            {
+                await entry.RefreshAsync();
+                await entry.RefreshOrderBrowserAsync();
+            }
         }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
         ApplyCatalogueHeaders();
@@ -60,6 +64,14 @@ public partial class MainWindow : Window
             orderProductsGrid.Columns[0].Header = LocalizedText(this, "Code", "Code");
             orderProductsGrid.Columns[1].Header = LocalizedText(this, "Name", "Name");
             orderProductsGrid.Columns[2].Header = LocalizedText(this, "PriceTtc", "TTC price");
+        }
+        if (orderBrowserGrid.Columns.Count >= 5)
+        {
+            orderBrowserGrid.Columns[0].Header = LocalizedText(this, "OrderBrowserTime", "Time");
+            orderBrowserGrid.Columns[1].Header = LocalizedText(this, "OrderBrowserMode", "Mode");
+            orderBrowserGrid.Columns[2].Header = LocalizedText(this, "OrderBrowserStatus", "Status");
+            orderBrowserGrid.Columns[3].Header = LocalizedText(this, "OrderBrowserTotal", "Total TTC");
+            orderBrowserGrid.Columns[4].Header = LocalizedText(this, "OrderBrowserTelephone", "Telephone");
         }
     }
 
@@ -167,6 +179,17 @@ public partial class MainWindow : Window
         if (DataContext is not ShellViewModel { Entry: { } entry }) return;
         if (!await entry.ReloadOrderAsync())
             MessageBox.Show(this, entry.ValidationMessage, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private async void OnRefreshOrderBrowser(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry }) await entry.RefreshOrderBrowserAsync();
+    }
+
+    private void OnOrderBrowserSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry } && e.AddedItems.OfType<OrderBrowserRowViewModel>().LastOrDefault() is { } row)
+            _ = entry.SelectBrowserOrderAsync(row);
     }
 
     private void OnFilterRefreshFailed(object? sender, EventArgs e)
@@ -397,6 +420,7 @@ public partial class MainWindow : Window
         private readonly M03ShellViewModel admin;
         private readonly ListBox list = null!;
         private readonly TextBox name = null!;
+        private readonly TextBox shortCode = null!;
         private readonly TextBlock validation = null!;
         private readonly Button create = null!;
         private readonly Button rename = null!;
@@ -405,6 +429,7 @@ public partial class MainWindow : Window
         private readonly Button close = null!;
         private readonly CategoryEditBuffer edit = new();
         private bool closeAllowed;
+        private bool saveInProgress;
 
         public CategoryManagerDialog(Window owner, M03ShellViewModel admin)
         {
@@ -415,19 +440,23 @@ public partial class MainWindow : Window
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            list = new ListBox { ItemsSource = admin.Categories, DisplayMemberPath = "Name", MinHeight = 120, VerticalAlignment = VerticalAlignment.Stretch };
-            list.SelectionChanged += (_, _) => { if (!edit.IsEditing && list.SelectedItem is CategorySummary category) name.Text = category.Name; UpdateButtons(); };
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            list = new ListBox { ItemsSource = admin.Categories, DisplayMemberPath = "MaintenanceLabel", MinHeight = 120, VerticalAlignment = VerticalAlignment.Stretch };
+            list.SelectionChanged += (_, _) => { if (!edit.IsEditing && list.SelectedItem is CategorySummary category) { name.Text = category.Name; shortCode.Text = category.ShortCode ?? string.Empty; } UpdateButtons(); };
             Grid.SetRow(list, 0); root.Children.Add(list);
             var heading = new TextBlock { Text = LocalizedText(owner, "CategoryEdit", "Category edit"), Margin = new Thickness(0, 10, 0, 2) }; Grid.SetRow(heading, 1); root.Children.Add(heading);
             name = new TextBox { Margin = new Thickness(0, 0, 0, 4), IsEnabled = false }; name.TextChanged += (_, _) => validation.Text = string.Empty; Grid.SetRow(name, 2); root.Children.Add(name);
-            validation = new TextBlock { Foreground = System.Windows.Media.Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }; Grid.SetRow(validation, 3); root.Children.Add(validation);
+            var shortCodeLabel = new TextBlock { Text = LocalizedText(owner, "CategoryShortCode", "Short code"), Margin = new Thickness(0, 4, 0, 2) }; Grid.SetRow(shortCodeLabel, 3); root.Children.Add(shortCodeLabel);
+            shortCode = new TextBox { Margin = new Thickness(0, 0, 0, 4), IsEnabled = false, ToolTip = LocalizedText(owner, "CategoryShortCodeTooltip", "Short code") }; shortCode.TextChanged += (_, _) => validation.Text = string.Empty; Grid.SetRow(shortCode, 4); root.Children.Add(shortCode);
+            validation = new TextBlock { Foreground = System.Windows.Media.Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }; Grid.SetRow(validation, 5); root.Children.Add(validation);
             var buttons = new WrapPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Top };
-            create = new Button { Content = LocalizedText(owner, "CreateCategory", "New"), MinWidth = 84, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; create.Click += (_, _) => { edit.BeginCreate(); name.IsEnabled = true; name.Clear(); validation.Text = string.Empty; UpdateButtons(); FocusName(selectAll: false); };
-            rename = new Button { Content = LocalizedText(owner, "RenameCategory", "Rename"), MinWidth = 96, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; rename.Click += (_, _) => { if (list.SelectedItem is CategorySummary category) { edit.BeginRename(category.Id, category.Name); name.IsEnabled = true; name.Text = category.Name; validation.Text = string.Empty; UpdateButtons(); FocusName(selectAll: true); } };
+            create = new Button { Content = LocalizedText(owner, "CreateCategory", "New"), MinWidth = 84, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; create.Click += (_, _) => { edit.BeginCreate(); name.IsEnabled = true; shortCode.IsEnabled = true; name.Clear(); shortCode.Clear(); validation.Text = string.Empty; UpdateButtons(); FocusName(selectAll: false); };
+            rename = new Button { Content = LocalizedText(owner, "RenameCategory", "Rename"), MinWidth = 96, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; rename.Click += (_, _) => { if (list.SelectedItem is CategorySummary category) { edit.BeginRename(category.Id, category.Name, category.ShortCode); name.IsEnabled = true; shortCode.IsEnabled = true; name.Text = category.Name; shortCode.Text = category.ShortCode ?? string.Empty; validation.Text = string.Empty; UpdateButtons(); FocusName(selectAll: true); } };
             save = new Button { Content = LocalizedText(owner, "Save", "Save"), MinWidth = 112, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; save.Click += Save;
-            cancel = new Button { Content = LocalizedText(owner, "CategoryEditCancel", "Cancel"), MinWidth = 172, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; cancel.Click += (_, _) => { edit.Cancel(); name.Clear(); validation.Text = string.Empty; UpdateButtons(); };
+            cancel = new Button { Content = LocalizedText(owner, "CategoryEditCancel", "Cancel"), MinWidth = 172, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; cancel.Click += (_, _) => { edit.Cancel(); name.Clear(); shortCode.Clear(); validation.Text = string.Empty; UpdateButtons(); };
             close = new Button { Content = LocalizedText(owner, "Close", "Close"), MinWidth = 84, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; close.Click += (_, _) => { closeAllowed = true; DialogResult = true; Close(); };
-            buttons.Children.Add(create); buttons.Children.Add(rename); buttons.Children.Add(save); buttons.Children.Add(cancel); buttons.Children.Add(close); Grid.SetRow(buttons, 4); root.Children.Add(buttons); Content = root;
+            buttons.Children.Add(create); buttons.Children.Add(rename); buttons.Children.Add(save); buttons.Children.Add(cancel); buttons.Children.Add(close); Grid.SetRow(buttons, 6); root.Children.Add(buttons); Content = root;
             UpdateButtons();
             Closing += (_, _) => { if (!closeAllowed && edit.IsEditing) edit.Cancel(); };
         }
@@ -435,11 +464,13 @@ public partial class MainWindow : Window
         private void UpdateButtons()
         {
             var editing = edit.IsEditing;
-            create.IsEnabled = edit.CanBeginEdit;
-            rename.IsEnabled = edit.CanBeginEdit && list.SelectedItem is CategorySummary;
-            name.IsEnabled = editing;
-            save.IsEnabled = edit.CanSave;
-            cancel.IsEnabled = edit.CanCancel;
+            create.IsEnabled = edit.CanBeginEdit && !saveInProgress;
+            rename.IsEnabled = edit.CanBeginEdit && !saveInProgress && list.SelectedItem is CategorySummary;
+            name.IsEnabled = editing && !saveInProgress;
+            shortCode.IsEnabled = editing && !saveInProgress;
+            save.IsEnabled = edit.CanSave && !saveInProgress;
+            cancel.IsEnabled = edit.CanCancel && !saveInProgress;
+            close.IsEnabled = !saveInProgress;
         }
 
         private void FocusName(bool selectAll)
@@ -451,10 +482,19 @@ public partial class MainWindow : Window
 
         private async void Save(object sender, RoutedEventArgs e)
         {
-            edit.SetName(name.Text);
-            var result = edit.CategoryId is { } id ? await admin.RenameCategoryAsync(id, edit.Name) : await admin.CreateCategoryAsync(edit.Name);
-            if (!result.Succeeded) { validation.Text = M03Presentation.FormatIssues(result, ((ShellViewModel)Owner.DataContext).Localized); return; }
-            await admin.RefreshAsync(); edit.CompleteSave(); name.Clear(); validation.Text = string.Empty; UpdateButtons(); list.Focus();
+            if (saveInProgress) return;
+            saveInProgress = true;
+            UpdateButtons();
+            try
+            {
+                edit.SetName(name.Text);
+                edit.SetShortCode(shortCode.Text);
+                var result = edit.CategoryId is { } id ? await admin.RenameCategoryWithCodeAsync(id, edit.Name, edit.ShortCode) : await admin.CreateCategoryWithCodeAsync(edit.Name, edit.ShortCode);
+                if (!result.Succeeded) { validation.Text = M03Presentation.FormatIssues(result, ((ShellViewModel)Owner.DataContext).Localized); return; }
+                await admin.RefreshAsync(); edit.CompleteSave(); name.Clear(); shortCode.Clear(); validation.Text = string.Empty; list.Focus();
+            }
+            catch (Exception exception) { validation.Text = exception.Message; }
+            finally { saveInProgress = false; UpdateButtons(); }
         }
     }
 

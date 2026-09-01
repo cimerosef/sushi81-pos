@@ -67,6 +67,18 @@ public static class M04Migrations
                 UNIQUE(order_id, vat_rate)
             );
             CREATE INDEX ix_order_tax_order ON order_tax_breakdown(order_id);
+            """),
+        new SqliteMigration(
+            4,
+            "add-category-short-codes-and-planned-order-index",
+            """
+            ALTER TABLE categories ADD COLUMN short_code TEXT NULL;
+            ALTER TABLE categories ADD COLUMN normalized_short_code TEXT NULL;
+            CREATE UNIQUE INDEX ux_categories_normalized_short_code
+                ON categories(normalized_short_code)
+                WHERE normalized_short_code IS NOT NULL;
+            CREATE INDEX ix_orders_planned_date_time
+                ON orders(planned_fulfilment_date, planned_fulfilment_time, order_id);
             """)
     ];
 }

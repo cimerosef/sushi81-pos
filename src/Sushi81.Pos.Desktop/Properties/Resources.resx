@@ -26,6 +26,8 @@
   <data name="Deactivate" xml:space="preserve"><value>Désactiver</value></data>
   <data name="DeletePermanently" xml:space="preserve"><value>Supprimer définitivement</value></data>
   <data name="ManageCategories" xml:space="preserve"><value>Gérer les catégories</value></data>
+  <data name="CategoryShortCode" xml:space="preserve"><value>Code court opérateur</value></data>
+  <data name="CategoryShortCodeTooltip" xml:space="preserve"><value>Code court utilisé pour la navigation Caisse (12 caractères maximum)</value></data>
   <data name="Code" xml:space="preserve"><value>Code</value></data>
   <data name="Name" xml:space="preserve"><value>Nom</value></data>
   <data name="PriceTtc" xml:space="preserve"><value>Prix TTC</value></data>
@@ -62,6 +64,8 @@
   <data name="ValidationGeneric" xml:space="preserve"><value>La saisie n’est pas valide.</value></data>
   <data name="ValidationRequired" xml:space="preserve"><value>Ce champ est obligatoire.</value></data>
   <data name="ValidationCategoryDuplicate" xml:space="preserve"><value>Une catégorie portant ce nom existe déjà.</value></data>
+  <data name="ValidationCategoryShortCodeDuplicate" xml:space="preserve"><value>Une catégorie portant ce code court existe déjà.</value></data>
+  <data name="ValidationCategoryShortCodeTooLong" xml:space="preserve"><value>Le code court de catégorie est trop long (12 caractères maximum).</value></data>
   <data name="ValidationCategoryMissing" xml:space="preserve"><value>La catégorie n’existe plus.</value></data>
   <data name="ValidationProductMissing" xml:space="preserve"><value>Le produit n’existe plus.</value></data>
   <data name="ValidationProductDuplicateCode" xml:space="preserve"><value>Un produit portant ce code existe déjà.</value></data>
@@ -123,6 +127,15 @@ Changements effectifs : {2}</value></data>
   <data name="ManualTotalActive" xml:space="preserve"><value>Total manuel faisant autorité</value></data>
   <data name="ReloadOrderTooltip" xml:space="preserve"><value>ID commande</value></data>
   <data name="ReloadedOrder" xml:space="preserve"><value>Commande rechargée</value></data>
+  <data name="OrderBrowser" xml:space="preserve"><value>Commandes enregistrées par date prévue</value></data>
+  <data name="BrowseDate" xml:space="preserve"><value>Date à consulter</value></data>
+  <data name="Browse" xml:space="preserve"><value>Actualiser</value></data>
+  <data name="OrderBrowserTime" xml:space="preserve"><value>Heure</value></data>
+  <data name="OrderBrowserMode" xml:space="preserve"><value>Mode</value></data>
+  <data name="OrderBrowserStatus" xml:space="preserve"><value>Statut</value></data>
+  <data name="OrderBrowserTotal" xml:space="preserve"><value>Total TTC</value></data>
+  <data name="OrderBrowserTelephone" xml:space="preserve"><value>Téléphone</value></data>
+  <data name="OrderBrowserEmptyTelephone" xml:space="preserve"><value>—</value></data>
   <data name="AdjustmentLabel" xml:space="preserve"><value>Libellé</value></data>
   <data name="AdjustmentAmount" xml:space="preserve"><value>Montant TTC</value></data>
   <data name="ProductInactive" xml:space="preserve"><value>Le produit n’est plus actif.</value></data>

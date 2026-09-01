@@ -368,7 +368,7 @@ Provide exact stable-ID lookup (`GetOrderByIdAsync` or equivalent).
 
 Loaded representation must come from persisted Order/OrderItem/Adjustment/Tax snapshots and must not reconstruct historical business values from current Catalogue.
 
-M04 may expose only the minimum exact-ID committed-order reload needed for verification. Do not implement M05 live telephone/comment/order search.
+M04 retains the exact-ID committed-order reload needed for verification and, under the approved 2026-09-01 operator-retrieval amendment, may also expose a read-only browser filtered by persisted `planned_fulfilment_date`. The browser may show planned time, fulfilment mode, status, Total TTC and telephone for past, current or future dates, uses a narrow deterministic SQLite query, and loads the selected row through the exact-ID snapshot path. It must not add telephone/comment/order search, payment controls, lifecycle actions, dashboard views or export behavior.
 
 Loaded confirmed order is read-only with respect to post-confirmation business modification in M04. Same-ID saved modification belongs to M05.
 
@@ -529,7 +529,7 @@ After success, transition to a clearly committed state in which repeated clickin
 
 ### 12.8 Reload
 
-Expose only minimum practical exact-ID committed-order reload. Do not implement general live search or M05 same-ID edit/save.
+Expose the minimum practical exact-ID committed-order reload plus the approved read-only date browser. Do not implement general telephone/comment/order search or M05 same-ID edit/save.
 
 ## 13. Control-state preservation
 

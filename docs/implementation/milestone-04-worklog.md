@@ -1,6 +1,6 @@
 # M04 implementation worklog
 
-**Status:** Authorized / `M04-REVIEW-FIX-05` complete pending ChatGPT review, manual rerun and project-owner merge approval
+**Status:** Authorized / `M04-REVIEW-FIX-06` complete pending ChatGPT review, manual rerun and project-owner merge approval
 **Milestone:** M04 — First complete order-entry vertical slice  
 **Implementation branch:** `codex/m04-order-entry`  
 **Approved branch base:** `0926decdcae59ed0aa4ea95c2d0f9d79aa44a36e`  
@@ -17,7 +17,7 @@ This worklog is the durable implementation/evidence record for M04.
 - A1/B1/C1 clarification is approved and durable.
 - M04 branch is created from the documented latest preparation `main` baseline.
 - Production implementation is now present on the implementation branch; final merge remains pending project-owner review.
-- GitHub issue #4 is OPEN for the authorized `M04-REVIEW-FIX-05` remediation; no later milestone is being inferred.
+- GitHub issue #4 is OPEN for the authorized `M04-REVIEW-FIX-06` remediation; no later milestone is being inferred.
 - M05 is not authorized.
 
 ## Evidence policy
@@ -93,6 +93,20 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 - Self-contained publish: `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true --no-restore --verbosity:minimal` passed to `src/Sushi81.Pos.Desktop/bin/Release/net10.0-windows/win-x64/publish/`.
 - CI: GitHub Actions `Continuous integration` run **#256** completed successfully for implementation commit `09d289b7499258dc550f463fcb05bce1d931fd23`; Restore, Build and Test all passed.
 - Manual acceptance remains unclaimed. PR #6 remains open and unmerged, `POST_TASK_POWER_ACTION: NONE`, and M05 was not started.
+
+## Implementation evidence — `M04-REVIEW-FIX-06`
+
+- Added the approved additive schema version 4 migration `add-category-short-codes-and-planned-order-index`. It adds nullable `categories.short_code` and `normalized_short_code`, a partial unique normalized-code index, and the narrow `(planned_fulfilment_date, planned_fulfilment_time, order_id)` order-browser index. Existing v3 reads and legacy category mutations remain compatible until the v4 migration runs; migration tests preserve existing categories, products and orders and verify blank/null migrated codes.
+- Category short codes are optional, independent from the full category name, trim-preserving for display, case-insensitive/Unicode-normalized for uniqueness, length-bounded, editable and explicitly clearable. Caisse uses the code as primary navigation label with full-name fallback; maintenance shows code plus full name and uses deterministic coded-first ordering.
+- The read-only order browser queries persisted `planned_fulfilment_date` for past, current or future dates and returns planned time, fulfilment mode, status, Total TTC and telephone. It does not filter by lifecycle status, loads the selected row through exact stable-ID snapshot reload, preserves the selected date/row/snapshot across refresh and language changes, and selects the newly committed same-date row while retaining earlier rows.
+- All planned-time presentation paths now share invariant `HH:mm` formatting; the evening regression asserts `18:25`, never `06:25`.
+- New domain, application, infrastructure and STA/WPF regressions cover code validation/forwarding, v3→v4 preservation, normalized code uniqueness/edit/clear, date filtering/order/status/null-time/restart behavior, date-picker scope, browser columns, exact selection, post-confirmation refresh, language preservation and 24-hour rendering. Manual Windows/WPF acceptance is still unclaimed; the implementation remains limited to M04 and M05 was not started.
+- `POST_TASK_POWER_ACTION: NONE`.
+
+## Delivery record — `M04-REVIEW-FIX-06`
+
+- Final implementation/evidence SHA, release verification totals, self-contained publish result and CI run are recorded here after the final local and remote checks.
+- PR #6 remains open and unmerged; project-owner merge approval is required. The execution gate was OPEN for this handoff.
 
 ## Delivery record — `M04-REVIEW-FIX-05`
 

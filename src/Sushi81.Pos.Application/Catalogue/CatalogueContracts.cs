@@ -8,6 +8,8 @@ public static class ValidationCodes
     public const string Required = "required";
     public const string CategoryMissing = "category-missing";
     public const string CategoryDuplicate = "category-duplicate";
+    public const string CategoryShortCodeDuplicate = "category-short-code-duplicate";
+    public const string CategoryShortCodeTooLong = "category-short-code-too-long";
     public const string ProductMissing = "product-missing";
     public const string ProductDuplicateCode = "product-duplicate-code";
     public const string PriceNegative = "price-negative";
@@ -28,6 +30,8 @@ public static class ValidationCodes
     {
         "Category name is required." or "Product code is required." or "Product name is required." or "Option group name is required." or "Option name is required." => Required,
         "A category with that name already exists." => CategoryDuplicate,
+        "A category with that short code already exists." => CategoryShortCodeDuplicate,
+        _ when message.StartsWith("Category short code cannot exceed ", StringComparison.Ordinal) => CategoryShortCodeTooLong,
         "The category no longer exists." => CategoryMissing,
         "The product no longer exists." => ProductMissing,
         "A product with that code already exists." => ProductDuplicateCode,
@@ -67,7 +71,20 @@ public sealed class OperationResult<T>(bool succeeded, T? value, IReadOnlyList<V
     public static new OperationResult<T> Failure(params ValidationIssue[] issues) => new(false, default, issues);
 }
 
-public sealed record CategorySummary(Guid Id, string Name);
+public sealed record CategorySummary(Guid Id, string Name, string? ShortCode = null)
+{
+    public string NavigationLabel => string.IsNullOrWhiteSpace(ShortCode) ? Name : ShortCode;
+    public string MaintenanceLabel => string.IsNullOrWhiteSpace(ShortCode) ? Name : $"{ShortCode} — {Name}";
+}
+
+public sealed record OrderBrowserRow(
+    Guid Id,
+    DateOnly PlannedFulfilmentDate,
+    TimeOnly? PlannedFulfilmentTime,
+    FulfilmentMode Fulfilment,
+    OrderStatus Status,
+    Money TotalTtc,
+    string? Telephone);
 
 public sealed record ProductSummary(
     Guid Id,
@@ -129,6 +146,8 @@ public interface ICatalogueStore : ICatalogueQueries
 {
     Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default);
     Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default);
+    Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default);
+    Task<OperationResult<CategorySummary>> RenameCategoryWithCodeAsync(Guid categoryId, string name, string? shortCode, CancellationToken cancellationToken = default);
     Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default);
     Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default);
     Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default);
@@ -145,6 +164,8 @@ public sealed class CatalogueService(ICatalogueStore store)
     public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => store.GetProductForEditAsync(productId, cancellationToken);
     public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => store.CreateCategoryAsync(name, cancellationToken);
     public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid id, string name, CancellationToken cancellationToken = default) => store.RenameCategoryAsync(id, name, cancellationToken);
+    public Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default) => ValidateAndCreateCategoryAsync(name, shortCode, cancellationToken);
+    public Task<OperationResult<CategorySummary>> RenameCategoryWithCodeAsync(Guid id, string name, string? shortCode, CancellationToken cancellationToken = default) => ValidateAndRenameCategoryAsync(id, name, shortCode, cancellationToken);
     public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => ValidateAndCreateAsync(draft, cancellationToken);
     public Task<OperationResult> UpdateProductAsync(Guid id, ProductDraft draft, CancellationToken cancellationToken = default) => ValidateAndUpdateAsync(id, draft, cancellationToken);
     public Task<OperationResult> SetProductActiveAsync(Guid id, bool active, CancellationToken cancellationToken = default) => store.SetProductActiveAsync(id, active, cancellationToken);
@@ -163,6 +184,22 @@ public sealed class CatalogueService(ICatalogueStore store)
     {
         var validation = ValidateDraft(draft, requireId: false);
         return validation is not null ? OperationResult<Guid>.Failure(validation) : await store.CreateProductAsync(draft, cancellationToken);
+    }
+
+    private async Task<OperationResult<CategorySummary>> ValidateAndCreateCategoryAsync(string name, string? shortCode, CancellationToken cancellationToken)
+    {
+        var error = CatalogueValidation.ValidateCategoryShortCode(shortCode);
+        return error is not null
+            ? OperationResult<CategorySummary>.Failure(new ValidationIssue("shortCode", error, ValidationCodes.Infer(error)))
+            : await store.CreateCategoryWithCodeAsync(name, shortCode, cancellationToken);
+    }
+
+    private async Task<OperationResult<CategorySummary>> ValidateAndRenameCategoryAsync(Guid id, string name, string? shortCode, CancellationToken cancellationToken)
+    {
+        var error = CatalogueValidation.ValidateCategoryShortCode(shortCode);
+        return error is not null
+            ? OperationResult<CategorySummary>.Failure(new ValidationIssue("shortCode", error, ValidationCodes.Infer(error)))
+            : await store.RenameCategoryWithCodeAsync(id, name, shortCode, cancellationToken);
     }
 
     private async Task<OperationResult> ValidateAndUpdateAsync(Guid id, ProductDraft draft, CancellationToken cancellationToken)

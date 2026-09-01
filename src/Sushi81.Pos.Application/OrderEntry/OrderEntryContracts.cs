@@ -52,6 +52,7 @@ public interface IOrderStore
 {
     Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default);
     Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default);
 }
 
 public interface IOrderPrintDispatcher
@@ -89,6 +90,9 @@ public sealed class OrderEntryService(
     private readonly IIdGenerator idGenerator = idGenerator ?? throw new ArgumentNullException(nameof(idGenerator));
     private readonly IBusinessClock clock = clock ?? throw new ArgumentNullException(nameof(clock));
     private readonly SemaphoreSlim confirmationGate = new(1, 1);
+    private readonly object lifecycleLock = new();
+    private int activeConfirmationCalls;
+    private bool disposed;
 
     public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => catalogue.ListCategoriesAsync(cancellationToken);
     public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? categoryId = null, CancellationToken cancellationToken = default) => catalogue.ListActiveProductsAsync(search, categoryId, cancellationToken);
@@ -111,11 +115,18 @@ public sealed class OrderEntryService(
     public async Task<ConfirmOrderResult> ConfirmNewOrderAsync(NewOrderDraft draft, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
-        if (!await confirmationGate.WaitAsync(0, cancellationToken))
-            return ConfirmOrderResult.Failure(new ValidationIssue("order", "An order confirmation is already in progress.", ValidationCodes.Busy));
+        lock (lifecycleLock)
+        {
+            if (disposed) return ConfirmOrderResult.Failure(new ValidationIssue("order", "The order entry service is unavailable.", ValidationCodes.Generic));
+            activeConfirmationCalls++;
+        }
 
+        var acquired = false;
         try
         {
+            if (!await confirmationGate.WaitAsync(0, cancellationToken))
+                return ConfirmOrderResult.Failure(new ValidationIssue("order", "An order confirmation is already in progress.", ValidationCodes.Busy));
+            acquired = true;
             var businessSettings = await settings.GetAsync(cancellationToken);
             var currentLines = new List<OrderLineDraft>();
             foreach (var line in draft.Lines ?? [])
@@ -206,10 +217,19 @@ public sealed class OrderEntryService(
         {
             return ConfirmOrderResult.Failure(new ValidationIssue("order", exception.Message, ValidationCodes.Generic));
         }
-        finally { confirmationGate.Release(); }
+        finally
+        {
+            if (acquired) confirmationGate.Release();
+            lock (lifecycleLock)
+            {
+                activeConfirmationCalls--;
+                if (disposed && activeConfirmationCalls == 0) confirmationGate.Dispose();
+            }
+        }
     }
 
     public Task<OrderSnapshot?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken = default) => orders.GetByIdAsync(orderId, cancellationToken);
+    public Task<IReadOnlyList<OrderBrowserRow>> ListOrdersByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) => orders.ListByPlannedDateAsync(plannedDate, cancellationToken);
 
     public DateOnly BusinessDate => clock.BusinessDate;
 
@@ -224,5 +244,13 @@ public sealed class OrderEntryService(
         time.Minute % 5 == 0 &&
         time.Ticks % TimeSpan.TicksPerMinute == 0;
 
-    public void Dispose() => confirmationGate.Dispose();
+    public void Dispose()
+    {
+        lock (lifecycleLock)
+        {
+            if (disposed) return;
+            disposed = true;
+            if (activeConfirmationCalls == 0) confirmationGate.Dispose();
+        }
+    }
 }

@@ -13,6 +13,50 @@ public sealed record FulfilmentChoice(FulfilmentMode? Mode, string Label);
 
 public sealed record TimeChoice(int? Value, string Label);
 
+/// <summary>Localized read-only presentation of one persisted order-browser row.</summary>
+public sealed class OrderBrowserRowViewModel(OrderBrowserRow row) : INotifyPropertyChanged
+{
+    private string retraitLabel = "Retrait";
+    private string livraisonLabel = "Livraison";
+    private string openLabel = "Ouverte";
+    private string closedLabel = "Clôturée";
+    private string cancelledLabel = "Annulée";
+    private string emptyTelephoneLabel = string.Empty;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public OrderBrowserRow Row { get; } = row ?? throw new ArgumentNullException(nameof(row));
+    public Guid Id => Row.Id;
+    public string PlannedTimeText => OrderTimeFormatting.Format(Row.PlannedFulfilmentTime);
+    public string FulfilmentText => Row.Fulfilment == FulfilmentMode.Retrait ? retraitLabel : livraisonLabel;
+    public string StatusText => Row.Status switch
+    {
+        OrderStatus.Open => openLabel,
+        OrderStatus.Closed => closedLabel,
+        OrderStatus.Cancelled => cancelledLabel,
+        _ => Row.Status.ToString()
+    };
+    public string TotalText => Row.TotalTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
+    public string TelephoneText => string.IsNullOrWhiteSpace(Row.Telephone) ? emptyTelephoneLabel : Row.Telephone;
+
+    public void ApplyLocalization(IReadOnlyDictionary<string, string> labels)
+    {
+        retraitLabel = Read(labels, "Retrait", "Retrait");
+        livraisonLabel = Read(labels, "Livraison", "Livraison");
+        openLabel = Read(labels, "OrderStatusOpen", "Ouverte");
+        closedLabel = Read(labels, "OrderStatusClosed", "Clôturée");
+        cancelledLabel = Read(labels, "OrderStatusCancelled", "Annulée");
+        emptyTelephoneLabel = Read(labels, "OrderBrowserEmptyTelephone", string.Empty);
+        OnPropertyChanged(nameof(FulfilmentText));
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(TelephoneText));
+    }
+
+    private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) =>
+        labels.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? value : fallback;
+
+    private void OnPropertyChanged(string propertyName) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}
+
 /// <summary>Presentation state for the M04 Caisse vertical slice.</summary>
 public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposable
 {
@@ -39,12 +83,20 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private string committedMessage = string.Empty;
     private string reloadOrderIdText = string.Empty;
     private OrderSnapshot? reloadedOrder;
+    private DateTime? browseDate;
+    private OrderBrowserRowViewModel? selectedBrowserOrder;
     private readonly object refreshLock = new();
     private CancellationTokenSource? refreshCancellation;
     private long refreshVersion;
     private readonly object priceLock = new();
     private CancellationTokenSource? priceCancellation;
     private long priceVersion;
+    private readonly object browserLock = new();
+    private CancellationTokenSource? browserCancellation;
+    private long browserVersion;
+    private CancellationTokenSource? browserSelectionCancellation;
+    private long browserSelectionVersion;
+    private readonly CancellationTokenSource lifetimeCancellation = new();
     private bool disposed;
     private string allCategoriesLabel = "Toutes";
     private string unselectedFulfilmentLabel = "—";
@@ -61,6 +113,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         Categories = new ObservableCollection<CategorySummary>();
         Products = new ObservableCollection<ProductSummary>();
         Cart = new ObservableCollection<OrderEntryCartLineViewModel>();
+        BrowserOrders = new ObservableCollection<OrderBrowserRowViewModel>();
         PlannedHourChoices = new ObservableCollection<TimeChoice>(BuildTimeChoices([11, 12, 13, 14, 18, 19, 20, 21, 22]));
         PlannedMinuteChoices = new ObservableCollection<TimeChoice>(BuildTimeChoices([0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]));
         FulfilmentChoices = new ObservableCollection<FulfilmentChoice>
@@ -70,6 +123,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             new(FulfilmentMode.Livraison, livraisonFulfilmentLabel)
         };
         plannedDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue);
+        browseDate = plannedDate;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -80,6 +134,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public ObservableCollection<FulfilmentChoice> FulfilmentChoices { get; }
     public ObservableCollection<TimeChoice> PlannedHourChoices { get; }
     public ObservableCollection<TimeChoice> PlannedMinuteChoices { get; }
+    public ObservableCollection<OrderBrowserRowViewModel> BrowserOrders { get; }
     public string AllCategoriesLabel => allCategoriesLabel;
 
     public void ApplyLocalization(
@@ -90,7 +145,11 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         string? manualTotalState = null,
         string? newOrder = null,
         string? quantityLabel = null,
-        IReadOnlyDictionary<string, string>? labels = null)
+        IReadOnlyDictionary<string, string>? labels = null,
+        string? browseOrders = null,
+        string? browseDateLabel = null,
+        string? browseRefresh = null,
+        string? browseEmpty = null)
     {
         if (labels is not null) localized = labels;
         allCategoriesLabel = string.IsNullOrWhiteSpace(allCategories) ? "Toutes" : allCategories;
@@ -110,6 +169,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             FulfilmentChoices[2] = new FulfilmentChoice(FulfilmentMode.Livraison, livraisonFulfilmentLabel);
         }
         foreach (var line in Cart) line.SetQuantityLabel(this.quantityLabel);
+        foreach (var row in BrowserOrders) row.ApplyLocalization(localized);
         OnPropertyChanged(nameof(AllCategoriesLabel));
         OnPropertyChanged(nameof(ManualTotalStateText));
         OnPropertyChanged(nameof(NewOrderLabel));
@@ -150,7 +210,29 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public DateTime MinimumPlannedDate => service.BusinessDate.ToDateTime(TimeOnly.MinValue);
     public bool PlannedDateValid => PlannedDate is { } value && value.Date >= MinimumPlannedDate.Date;
     public TimeSpan? PlannedTime { get => plannedTime; private set { plannedTime = value; OnPropertyChanged(); OnPropertyChanged(nameof(PlannedTimeText)); } }
-    public string PlannedTimeText => PlannedTime?.ToString(@"hh\:mm", CultureInfo.InvariantCulture) ?? string.Empty;
+    public string PlannedTimeText => PlannedTime is { } time ? OrderTimeFormatting.Format(TimeOnly.FromTimeSpan(time)) : string.Empty;
+    public DateTime? BrowseDate
+    {
+        get => browseDate;
+        set
+        {
+            var next = (value ?? service.BusinessDate.ToDateTime(TimeOnly.MinValue)).Date;
+            if (browseDate?.Date == next)
+            {
+                if (value is null) OnPropertyChanged();
+                return;
+            }
+            browseDate = next;
+            OnPropertyChanged();
+            _ = RefreshOrderBrowserAsync();
+        }
+    }
+    public OrderBrowserRowViewModel? SelectedBrowserOrder
+    {
+        get => selectedBrowserOrder;
+        set { if (ReferenceEquals(selectedBrowserOrder, value)) return; selectedBrowserOrder = value; OnPropertyChanged(); }
+    }
+    public bool HasBrowserOrders => BrowserOrders.Count > 0;
     public int? SelectedPlannedHour
     {
         get => selectedPlannedHour;
@@ -245,6 +327,69 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
         catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; }
         finally { EndRefresh(request); }
+    }
+
+    public async Task RefreshOrderBrowserAsync(Guid? preferredOrderId = null, CancellationToken cancellationToken = default)
+    {
+        var request = BeginBrowserRefresh(cancellationToken);
+        CancelBrowserSelection();
+        var previousId = preferredOrderId ?? SelectedBrowserOrder?.Id;
+        try
+        {
+            var date = DateOnly.FromDateTime(BrowseDate?.Date ?? service.BusinessDate.ToDateTime(TimeOnly.MinValue));
+            var rows = await service.ListOrdersByPlannedDateAsync(date, request.Cancellation.Token);
+            if (!IsCurrentBrowserRefresh(request)) return;
+
+            BrowserOrders.Clear();
+            foreach (var row in rows)
+            {
+                var item = new OrderBrowserRowViewModel(row);
+                item.ApplyLocalization(localized);
+                BrowserOrders.Add(item);
+            }
+            OnPropertyChanged(nameof(HasBrowserOrders));
+            var selected = previousId is { } id ? BrowserOrders.FirstOrDefault(row => row.Id == id) : null;
+            SelectedBrowserOrder = selected;
+            if (selected is null && previousId is not null)
+            {
+                CancelBrowserSelection();
+                ReloadedOrder = null;
+            }
+            else if (selected is not null && previousId is not null)
+            {
+                await SelectBrowserOrderAsync(selected, request.Cancellation.Token);
+            }
+        }
+        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
+        catch (Exception exception) when (IsCurrentBrowserRefresh(request)) { ValidationMessage = exception.Message; }
+        finally { EndBrowserRefresh(request); }
+    }
+
+    public async Task SelectBrowserOrderAsync(OrderBrowserRowViewModel? row, CancellationToken cancellationToken = default)
+    {
+        SelectedBrowserOrder = row;
+        if (row is null)
+        {
+            CancelBrowserSelection();
+            ReloadedOrder = null;
+            return;
+        }
+        var request = BeginBrowserSelection(cancellationToken);
+        try
+        {
+            var snapshot = await service.GetOrderByIdAsync(row.Id, request.Cancellation.Token);
+            if (!IsCurrentBrowserSelection(request) || !ReferenceEquals(SelectedBrowserOrder, row)) return;
+            ReloadOrderIdText = row.Id.ToString();
+            ReloadedOrder = snapshot;
+            ValidationMessage = snapshot is null ? Localized("OrderNotFound", "Commande introuvable.") : string.Empty;
+        }
+        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
+        catch (Exception exception) when (IsCurrentBrowserSelection(request))
+        {
+            ReloadedOrder = null;
+            ValidationMessage = exception.Message;
+        }
+        finally { EndBrowserSelection(request); }
     }
 
     public async Task AddSelectedProductAsync(CancellationToken cancellationToken = default)
@@ -356,22 +501,32 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     public async Task<ConfirmOrderResult?> ConfirmAsync(CancellationToken cancellationToken = default)
     {
-        if (IsCommitted) return null;
+        if (disposed || IsCommitted) return null;
+        using var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetimeCancellation.Token);
+        var operationToken = operationCancellation.Token;
         IsBusy = true;
         try
         {
-            var result = await service.ConfirmNewOrderAsync(BuildDraft(), cancellationToken);
+            var result = await service.ConfirmNewOrderAsync(BuildDraft(), operationToken);
+            if (disposed) return result;
             if (!result.Succeeded)
             {
                 ValidationMessage = string.Join(Environment.NewLine, result.Issues.Select(LocalizeIssue));
                 return result;
             }
             IsCommitted = true;
-            var committedId = result.CommittedOrder?.Id ?? result.PersistedOrderId;
+        var committedId = result.CommittedOrder?.Id ?? result.PersistedOrderId;
             if (committedId is { } id)
             {
                 ReloadOrderIdText = id.ToString();
                 ReloadedOrder = result.CommittedOrder;
+                if (result.CommittedOrder is { } committed && BrowseDate is { } currentBrowseDate && committed.PlannedFulfilmentDate == DateOnly.FromDateTime(currentBrowseDate.Date))
+                {
+                    // Keep older rows and select the new persisted row when the browser is
+                    // already showing the same planned business date.
+                    try { await RefreshOrderBrowserAsync(committed.Id, operationToken); }
+                    catch (OperationCanceledException) when (operationToken.IsCancellationRequested) { throw; }
+                }
             }
             CommittedMessage = result.HasOutputFailure
                 ? string.Format(CultureInfo.CurrentCulture, Localized("OrderSavedOutputFailed", "Commande {0} enregistrée ; l’envoi de sortie a échoué."), committedId)
@@ -379,7 +534,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             ValidationMessage = result.HasOutputFailure ? string.Join(Environment.NewLine, result.Issues.Select(LocalizeIssue)) : string.Empty;
             return result;
         }
-        finally { IsBusy = false; }
+        catch (OperationCanceledException) when (disposed || lifetimeCancellation.IsCancellationRequested) { return null; }
+        finally { if (!disposed) IsBusy = false; }
     }
 
     public async Task<bool> ReloadOrderAsync(CancellationToken cancellationToken = default)
@@ -394,6 +550,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public void StartNewOrder()
     {
         if (!CanStartNewOrder) return;
+        CancelBrowserSelection();
         lock (priceLock) priceCancellation?.Cancel();
         Cart.Clear();
         SelectedCartLine = null;
@@ -532,7 +689,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         builder.AppendLine(string.Format(CultureInfo.CurrentCulture, "{0}: {1}", Localized("OrderStatus", "Statut"), LocalizeStatus(snapshot.Status)));
         builder.AppendLine(string.Format(CultureInfo.CurrentCulture, "{0}: {1}", Localized("Fulfilment", "Mode"), LocalizeFulfilment(snapshot.Fulfilment)));
         builder.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1:yyyy-MM-dd}", Localized("PlannedDate", "Date prévue"), snapshot.PlannedFulfilmentDate));
-        if (snapshot.PlannedFulfilmentTime is { } time) builder.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1}", Localized("PlannedTime", "Heure prévue"), time.ToString(@"hh\:mm", CultureInfo.InvariantCulture)));
+        if (snapshot.PlannedFulfilmentTime is { } time) builder.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1}", Localized("PlannedTime", "Heure prévue"), OrderTimeFormatting.Format(time)));
         AppendOptional(builder, "Telephone", snapshot.Telephone);
         AppendOptional(builder, "DeliveryAddress", snapshot.DeliveryAddress);
         AppendOptional(builder, "Comment", snapshot.Comment);
@@ -573,9 +730,75 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     {
         if (disposed) return;
         disposed = true;
+        lifetimeCancellation.Cancel();
         lock (refreshLock) refreshCancellation?.Cancel();
         lock (priceLock) priceCancellation?.Cancel();
+        lock (browserLock)
+        {
+            browserCancellation?.Cancel();
+            browserSelectionCancellation?.Cancel();
+        }
+        lifetimeCancellation.Dispose();
         service.Dispose();
+    }
+
+    private BrowserRefreshRequest BeginBrowserRefresh(CancellationToken externalCancellationToken)
+    {
+        lock (browserLock)
+        {
+            browserCancellation?.Cancel();
+            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(externalCancellationToken);
+            browserCancellation = cancellation;
+            return new(++browserVersion, cancellation);
+        }
+    }
+
+    private bool IsCurrentBrowserRefresh(BrowserRefreshRequest request)
+    {
+        lock (browserLock) return !disposed && request.Version == browserVersion && ReferenceEquals(request.Cancellation, browserCancellation);
+    }
+
+    private void EndBrowserRefresh(BrowserRefreshRequest request)
+    {
+        lock (browserLock)
+        {
+            if (ReferenceEquals(request.Cancellation, browserCancellation)) browserCancellation = null;
+        }
+        request.Cancellation.Dispose();
+    }
+
+    private BrowserSelectionRequest BeginBrowserSelection(CancellationToken externalCancellationToken)
+    {
+        lock (browserLock)
+        {
+            browserSelectionCancellation?.Cancel();
+            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(externalCancellationToken);
+            browserSelectionCancellation = cancellation;
+            return new(++browserSelectionVersion, cancellation);
+        }
+    }
+
+    private bool IsCurrentBrowserSelection(BrowserSelectionRequest request)
+    {
+        lock (browserLock) return !disposed && request.Version == browserSelectionVersion && ReferenceEquals(request.Cancellation, browserSelectionCancellation);
+    }
+
+    private void EndBrowserSelection(BrowserSelectionRequest request)
+    {
+        lock (browserLock)
+        {
+            if (ReferenceEquals(request.Cancellation, browserSelectionCancellation)) browserSelectionCancellation = null;
+        }
+        request.Cancellation.Dispose();
+    }
+
+    private void CancelBrowserSelection()
+    {
+        lock (browserLock)
+        {
+            browserSelectionVersion++;
+            browserSelectionCancellation?.Cancel();
+        }
     }
 
     private RefreshRequest BeginRefresh(CancellationToken externalCancellationToken)
@@ -640,6 +863,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     private readonly record struct RefreshRequest(long Version, string SearchText, Guid CategoryId, CancellationTokenSource Cancellation);
     private readonly record struct PriceRequest(long Version, CancellationTokenSource Cancellation);
+    private readonly record struct BrowserRefreshRequest(long Version, CancellationTokenSource Cancellation);
+    private readonly record struct BrowserSelectionRequest(long Version, CancellationTokenSource Cancellation);
     private async Task RefreshProductsAsync()
     {
         try { await RefreshAsync(); } catch { }

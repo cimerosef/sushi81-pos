@@ -51,6 +51,8 @@ public static class M03Presentation
         var key = issue.StableCode switch
         {
             ValidationCodes.CategoryDuplicate => "ValidationCategoryDuplicate",
+            ValidationCodes.CategoryShortCodeDuplicate => "ValidationCategoryShortCodeDuplicate",
+            ValidationCodes.CategoryShortCodeTooLong => "ValidationCategoryShortCodeTooLong",
             ValidationCodes.CategoryMissing => "ValidationCategoryMissing",
             ValidationCodes.ProductMissing => "ValidationProductMissing",
             ValidationCodes.ProductDuplicateCode => "ValidationProductDuplicateCode",
@@ -80,6 +82,7 @@ public static class M03Presentation
     {
         "code" => localized.GetValueOrDefault("Code", "Code"),
         "name" => localized.GetValueOrDefault("Name", "Name"),
+        "shortCode" => localized.GetValueOrDefault("CategoryShortCode", "Category short code"),
         "category" => localized.GetValueOrDefault("Category", "Category"),
         "price" => localized.GetValueOrDefault("PriceTtc", "TTC price"),
         "vat" => localized.GetValueOrDefault("Vat", "VAT"),
@@ -147,15 +150,17 @@ public sealed class CategoryEditBuffer
     private bool editing;
     public Guid? CategoryId { get; private set; }
     public string Name { get; private set; } = string.Empty;
+    public string ShortCode { get; private set; } = string.Empty;
     public bool IsEditing => editing;
     public bool CanBeginEdit => !editing;
     public bool CanSave => editing;
     public bool CanCancel => editing;
 
-    public void BeginCreate() { editing = true; CategoryId = null; Name = string.Empty; }
-    public void BeginRename(Guid id, string name) { editing = true; CategoryId = id; Name = name; }
+    public void BeginCreate() { editing = true; CategoryId = null; Name = string.Empty; ShortCode = string.Empty; }
+    public void BeginRename(Guid id, string name, string? shortCode = null) { editing = true; CategoryId = id; Name = name; ShortCode = shortCode ?? string.Empty; }
     public void SetName(string? name) => Name = name ?? string.Empty;
-    public void CompleteSave() { editing = false; CategoryId = null; Name = string.Empty; }
+    public void SetShortCode(string? shortCode) => ShortCode = shortCode ?? string.Empty;
+    public void CompleteSave() { editing = false; CategoryId = null; Name = string.Empty; ShortCode = string.Empty; }
     public void Cancel() => CompleteSave();
 }
 

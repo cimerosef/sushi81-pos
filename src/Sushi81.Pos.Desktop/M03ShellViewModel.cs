@@ -432,7 +432,9 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => catalogue.CreateProductAsync(draft, cancellationToken);
     public Task<OperationResult> UpdateProductAsync(Guid id, ProductDraft draft, CancellationToken cancellationToken = default) => catalogue.UpdateProductAsync(id, draft, cancellationToken);
     public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => catalogue.CreateCategoryAsync(name, cancellationToken);
+    public Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default) => catalogue.CreateCategoryWithCodeAsync(name, shortCode, cancellationToken);
     public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid id, string name, CancellationToken cancellationToken = default) => catalogue.RenameCategoryAsync(id, name, cancellationToken);
+    public Task<OperationResult<CategorySummary>> RenameCategoryWithCodeAsync(Guid id, string name, string? shortCode, CancellationToken cancellationToken = default) => catalogue.RenameCategoryWithCodeAsync(id, name, shortCode, cancellationToken);
     public Task<OperationResult> SetProductActiveAsync(Guid id, bool active, CancellationToken cancellationToken = default) => catalogue.SetProductActiveAsync(id, active, cancellationToken);
     public async Task<BulkProductActiveStateRequest> CaptureBulkProductActiveStateAsync(bool targetIsActive, CancellationToken cancellationToken = default)
     {

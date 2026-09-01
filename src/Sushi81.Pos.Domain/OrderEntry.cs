@@ -153,6 +153,13 @@ public sealed record OrderSnapshot(
     IReadOnlyList<OrderItemSnapshot> Items,
     IReadOnlyList<OrderTaxBreakdown> TaxBreakdown);
 
+/// <summary>Shared operator-facing representation for persisted planned times.</summary>
+public static class OrderTimeFormatting
+{
+    public static string Format(TimeOnly time) => time.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+    public static string Format(TimeOnly? time) => time is { } value ? Format(value) : string.Empty;
+}
+
 public static class TelephoneNormalization
 {
     public static string? Normalize(string? value)

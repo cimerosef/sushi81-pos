@@ -58,7 +58,7 @@ public sealed class M03CatalogueIntegrationTests
         await using var verify = await factory.OpenLiveConnectionAsync();
         await using var check = verify.CreateCommand(); check.CommandText = "SELECT value FROM foundation_metadata WHERE key='sentinel';";
         Assert.AreEqual("preserved", Convert.ToString(await check.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture));
-        Assert.AreEqual(3L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(4L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
     }
 
     [TestMethod]

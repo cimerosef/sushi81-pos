@@ -77,7 +77,7 @@ public sealed class M04DesktopTests
                     new DesktopDispatcher(),
                     new DesktopIds(),
                     new DesktopClock()));
-            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+                var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
             window.Show();
             try
             {
@@ -85,6 +85,11 @@ public sealed class M04DesktopTests
                 var caisse = VisualDescendants<TabItem>(window).Single(item => string.Equals(item.Header?.ToString(), shell.Localized["Caisse"], StringComparison.Ordinal));
                 caisse.IsSelected = true;
                 window.UpdateLayout();
+                var browserGrid = VisualDescendants<DataGrid>(window).Single(grid => grid.Name == "orderBrowserGrid");
+                Assert.IsTrue(browserGrid.IsReadOnly);
+                Assert.HasCount(5, browserGrid.Columns);
+                var browserDate = VisualDescendants<DatePicker>(window).Single(picker => picker.Name == "orderBrowserDatePicker");
+                Assert.IsNull(browserDate.DisplayDateStart);
                 var entry = shell.Entry!;
                 entry.AddConfiguredLine(product, [], [], 2);
                 entry.SelectedFulfilment = FulfilmentMode.Retrait;
@@ -102,21 +107,31 @@ public sealed class M04DesktopTests
                 window.UpdateLayout();
                 Assert.IsFalse(discount.IsEnabled);
                 Assert.IsFalse(entry.PickupDiscountRequested);
-                entry.SelectedPlannedHour = 11;
-                entry.SelectedPlannedMinute = 0;
+                entry.SelectedPlannedHour = 18;
+                entry.SelectedPlannedMinute = 25;
                 entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
 
                 var first = entry.ConfirmAsync().GetAwaiter().GetResult();
                 Assert.IsTrue(first!.Succeeded);
                 var firstId = first.CommittedOrder!.Id;
+                entry.RefreshOrderBrowserAsync().GetAwaiter().GetResult();
+                Assert.HasCount(1, entry.BrowserOrders);
+                Assert.AreEqual("18:25", entry.BrowserOrders.Single().PlannedTimeText);
+                Assert.AreEqual(firstId, entry.SelectedBrowserOrder!.Id);
                 entry.StartNewOrder();
                 entry.AddConfiguredLine(product, [], [], 1);
                 entry.SelectedFulfilment = FulfilmentMode.Retrait;
-                entry.SelectedPlannedHour = 11;
-                entry.SelectedPlannedMinute = 0;
+                entry.SelectedPlannedHour = 18;
+                entry.SelectedPlannedMinute = 25;
                 var second = entry.ConfirmAsync().GetAwaiter().GetResult();
                 Assert.IsTrue(second!.Succeeded);
                 Assert.AreNotEqual(firstId, second.CommittedOrder!.Id);
+                Assert.HasCount(2, entry.BrowserOrders);
+                Assert.AreEqual(second.CommittedOrder.Id, entry.SelectedBrowserOrder!.Id);
+
+                entry.SelectBrowserOrderAsync(entry.BrowserOrders.Single(row => row.Id == firstId)).GetAwaiter().GetResult();
+                Assert.AreEqual(firstId, entry.ReloadedOrder!.Id);
+                Assert.AreEqual(entry.BrowseDate, browserDate.SelectedDate);
 
                 entry.ReloadOrderIdText = firstId.ToString();
                 Assert.IsTrue(entry.ReloadOrderAsync().GetAwaiter().GetResult());
@@ -128,11 +143,27 @@ public sealed class M04DesktopTests
                 shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
                 window.UpdateLayout();
                 Assert.AreEqual("自取", ((FulfilmentChoice)fulfilment.Items[1]).Label);
+                Assert.AreEqual(firstId, entry.SelectedBrowserOrder!.Id);
+                Assert.AreEqual(firstId, entry.ReloadedOrder!.Id);
+                Assert.AreEqual("18:25", entry.BrowserOrders.Single(row => row.Id == firstId).PlannedTimeText);
+                Assert.AreEqual("配送", entry.BrowserOrders.Single(row => row.Id == firstId).FulfilmentText);
+                StringAssert.Contains(entry.ReloadedOrderDisplay, "18:25");
                 shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
                 Assert.AreEqual("Retrait", ((FulfilmentChoice)fulfilment.Items[1]).Label);
+                Assert.AreEqual("Livraison", entry.BrowserOrders.Single(row => row.Id == firstId).FulfilmentText);
             }
             finally { window.Close(); }
         });
+    }
+
+    [TestMethod]
+    public void OrderBrowserUsesTwentyFourHourDisplayForEveningRows()
+    {
+        var row = new OrderBrowserRow(Guid.NewGuid(), new DateOnly(2026, 8, 31), new TimeOnly(18, 25), FulfilmentMode.Retrait, OrderStatus.Open, Money.FromCents(1250), null);
+        var viewModel = new OrderBrowserRowViewModel(row);
+
+        Assert.AreEqual("18:25", viewModel.PlannedTimeText);
+        Assert.AreNotEqual("06:25", viewModel.PlannedTimeText);
     }
 
     [TestMethod]
@@ -680,6 +711,8 @@ public sealed class M04DesktopTests
         public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(productId == product.Aggregate.Product.Id ? Draft : null);
         public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(Guid.NewGuid(), name)));
         public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid id, string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(id, name)));
+        public Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(Guid.NewGuid(), name, shortCode)));
+        public Task<OperationResult<CategorySummary>> RenameCategoryWithCodeAsync(Guid id, string name, string? shortCode, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(id, name, shortCode)));
         public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<Guid>.Success(draft.Id == Guid.Empty ? Guid.NewGuid() : draft.Id));
         public Task<OperationResult> UpdateProductAsync(Guid id, ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
         public Task<OperationResult> SetProductActiveAsync(Guid id, bool active, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
@@ -692,6 +725,14 @@ public sealed class M04DesktopTests
         private readonly Dictionary<Guid, OrderSnapshot> snapshots = [];
         public Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default) { snapshots[snapshot.Id] = snapshot; return Task.CompletedTask; }
         public Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default) => Task.FromResult(snapshots.GetValueOrDefault(orderId));
+        public Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<OrderBrowserRow>>(snapshots.Values
+                .Where(snapshot => snapshot.PlannedFulfilmentDate == plannedDate)
+                .OrderBy(snapshot => snapshot.PlannedFulfilmentTime is null)
+                .ThenBy(snapshot => snapshot.PlannedFulfilmentTime)
+                .ThenBy(snapshot => snapshot.Id)
+                .Select(snapshot => new OrderBrowserRow(snapshot.Id, snapshot.PlannedFulfilmentDate, snapshot.PlannedFulfilmentTime, snapshot.Fulfilment, snapshot.Status, snapshot.TotalTtc, snapshot.Telephone))
+                .ToArray());
     }
 
     private sealed class DesktopDispatcher : IOrderPrintDispatcher

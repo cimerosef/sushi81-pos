@@ -24,7 +24,13 @@ public sealed record Category(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
 {
+    public const int MaxShortCodeLength = 12;
+
+    /// <summary>Optional operator-facing navigation code. It is independent from Name.</summary>
+    public string? ShortCode { get; init; }
+
     public string NormalizedName => CatalogueNormalization.Key(Name);
+    public string? NormalizedShortCode => string.IsNullOrWhiteSpace(ShortCode) ? null : CatalogueNormalization.Key(ShortCode);
 
     public static bool TryCreate(Guid id, string? name, DateTimeOffset now, out Category category, out string? error)
     {
@@ -108,6 +114,14 @@ public sealed record BusinessSettings(
 
 public static class CatalogueValidation
 {
+    public static string? ValidateCategoryShortCode(string? shortCode)
+    {
+        var display = CatalogueNormalization.Display(shortCode);
+        return display.Length > Category.MaxShortCodeLength
+            ? $"Category short code cannot exceed {Category.MaxShortCodeLength} characters."
+            : null;
+    }
+
     public static string? ValidateProduct(string? code, string? name, Guid categoryId, Money price, decimal vatRate)
     {
         if (CatalogueNormalization.Display(code).Length == 0) return "Product code is required.";

@@ -369,6 +369,24 @@ public sealed class OrderEntryApplicationTests
         Assert.IsNull(reloaded!.PlannedFulfilmentTime);
     }
 
+    [TestMethod]
+    public async Task PlannedDateBrowserDelegatesTheReadOnlyDateQuery()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
+        var store = new RecordingOrderStore
+        {
+            BrowserRows = [new(Guid.NewGuid(), BusinessDate, new TimeOnly(18, 25), FulfilmentMode.Retrait, OrderStatus.Closed, Money.FromCents(1250), "06 12 34 56 78")]
+        };
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, new RecordingDispatcher());
+
+        var rows = await service.ListOrdersByPlannedDateAsync(BusinessDate);
+
+        Assert.HasCount(1, rows);
+        Assert.AreEqual(BusinessDate, store.BrowserDate);
+        Assert.AreEqual("06 12 34 56 78", rows[0].Telephone);
+        Assert.AreEqual(OrderStatus.Closed, rows[0].Status);
+    }
+
     private static OrderEntryService CreateService(
         IOrderEntryCatalogueQueries catalogue,
         IOrderStore store,
@@ -433,12 +451,15 @@ public sealed class OrderEntryApplicationTests
         public int SaveCalls { get; private set; }
         public bool ThrowOnReload { get; init; }
         public OrderSnapshot? Snapshot { get; private set; }
+        public IReadOnlyList<OrderBrowserRow> BrowserRows { get; init; } = [];
+        public DateOnly? BrowserDate { get; private set; }
         public virtual Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default) { SaveCalls++; Snapshot = snapshot; return Task.CompletedTask; }
         public virtual Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default)
         {
             if (ThrowOnReload) throw new InvalidOperationException("synthetic reload failure");
             return Task.FromResult(Snapshot);
         }
+        public virtual Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) { BrowserDate = plannedDate; return Task.FromResult(BrowserRows); }
     }
 
     private sealed class BlockingOrderStore : RecordingOrderStore

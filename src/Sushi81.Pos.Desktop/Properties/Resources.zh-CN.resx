@@ -26,6 +26,8 @@
   <data name="Deactivate" xml:space="preserve"><value>停用</value></data>
   <data name="DeletePermanently" xml:space="preserve"><value>永久删除</value></data>
   <data name="ManageCategories" xml:space="preserve"><value>管理分类</value></data>
+  <data name="CategoryShortCode" xml:space="preserve"><value>操作员分类短码</value></data>
+  <data name="CategoryShortCodeTooltip" xml:space="preserve"><value>收银台导航使用的短码（最多 12 个字符）</value></data>
   <data name="Code" xml:space="preserve"><value>编码</value></data>
   <data name="Name" xml:space="preserve"><value>名称</value></data>
   <data name="PriceTtc" xml:space="preserve"><value>含税价</value></data>
@@ -62,6 +64,8 @@
   <data name="ValidationGeneric" xml:space="preserve"><value>输入无效。</value></data>
   <data name="ValidationRequired" xml:space="preserve"><value>此字段为必填项。</value></data>
   <data name="ValidationCategoryDuplicate" xml:space="preserve"><value>已存在同名分类。</value></data>
+  <data name="ValidationCategoryShortCodeDuplicate" xml:space="preserve"><value>已存在使用此短码的分类。</value></data>
+  <data name="ValidationCategoryShortCodeTooLong" xml:space="preserve"><value>分类短码过长（最多 12 个字符）。</value></data>
   <data name="ValidationCategoryMissing" xml:space="preserve"><value>该分类已不存在。</value></data>
   <data name="ValidationProductMissing" xml:space="preserve"><value>该商品已不存在。</value></data>
   <data name="ValidationProductDuplicateCode" xml:space="preserve"><value>已存在使用此编码的商品。</value></data>
@@ -123,6 +127,15 @@
   <data name="ManualTotalActive" xml:space="preserve"><value>手动总额为最终金额</value></data>
   <data name="ReloadOrderTooltip" xml:space="preserve"><value>订单 ID</value></data>
   <data name="ReloadedOrder" xml:space="preserve"><value>已加载订单</value></data>
+  <data name="OrderBrowser" xml:space="preserve"><value>按计划日期查看已保存订单</value></data>
+  <data name="BrowseDate" xml:space="preserve"><value>查看日期</value></data>
+  <data name="Browse" xml:space="preserve"><value>刷新</value></data>
+  <data name="OrderBrowserTime" xml:space="preserve"><value>时间</value></data>
+  <data name="OrderBrowserMode" xml:space="preserve"><value>方式</value></data>
+  <data name="OrderBrowserStatus" xml:space="preserve"><value>状态</value></data>
+  <data name="OrderBrowserTotal" xml:space="preserve"><value>含税总额</value></data>
+  <data name="OrderBrowserTelephone" xml:space="preserve"><value>电话</value></data>
+  <data name="OrderBrowserEmptyTelephone" xml:space="preserve"><value>—</value></data>
   <data name="AdjustmentLabel" xml:space="preserve"><value>名称</value></data>
   <data name="AdjustmentAmount" xml:space="preserve"><value>含税金额</value></data>
   <data name="ProductInactive" xml:space="preserve"><value>该商品已停用。</value></data>

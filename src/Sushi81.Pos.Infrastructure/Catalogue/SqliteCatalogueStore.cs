@@ -26,13 +26,16 @@ public sealed class SqliteCatalogueStore(
     public async Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
+        var hasShortCodes = await HasCategoryShortCodeColumnsAsync(connection, cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT category_id, name FROM categories ORDER BY name COLLATE NOCASE, category_id;";
+        command.CommandText = hasShortCodes
+            ? "SELECT category_id, name, short_code FROM categories ORDER BY CASE WHEN normalized_short_code IS NULL THEN 1 ELSE 0 END, normalized_short_code COLLATE NOCASE, category_id;"
+            : "SELECT category_id, name FROM categories ORDER BY name COLLATE NOCASE, category_id;";
         var result = new List<CategorySummary>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
-            result.Add(new(ParseGuid(reader.GetString(0)), reader.GetString(1)));
+            result.Add(new(ParseGuid(reader.GetString(0)), reader.GetString(1), hasShortCodes && !reader.IsDBNull(2) ? reader.GetString(2) : null));
         }
         return result;
     }
@@ -102,37 +105,79 @@ public sealed class SqliteCatalogueStore(
         {
             await transactionRunner.ExecuteAsync(async (transaction, token) =>
             {
-                var sqlite = RequireSqlite(transaction);
-                await ExecuteAsync(sqlite, "INSERT INTO categories(category_id,name,normalized_name,created_at_utc,updated_at_utc) VALUES ($id,$name,$normalized,$created,$updated);", token,
+                await ExecuteAsync(RequireSqlite(transaction), "INSERT INTO categories(category_id,name,normalized_name,created_at_utc,updated_at_utc) VALUES ($id,$name,$normalized,$created,$updated);", token,
                     ("$id", id.ToString()), ("$name", display), ("$normalized", CatalogueNormalization.Key(display)), ("$created", Format(now)), ("$updated", Format(now)));
             }, cancellationToken);
             return OperationResult<CategorySummary>.Success(new(id, display));
         }
         catch (SqliteException exception) when (IsConstraint(exception))
         {
-            return OperationResult<CategorySummary>.Failure(new ValidationIssue("name", "A category with that name already exists.", ValidationCodes.CategoryDuplicate));
+            return OperationResult<CategorySummary>.Failure(MapCategoryConstraint(exception));
         }
     }
 
-    public async Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default)
+    public async Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default)
+    {
+        var display = CatalogueNormalization.Display(name);
+        if (display.Length == 0) return OperationResult<CategorySummary>.Failure(new ValidationIssue("name", "Category name is required.", ValidationCodes.Required));
+        var code = CatalogueNormalization.Display(shortCode);
+        if (CatalogueValidation.ValidateCategoryShortCode(code) is { } shortCodeError)
+            return OperationResult<CategorySummary>.Failure(new ValidationIssue("shortCode", shortCodeError, ValidationCodes.Infer(shortCodeError)));
+        var id = idGenerator.NewId();
+        var now = clock.UtcNow;
+        try
+        {
+            await transactionRunner.ExecuteAsync(async (transaction, token) =>
+            {
+                var sqlite = RequireSqlite(transaction);
+                await ExecuteAsync(sqlite, "INSERT INTO categories(category_id,name,normalized_name,short_code,normalized_short_code,created_at_utc,updated_at_utc) VALUES ($id,$name,$normalized,$shortCode,$normalizedShortCode,$created,$updated);", token,
+                    ("$id", id.ToString()), ("$name", display), ("$normalized", CatalogueNormalization.Key(display)),
+                    ("$shortCode", code.Length == 0 ? null : code), ("$normalizedShortCode", code.Length == 0 ? null : CatalogueNormalization.Key(code)),
+                    ("$created", Format(now)), ("$updated", Format(now)));
+            }, cancellationToken);
+            return OperationResult<CategorySummary>.Success(new(id, display, code.Length == 0 ? null : code));
+        }
+        catch (SqliteException exception) when (IsConstraint(exception))
+        {
+            return OperationResult<CategorySummary>.Failure(MapCategoryConstraint(exception));
+        }
+    }
+
+    public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) =>
+        RenameCategoryCoreAsync(categoryId, name, null, preserveShortCode: true, cancellationToken);
+
+    public Task<OperationResult<CategorySummary>> RenameCategoryWithCodeAsync(Guid categoryId, string name, string? shortCode, CancellationToken cancellationToken = default) =>
+        RenameCategoryCoreAsync(categoryId, name, shortCode, preserveShortCode: false, cancellationToken);
+
+    private async Task<OperationResult<CategorySummary>> RenameCategoryCoreAsync(Guid categoryId, string name, string? shortCode, bool preserveShortCode, CancellationToken cancellationToken)
     {
         if (categoryId == Guid.Empty) return OperationResult<CategorySummary>.Failure(new ValidationIssue("category", "The category no longer exists.", ValidationCodes.CategoryMissing));
         var display = CatalogueNormalization.Display(name);
         if (display.Length == 0) return OperationResult<CategorySummary>.Failure(new ValidationIssue("name", "Category name is required.", ValidationCodes.Required));
+        var code = CatalogueNormalization.Display(shortCode);
+        if (!preserveShortCode && CatalogueValidation.ValidateCategoryShortCode(code) is { } shortCodeError)
+            return OperationResult<CategorySummary>.Failure(new ValidationIssue("shortCode", shortCodeError, ValidationCodes.Infer(shortCodeError)));
         var now = clock.UtcNow;
         try
         {
             var updated = await transactionRunner.ExecuteAsync(async (transaction, token) =>
             {
                 var sqlite = RequireSqlite(transaction);
-                return await ExecuteAsync(sqlite, "UPDATE categories SET name=$name, normalized_name=$normalized, updated_at_utc=$updated WHERE category_id=$id;", token,
-                    ("$name", display), ("$normalized", CatalogueNormalization.Key(display)), ("$updated", Format(now)), ("$id", categoryId.ToString()));
+                var sql = preserveShortCode
+                    ? "UPDATE categories SET name=$name, normalized_name=$normalized, updated_at_utc=$updated WHERE category_id=$id;"
+                    : "UPDATE categories SET name=$name, normalized_name=$normalized, short_code=$shortCode, normalized_short_code=$normalizedShortCode, updated_at_utc=$updated WHERE category_id=$id;";
+                return await ExecuteAsync(sqlite, sql, token,
+                    ("$name", display), ("$normalized", CatalogueNormalization.Key(display)),
+                    ("$shortCode", code.Length == 0 ? null : code), ("$normalizedShortCode", code.Length == 0 ? null : CatalogueNormalization.Key(code)),
+                    ("$updated", Format(now)), ("$id", categoryId.ToString()));
             }, cancellationToken);
-            return updated == 0 ? OperationResult<CategorySummary>.Failure(new ValidationIssue("category", "The category no longer exists.", ValidationCodes.CategoryMissing)) : OperationResult<CategorySummary>.Success(new CategorySummary(categoryId, display));
+            if (updated == 0) return OperationResult<CategorySummary>.Failure(new ValidationIssue("category", "The category no longer exists.", ValidationCodes.CategoryMissing));
+            var effectiveCode = preserveShortCode ? await ReadCategoryCodeAsync(categoryId, cancellationToken) : (code.Length == 0 ? null : code);
+            return OperationResult<CategorySummary>.Success(new CategorySummary(categoryId, display, effectiveCode));
         }
         catch (SqliteException exception) when (IsConstraint(exception))
         {
-            return OperationResult<CategorySummary>.Failure(new ValidationIssue("name", "A category with that name already exists.", ValidationCodes.CategoryDuplicate));
+            return OperationResult<CategorySummary>.Failure(MapCategoryConstraint(exception));
         }
     }
 
@@ -348,6 +393,24 @@ public sealed class SqliteCatalogueStore(
         return value is null or DBNull ? null : Convert.ToInt64(value, CultureInfo.InvariantCulture) == 1;
     }
 
+    private async Task<string?> ReadCategoryCodeAsync(Guid categoryId, CancellationToken cancellationToken)
+    {
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
+        if (!await HasCategoryShortCodeColumnsAsync(connection, cancellationToken)) return null;
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT short_code FROM categories WHERE category_id=$id;";
+        command.Parameters.AddWithValue("$id", categoryId.ToString());
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        return value is null or DBNull ? null : Convert.ToString(value, CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<bool> HasCategoryShortCodeColumnsAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM pragma_table_info('categories') WHERE name IN ('short_code','normalized_short_code');";
+        return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture) == 2;
+    }
+
     private static async Task<int> ExecuteAsync(SqliteApplicationTransaction sqlite, string sql, CancellationToken token, params (string Name, object? Value)[] parameters)
     {
         await using var command = sqlite.Connection.CreateCommand(); command.Transaction = sqlite.Transaction; command.CommandText = sql; AddParameters(command, parameters); return await command.ExecuteNonQueryAsync(token);
@@ -365,6 +428,10 @@ public sealed class SqliteCatalogueStore(
     private static Guid ParseGuid(string value) => Guid.TryParse(value, out var id) ? id : throw new InvalidDataException("The database contains an invalid opaque identifier.");
     private static SelectionMode ParseSelectionMode(string value) => value == "MULTI" ? SelectionMode.Multi : SelectionMode.Single;
     private static bool IsConstraint(SqliteException exception) => exception.SqliteErrorCode is 19 or 1555 or 2067;
+    private static ValidationIssue MapCategoryConstraint(SqliteException exception) =>
+        exception.Message.Contains("normalized_short_code", StringComparison.OrdinalIgnoreCase) || exception.Message.Contains("short_code", StringComparison.OrdinalIgnoreCase)
+            ? new("shortCode", "A category with that short code already exists.", ValidationCodes.CategoryShortCodeDuplicate)
+            : new("name", "A category with that name already exists.", ValidationCodes.CategoryDuplicate);
     private static ValidationIssue MapConstraint(SqliteException exception) => exception.Message.Contains("normalized_code", StringComparison.OrdinalIgnoreCase) || exception.Message.Contains("code", StringComparison.OrdinalIgnoreCase) ? new("code", "A product with that code already exists.") : new("product", "The catalogue change conflicts with existing data.");
 
     private sealed class CatalogueConflictException(string message) : Exception(message);

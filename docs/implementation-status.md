@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation, the authorized AC-CAT-013 extension, all review remediations through `M03-LANGUAGE-COMBO-HEIGHT-FIX-16`, and the complete operator Windows/WPF acceptance checklist are Passed on `codex/m03-catalogue-settings`. M04 is authorized on `codex/m04-order-entry`; the implementation and `M04-REVIEW-FIX-04` automated evidence are complete on `f73a3939417642cc9633f2c779d13a45febd58b9`, while the required manual Windows/WPF rerun and project-owner merge approval remain outstanding.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation, the authorized AC-CAT-013 extension, all review remediations through `M03-LANGUAGE-COMBO-HEIGHT-FIX-16`, and the complete operator Windows/WPF acceptance checklist are Passed on `codex/m03-catalogue-settings`. M04 is authorized on `codex/m04-order-entry`; the `M04-REVIEW-FIX-06` implementation/evidence is complete locally and awaits final PR/CI recording, while the required manual Windows/WPF rerun and project-owner merge approval remain outstanding.
 
 ## 1. Status vocabulary
 
@@ -23,7 +23,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 | M01 — Foundation and safe persistence spine | Passed | Merged to `main` via PR #1 after automated verification and successful Windows/WPF manual re-verification. |
 | M02 — remote handoff feasibility gate | Passed | Original competitive OneDrive model remains historically Blocked. Approved GitHub private Release Asset transport, automated failure evidence, real private-repository A → B v1 / B → A v2 round-trip evidence, and isolated destructive newest-three retention evidence are complete; the amended M02 gate is closed by evidence. |
 | M03 — Catalogue and settings | Passed | Authorized by `CODEX_HANDOFF_READY: M03-IMPLEMENT-01`; migration 2, layered catalogue/settings services, localized WPF maintenance shell, automated evidence, and the complete operator Windows/WPF checklist are recorded on the applicable head. Cross-milestone regressions explicitly owned by M04 remain deferred. |
-| M04 — Order-entry vertical slice | In progress | Authorized by `CODEX_HANDOFF_READY: M04-IMPLEMENT-01`; implementation and `M04-REVIEW-FIX-04` remediation automated verification are present on `codex/m04-order-entry`, with the manual Windows/WPF rerun and merge approval pending. |
+| M04 — Order-entry vertical slice | In progress | Authorized by `CODEX_HANDOFF_READY: M04-IMPLEMENT-01`; `M04-REVIEW-FIX-06` adds the approved category-code and read-only date-browser seams with automated verification, while the manual Windows/WPF rerun and merge approval remain pending. |
 | M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
 | M06 — Local recovery/read-only enforcement | Not started | Pending M05 |
 | M07 — Handoff and disaster recovery | Not started | Pending M06; must implement amended target-directed protocol |
@@ -69,7 +69,7 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 
 | Criterion | Owner | Status | Evidence |
 |---|---:|---|---|
-| AC-ORD-001 through AC-ORD-010 | M04 | Partial | Domain/Application/SQLite/STA-WPF evidence, including the past-date guard and category-first/direct-add ergonomics remediation, is present on the M04 remediation head; manual operator acceptance remains pending |
+| AC-ORD-001 through AC-ORD-010 | M04 | Partial | Domain/Application/SQLite/STA-WPF evidence, including the date-browser selection/refresh boundary and 24-hour display regression, is present on the M04 remediation head; manual operator acceptance remains pending |
 | AC-ORD-011 | M03 | Passed | BusinessSettings UI/persistence plus M04 pricing-consumer current-settings/repricing evidence |
 
 ### Lifecycle, payments and operational views
@@ -473,3 +473,9 @@ New POS confirmations now require a valid planned fulfilment time for both Retra
 ### M04 exact-time boundary correction — `M04-REVIEW-FIX-05`
 
 The Application boundary now rejects any planned `TimeOnly` containing non-zero seconds or finer ticks, without rounding or normalization. Exact approved slots such as `11:05:00` remain accepted; `11:05:30` and a one-tick variant are rejected before persistence and dispatch. Local Release verification on implementation commit `bf0a6e7888619bcb573500591500c46eae0434ef` passed 277 tests (Domain 26, Application 30, Infrastructure integration 41, Architecture 56, OneDrive feasibility 32, OneDrive feasibility tools 92), with a Release build at 0 warnings/0 errors and a self-contained `win-x64` publish. GitHub Actions `Continuous integration` run **#259** passed Restore, Build and Test for that commit. Manual acceptance remains unclaimed, the PR remains open/unmerged, `POST_TASK_POWER_ACTION: NONE`, and M05 was not started.
+
+### M04 approved operator retrieval/category-code amendment — `M04-REVIEW-FIX-06`
+
+The authorized follow-up adds the approved independent optional category short code and the read-only date browser. Migration v4 adds nullable code columns with normalized partial uniqueness and a narrow planned-date/time/order index; v3 reads and legacy category mutations remain compatible before the additive upgrade, and the migration regression verifies existing category/product/order preservation with blank migrated codes. Category maintenance shows code plus full name, Caisse uses code with full-name fallback, and code edits preserve the opaque category identity and product relationships.
+
+The Caisse browser queries persisted `planned_fulfilment_date` for past, current or future dates, includes every persisted lifecycle status, exposes only planned time/mode/status/Total TTC/telephone, and loads a selected row through the exact-ID snapshot path. Refresh and same-date confirmation retain prior rows while selecting the new exact row; date, selection and loaded snapshot survive FR ↔ zh-CN label updates. Shared invariant `HH:mm` formatting protects evening values such as `18:25` from the former `06:25` display defect. Automated domain/application/infrastructure/STA-WPF evidence is complete locally; manual Windows/WPF acceptance remains pending and M05 was not started.

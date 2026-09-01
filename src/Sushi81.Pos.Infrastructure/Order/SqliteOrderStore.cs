@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
+using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Transactions;
 using Sushi81.Pos.Application.OrderEntry;
@@ -124,6 +125,28 @@ public sealed class SqliteOrderStore(
         }
 
         return snapshot with { Items = items, TaxBreakdown = taxes };
+    }
+
+    public async Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT order_id, planned_fulfilment_date, planned_fulfilment_time, fulfilment_mode, status, total_ttc_cents, telephone FROM orders WHERE planned_fulfilment_date=$date ORDER BY planned_fulfilment_time IS NULL, planned_fulfilment_time, order_id;";
+        command.Parameters.AddWithValue("$date", plannedDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        var result = new List<OrderBrowserRow>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            result.Add(new(
+                ParseGuid(reader.GetString(0)),
+                DateOnly.ParseExact(reader.GetString(1), "yyyy-MM-dd", CultureInfo.InvariantCulture),
+                reader.IsDBNull(2) ? null : TimeOnly.ParseExact(reader.GetString(2), "HH:mm:ss.fffffff", CultureInfo.InvariantCulture),
+                ParseFulfilment(reader.GetString(3)),
+                ParseStatus(reader.GetString(4)),
+                Money.FromCents(reader.GetInt64(5)),
+                ReadNullableString(reader, 6)));
+        }
+        return result;
     }
 
     private static async Task<IReadOnlyList<OrderLineAdjustmentSnapshot>> ReadAdjustmentsAsync(SqliteConnection connection, Guid itemId, CancellationToken cancellationToken)
