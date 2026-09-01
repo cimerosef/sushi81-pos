@@ -111,7 +111,7 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 - Release tests: `dotnet test Sushi81.Pos.sln -c Release --no-restore --no-build --verbosity:minimal` passed with 284 tests: Domain 27, Application 32, Infrastructure integration 44, Architecture 57, OneDrive feasibility 32, and OneDrive feasibility tools 92; 0 failed and 0 skipped.
 - Self-contained publish: the requested default Desktop publish directory was occupied by an existing process and the command failed with `MSB3027/MSB3021` after the normal retries. No process was terminated and no existing output was deleted. The same `win-x64` self-contained publish passed to the isolated ignored path `artifacts/m04-publish/` using `-p:PublishDir=artifacts\\m04-publish\\`.
 - CI: GitHub Actions `Continuous integration` run **#268** completed successfully for commit `35b2a2e3f5100b1893a647ce1dc7dd618d08a822`; Restore, Build and Test all passed.
-- Browser notification: pending until the durable `CODEX_DONE` comment is published.
+- Browser notification: succeeded after the durable `CODEX_DONE` comment was published; the same outcome is recorded in that PR comment.
 - PR #6 remains open and unmerged; project-owner merge approval is required. The execution gate was OPEN for this handoff.
 
 ## Delivery record — `M04-REVIEW-FIX-05`
