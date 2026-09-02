@@ -4,7 +4,9 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01 Passed/merged; M02 Passed/merged; M03 Passed/merged; M04 approved for implementation preparation/execution under its dedicated contract and active mailbox workflow.**
+**Phase 6 implementation active: M01–M04 Passed/merged; M05 is the current controlled implementation milestone under PR #10.**
+
+M04 merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a` after complete Windows/WPF manual acceptance. M05 preparation is approved under the dedicated branch `codex/m05-lifecycle-payments-search-dashboard`; M06+ remains unauthorized.
 
 The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`.
 
@@ -45,15 +47,15 @@ A separate `sync-and-backup.md` is not part of V1 because live storage, local re
 ### Phase 6 — Implementation planning and controlled execution
 
 - `implementation-plan.md` — Approved — Phase 6 baseline; ordered implementation milestones and gates.
-- `implementation-status.md` — living acceptance/milestone traceability record.
-- `implementation/milestone-01-foundation.md` — detailed M01 task contract; M01 implementation is complete.
-- `implementation/milestone-02-github-transport-revalidation.md` — M02 GitHub Release Asset transport/revalidation contract; M02 is Passed and merged through PR #3.
-- `implementation/milestone-03-catalogue-settings.md` — original detailed M03 Catalogue/BusinessSettings contract; M03 is Passed and merged through PR #5.
-- `implementation/milestone-03-filtered-bulk-activation-extension.md` — approved M03 extension implementing filtered bulk activation/deactivation.
-- `implementation/milestone-04-order-entry.md` — approved detailed M04 first complete order-entry vertical-slice contract.
-- `implementation/milestone-04-authorization.md` — durable project-owner authorization for M04 preparation/execution through the controlled mailbox workflow.
+- `implementation-status.md` — living acceptance/milestone traceability record; historical sections may describe the state at the time evidence was recorded.
+- `implementation/milestone-01-foundation.md` — M01 contract; Passed/merged.
+- `implementation/milestone-02-github-transport-revalidation.md` — M02 contract; Passed/merged.
+- `implementation/milestone-03-catalogue-settings.md` and related extension/worklog — M03 historical implementation records; Passed/merged through PR #5.
+- `implementation/milestone-04-order-entry.md`, authorization/worklog/final manual acceptance — M04 historical implementation records; Passed/merged through PR #6.
+- `implementation/milestone-05-lifecycle-payments-search-dashboard.md` — current approved M05 implementation contract.
+- `implementation/milestone-05-authorization.md` — durable project-owner authorization for controlled M05 execution.
 
-Normal target-directed handoff uses the configured dedicated private GitHub repository (`sushi81-pos-handoff` conceptually), one long-lived Release and immutable snapshot/grant assets. OneDrive references in this documentation remain only for approved recovery/archive or historical M02 evidence.
+Normal target-directed handoff uses the configured dedicated private GitHub repository (`sushi81-pos-handoff` conceptually), one long-lived Release and immutable snapshot/grant assets. OneDrive references remain only for approved recovery/archive or historical M02 evidence.
 
 Phase 6 approval does not authorize all milestones at once. Codex must implement only the milestone/task explicitly assigned in the current durable handoff.
 
@@ -66,7 +68,8 @@ Those records supplement the baseline documents. Post-freeze amendments are fold
 Relevant recent amendments include:
 
 - `decisions/filtered-catalogue-bulk-activation.md` — 2026-08-30 M03 catalogue amendment;
-- `decisions/m04-order-entry-pricing-clarifications.md` — 2026-08-31 approved A1/B1/C1 M04 pricing/interaction clarification.
+- `decisions/m04-order-entry-pricing-clarifications.md` and `decisions/m04-order-entry-operator-ergonomics-amendment.md` — approved M04 amendments;
+- `decisions/m05-lifecycle-payment-modification-clarifications.md` — 2026-09-02 approved M05 human-reference, snapshot-preservation and cumulative-payment clarification.
 
 ## Implementation authority rule
 
