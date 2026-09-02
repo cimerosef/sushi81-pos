@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation, the authorized AC-CAT-013 extension, all review remediations through `M03-LANGUAGE-COMBO-HEIGHT-FIX-16`, and the complete operator Windows/WPF acceptance checklist are Passed on `codex/m03-catalogue-settings`. M04 is Passed for its accepted implementation behavior on `codex/m04-order-entry`: the accepted implementation head is `76a41df917282763fc5957be7118bbffbeb21568`, its final manual Windows/WPF acceptance is recorded in `docs/implementation/milestone-04-final-manual-acceptance.md`, and CI #272 is green. PR #6 remains open/unmerged pending explicit project-owner merge approval; M05 remains unauthorized and not started.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings and M04 Order Entry are Passed, with their final Windows/WPF acceptance recorded in the applicable evidence; M04 merged through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a`. M05 is the current authorized implementation in progress on `codex/m05-lifecycle-payments-search-dashboard`, PR #10, authorized by `CODEX_HANDOFF_READY: M05-IMPLEMENT-01` while issue #4 is OPEN. M05 manual project-owner acceptance remains pending; M06 and later milestones are not authorized.
 
 ## 1. Status vocabulary
 
@@ -24,8 +24,8 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 | M02 — remote handoff feasibility gate | Passed | Original competitive OneDrive model remains historically Blocked. Approved GitHub private Release Asset transport, automated failure evidence, real private-repository A → B v1 / B → A v2 round-trip evidence, and isolated destructive newest-three retention evidence are complete; the amended M02 gate is closed by evidence. |
 | M03 — Catalogue and settings | Passed | Authorized by `CODEX_HANDOFF_READY: M03-IMPLEMENT-01`; migration 2, layered catalogue/settings services, localized WPF maintenance shell, automated evidence, and the complete operator Windows/WPF checklist are recorded on the applicable head. Cross-milestone regressions explicitly owned by M04 remain deferred. |
 | M04 — Order-entry vertical slice | Passed | Authorized by `CODEX_HANDOFF_READY: M04-IMPLEMENT-01`; accepted implementation head `76a41df917282763fc5957be7118bbffbeb21568` passed the automated M04 evidence and CI #272, and the project owner passed the final Windows/WPF manual acceptance on 2026-09-02. PR #6 remains open/unmerged pending explicit merge approval. |
-| M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
-| M06 — Local recovery/read-only enforcement | Not started | Pending M05 |
+| M05 — Lifecycle/payments/search/dashboard | In progress | Authorized by `CODEX_HANDOFF_READY: M05-IMPLEMENT-01` on PR #10 while issue #4 is OPEN; automated evidence and the self-contained artifact are being finalized, with manual Windows/WPF acceptance pending. |
+| M06 — Local recovery/read-only enforcement | Not started | Pending M05 and not authorized by this handoff |
 | M07 — Handoff and disaster recovery | Not started | Pending M06; must implement amended target-directed protocol |
 | M08 — Printing and reprinting | Not started | Pending M07 |
 | M09 — Hiboutik paste fallback | Not started | Pending M08 |
@@ -87,8 +87,19 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 |---|---:|---|---|
 | AC-LIFE-001 | M04 | Passed | M04 commit-before-deterministic-fake-dispatch, restart and post-commit failure evidence passed; the final Windows print-adapter cross-check remains explicitly owned by M08 |
 | AC-LIFE-002 | M04 | Passed | Controlled Open/Closed/Cancelled status model and persistence evidence are complete; M04 does not expose later lifecycle actions |
-| AC-LIFE-003 through AC-LIFE-014 | M05 | Not started | Record individual tests before marking Passed |
-| AC-LIFE-015 | M12 | Not started | Live-search portion implemented in M05; archive portion closes in M12 |
+| AC-LIFE-003 | M05 | Partial | `OrderPaymentState` and the Commandes cumulative CB/Espèce editor are implemented; automated/manual M05 acceptance remains pending. |
+| AC-LIFE-004 | M05 | Partial | Exact cent Close guard and payment-mismatch result are implemented and covered by the lifecycle integration path; manual acceptance remains pending. |
+| AC-LIFE-005 | M05 | Partial | Signed non-zero payment deltas, effective business date and recorded timestamp are persisted atomically; multi-day/back-entry acceptance remains pending. |
+| AC-LIFE-006 | M05 | Partial | Effective-date received-payment summary query and compact Caisse indicators are implemented; cross-day/manual acceptance remains pending. |
+| AC-LIFE-007 | M05 | Partial | POS/non-cancelled planned-date turnover query is implemented and covered by synthetic integration evidence; manual acceptance remains pending. |
+| AC-LIFE-008 | M05 | Partial | Sticky advance marker and future/due-today navigation are implemented; date-transition/manual acceptance remains pending. |
+| AC-LIFE-009 | M05 | Partial | Overdue-unsettled query semantics are implemented; dedicated manual acceptance remains pending. |
+| AC-LIFE-010 | M05 | Partial | Same-ID modification and Closed-to-Open incompatibility are covered by `M05AllocatesStableReferencesPersistsSignedPaymentsAndAppliesLifecycleExclusions`; manual acceptance remains pending. |
+| AC-LIFE-011 | M05 | Partial | Abandon-edit and persisted-snapshot reload are implemented in Commandes; dedicated UI/persistence evidence remains pending. |
+| AC-LIFE-012 | M05 | Partial | Dedicated structured Commandes detail, date browse, live reference/telephone/comment search and cancelled visibility are implemented; manual acceptance remains pending. |
+| AC-LIFE-013 | M05 | Partial | Explicit retained cancellation and active-financial exclusion are covered by the synthetic lifecycle integration evidence; manual acceptance remains pending. |
+| AC-LIFE-014 | M05 | Partial | Reuse action limits copied fields and confirms before replacing a non-empty Caisse draft; dedicated UI evidence remains pending. |
+| AC-LIFE-015 | M12 | Partial | Live-search portion is implemented in M05; annual archive portion remains owned by M12. |
 
 ### Hiboutik paste fallback
 

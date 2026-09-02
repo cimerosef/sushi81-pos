@@ -162,4 +162,31 @@ Changements effectifs : {2}</value></data>
   <data name="ValidationCartRequired" xml:space="preserve"><value>Ajoutez au moins une ligne.</value></data>
   <data name="ValidationDeliveryMinimum" xml:space="preserve"><value>Le minimum Livraison n’est pas atteint.</value></data>
   <data name="ValidationPickupDiscount" xml:space="preserve"><value>La remise Retrait n’a pas été appliquée.</value></data>
+  <data name="Commandes" xml:space="preserve"><value>Commandes</value></data>
+  <data name="OrderReference" xml:space="preserve"><value>Référence</value></data>
+  <data name="OrderCard" xml:space="preserve"><value>CB</value></data>
+  <data name="OrderCash" xml:space="preserve"><value>Espèce</value></data>
+  <data name="OrderPaid" xml:space="preserve"><value>Payé</value></data>
+  <data name="OrderDifference" xml:space="preserve"><value>Différence</value></data>
+  <data name="OrderSearchLive" xml:space="preserve"><value>Recherche live</value></data>
+  <data name="OrderModify" xml:space="preserve"><value>Modifier</value></data>
+  <data name="OrderAbandon" xml:space="preserve"><value>Abandonner</value></data>
+  <data name="OrderCancel" xml:space="preserve"><value>Annuler la commande</value></data>
+  <data name="OrderNewFromDetails" xml:space="preserve"><value>Nouvelle commande avec ces coordonnées</value></data>
+  <data name="OrderClose" xml:space="preserve"><value>Clôturer</value></data>
+  <data name="OrderEffectiveDate" xml:space="preserve"><value>Date d’encaissement</value></data>
+  <data name="OrderSave" xml:space="preserve"><value>Enregistrer la modification</value></data>
+  <data name="OrderReadOnly" xml:space="preserve"><value>État enregistré</value></data>
+  <data name="OrderEdit" xml:space="preserve"><value>Modification en cours</value></data>
+  <data name="OrderAdvance" xml:space="preserve"><value>Commande anticipée</value></data>
+  <data name="OrderSearchHint" xml:space="preserve"><value>Référence, téléphone ou commentaire</value></data>
+  <data name="OrderNoSelection" xml:space="preserve"><value>Sélectionnez une commande.</value></data>
+  <data name="DashboardTurnover" xml:space="preserve"><value>CA opérationnel aujourd’hui</value></data>
+  <data name="DashboardReceived" xml:space="preserve"><value>Encaissé aujourd’hui</value></data>
+  <data name="DashboardReceivedCard" xml:space="preserve"><value>CB aujourd’hui</value></data>
+  <data name="DashboardReceivedCash" xml:space="preserve"><value>Espèce aujourd’hui</value></data>
+  <data name="DashboardFuture" xml:space="preserve"><value>Commandes futures</value></data>
+  <data name="DashboardDueToday" xml:space="preserve"><value>Anticipées à servir</value></data>
+  <data name="DashboardOverdue" xml:space="preserve"><value>En retard non réglées</value></data>
+  <data name="DashboardRefresh" xml:space="preserve"><value>Actualiser</value></data>
 </root>

@@ -2,7 +2,7 @@
 
 Production source code lives under this directory.
 
-**Current status:** M01 foundation plus the complete M03 current-catalogue/settings subsystem are implemented and merged to `main`; M02 transport harness work remains isolated under `tools/`. M04 — First complete order-entry vertical slice — is the current authorized implementation milestone under `../docs/implementation/milestone-04-order-entry.md`.
+**Current status:** M01–M04 are implemented and merged to `main`; M02 transport harness work remains isolated under `tools/`. M05 — Lifecycle, payments, search and operational dashboard — is the current authorized implementation milestone on `codex/m05-lifecycle-payments-search-dashboard` under `../docs/implementation/milestone-05-lifecycle-payments-search-dashboard.md`.
 
 The source tree is ready for explicit Codex implementation milestones against:
 
@@ -15,4 +15,4 @@ Do not implement speculative features or alter frozen/amended business/architect
 
 Normal handoff transport is the dedicated private GitHub Release Asset API defined by `../docs/decisions/github-handoff-transport.md`; the historical OneDrive diagnostics are not a source of write authority.
 
-The merged M03 production code provides Categories, Products, structured OptionGroups/Options, the singleton BusinessSettings contract, atomic filtered bulk Product activation/deactivation, SQLite migration 2, and the localized Catalogue/Settings WPF maintenance shell. M04 may now add only its authorized order-entry/cart/pricing/order-snapshot/test-dispatch slice. Payments/lifecycle dashboard, final Windows printing, imports/exports, handoff UI, recovery enforcement, archive and installer remain in later milestones.
+The merged M03/M04 production code provides current Catalogue and settings maintenance, the order-entry/cart/pricing/order-snapshot slice, and the post-commit print-dispatch boundary. M05 adds the same-ID Commandes lifecycle/payment/search/dashboard workflow and SQLite migration 5. Final Windows printing, imports/exports, handoff UI, recovery enforcement, archive and installer remain in later milestones.

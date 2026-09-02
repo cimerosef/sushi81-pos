@@ -38,6 +38,7 @@ public partial class MainWindow : Window
                 await entry.RefreshAsync();
                 await entry.RefreshOrderBrowserAsync();
             }
+            if (viewModel.Lifecycle is { } lifecycle) { await lifecycle.RefreshAsync(); await lifecycle.RefreshDashboardAsync(); }
         }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
         ApplyCatalogueHeaders();
@@ -72,6 +73,15 @@ public partial class MainWindow : Window
             orderBrowserGrid.Columns[2].Header = LocalizedText(this, "OrderBrowserStatus", "Status");
             orderBrowserGrid.Columns[3].Header = LocalizedText(this, "OrderBrowserTotal", "Total TTC");
             orderBrowserGrid.Columns[4].Header = LocalizedText(this, "OrderBrowserTelephone", "Telephone");
+        }
+        if (commandesGrid.Columns.Count >= 6)
+        {
+            commandesGrid.Columns[0].Header = LocalizedText(this, "OrderReference", "Reference");
+            commandesGrid.Columns[1].Header = LocalizedText(this, "PlannedDate", "Date");
+            commandesGrid.Columns[2].Header = LocalizedText(this, "PlannedTime", "Time");
+            commandesGrid.Columns[3].Header = LocalizedText(this, "OrderStatus", "Status");
+            commandesGrid.Columns[4].Header = LocalizedText(this, "TotalTtc", "Total TTC");
+            commandesGrid.Columns[5].Header = LocalizedText(this, "Telephone", "Telephone");
         }
     }
 
@@ -190,6 +200,95 @@ public partial class MainWindow : Window
     {
         if (DataContext is ShellViewModel { Entry: { } entry } && e.AddedItems.OfType<OrderBrowserRowViewModel>().LastOrDefault() is { } row)
             _ = entry.SelectBrowserOrderAsync(row);
+    }
+
+    private async void OnRefreshCommandes(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) await lifecycle.RefreshAsync();
+    }
+
+    private async void OnRefreshDashboard(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) await lifecycle.RefreshDashboardAsync();
+    }
+
+    private async void OnDashboardEntry(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle }) return;
+        lifecycle.SelectOperationalView((sender as Button)?.Tag?.ToString());
+        mainTabs.SelectedItem = mainTabs.Items.OfType<TabItem>().FirstOrDefault(item => item.DataContext is OrderLifecycleShellViewModel);
+        await lifecycle.RefreshAsync();
+    }
+
+    private async void OnCommandesSearchChanged(object sender, TextChangedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle } && IsLoaded) await lifecycle.RefreshAsync();
+    }
+
+    private void OnModifyOrder(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) lifecycle.BeginModification();
+    }
+
+    private async void OnSaveOrderModification(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) await lifecycle.SaveModificationAsync();
+    }
+
+    private void OnAbandonOrderModification(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) lifecycle.AbandonModification();
+    }
+
+    private async void OnAddCurrentOrderLine(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle, Entry: { } entry } || !lifecycle.CanAddCurrentLine) return;
+        var products = await entry.ListActiveProductsAsync();
+        var picker = new CatalogueProductPickerDialog(this, products);
+        if (picker.ShowDialog() != true || picker.SelectedProduct is not { } summary) return;
+        var product = await entry.GetActiveProductForEditAsync(summary.Id);
+        if (product is null) return;
+        var dialog = new OptionSelectionDialog(this, product, null);
+        if (dialog.ShowDialog() == true)
+            await lifecycle.AddCurrentCatalogueLineAsync(new OrderLineDraft(Guid.Empty, product.Aggregate, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity, product.CategoryName));
+    }
+
+    private async void OnReconfigureOrderLine(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle, Entry: { } entry } || sender is not Button { Tag: OrderDetailLineViewModel line } || !lifecycle.IsEditing || line.Item.SourceProductId is not { } productId) return;
+        var product = await entry.GetActiveProductForEditAsync(productId);
+        if (product is null) { MessageBox.Show(this, LocalizedText(this, "ProductInactive", "Le produit n’est plus actif.")); return; }
+        var draft = line.ToCurrentDraft(product);
+        var dialog = new OptionSelectionDialog(this, product, draft.Quantity, draft.SelectedOptionIds, draft.CustomAdjustments);
+        if (dialog.ShowDialog() == true)
+            await lifecycle.ReplaceLineAsync(line, draft with { SelectedOptionIds = dialog.SelectedOptionIds, CustomAdjustments = dialog.CustomAdjustments, Quantity = dialog.Quantity }, default);
+    }
+
+    private void OnRemoveLifecycleLine(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle } && sender is Button { Tag: OrderDetailLineViewModel line }) lifecycle.RemoveLine(line);
+    }
+
+    private async void OnCloseOrder(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle }) return;
+        if (MessageBox.Show(this, LocalizedText(this, "OrderClose", "Clôturer cette commande ?"), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            await lifecycle.CloseSelectedAsync();
+    }
+
+    private async void OnCancelOrder(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle }) return;
+        if (MessageBox.Show(this, LocalizedText(this, "OrderCancel", "Annuler cette commande ?"), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            await lifecycle.CancelSelectedAsync();
+    }
+
+    private void OnReuseOrderCustomer(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle, Entry: { } entry } || lifecycle.SelectedOrder is not { } order) return;
+        if (entry.HasUncommittedDraft && MessageBox.Show(this, LocalizedText(this, "Discard", "Remplacer le brouillon Caisse en cours ?"), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        entry.StartNewOrderFromCustomer(order);
+        mainTabs.SelectedItem = mainTabs.Items.OfType<TabItem>().FirstOrDefault(item => item.DataContext is OrderEntryShellViewModel);
     }
 
     private void OnFilterRefreshFailed(object? sender, EventArgs e)
@@ -333,6 +432,9 @@ public partial class MainWindow : Window
         private readonly TextBox quantity;
         private readonly IReadOnlyDictionary<string, string> localized;
         public OptionSelectionDialog(Window owner, OrderEntryProduct product, OrderEntryCartLineViewModel? existing)
+            : this(owner, product, existing?.Quantity ?? 1, existing?.Draft.SelectedOptionIds ?? [], existing?.Draft.CustomAdjustments ?? []) { }
+
+        public OptionSelectionDialog(Window owner, OrderEntryProduct product, int quantityValue, IReadOnlyList<Guid> existingOptions, IReadOnlyList<OrderLineAdjustmentDraft> existingCustomAdjustments)
         {
             this.product = product;
             localized = (owner.DataContext as ShellViewModel)?.Localized ?? new Dictionary<string, string>();
@@ -342,11 +444,11 @@ public partial class MainWindow : Window
             var cancel = new Button { Content = Label("Cancel", "Annuler"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) }; cancel.Click += (_, _) => DialogResult = false;
             var ok = new Button { Content = Label("Add", "Ajouter"), Padding = new Thickness(12, 5, 12, 5) }; ok.Click += (_, _) => Accept(); buttons.Children.Add(cancel); buttons.Children.Add(ok); DockPanel.SetDock(buttons, Dock.Bottom); root.Children.Add(buttons);
             var panel = new StackPanel(); panel.Children.Add(new TextBlock { Text = $"{product.Aggregate.Product.Code} — {product.Aggregate.Product.Name}", FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
-            quantity = AddText(panel, Label("Quantity", "Quantité"), existing?.Quantity.ToString(CultureInfo.InvariantCulture) ?? "1");
+            quantity = AddText(panel, Label("Quantity", "Quantité"), quantityValue.ToString(CultureInfo.InvariantCulture));
             if (product.Aggregate.Product.OptionsEnabled)
-                foreach (var group in product.Aggregate.Groups.OrderBy(group => group.DisplayOrder)) AddGroup(panel, group, existing?.Draft.SelectedOptionIds ?? []);
+                foreach (var group in product.Aggregate.Groups.OrderBy(group => group.DisplayOrder)) AddGroup(panel, group, existingOptions);
             panel.Children.Add(new TextBlock { Text = Label("CustomAdjustments", "Ajustements personnalisés (par unité)"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
-            foreach (var current in existing?.Draft.CustomAdjustments ?? []) AddCustomRow(current);
+            foreach (var current in existingCustomAdjustments) AddCustomRow(current);
             var addCustom = new Button { Content = "+ " + Label("AddAdjustment", "Ajustement"), Padding = new Thickness(8, 3, 8, 3), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 4) }; addCustom.Click += (_, _) => AddCustomRow(null);
             panel.Children.Add(customPanel); panel.Children.Add(addCustom);
             root.Children.Add(new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }); Content = root;
@@ -411,6 +513,22 @@ public partial class MainWindow : Window
         }
 
         private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private sealed class CatalogueProductPickerDialog : Window
+    {
+        private readonly ListBox products;
+        public CatalogueProductPickerDialog(Window owner, IReadOnlyList<ProductSummary> values)
+        {
+            Owner = owner; WindowStartupLocation = WindowStartupLocation.CenterOwner; Title = LocalizedText(owner, "Products", "Produits"); Width = 420; Height = 480;
+            var root = new DockPanel { Margin = new Thickness(12) };
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancel = new Button { Content = LocalizedText(owner, "Cancel", "Annuler"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 8, 0) }; cancel.Click += (_, _) => { DialogResult = false; Close(); };
+            var list = new ListBox { ItemsSource = values, DisplayMemberPath = "Name" }; products = list; list.MouseDoubleClick += (_, _) => { if (list.SelectedItem is not null) { DialogResult = true; Close(); } }; root.Children.Add(list); Content = root;
+            var add = new Button { Content = LocalizedText(owner, "Add", "Ajouter"), Padding = new Thickness(10, 4, 10, 4) }; add.Click += (_, _) => { if (list.SelectedItem is not null) { DialogResult = true; Close(); } };
+            buttons.Children.Add(cancel); buttons.Children.Add(add); DockPanel.SetDock(buttons, Dock.Bottom); root.Children.Add(buttons);
+        }
+        public ProductSummary? SelectedProduct => products.SelectedItem as ProductSummary;
     }
 
     private static string LocalizedText(Window owner, string key, string fallback) => owner.DataContext is ShellViewModel viewModel && viewModel.Localized.TryGetValue(key, out var value) ? value : fallback;

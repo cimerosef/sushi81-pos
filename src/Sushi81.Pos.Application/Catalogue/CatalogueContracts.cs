@@ -25,6 +25,9 @@ public static class ValidationCodes
     public const string PastPlannedDate = "past-planned-date";
     public const string PlannedTimeRequired = "planned-time-required";
     public const string PlannedTimeInvalid = "planned-time-invalid";
+    public const string NotFound = "not-found";
+    public const string PaymentNegative = "payment-negative";
+    public const string PaymentMismatch = "payment-mismatch";
 
     public static string Infer(string message) => message switch
     {
@@ -84,7 +87,19 @@ public sealed record OrderBrowserRow(
     FulfilmentMode Fulfilment,
     OrderStatus Status,
     Money TotalTtc,
-    string? Telephone);
+    string? Telephone)
+{
+    public string Reference { get; init; } = string.Empty;
+    public Money CardPaymentTtc { get; init; } = Money.Zero;
+    public Money CashPaymentTtc { get; init; } = Money.Zero;
+    public bool AdvanceOrderMarker { get; init; }
+
+    public Money CbPaymentTtc { get => CardPaymentTtc; init => CardPaymentTtc = value; }
+    public Money EspecePaymentTtc { get => CashPaymentTtc; init => CashPaymentTtc = value; }
+
+    public Money PaidTtc => CardPaymentTtc + CashPaymentTtc;
+    public Money DifferenceTtc => TotalTtc - PaidTtc;
+}
 
 public sealed record ProductSummary(
     Guid Id,

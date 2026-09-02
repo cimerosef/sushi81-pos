@@ -13,7 +13,7 @@
       <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding Title}" />
     </DockPanel>
     <TextBlock Grid.Row="1" Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
-    <TabControl Grid.Row="1" DataContext="{Binding Admin}" IsEnabled="{Binding IsM03Available, RelativeSource={RelativeSource AncestorType=Window}}" Visibility="{Binding IsM03Available, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+    <TabControl x:Name="mainTabs" Grid.Row="1" DataContext="{Binding Admin}" IsEnabled="{Binding IsM03Available, RelativeSource={RelativeSource AncestorType=Window}}" Visibility="{Binding IsM03Available, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
       <TabItem Header="{Binding DataContext.Localized[Catalogue], RelativeSource={RelativeSource AncestorType=Window}}">
         <Grid Margin="8">
           <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -66,10 +66,74 @@
           <WrapPanel><Button Content="{Binding DataContext.Localized[Save], RelativeSource={RelativeSource AncestorType=Window}}" Padding="16,5" Margin="0,0,8,0" Click="OnSaveSettings" /><Button Content="{Binding DataContext.Localized[Cancel], RelativeSource={RelativeSource AncestorType=Window}}" Padding="16,5" Click="OnReloadSettings" /></WrapPanel>
         </StackPanel>
       </TabItem>
+      <TabItem Header="{Binding DataContext.Localized[Commandes], RelativeSource={RelativeSource AncestorType=Window}}" DataContext="{Binding DataContext.Lifecycle, RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.IsM05Available, RelativeSource={RelativeSource AncestorType=Window}}">
+        <Grid Margin="8">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="1.1*" MinWidth="330" /><ColumnDefinition Width="1.4*" MinWidth="390" /></Grid.ColumnDefinitions>
+          <Grid Grid.Column="0" Margin="0,0,10,0">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+            <WrapPanel Grid.Row="0" Margin="0,0,0,8">
+              <TextBox x:Name="commandesSearchBox" Width="240" Margin="0,0,8,0" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding DataContext.Localized[OrderSearchHint], RelativeSource={RelativeSource AncestorType=Window}}" TextChanged="OnCommandesSearchChanged" />
+              <DatePicker Width="145" SelectedDate="{Binding BrowseDate, Mode=TwoWay}" Margin="0,0,8,0" />
+              <Button Content="{Binding DataContext.Localized[DashboardRefresh], RelativeSource={RelativeSource AncestorType=Window}}" Padding="10,3" Click="OnRefreshCommandes" />
+            </WrapPanel>
+            <DataGrid x:Name="commandesGrid" Grid.Row="1" ItemsSource="{Binding Orders}" SelectedItem="{Binding SelectedRow, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="" Binding="{Binding ReferenceText}" Width="110" />
+                <DataGridTextColumn Header="" Binding="{Binding PlannedDateText}" Width="92" />
+                <DataGridTextColumn Header="" Binding="{Binding PlannedTimeText}" Width="55" />
+                <DataGridTextColumn Header="" Binding="{Binding StatusText}" Width="88" />
+                <DataGridTextColumn Header="" Binding="{Binding TotalText, StringFormat={}{0} €}" Width="82" />
+                <DataGridTextColumn Header="" Binding="{Binding TelephoneText}" Width="*" />
+              </DataGrid.Columns>
+            </DataGrid>
+          </Grid>
+          <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="4,0,0,0">
+              <TextBlock Text="{Binding DataContext.Localized[OrderNoSelection], RelativeSource={RelativeSource AncestorType=Window}}"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding HasSelectedOrder}" Value="False"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+              <Grid IsEnabled="{Binding HasSelectedOrder}">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="145" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,6"><TextBlock Text="{Binding ReferenceText}" FontSize="19" FontWeight="SemiBold" /><WrapPanel><TextBlock Text="{Binding AdvanceText}" Margin="0,0,10,0" /><TextBlock Text="{Binding ManualTotalText}" Margin="0,0,10,0" /><TextBlock Text="{Binding DataContext.Localized[TaxSnapshot], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBlock Text=": " /><TextBlock Text="{Binding TaxSummaryText}" /></WrapPanel></StackPanel>
+                <TextBlock Grid.Row="1" Text="{Binding DataContext.Localized[OrderStatus], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding StatusText}" />
+                <TextBlock Grid.Row="2" Text="{Binding DataContext.Localized[Fulfilment], RelativeSource={RelativeSource AncestorType=Window}}" /><ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding FulfilmentChoices}" DisplayMemberPath="Label" SelectedValuePath="Mode" SelectedValue="{Binding EditFulfilment, Mode=TwoWay}" IsEnabled="{Binding IsEditing}" />
+                <TextBlock Grid.Row="3" Text="{Binding DataContext.Localized[PlannedDate], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" /><StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal"><DatePicker SelectedDate="{Binding EditPlannedDate, Mode=TwoWay}" DisplayDateStart="{Binding MinimumEditPlannedDate}" IsEnabled="{Binding IsEditing}" /><ComboBox Width="48" Margin="6,0,0,0" ItemsSource="{Binding PlannedHourChoices}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding EditPlannedHour, Mode=TwoWay}" IsEnabled="{Binding IsEditing}" /><TextBlock Text=":" VerticalAlignment="Center" Margin="2,0" /><ComboBox Width="48" ItemsSource="{Binding PlannedMinuteChoices}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding EditPlannedMinute, Mode=TwoWay}" IsEnabled="{Binding IsEditing}" /></StackPanel>
+                <TextBlock Grid.Row="4" Text="{Binding DataContext.Localized[Telephone], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Grid.Row="4" Grid.Column="1" Text="{Binding EditTelephone, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsEditing}" />
+                <TextBlock Grid.Row="5" Text="{Binding DataContext.Localized[DeliveryAddress], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Top" /><TextBox Grid.Row="5" Grid.Column="1" Text="{Binding EditAddress, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsEditing}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="34" />
+                <TextBlock Grid.Row="6" Text="{Binding DataContext.Localized[Comment], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Top" /><TextBox Grid.Row="6" Grid.Column="1" Text="{Binding EditComment, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsEditing}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="34" />
+                <TextBlock Grid.Row="7" Text="{Binding DataContext.Localized[OrderLines], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Top" /><StackPanel Grid.Row="7" Grid.Column="1"><ListBox ItemsSource="{Binding DetailLines}" MinHeight="60" MaxHeight="145" Margin="0,0,0,4"><ListBox.ItemTemplate><DataTemplate><Grid Margin="2"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="52" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="{Binding ProductText}" FontWeight="SemiBold" /><TextBlock Text="{Binding OptionsText}" FontSize="11" TextWrapping="Wrap" /></StackPanel><TextBox Grid.Column="1" Text="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=ListBox}}" /><StackPanel Grid.Column="2" Orientation="Horizontal"><Button Content="✎" Tag="{Binding}" Click="OnReconfigureOrderLine" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=ListBox}}" Margin="4,0,0,0" /><Button Content="×" Tag="{Binding}" Click="OnRemoveLifecycleLine" IsEnabled="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=ListBox}}" Margin="4,0,0,0" /></StackPanel></Grid></DataTemplate></ListBox.ItemTemplate></ListBox><Button Content="{Binding DataContext.Localized[Add], RelativeSource={RelativeSource AncestorType=Window}}" Click="OnAddCurrentOrderLine" IsEnabled="{Binding CanAddCurrentLine}" HorizontalAlignment="Left" Padding="8,3" /></StackPanel>
+                <TextBlock Grid.Row="8" Text="{Binding DataContext.Localized[TotalTtc], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Grid.Row="8" Grid.Column="1" Text="{Binding EditTotal, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsEditing}" FontWeight="SemiBold" />
+                <TextBlock Grid.Row="9" Text="{Binding DataContext.Localized[OrderCard], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Grid.Row="9" Grid.Column="1" Text="{Binding EditCard, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsEditing}" />
+                <TextBlock Grid.Row="10" Text="{Binding DataContext.Localized[OrderCash], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Grid.Row="10" Grid.Column="1" Text="{Binding EditCash, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsEditing}" />
+                <TextBlock Grid.Row="11" Text="{Binding DataContext.Localized[OrderDifference], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBlock Grid.Row="11" Grid.Column="1" Text="{Binding DifferenceText, StringFormat={}{0} €}" />
+              </Grid>
+              <TextBlock Text="{Binding ValidationMessage}" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,6,0,4" />
+              <WrapPanel Margin="0,4,0,0">
+                <Button Content="{Binding DataContext.Localized[OrderModify], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanModify}" Click="OnModifyOrder" Padding="10,4" Margin="0,0,6,4" />
+                <Button Content="{Binding DataContext.Localized[OrderSave], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanSave}" Click="OnSaveOrderModification" Padding="10,4" Margin="0,0,6,4" />
+                <Button Content="{Binding DataContext.Localized[OrderAbandon], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanAbandon}" Click="OnAbandonOrderModification" Padding="10,4" Margin="0,0,6,4" />
+                <Button Content="{Binding DataContext.Localized[OrderClose], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanClose}" Click="OnCloseOrder" Padding="10,4" Margin="0,0,6,4" />
+                <Button Content="{Binding DataContext.Localized[OrderCancel], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanCancel}" Click="OnCancelOrder" Padding="10,4" Margin="0,0,6,4" />
+                <Button Content="{Binding DataContext.Localized[OrderNewFromDetails], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanReuseCustomer}" Click="OnReuseOrderCustomer" Padding="10,4" Margin="0,0,6,4" />
+              </WrapPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </TabItem>
       <TabItem Header="{Binding DataContext.Localized[Caisse], RelativeSource={RelativeSource AncestorType=Window}}" DataContext="{Binding DataContext.Entry, RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.IsM04Available, RelativeSource={RelativeSource AncestorType=Window}}">
         <Grid Margin="8">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
           <Grid.ColumnDefinitions><ColumnDefinition Width="1.15*" /><ColumnDefinition Width="1.25*" /></Grid.ColumnDefinitions>
-          <Border Grid.Column="0" Margin="0,0,10,0" BorderBrush="#FFD6D6D6" BorderThickness="0,0,1,0" Padding="0,0,10,0">
+          <WrapPanel Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,8">
+            <Button Tag="future" Content="{Binding DataContext.Localized[DashboardFuture], RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,3" Margin="0,0,2,0" Click="OnDashboardEntry" /><TextBlock Text="{Binding DataContext.Lifecycle.FutureOrderCount, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <Button Tag="due" Content="{Binding DataContext.Localized[DashboardDueToday], RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,3" Margin="0,0,2,0" Click="OnDashboardEntry" /><TextBlock Text="{Binding DataContext.Lifecycle.DueTodayAdvanceOrderCount, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <Button Tag="overdue" Content="{Binding DataContext.Localized[DashboardOverdue], RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,3" Margin="0,0,2,0" Click="OnDashboardEntry" /><TextBlock Text="{Binding DataContext.Lifecycle.OverdueUnsettledOrderCount, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,12,0" />
+            <TextBlock Text="{Binding DataContext.Localized[DashboardTurnover], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" /><TextBlock Text=" : " VerticalAlignment="Center" /><TextBlock Text="{Binding DataContext.Lifecycle.DashboardTurnoverText, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,12,0" />
+            <TextBlock Text="{Binding DataContext.Localized[DashboardReceived], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" /><TextBlock Text=" : " VerticalAlignment="Center" /><TextBlock Text="{Binding DataContext.Lifecycle.DashboardReceivedText, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,12,0" />
+            <TextBlock Text="{Binding DataContext.Localized[DashboardReceivedCard], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" /><TextBlock Text=" : " VerticalAlignment="Center" /><TextBlock Text="{Binding DataContext.Lifecycle.DashboardReceivedCardText, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,12,0" />
+            <TextBlock Text="{Binding DataContext.Localized[DashboardReceivedCash], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" /><TextBlock Text=" : " VerticalAlignment="Center" /><TextBlock Text="{Binding DataContext.Lifecycle.DashboardReceivedCashText, RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" />
+            <Button Content="{Binding DataContext.Localized[DashboardRefresh], RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,3" Margin="12,0,0,0" Click="OnRefreshDashboard" />
+          </WrapPanel>
+          <Border Grid.Row="1" Grid.Column="0" Margin="0,0,10,0" BorderBrush="#FFD6D6D6" BorderThickness="0,0,1,0" Padding="0,0,10,0">
             <Grid>
               <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
               <TextBlock Grid.Row="0" Text="{Binding DataContext.Localized[Products], RelativeSource={RelativeSource AncestorType=Window}}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
@@ -92,7 +156,7 @@
             </Grid>
           </Border>
 
-          <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <Grid Margin="4,0,0,0">
               <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
               <TextBlock Grid.Row="0" FontSize="18" FontWeight="SemiBold" Text="{Binding DataContext.Localized[Cart], RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,0,0,6" />

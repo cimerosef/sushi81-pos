@@ -31,6 +31,7 @@ public static partial class CompositionRoot
         CatalogueService? catalogueService = null;
         BusinessSettingsService? settingsService = null;
         OrderEntryService? orderEntryService = null;
+        OrderLifecycleService? orderLifecycleService = null;
 
         try
         {
@@ -57,9 +58,11 @@ public static partial class CompositionRoot
             var settingsStore = new SqliteBusinessSettingsStore(connectionFactory, transactionRunner, clock);
             catalogueService = new CatalogueService(catalogueStore);
             settingsService = new BusinessSettingsService(settingsStore);
-            var orderStore = new SqliteOrderStore(connectionFactory, transactionRunner, null, idGenerator);
+            var orderStore = new SqliteOrderStore(connectionFactory, transactionRunner, null, idGenerator, clock);
+            var orderCatalogueQueries = new OrderEntryCatalogueService(catalogueStore);
+            orderLifecycleService = new OrderLifecycleService(orderStore, idGenerator, clock, orderCatalogueQueries, settingsStore);
             orderEntryService = new OrderEntryService(
-                new OrderEntryCatalogueService(catalogueStore), settingsStore, orderStore, new NoOpOrderPrintDispatcher(), idGenerator, clock);
+                orderCatalogueQueries, settingsStore, orderStore, new NoOpOrderPrintDispatcher(), idGenerator, clock);
             LogFoundationStartupSucceeded(logger);
             startupSucceeded = true;
         }
@@ -72,7 +75,7 @@ public static partial class CompositionRoot
             }
         }
 
-        var viewModel = new ShellViewModel(cultureStore, startupSucceeded, catalogueService, settingsService, orderEntryService);
+        var viewModel = new ShellViewModel(cultureStore, startupSucceeded, catalogueService, settingsService, orderEntryService, orderLifecycleService);
         var window = new MainWindow(viewModel);
         application.MainWindow = window;
         application.Exit += (_, _) => loggerProvider?.Dispose();

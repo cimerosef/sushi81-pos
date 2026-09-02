@@ -2,7 +2,7 @@
 
 Automated tests for Sushi81 POS live under this directory once implementation begins.
 
-**Current status:** M01 and M03 tests are green; M02 GitHub transport tests use deterministic fake HTTP/synthetic state only.
+**Current status:** M01–M04 regression tests and the M05 local lifecycle/payment/search/dashboard evidence are green; M02 GitHub transport tests use deterministic fake HTTP/synthetic state only.
 
 The test strategy is authoritative from `../docs/acceptance-criteria.md` and the approved V1 documents under `../docs/`.
 
@@ -18,3 +18,8 @@ opaque identity preservation, deterministic option ordering, activation/deactiva
 (including stale/missing rollback, injected failure rollback, timestamp and aggregate preservation), cascade deletion, code reuse
 and settings round-trip persistence. Desktop tests cover composed-filter capture/latest-debounce synchronization, immutable
 bulk snapshots, localized actions/confirmation resources, filter-state preservation and the absence of bulk deletion.
+
+M04/M05 infrastructure tests also use isolated temporary SQLite databases and synthetic orders. They cover persisted order
+snapshots, migration 5 reference backfill/allocation, signed CB/Espèce deltas, same-ID modification and automatic reopen,
+Close/Cancel financial exclusions, live reference/telephone/comment search, and operational summary queries. M05 operator
+Windows/WPF acceptance remains a separate manual gate and is not claimed by these automated tests.

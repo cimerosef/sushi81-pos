@@ -25,6 +25,44 @@ public enum OrderAdjustmentKind
     CustomAdjustment
 }
 
+public enum PaymentBucket
+{
+    Card,
+    Cash
+}
+
+/// <summary>A signed change to one cumulative payment bucket.</summary>
+public sealed record PaymentAdjustment(
+    Guid Id,
+    Guid OrderId,
+    PaymentBucket Bucket,
+    Money Delta,
+    DateTimeOffset EffectiveAt,
+    DateTimeOffset RecordedAt)
+{
+    public DateOnly EffectiveBusinessDate => DateOnly.FromDateTime(EffectiveAt.Date);
+}
+
+public sealed record OrderPaymentState(Money Card, Money Cash, Money Total, Money Difference)
+{
+    public bool IsNonNegative => Card >= Money.Zero && Cash >= Money.Zero;
+    public bool IsExactlyReconciled => Difference == Money.Zero;
+
+    public static OrderPaymentState From(OrderSnapshot order) => From(order.TotalTtc, order.CardPaymentTtc, order.CashPaymentTtc);
+
+    public static OrderPaymentState From(Money total, Money card, Money cash) =>
+        new(card, cash, card + cash, total - card - cash);
+}
+
+public static class OrderReference
+{
+    public static string Format(DateOnly businessDate, int sequence) =>
+        sequence <= 0 ? throw new ArgumentOutOfRangeException(nameof(sequence)) : $"{businessDate:yyyyMMdd}-{sequence:D3}";
+
+    public static bool IsValid(string? reference) =>
+        reference is not null && System.Text.RegularExpressions.Regex.IsMatch(reference, "^[0-9]{8}-[0-9]{3,}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+}
+
 /// <summary>A per-unit adjustment captured while an order is being composed.</summary>
 public sealed record OrderLineAdjustmentDraft(
     Guid? OptionId,
@@ -151,7 +189,20 @@ public sealed record OrderSnapshot(
     decimal? PickupDiscountRate,
     Money DeliveryFeeTtc,
     IReadOnlyList<OrderItemSnapshot> Items,
-    IReadOnlyList<OrderTaxBreakdown> TaxBreakdown);
+    IReadOnlyList<OrderTaxBreakdown> TaxBreakdown)
+{
+    /// <summary>Immutable operator-facing reference allocated by SQLite at creation.</summary>
+    public string Reference { get; init; } = string.Empty;
+
+    /// <summary>Current cumulative card amount. It is kept separately from signed adjustments for fast detail reads.</summary>
+    public Money CardPaymentTtc { get; init; } = Money.Zero;
+
+    /// <summary>Current cumulative cash amount. It is kept separately from signed adjustments for fast detail reads.</summary>
+    public Money CashPaymentTtc { get; init; } = Money.Zero;
+
+    public Money CbPaymentTtc { get => CardPaymentTtc; init => CardPaymentTtc = value; }
+    public Money EspecePaymentTtc { get => CashPaymentTtc; init => CashPaymentTtc = value; }
+}
 
 /// <summary>Shared operator-facing representation for persisted planned times.</summary>
 public static class OrderTimeFormatting

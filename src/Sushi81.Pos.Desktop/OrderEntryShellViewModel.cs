@@ -281,6 +281,23 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public bool CanAddSelectedProduct => !IsBusy && !IsCommitted && SelectedProduct is not null;
     public bool CanConfirm => !IsBusy && !IsCommitted && PlannedDateValid && PlannedTime is { } time && IsApprovedPlannedTime(time) && pricing?.IsValid == true;
     public bool CanStartNewOrder => IsCommitted && !IsBusy;
+
+    public bool HasUncommittedDraft => !IsCommitted && (Cart.Count > 0 || SelectedFulfilment is not null || !string.IsNullOrWhiteSpace(Telephone) || !string.IsNullOrWhiteSpace(DeliveryAddress) || !string.IsNullOrWhiteSpace(Comment));
+
+    public void ApplyCustomerDetailsFromOrder(OrderSnapshot source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (HasUncommittedDraft) throw new InvalidOperationException("The current Caisse draft is not empty.");
+        StartNewOrderFromCustomer(source);
+    }
+
+    public void StartNewOrderFromCustomer(OrderSnapshot source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        Cart.Clear(); SelectedCartLine = null; selectedFulfilment = null; plannedDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue); plannedTime = null; selectedPlannedHour = null; selectedPlannedMinute = null;
+        telephone = source.Telephone ?? string.Empty; deliveryAddress = source.DeliveryAddress ?? string.Empty; comment = source.Comment ?? string.Empty; pickupDiscountRequested = false; manualTotalOverride = null; pricing = null; totalText = "0.00"; isCommitted = false; reloadOrderIdText = string.Empty; reloadedOrder = null;
+        OnPropertyChanged(string.Empty); _ = RepriceAsync(clearManualOverride: true);
+    }
     public bool PlannedTimeValid => PlannedTime is null || IsApprovedPlannedTime(PlannedTime.Value);
     public bool IsPickupDiscountEnabled => !IsBusy && !IsCommitted && SelectedFulfilment == FulfilmentMode.Retrait;
     public string TotalText { get => totalText; private set { totalText = value; OnPropertyChanged(); } }
@@ -421,6 +438,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     }
 
     public Task<OrderEntryProduct?> GetActiveProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => service.GetActiveProductAsync(productId, cancellationToken);
+    public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, CancellationToken cancellationToken = default) => service.ListActiveProductsAsync(search, null, cancellationToken);
 
     public void UpdateConfiguredLine(OrderEntryCartLineViewModel line, IReadOnlyList<Guid> selectedOptionIds, IReadOnlyList<OrderLineAdjustmentDraft> customAdjustments, int? quantity = null)
     {

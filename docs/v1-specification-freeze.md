@@ -218,4 +218,4 @@ The 2026-08-28 target-directed authority-handoff amendment and the 2026-08-30 fi
 
 **Phase 5 remains complete.**
 
-Phase 6 implementation is active. M01 and M02 are complete. M03 Catalogue/BusinessSettings implementation is active on its controlled implementation PR; its original scope and manual remediations through FIX-12 have automated evidence green, but M03 remains Partial pending the newly approved filtered bulk activation/deactivation extension and the remaining operator acceptance checklist. M04 is not authorized.
+Phase 6 implementation is active. M01 and M02 are complete, M03 and M04 are Passed and merged, and M04's final Windows/WPF acceptance is recorded in the implementation status/worklog documents. M05 is the current authorized implementation milestone on `codex/m05-lifecycle-payments-search-dashboard` / PR #10 under its approved contract and `CODEX_HANDOFF_READY: M05-IMPLEMENT-01`; its automated implementation evidence is being completed and its project-owner Windows/WPF acceptance remains pending. M06 and later milestones are not authorized.
