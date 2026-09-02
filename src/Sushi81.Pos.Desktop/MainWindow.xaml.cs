@@ -22,6 +22,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = viewModel;
         if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
+        commandesGrid.LayoutUpdated += OnCommandesGridLayoutUpdated;
         ApplyCatalogueHeaders();
         Closed += (_, _) => (DataContext as ShellViewModel)?.Dispose();
     }
@@ -81,7 +82,17 @@ public partial class MainWindow : Window
 
     private void OnCommandesGridSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (sender is not DataGrid grid || grid.Columns.Count < 9) return;
+        if (sender is DataGrid grid) ResizeCommandesColumns(grid);
+    }
+
+    private void OnCommandesGridLayoutUpdated(object? sender, EventArgs e)
+    {
+        if (sender is DataGrid grid) ResizeCommandesColumns(grid);
+    }
+
+    private static void ResizeCommandesColumns(DataGrid grid)
+    {
+        if (grid.Columns.Count < 9) return;
         var fixedWidth = grid.Columns.Take(7).Sum(column => column.ActualWidth);
         var availableForLongText = grid.ActualWidth - 2 - fixedWidth;
         if (availableForLongText < grid.Columns[7].MinWidth + grid.Columns[8].MinWidth) return;
