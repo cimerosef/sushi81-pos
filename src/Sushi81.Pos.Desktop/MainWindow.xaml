@@ -1,7 +1,7 @@
 <Window x:Class="Sushi81.Pos.Desktop.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="{Binding Title}" Width="980" Height="680" MinWidth="760" MinHeight="520" WindowStartupLocation="CenterScreen" Loaded="OnLoaded">
+        Title="{Binding Title}" Width="980" Height="680" MinWidth="760" MinHeight="520" WindowStartupLocation="CenterScreen" Loaded="OnLoaded" SizeChanged="OnMainWindowSizeChanged">
   <Window.Resources><BooleanToVisibilityConverter x:Key="BoolToVisibility" /></Window.Resources>
   <Grid Margin="18">
     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>

@@ -85,16 +85,25 @@ public partial class MainWindow : Window
         if (sender is DataGrid grid) ResizeCommandesColumns(grid);
     }
 
+    private void OnMainWindowSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is not Window || commandesGrid.ActualWidth <= 0) return;
+        var widthDelta = e.NewSize.Width - e.PreviousSize.Width;
+        var estimatedGridWidth = commandesGrid.ActualWidth + widthDelta;
+        var targetGridWidth = estimatedGridWidth <= ActualWidth ? estimatedGridWidth : commandesGrid.ActualWidth;
+        ResizeCommandesColumns(commandesGrid, targetGridWidth);
+    }
+
     private void OnCommandesGridLayoutUpdated(object? sender, EventArgs e)
     {
         if (sender is DataGrid grid) ResizeCommandesColumns(grid);
     }
 
-    private static void ResizeCommandesColumns(DataGrid grid)
+    private static void ResizeCommandesColumns(DataGrid grid, double? targetWidth = null)
     {
         if (grid.Columns.Count < 9) return;
         var fixedWidth = grid.Columns.Take(7).Sum(column => column.ActualWidth);
-        var availableForLongText = grid.ActualWidth - 2 - fixedWidth;
+        var availableForLongText = (targetWidth ?? grid.ActualWidth) - 2 - fixedWidth;
         if (availableForLongText < grid.Columns[7].MinWidth + grid.Columns[8].MinWidth) return;
         var longTextWidth = availableForLongText / 2;
         for (var index = 7; index <= 8; index++)
