@@ -301,6 +301,30 @@ public sealed class OrderPricingTests
     }
 
     [TestMethod]
+    public void ExistingSnapshotRepricingUsesCurrentSettingsWithoutReadingCatalogue()
+    {
+        var item = new OrderItemSnapshot(
+            Guid.NewGuid(), 0, Guid.NewGuid(), "P-HIST", "Plat historique", "Plats",
+            Money.FromCents(3000), 10m, true, 1, Money.FromCents(3000), Money.FromCents(2700),
+            [new(Guid.NewGuid(), 0, OrderAdjustmentKind.CustomAdjustment, null, null, "Sauce", Money.FromCents(100), 5.5m)]);
+
+        var current = OrderPricingService.CalculateSnapshots(
+            [item], FulfilmentMode.Retrait, pickupDiscountRequested: true,
+            Settings(rate: 0.20m, minPickup: Money.FromCents(2000)) with
+            {
+                DeliveryFeeEnabled = true,
+                DeliveryFeeAmountTtc = Money.FromCents(500)
+            });
+
+        Assert.IsTrue(current.IsValid, string.Join(";", current.ValidationErrors));
+        Assert.AreEqual(2500L, current.TotalTtc.Cents);
+        Assert.AreEqual(0.20m, current.PickupDiscountRate);
+        Assert.AreEqual(3000L, current.Items.Single().ExtendedBaseTtc.Cents);
+        Assert.AreEqual(2500L, current.Items.Single().CalculatedLineTotalTtc.Cents);
+        Assert.AreEqual(5.5m, current.TaxBreakdown.Single(tax => tax.VatRate == 5.5m).VatRate);
+    }
+
+    [TestMethod]
     public void OptionsDisabledAndDeliveryFeeDoNotCreateUnexpectedTaxBuckets()
     {
         var product = ProductWithOptions(Guid.NewGuid(), Money.FromCents(2999), 20m, true);

@@ -162,12 +162,14 @@
   <data name="ValidationCartRequired" xml:space="preserve"><value>请添加至少一条明细。</value></data>
   <data name="ValidationDeliveryMinimum" xml:space="preserve"><value>未达到配送最低金额。</value></data>
   <data name="ValidationPickupDiscount" xml:space="preserve"><value>未应用自取折扣。</value></data>
+  <data name="ValidationPaymentNegative" xml:space="preserve"><value>已收款金额不能为负数。</value></data>
   <data name="Commandes" xml:space="preserve"><value>订单</value></data>
   <data name="OrderReference" xml:space="preserve"><value>参考号</value></data>
   <data name="OrderCard" xml:space="preserve"><value>银行卡</value></data>
   <data name="OrderCash" xml:space="preserve"><value>现金</value></data>
   <data name="OrderPaid" xml:space="preserve"><value>已收款</value></data>
   <data name="OrderDifference" xml:space="preserve"><value>差额</value></data>
+  <data name="OrderCloseEligible" xml:space="preserve"><value>可以关闭</value></data>
   <data name="OrderSearchLive" xml:space="preserve"><value>实时搜索</value></data>
   <data name="OrderModify" xml:space="preserve"><value>修改</value></data>
   <data name="OrderAbandon" xml:space="preserve"><value>放弃修改</value></data>

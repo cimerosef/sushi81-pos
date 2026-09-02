@@ -39,3 +39,16 @@ AC-LIFE-003 through AC-LIFE-014 and the live-search portion of AC-LIFE-015 are i
 ## Delivery state
 
 The final pushed implementation SHA and GitHub Actions result are recorded in the matching top-level `CODEX_DONE: M05-IMPLEMENT-01` PR comment after delivery. The PR remains open and must not be merged without explicit project-owner approval.
+
+## Review remediation — `M05-REVIEW-REMEDIATION-02` — 2026-09-02
+
+The follow-up pass closes the identified M05 lifecycle and Commandes gaps without changing the frozen order model or starting M06:
+
+- an overdue existing order retains its persisted historical planned date while ordinary payment/detail corrections remain saveable; explicitly moving it to a different past date is still rejected;
+- price-affecting existing-order saves reprice from persisted sale-time line snapshots through the shared pricing rules and the current `BusinessSettings`, clear a previous manual total override, and preserve historical product/option values;
+- the actual Commandes WPF detail now exposes a localized effective-payment `DatePicker`, retains the selected date during unrelated edit changes, and shows live paid, difference and close-eligibility feedback;
+- the actual Commandes WPF detail now exposes the localized Retrait discount request input; its enabled state follows editing and fulfilment mode, and the adjacent Catalogue picker audit confirmed the existing bottom-docked action row order.
+
+Focused evidence was added in `tests/Sushi81.Pos.Domain.Tests/OrderPricingTests.cs`, `tests/Sushi81.Pos.Application.Tests/OrderLifecycleApplicationTests.cs` and `tests/Sushi81.Pos.ArchitectureTests/M05DesktopTests.cs`. The STA/WPF regression covers the actual Commandes controls, overdue date display, effective-date persistence across FR → zh-CN → FR, live payment feedback and discount-control state. The application/domain regressions cover overdue correction, rejection of a newly past date and current-settings repricing from historical line snapshots.
+
+Remediation verification: locked restore passed after the approved NuGet network escalation; Release build passed with 0 warnings and 0 errors; the full Release suite passed 290 tests, 0 failed and 0 skipped; and a self-contained `win-x64` publish passed to the ignored `artifacts/m05-remediation-publish/` directory. Manual Windows/WPF acceptance remains pending and is not claimed here. The PR remains open/unmerged, M06 and later milestones remain unauthorized, and `POST_TASK_POWER_ACTION: NONE`.

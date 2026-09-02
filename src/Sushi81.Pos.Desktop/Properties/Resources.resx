@@ -162,12 +162,14 @@ Changements effectifs : {2}</value></data>
   <data name="ValidationCartRequired" xml:space="preserve"><value>Ajoutez au moins une ligne.</value></data>
   <data name="ValidationDeliveryMinimum" xml:space="preserve"><value>Le minimum Livraison n’est pas atteint.</value></data>
   <data name="ValidationPickupDiscount" xml:space="preserve"><value>La remise Retrait n’a pas été appliquée.</value></data>
+  <data name="ValidationPaymentNegative" xml:space="preserve"><value>Les montants encaissés ne peuvent pas être négatifs.</value></data>
   <data name="Commandes" xml:space="preserve"><value>Commandes</value></data>
   <data name="OrderReference" xml:space="preserve"><value>Référence</value></data>
   <data name="OrderCard" xml:space="preserve"><value>CB</value></data>
   <data name="OrderCash" xml:space="preserve"><value>Espèce</value></data>
   <data name="OrderPaid" xml:space="preserve"><value>Payé</value></data>
   <data name="OrderDifference" xml:space="preserve"><value>Différence</value></data>
+  <data name="OrderCloseEligible" xml:space="preserve"><value>Clôture possible</value></data>
   <data name="OrderSearchLive" xml:space="preserve"><value>Recherche live</value></data>
   <data name="OrderModify" xml:space="preserve"><value>Modifier</value></data>
   <data name="OrderAbandon" xml:space="preserve"><value>Abandonner</value></data>

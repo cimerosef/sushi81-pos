@@ -75,6 +75,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private DateTime? editPlannedDate;
     private int? editPlannedHour;
     private int? editPlannedMinute;
+    private bool editPickupDiscountRequested;
     private DateTime? effectivePaymentDate;
     private string validationMessage = string.Empty;
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>();
@@ -113,14 +114,43 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     public string EditTelephone { get => editTelephone; set { editTelephone = value; OnPropertyChanged(); } }
     public string EditAddress { get => editAddress; set { editAddress = value; OnPropertyChanged(); } }
     public string EditComment { get => editComment; set { editComment = value; OnPropertyChanged(); } }
-    public string EditCard { get => editCard; set { editCard = value; OnPropertyChanged(); RaiseCommandProperties(); } }
-    public string EditCash { get => editCash; set { editCash = value; OnPropertyChanged(); RaiseCommandProperties(); } }
-    public string EditTotal { get => editTotal; set { editTotal = value; OnPropertyChanged(); RaiseCommandProperties(); } }
-    public FulfilmentMode? EditFulfilment { get => editFulfilment; set { editFulfilment = value; OnPropertyChanged(); RaiseCommandProperties(); } }
+    public string EditCard { get => editCard; set { editCard = value; OnPropertyChanged(); RaiseCommandProperties(); RaiseEditPaymentProperties(); } }
+    public string EditCash { get => editCash; set { editCash = value; OnPropertyChanged(); RaiseCommandProperties(); RaiseEditPaymentProperties(); } }
+    public string EditTotal { get => editTotal; set { editTotal = value; OnPropertyChanged(); RaiseCommandProperties(); RaiseEditPaymentProperties(); } }
+    public FulfilmentMode? EditFulfilment
+    {
+        get => editFulfilment;
+        set
+        {
+            if (editFulfilment == value) return;
+            editFulfilment = value;
+            if (value != FulfilmentMode.Retrait) editPickupDiscountRequested = false;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(EditPickupDiscountRequested));
+            OnPropertyChanged(nameof(IsEditPickupDiscountEnabled));
+            RaiseCommandProperties();
+        }
+    }
     public DateTime? EditPlannedDate { get => editPlannedDate; set { editPlannedDate = value; OnPropertyChanged(); RaiseCommandProperties(); } }
-    public DateTime MinimumEditPlannedDate => service.BusinessDate.ToDateTime(TimeOnly.MinValue);
+    public DateTime MinimumEditPlannedDate => SelectedOrder is { PlannedFulfilmentDate: var plannedDate } && plannedDate < service.BusinessDate
+        ? plannedDate.ToDateTime(TimeOnly.MinValue)
+        : service.BusinessDate.ToDateTime(TimeOnly.MinValue);
     public int? EditPlannedHour { get => editPlannedHour; set { editPlannedHour = value; OnPropertyChanged(); RaiseCommandProperties(); } }
     public int? EditPlannedMinute { get => editPlannedMinute; set { editPlannedMinute = value; OnPropertyChanged(); RaiseCommandProperties(); } }
+    public bool EditPickupDiscountRequested
+    {
+        get => editPickupDiscountRequested;
+        set
+        {
+            var next = value && EditFulfilment == FulfilmentMode.Retrait;
+            if (editPickupDiscountRequested == next) return;
+            editPickupDiscountRequested = next;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsEditPickupDiscountEnabled));
+            RaiseCommandProperties();
+        }
+    }
+    public bool IsEditPickupDiscountEnabled => IsEditing && EditFulfilment == FulfilmentMode.Retrait;
     public DateTime? EffectivePaymentDate { get => effectivePaymentDate; set { effectivePaymentDate = value; OnPropertyChanged(); } }
     public string ValidationMessage { get => validationMessage; private set { validationMessage = value; OnPropertyChanged(); } }
     public bool HasSelectedOrder => SelectedOrder is not null;
@@ -136,6 +166,22 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     public string TotalText => SelectedOrder?.TotalTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture) ?? string.Empty;
     public string PaidText => SelectedOrder is null ? string.Empty : OrderPaymentState.From(SelectedOrder).Total.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string DifferenceText => SelectedOrder is null ? string.Empty : OrderPaymentState.From(SelectedOrder).Difference.Euros.ToString("0.00", CultureInfo.CurrentCulture);
+    public string EditPaidText => TryParse(EditCard, out var card) && TryParse(EditCash, out var cash)
+        ? (card + cash).Euros.ToString("0.00", CultureInfo.CurrentCulture)
+        : string.Empty;
+    public string EditDifferenceText => TryParse(EditTotal, out var total) && TryParse(EditCard, out var card) && TryParse(EditCash, out var cash)
+        ? (total - card - cash).Euros.ToString("0.00", CultureInfo.CurrentCulture)
+        : string.Empty;
+    public string EditCloseEligibilityText
+    {
+        get
+        {
+            if (!IsEditing) return string.Empty;
+            if (!TryParse(EditTotal, out var total) || !TryParse(EditCard, out var card) || !TryParse(EditCash, out var cash)) return string.Empty;
+            if (card < Money.Zero || cash < Money.Zero) return Text("ValidationPaymentNegative", "Les montants encaissés ne peuvent pas être négatifs.");
+            return total - card - cash == Money.Zero ? Text("OrderCloseEligible", "Clôture possible") : string.Empty;
+        }
+    }
     public string TelephoneText => SelectedOrder?.Telephone ?? string.Empty;
     public string AddressText => SelectedOrder?.DeliveryAddress ?? string.Empty;
     public string CommentText => SelectedOrder?.Comment ?? string.Empty;
@@ -232,7 +278,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         var itemsChanged = !ItemsEquivalent(SelectedOrder.Items, items);
         var manual = !itemsChanged && total != SelectedOrder.TotalTtc;
         var plannedTime = EditPlannedHour is { } hour && EditPlannedMinute is { } minute ? new TimeOnly(hour, minute) : (TimeOnly?)null;
-        var proposed = SelectedOrder with { Fulfilment = EditFulfilment!.Value, PlannedFulfilmentDate = DateOnly.FromDateTime(EditPlannedDate!.Value.Date), PlannedFulfilmentTime = plannedTime, Telephone = EditTelephone, DeliveryAddress = EditAddress, Comment = EditComment, CardPaymentTtc = card, CashPaymentTtc = cash, Items = items, TotalTtc = total, ManualTotalOverrideActive = manual || SelectedOrder.ManualTotalOverrideActive };
+        var proposed = SelectedOrder with { Fulfilment = EditFulfilment!.Value, PlannedFulfilmentDate = DateOnly.FromDateTime(EditPlannedDate!.Value.Date), PlannedFulfilmentTime = plannedTime, Telephone = EditTelephone, DeliveryAddress = EditAddress, Comment = EditComment, CardPaymentTtc = card, CashPaymentTtc = cash, Items = items, TotalTtc = total, ManualTotalOverrideActive = manual || SelectedOrder.ManualTotalOverrideActive, PickupDiscountApplied = EditPickupDiscountRequested };
         if (manual) proposed = proposed with { TaxBreakdown = [new OrderTaxBreakdown(OrderPricingService.DeliveryFeeVatRate, total, Money.FromCents(BusinessRounding.ToCents(total.Euros * OrderPricingService.DeliveryFeeVatRate / (100m + OrderPricingService.DeliveryFeeVatRate))), Guid.NewGuid())] };
         var result = await service.SaveModificationAsync(proposed, DateOnly.FromDateTime(EffectivePaymentDate?.Date ?? service.BusinessDate.ToDateTime(TimeOnly.MinValue)), cancellationToken);
         if (!result.Succeeded) { ValidationMessage = string.Join(" ", result.Issues.Select(issue => issue.Message)); return; }
@@ -288,12 +334,13 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     }
 
     private void ApplyResult(OrderLifecycleResult result) { if (!result.Succeeded) { ValidationMessage = string.Join(" ", result.Issues.Select(issue => issue.Message)); return; } SelectedOrder = result.Snapshot; _ = RefreshAsync(); }
-    private void LoadEditableFields(OrderSnapshot order) { EditFulfilment = order.Fulfilment; EditPlannedDate = order.PlannedFulfilmentDate.ToDateTime(TimeOnly.MinValue); EditPlannedHour = order.PlannedFulfilmentTime?.Hour; EditPlannedMinute = order.PlannedFulfilmentTime?.Minute; EditTelephone = order.Telephone ?? string.Empty; EditAddress = order.DeliveryAddress ?? string.Empty; EditComment = order.Comment ?? string.Empty; EditTotal = order.TotalTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture); EditCard = order.CardPaymentTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture); EditCash = order.CashPaymentTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture); EffectivePaymentDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue); }
+    private void LoadEditableFields(OrderSnapshot order) { EditFulfilment = order.Fulfilment; editPickupDiscountRequested = order.PickupDiscountApplied; OnPropertyChanged(nameof(EditPickupDiscountRequested)); OnPropertyChanged(nameof(IsEditPickupDiscountEnabled)); EditPlannedDate = order.PlannedFulfilmentDate.ToDateTime(TimeOnly.MinValue); EditPlannedHour = order.PlannedFulfilmentTime?.Hour; EditPlannedMinute = order.PlannedFulfilmentTime?.Minute; EditTelephone = order.Telephone ?? string.Empty; EditAddress = order.DeliveryAddress ?? string.Empty; EditComment = order.Comment ?? string.Empty; EditTotal = order.TotalTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture); EditCard = order.CardPaymentTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture); EditCash = order.CashPaymentTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture); EffectivePaymentDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue); RaiseEditPaymentProperties(); }
     private string LocalizeStatus(OrderStatus status) => status switch { OrderStatus.Open => Text("OrderStatusOpen", "Ouverte"), OrderStatus.Closed => Text("OrderStatusClosed", "Clôturée"), _ => Text("OrderStatusCancelled", "Annulée") };
     private string Text(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
     private static bool TryParse(string value, out Money money) { if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.CurrentCulture, out var parsed)) { money = Money.FromEuros(parsed); return true; } money = Money.Zero; return false; }
-    private void RaiseDetailProperties() { OnPropertyChanged(nameof(HasSelectedOrder)); foreach (var name in new[] { nameof(ReferenceText), nameof(StatusText), nameof(FulfilmentText), nameof(AdvanceText), nameof(ManualTotalText), nameof(TaxSummaryText), nameof(PlannedDateText), nameof(PlannedTimeText), nameof(TotalText), nameof(PaidText), nameof(DifferenceText), nameof(TelephoneText), nameof(AddressText), nameof(CommentText) }) OnPropertyChanged(name); RaiseCommandProperties(); }
-    private void RaiseCommandProperties() { foreach (var name in new[] { nameof(CanModify), nameof(CanSave), nameof(CanAbandon), nameof(CanClose), nameof(CanCancel), nameof(CanReuseCustomer), nameof(CanAddCurrentLine) }) OnPropertyChanged(name); }
+    private void RaiseDetailProperties() { OnPropertyChanged(nameof(HasSelectedOrder)); OnPropertyChanged(nameof(MinimumEditPlannedDate)); foreach (var name in new[] { nameof(ReferenceText), nameof(StatusText), nameof(FulfilmentText), nameof(AdvanceText), nameof(ManualTotalText), nameof(TaxSummaryText), nameof(PlannedDateText), nameof(PlannedTimeText), nameof(TotalText), nameof(PaidText), nameof(DifferenceText), nameof(TelephoneText), nameof(AddressText), nameof(CommentText), nameof(EditPickupDiscountRequested), nameof(IsEditPickupDiscountEnabled) }) OnPropertyChanged(name); RaiseEditPaymentProperties(); RaiseCommandProperties(); }
+    private void RaiseCommandProperties() { foreach (var name in new[] { nameof(CanModify), nameof(CanSave), nameof(CanAbandon), nameof(CanClose), nameof(CanCancel), nameof(CanReuseCustomer), nameof(CanAddCurrentLine), nameof(IsEditPickupDiscountEnabled), nameof(EditCloseEligibilityText) }) OnPropertyChanged(name); }
+    private void RaiseEditPaymentProperties() { foreach (var name in new[] { nameof(EditPaidText), nameof(EditDifferenceText), nameof(EditCloseEligibilityText) }) OnPropertyChanged(name); }
     private static bool ItemsEquivalent(IReadOnlyList<OrderItemSnapshot> left, OrderItemSnapshot[] right) =>
         left.Count == right.Length && left.OrderBy(item => item.Position).Zip(right.OrderBy(item => item.Position)).All(pair =>
             pair.First.Id == pair.Second.Id && pair.First.Position == pair.Second.Position && pair.First.SourceProductId == pair.Second.SourceProductId &&

@@ -154,7 +154,7 @@ public sealed class OrderLifecycleService(
 
             var validation = ValidatePayment(proposed);
             if (validation is not null) return OrderLifecycleResult.Failure(validation);
-            var scheduleValidation = ValidateSchedule(proposed);
+            var scheduleValidation = ValidateSchedule(current, proposed);
             if (scheduleValidation is not null) return OrderLifecycleResult.Failure(scheduleValidation);
 
             var now = clock.UtcNow;
@@ -175,9 +175,31 @@ public sealed class OrderLifecycleService(
                 DeliveryAddress = NormalizeOptional(proposed.DeliveryAddress),
                 Comment = NormalizeOptional(proposed.Comment)
             };
-            if (!ItemsMatch(current.Items, normalized.Items))
+            var priceAffecting = current.Fulfilment != normalized.Fulfilment
+                || !ItemsMatch(current.Items, normalized.Items)
+                || current.PickupDiscountApplied != normalized.PickupDiscountApplied;
+            if (priceAffecting)
             {
-                normalized = RepriceSnapshot(normalized);
+                if (settings is null)
+                    return OrderLifecycleResult.Failure(new ValidationIssue("settings", "Current business settings are unavailable for price-affecting modification.", ValidationCodes.Generic));
+
+                var repriced = OrderPricingService.CalculateSnapshots(
+                    normalized.Items,
+                    normalized.Fulfilment,
+                    normalized.PickupDiscountApplied,
+                    await settings.GetAsync(cancellationToken));
+                if (!repriced.IsValid)
+                    return OrderLifecycleResult.Failure(repriced.ValidationErrors.Select(message => new ValidationIssue("order", message, ValidationCodes.Generic)).ToArray());
+
+                normalized = normalized with
+                {
+                    Items = repriced.Items,
+                    TotalTtc = repriced.TotalTtc,
+                    PickupDiscountApplied = repriced.PickupDiscountApplied,
+                    PickupDiscountRate = repriced.PickupDiscountRate,
+                    DeliveryFeeTtc = repriced.DeliveryFeeTtc,
+                    TaxBreakdown = repriced.TaxBreakdown.Select(tax => tax with { Id = idGenerator.NewId() }).ToArray()
+                };
                 normalized = normalized with { ManualTotalOverrideActive = false };
             }
             if (current.Status == OrderStatus.Closed && !IsReconciled(normalized))
@@ -272,9 +294,9 @@ public sealed class OrderLifecycleService(
         return null;
     }
 
-    private ValidationIssue? ValidateSchedule(OrderSnapshot snapshot)
+    private ValidationIssue? ValidateSchedule(OrderSnapshot current, OrderSnapshot snapshot)
     {
-        if (snapshot.PlannedFulfilmentDate < clock.BusinessDate)
+        if (snapshot.PlannedFulfilmentDate < clock.BusinessDate && snapshot.PlannedFulfilmentDate != current.PlannedFulfilmentDate)
             return new ValidationIssue("planned-date", "The planned fulfilment date cannot be in the past.", ValidationCodes.PastPlannedDate);
         if (snapshot.PlannedFulfilmentTime is { } time && !IsApprovedPlannedTime(time))
             return new ValidationIssue("planned-time", "The planned fulfilment time is not valid.", ValidationCodes.PlannedTimeInvalid);
@@ -286,37 +308,6 @@ public sealed class OrderLifecycleService(
         time.Minute % 5 == 0 && time.Ticks % TimeSpan.TicksPerMinute == 0;
 
     private static bool IsReconciled(OrderSnapshot snapshot) => OrderPaymentState.From(snapshot).IsExactlyReconciled;
-    private OrderSnapshot RepriceSnapshot(OrderSnapshot snapshot)
-    {
-        var taxes = new Dictionary<decimal, Money>();
-        var updatedItems = new List<OrderItemSnapshot>();
-        foreach (var item in snapshot.Items.OrderBy(item => item.Position))
-        {
-            var quantity = item.Quantity;
-            if (quantity <= 0) throw new InvalidOperationException("Order line quantities must be positive.");
-            var unitBase = item.ExtendedBaseTtc.Cents / quantity;
-            var baseTotal = Money.FromCents(checked(unitBase * quantity));
-            var productComponent = baseTotal + item.Adjustments.Where(adjustment => adjustment.AdjustmentTtcPerUnit < Money.Zero).Aggregate(Money.Zero, (sum, adjustment) => sum + adjustment.AdjustmentTtcPerUnit * quantity);
-            var positiveComponent = item.Adjustments.Where(adjustment => adjustment.AdjustmentTtcPerUnit > Money.Zero).Aggregate(Money.Zero, (sum, adjustment) => sum + adjustment.AdjustmentTtcPerUnit * quantity);
-            var lineTotal = productComponent + positiveComponent;
-            var discount = Money.Zero;
-            if (snapshot.PickupDiscountApplied && item.ProductDiscountEligible && snapshot.PickupDiscountRate is { } rate)
-            {
-                discount = Money.FromCents(BusinessRounding.ToCents(productComponent.Euros * rate));
-                lineTotal -= discount;
-            }
-            AddTax(taxes, item.ProductVatRate, productComponent - discount);
-            AddTax(taxes, OrderPricingService.PositiveAdjustmentVatRate, positiveComponent);
-            updatedItems.Add(item with { ExtendedBaseTtc = baseTotal, CalculatedLineTotalTtc = lineTotal });
-        }
-        AddTax(taxes, OrderPricingService.DeliveryFeeVatRate, snapshot.DeliveryFeeTtc);
-        var total = updatedItems.Aggregate(Money.Zero, (sum, item) => sum + item.CalculatedLineTotalTtc) + snapshot.DeliveryFeeTtc;
-        var taxSnapshots = taxes.Where(pair => pair.Value != Money.Zero).OrderBy(pair => pair.Key).Select(pair => new OrderTaxBreakdown(pair.Key, pair.Value, IncludedVat(pair.Value, pair.Key), idGenerator.NewId())).ToArray();
-        return snapshot with { Items = updatedItems, TotalTtc = total, TaxBreakdown = taxSnapshots };
-
-        static void AddTax(Dictionary<decimal, Money> values, decimal rate, Money amount) { if (amount != Money.Zero) values[rate] = values.TryGetValue(rate, out var current) ? current + amount : amount; }
-        static Money IncludedVat(Money taxable, decimal rate) => rate == 0m ? Money.Zero : Money.FromCents(BusinessRounding.ToCents(taxable.Euros * rate / (100m + rate)));
-    }
     private static bool ItemsMatch(IReadOnlyList<OrderItemSnapshot> left, IReadOnlyList<OrderItemSnapshot> right) =>
         left.Count == right.Count && left.OrderBy(item => item.Position).Zip(right.OrderBy(item => item.Position)).All(pair =>
             pair.First.Id == pair.Second.Id && pair.First.Position == pair.Second.Position && pair.First.SourceProductId == pair.Second.SourceProductId
