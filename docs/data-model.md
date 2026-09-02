@@ -153,6 +153,7 @@ Logical fields:
 |---|---:|---|
 | `category_id` | yes | Opaque technical identity |
 | `name` | yes | Current editable business-unique category name |
+| `short_code` | no | Optional editable operator-facing navigation code, independent from `name` |
 | `created_at` | yes | Technical creation timestamp |
 | `updated_at` | yes | Technical last-update timestamp |
 
@@ -160,10 +161,12 @@ Constraints:
 
 - every current product references one current category;
 - two current categories may not have operator-visible equivalent names;
+- a non-blank current category short code is unique after trim/case-insensitive Unicode normalization;
+- a short code is never derived from the category name and may be cleared explicitly;
 - editing/importing a duplicate current category name is rejected;
 - historical order lines keep their own category-name snapshot.
 
-Category display order/shortcut presentation is a UI implementation choice and does not require a separate V1 business entity.
+Category navigation uses the optional short code as its primary label and the full name as fallback; maintenance may show both. Coded categories are ordered deterministically before uncoded categories. This is a current M04 presentation/storage rule, not a separate category entity.
 
 ### 5.2 `Product`
 

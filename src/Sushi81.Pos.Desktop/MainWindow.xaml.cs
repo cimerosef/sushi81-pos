@@ -3,7 +3,9 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Domain;
 using DomainSelectionMode = Sushi81.Pos.Domain.SelectionMode;
 
@@ -12,6 +14,7 @@ namespace Sushi81.Pos.Desktop;
 public partial class MainWindow : Window
 {
     private bool loaded;
+    private bool orderProductAddInProgress;
     private readonly CatalogueHeaderSet catalogueHeaders = new();
 
     public MainWindow(ShellViewModel viewModel)
@@ -20,13 +23,22 @@ public partial class MainWindow : Window
         DataContext = viewModel;
         if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
         ApplyCatalogueHeaders();
+        Closed += (_, _) => (DataContext as ShellViewModel)?.Dispose();
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (loaded || DataContext is not ShellViewModel { Admin: { } admin }) return;
+        if (loaded || DataContext is not ShellViewModel viewModel || viewModel.Admin is null && viewModel.Entry is null) return;
         loaded = true;
-        try { await admin.RefreshAsync(); await admin.LoadSettingsAsync(); }
+        try
+        {
+            if (viewModel.Admin is { } admin) { await admin.RefreshAsync(); await admin.LoadSettingsAsync(); }
+            if (viewModel.Entry is { } entry)
+            {
+                await entry.RefreshAsync();
+                await entry.RefreshOrderBrowserAsync();
+            }
+        }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
         ApplyCatalogueHeaders();
     }
@@ -40,15 +52,144 @@ public partial class MainWindow : Window
 
     private void ApplyCatalogueHeaders()
     {
-        if (DataContext is not ShellViewModel viewModel || catalogueGrid.Columns.Count < 6) return;
-        catalogueHeaders.Apply(viewModel.Localized);
-        var values = catalogueHeaders.Values;
-        for (var index = 0; index < values.Count; index++) catalogueGrid.Columns[index].Header = values[index];
+        if (DataContext is not ShellViewModel viewModel) return;
+        if (catalogueGrid.Columns.Count >= 6)
+        {
+            catalogueHeaders.Apply(viewModel.Localized);
+            var values = catalogueHeaders.Values;
+            for (var index = 0; index < values.Count; index++) catalogueGrid.Columns[index].Header = values[index];
+        }
+        if (orderProductsGrid.Columns.Count >= 3)
+        {
+            orderProductsGrid.Columns[0].Header = LocalizedText(this, "Code", "Code");
+            orderProductsGrid.Columns[1].Header = LocalizedText(this, "Name", "Name");
+            orderProductsGrid.Columns[2].Header = LocalizedText(this, "PriceTtc", "TTC price");
+        }
+        if (orderBrowserGrid.Columns.Count >= 5)
+        {
+            orderBrowserGrid.Columns[0].Header = LocalizedText(this, "OrderBrowserTime", "Time");
+            orderBrowserGrid.Columns[1].Header = LocalizedText(this, "OrderBrowserMode", "Mode");
+            orderBrowserGrid.Columns[2].Header = LocalizedText(this, "OrderBrowserStatus", "Status");
+            orderBrowserGrid.Columns[3].Header = LocalizedText(this, "OrderBrowserTotal", "Total TTC");
+            orderBrowserGrid.Columns[4].Header = LocalizedText(this, "OrderBrowserTelephone", "Telephone");
+        }
     }
 
     private async void OnRefreshCatalogue(object sender, RoutedEventArgs e)
     {
         if (DataContext is ShellViewModel { Admin: { } admin }) await admin.RefreshAsync();
+    }
+
+    private async void OnAddOrderProduct(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Entry: { } entry }) return;
+        if (orderProductAddInProgress) return;
+        if (ReferenceEquals(sender, orderProductsGrid))
+        {
+            if (FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject) is not { DataContext: ProductSummary productSummary }) return;
+            entry.SelectedProduct = productSummary;
+        }
+        if (!entry.CanAddSelectedProduct) return;
+        orderProductAddInProgress = true;
+        try
+        {
+            await entry.AddSelectedProductAsync();
+            if (entry.PendingProduct is { } product)
+            {
+                if (!product.Aggregate.Product.OptionsEnabled)
+                {
+                    entry.AddConfiguredLine(product, [], [], 1);
+                    return;
+                }
+
+                var dialog = new OptionSelectionDialog(this, product, null);
+                if (dialog.ShowDialog() == true) entry.AddConfiguredLine(product, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
+            }
+        }
+        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+        finally { orderProductAddInProgress = false; }
+    }
+
+    private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
+    {
+        while (child is not null)
+        {
+            if (child is T match) return match;
+            child = VisualTreeHelper.GetParent(child);
+        }
+        return null;
+    }
+
+    private void OnEditOrderLine(object sender, MouseButtonEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Entry: { } entry } || orderCartList.SelectedItem is not OrderEntryCartLineViewModel line) return;
+        var productId = line.Draft.Product.Product.Id;
+        _ = EditOrderLineAsync(entry, line, productId);
+        e.Handled = true;
+    }
+
+    private async Task EditOrderLineAsync(OrderEntryShellViewModel entry, OrderEntryCartLineViewModel line, Guid productId)
+    {
+        try
+        {
+            var product = await entry.GetActiveProductForEditAsync(productId);
+            if (product is null) { MessageBox.Show(this, LocalizedText(this, "ProductInactive", "Le produit n’est plus actif."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Warning); return; }
+            var dialog = new OptionSelectionDialog(this, product, line);
+            if (dialog.ShowDialog() == true) entry.UpdateConfiguredLine(line, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
+        }
+        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private void OnDecreaseOrderQuantity(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry } && (sender as Button)?.Tag is OrderEntryCartLineViewModel line)
+            if (line.Quantity > 1) entry.ChangeQuantity(line, line.Quantity - 1);
+    }
+
+    private void OnIncreaseOrderQuantity(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry } && (sender as Button)?.Tag is OrderEntryCartLineViewModel line)
+            entry.ChangeQuantity(line, line.Quantity + 1);
+    }
+
+    private void OnRemoveOrderLine(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry } && (sender as Button)?.Tag is OrderEntryCartLineViewModel line) entry.RemoveLine(line);
+    }
+
+    private void OnManualOrderTotalChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry } && sender is TextBox box) entry.SetManualTotal(box.Text);
+    }
+
+    private async void OnConfirmOrder(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Entry: { } entry }) return;
+        try { await entry.ConfirmAsync(); }
+        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private void OnNewOrder(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry }) entry.StartNewOrder();
+    }
+
+    private async void OnReloadOrder(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Entry: { } entry }) return;
+        if (!await entry.ReloadOrderAsync())
+            MessageBox.Show(this, entry.ValidationMessage, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private async void OnRefreshOrderBrowser(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry }) await entry.RefreshOrderBrowserAsync();
+    }
+
+    private void OnOrderBrowserSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry } && e.AddedItems.OfType<OrderBrowserRowViewModel>().LastOrDefault() is { } row)
+            _ = entry.SelectBrowserOrderAsync(row);
     }
 
     private void OnFilterRefreshFailed(object? sender, EventArgs e)
@@ -183,6 +324,95 @@ public partial class MainWindow : Window
         MessageBox.Show(this, result.Issues.Count == 0 ? LocalizedText(this, "ValidationGeneric", "The operation failed.") : M03Presentation.FormatIssues(result, localized), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
+    private sealed class OptionSelectionDialog : Window
+    {
+        private readonly OrderEntryProduct product;
+        private readonly Dictionary<Guid, List<FrameworkElement>> controls = [];
+        private readonly StackPanel customPanel = new();
+        private readonly List<(TextBox Label, TextBox Amount, Button Remove)> customRows = [];
+        private readonly TextBox quantity;
+        private readonly IReadOnlyDictionary<string, string> localized;
+        public OptionSelectionDialog(Window owner, OrderEntryProduct product, OrderEntryCartLineViewModel? existing)
+        {
+            this.product = product;
+            localized = (owner.DataContext as ShellViewModel)?.Localized ?? new Dictionary<string, string>();
+            Owner = owner; WindowStartupLocation = WindowStartupLocation.CenterOwner; Title = Label("Options", "Options"); Width = 520; Height = 620; MinHeight = 420;
+            var root = new DockPanel { Margin = new Thickness(14) };
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancel = new Button { Content = Label("Cancel", "Annuler"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) }; cancel.Click += (_, _) => DialogResult = false;
+            var ok = new Button { Content = Label("Add", "Ajouter"), Padding = new Thickness(12, 5, 12, 5) }; ok.Click += (_, _) => Accept(); buttons.Children.Add(cancel); buttons.Children.Add(ok); DockPanel.SetDock(buttons, Dock.Bottom); root.Children.Add(buttons);
+            var panel = new StackPanel(); panel.Children.Add(new TextBlock { Text = $"{product.Aggregate.Product.Code} — {product.Aggregate.Product.Name}", FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
+            quantity = AddText(panel, Label("Quantity", "Quantité"), existing?.Quantity.ToString(CultureInfo.InvariantCulture) ?? "1");
+            if (product.Aggregate.Product.OptionsEnabled)
+                foreach (var group in product.Aggregate.Groups.OrderBy(group => group.DisplayOrder)) AddGroup(panel, group, existing?.Draft.SelectedOptionIds ?? []);
+            panel.Children.Add(new TextBlock { Text = Label("CustomAdjustments", "Ajustements personnalisés (par unité)"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
+            foreach (var current in existing?.Draft.CustomAdjustments ?? []) AddCustomRow(current);
+            var addCustom = new Button { Content = "+ " + Label("AddAdjustment", "Ajustement"), Padding = new Thickness(8, 3, 8, 3), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 4) }; addCustom.Click += (_, _) => AddCustomRow(null);
+            panel.Children.Add(customPanel); panel.Children.Add(addCustom);
+            root.Children.Add(new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }); Content = root;
+        }
+
+        public IReadOnlyList<Guid> SelectedOptionIds { get; private set; } = [];
+        public IReadOnlyList<OrderLineAdjustmentDraft> CustomAdjustments { get; private set; } = [];
+        public int Quantity { get; private set; }
+
+        private void AddCustomRow(OrderLineAdjustmentDraft? current)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
+            var label = new TextBox { Width = 210, ToolTip = Label("AdjustmentLabel", "Libellé"), Text = current?.Label ?? string.Empty };
+            var amount = new TextBox { Width = 90, Margin = new Thickness(6, 0, 0, 0), ToolTip = Label("AdjustmentAmount", "Montant TTC"), Text = current is null ? string.Empty : current.AmountTtcPerUnit.Euros.ToString("0.00", CultureInfo.InvariantCulture) };
+            var remove = new Button { Content = "×", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(5, 2, 5, 2) };
+            var tuple = (label, amount, remove); remove.Click += (_, _) => { customPanel.Children.Remove(row); customRows.Remove(tuple); }; row.Children.Add(label); row.Children.Add(amount); row.Children.Add(remove); customPanel.Children.Add(row); customRows.Add(tuple);
+        }
+
+        private void AddGroup(Panel panel, OptionGroup group, IReadOnlyList<Guid> existing)
+        {
+            var title = $"{group.Name} — {(group.SelectionMode == DomainSelectionMode.Single ? Label("Single", "SINGLE") : $"{Label("Multi", "MULTI")} {group.MinSelections}-{group.MaxSelections}")} {(group.IsRequired ? Label("Required", "requis") : Label("Optional", "optionnel"))}";
+            panel.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 2) });
+            var list = new List<FrameworkElement>(); controls[group.Id] = list;
+            foreach (var option in (product.Aggregate.OptionsByGroup.TryGetValue(group.Id, out var values) ? values : []).Where(option => option.IsActive).OrderBy(option => option.DisplayOrder))
+            {
+                FrameworkElement control = group.SelectionMode == DomainSelectionMode.Single
+                    ? new RadioButton { Content = $"{option.Name} ({option.PriceAdjustmentTtc.Euros:0.00} €)", GroupName = $"group-{group.Id}", IsChecked = existing.Contains(option.Id), Tag = option.Id }
+                    : new CheckBox { Content = $"{option.Name} ({option.PriceAdjustmentTtc.Euros:0.00} €)", IsChecked = existing.Contains(option.Id), Tag = option.Id };
+                list.Add(control); panel.Children.Add(control);
+            }
+        }
+
+        private static TextBox AddText(Panel panel, string label, string value)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) }; row.Children.Add(new TextBlock { Text = label, Width = 150, VerticalAlignment = VerticalAlignment.Center }); var box = new TextBox { Width = 100, Text = value }; row.Children.Add(box); panel.Children.Add(row); return box;
+        }
+
+        private void Accept()
+        {
+            if (!int.TryParse(quantity.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedQuantity) || parsedQuantity <= 0) { MessageBox.Show(this, Label("InvalidQuantity", "La quantité doit être un entier positif.")); return; }
+            var selected = new List<Guid>();
+            if (product.Aggregate.Product.OptionsEnabled)
+            {
+                foreach (var group in product.Aggregate.Groups)
+                {
+                    var values = controls[group.Id].Where(control => control is RadioButton radio && radio.IsChecked == true || control is CheckBox check && check.IsChecked == true).Select(control => (Guid)control.Tag!).ToArray();
+                    var min = group.SelectionMode == DomainSelectionMode.Single ? (group.IsRequired ? 1 : 0) : group.MinSelections ?? 0;
+                    var max = group.SelectionMode == DomainSelectionMode.Single ? 1 : group.MaxSelections ?? 0;
+                    if (values.Length < min || values.Length > max) { MessageBox.Show(this, string.Format(CultureInfo.CurrentCulture, Label("InvalidOptions", "La sélection du groupe « {0} » est invalide."), group.Name)); return; }
+                    selected.AddRange(values);
+                }
+            }
+            var custom = new List<OrderLineAdjustmentDraft>();
+            foreach (var row in customRows)
+            {
+                var label = row.Label.Text.Trim();
+                if (label.Length == 0 && string.IsNullOrWhiteSpace(row.Amount.Text)) continue;
+                if (label.Length == 0 || !decimal.TryParse(row.Amount.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var amount)) { MessageBox.Show(this, Label("InvalidAdjustment", "Chaque ajustement doit avoir un libellé et un montant valides.")); return; }
+                custom.Add(new(null, null, label, Money.FromEuros(amount), OrderAdjustmentKind.CustomAdjustment, custom.Count));
+            }
+            SelectedOptionIds = selected; CustomAdjustments = custom; Quantity = parsedQuantity; DialogResult = true;
+        }
+
+        private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
+    }
+
     private static string LocalizedText(Window owner, string key, string fallback) => owner.DataContext is ShellViewModel viewModel && viewModel.Localized.TryGetValue(key, out var value) ? value : fallback;
 
     private sealed class CategoryManagerDialog : Window
@@ -190,6 +420,7 @@ public partial class MainWindow : Window
         private readonly M03ShellViewModel admin;
         private readonly ListBox list = null!;
         private readonly TextBox name = null!;
+        private readonly TextBox shortCode = null!;
         private readonly TextBlock validation = null!;
         private readonly Button create = null!;
         private readonly Button rename = null!;
@@ -198,6 +429,7 @@ public partial class MainWindow : Window
         private readonly Button close = null!;
         private readonly CategoryEditBuffer edit = new();
         private bool closeAllowed;
+        private bool saveInProgress;
 
         public CategoryManagerDialog(Window owner, M03ShellViewModel admin)
         {
@@ -208,19 +440,23 @@ public partial class MainWindow : Window
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            list = new ListBox { ItemsSource = admin.Categories, DisplayMemberPath = "Name", MinHeight = 120, VerticalAlignment = VerticalAlignment.Stretch };
-            list.SelectionChanged += (_, _) => { if (!edit.IsEditing && list.SelectedItem is CategorySummary category) name.Text = category.Name; UpdateButtons(); };
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            list = new ListBox { ItemsSource = admin.Categories, DisplayMemberPath = "MaintenanceLabel", MinHeight = 120, VerticalAlignment = VerticalAlignment.Stretch };
+            list.SelectionChanged += (_, _) => { if (!edit.IsEditing && list.SelectedItem is CategorySummary category) { name.Text = category.Name; shortCode.Text = category.ShortCode ?? string.Empty; } UpdateButtons(); };
             Grid.SetRow(list, 0); root.Children.Add(list);
             var heading = new TextBlock { Text = LocalizedText(owner, "CategoryEdit", "Category edit"), Margin = new Thickness(0, 10, 0, 2) }; Grid.SetRow(heading, 1); root.Children.Add(heading);
             name = new TextBox { Margin = new Thickness(0, 0, 0, 4), IsEnabled = false }; name.TextChanged += (_, _) => validation.Text = string.Empty; Grid.SetRow(name, 2); root.Children.Add(name);
-            validation = new TextBlock { Foreground = System.Windows.Media.Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }; Grid.SetRow(validation, 3); root.Children.Add(validation);
+            var shortCodeLabel = new TextBlock { Text = LocalizedText(owner, "CategoryShortCode", "Short code"), Margin = new Thickness(0, 4, 0, 2) }; Grid.SetRow(shortCodeLabel, 3); root.Children.Add(shortCodeLabel);
+            shortCode = new TextBox { Margin = new Thickness(0, 0, 0, 4), IsEnabled = false, ToolTip = LocalizedText(owner, "CategoryShortCodeTooltip", "Short code") }; shortCode.TextChanged += (_, _) => validation.Text = string.Empty; Grid.SetRow(shortCode, 4); root.Children.Add(shortCode);
+            validation = new TextBlock { Foreground = System.Windows.Media.Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }; Grid.SetRow(validation, 5); root.Children.Add(validation);
             var buttons = new WrapPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Top };
-            create = new Button { Content = LocalizedText(owner, "CreateCategory", "New"), MinWidth = 84, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; create.Click += (_, _) => { edit.BeginCreate(); name.IsEnabled = true; name.Clear(); validation.Text = string.Empty; UpdateButtons(); FocusName(selectAll: false); };
-            rename = new Button { Content = LocalizedText(owner, "RenameCategory", "Rename"), MinWidth = 96, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; rename.Click += (_, _) => { if (list.SelectedItem is CategorySummary category) { edit.BeginRename(category.Id, category.Name); name.IsEnabled = true; name.Text = category.Name; validation.Text = string.Empty; UpdateButtons(); FocusName(selectAll: true); } };
+            create = new Button { Content = LocalizedText(owner, "CreateCategory", "New"), MinWidth = 84, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; create.Click += (_, _) => { edit.BeginCreate(); name.IsEnabled = true; shortCode.IsEnabled = true; name.Clear(); shortCode.Clear(); validation.Text = string.Empty; UpdateButtons(); FocusName(selectAll: false); };
+            rename = new Button { Content = LocalizedText(owner, "RenameCategory", "Rename"), MinWidth = 96, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; rename.Click += (_, _) => { if (list.SelectedItem is CategorySummary category) { edit.BeginRename(category.Id, category.Name, category.ShortCode); name.IsEnabled = true; shortCode.IsEnabled = true; name.Text = category.Name; shortCode.Text = category.ShortCode ?? string.Empty; validation.Text = string.Empty; UpdateButtons(); FocusName(selectAll: true); } };
             save = new Button { Content = LocalizedText(owner, "Save", "Save"), MinWidth = 112, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; save.Click += Save;
-            cancel = new Button { Content = LocalizedText(owner, "CategoryEditCancel", "Cancel"), MinWidth = 172, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; cancel.Click += (_, _) => { edit.Cancel(); name.Clear(); validation.Text = string.Empty; UpdateButtons(); };
+            cancel = new Button { Content = LocalizedText(owner, "CategoryEditCancel", "Cancel"), MinWidth = 172, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top, IsEnabled = false }; cancel.Click += (_, _) => { edit.Cancel(); name.Clear(); shortCode.Clear(); validation.Text = string.Empty; UpdateButtons(); };
             close = new Button { Content = LocalizedText(owner, "Close", "Close"), MinWidth = 84, MinHeight = 32, Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top }; close.Click += (_, _) => { closeAllowed = true; DialogResult = true; Close(); };
-            buttons.Children.Add(create); buttons.Children.Add(rename); buttons.Children.Add(save); buttons.Children.Add(cancel); buttons.Children.Add(close); Grid.SetRow(buttons, 4); root.Children.Add(buttons); Content = root;
+            buttons.Children.Add(create); buttons.Children.Add(rename); buttons.Children.Add(save); buttons.Children.Add(cancel); buttons.Children.Add(close); Grid.SetRow(buttons, 6); root.Children.Add(buttons); Content = root;
             UpdateButtons();
             Closing += (_, _) => { if (!closeAllowed && edit.IsEditing) edit.Cancel(); };
         }
@@ -228,11 +464,13 @@ public partial class MainWindow : Window
         private void UpdateButtons()
         {
             var editing = edit.IsEditing;
-            create.IsEnabled = edit.CanBeginEdit;
-            rename.IsEnabled = edit.CanBeginEdit && list.SelectedItem is CategorySummary;
-            name.IsEnabled = editing;
-            save.IsEnabled = edit.CanSave;
-            cancel.IsEnabled = edit.CanCancel;
+            create.IsEnabled = edit.CanBeginEdit && !saveInProgress;
+            rename.IsEnabled = edit.CanBeginEdit && !saveInProgress && list.SelectedItem is CategorySummary;
+            name.IsEnabled = editing && !saveInProgress;
+            shortCode.IsEnabled = editing && !saveInProgress;
+            save.IsEnabled = edit.CanSave && !saveInProgress;
+            cancel.IsEnabled = edit.CanCancel && !saveInProgress;
+            close.IsEnabled = !saveInProgress;
         }
 
         private void FocusName(bool selectAll)
@@ -244,10 +482,19 @@ public partial class MainWindow : Window
 
         private async void Save(object sender, RoutedEventArgs e)
         {
-            edit.SetName(name.Text);
-            var result = edit.CategoryId is { } id ? await admin.RenameCategoryAsync(id, edit.Name) : await admin.CreateCategoryAsync(edit.Name);
-            if (!result.Succeeded) { validation.Text = M03Presentation.FormatIssues(result, ((ShellViewModel)Owner.DataContext).Localized); return; }
-            await admin.RefreshAsync(); edit.CompleteSave(); name.Clear(); validation.Text = string.Empty; UpdateButtons(); list.Focus();
+            if (saveInProgress) return;
+            saveInProgress = true;
+            UpdateButtons();
+            try
+            {
+                edit.SetName(name.Text);
+                edit.SetShortCode(shortCode.Text);
+                var result = edit.CategoryId is { } id ? await admin.RenameCategoryWithCodeAsync(id, edit.Name, edit.ShortCode) : await admin.CreateCategoryWithCodeAsync(edit.Name, edit.ShortCode);
+                if (!result.Succeeded) { validation.Text = M03Presentation.FormatIssues(result, ((ShellViewModel)Owner.DataContext).Localized); return; }
+                await admin.RefreshAsync(); edit.CompleteSave(); name.Clear(); shortCode.Clear(); validation.Text = string.Empty; list.Focus();
+            }
+            catch (Exception exception) { validation.Text = exception.Message; }
+            finally { saveInProgress = false; UpdateButtons(); }
         }
     }
 

@@ -2,7 +2,7 @@ using Sushi81.Pos.Application.Foundation.Transactions;
 
 namespace Sushi81.Pos.Infrastructure.Sqlite;
 
-public sealed class SqliteTransactionRunner(SqliteConnectionFactory connectionFactory) : ITransactionRunner
+public sealed class SqliteTransactionRunner(SqliteConnectionFactory connectionFactory, Func<Exception?>? commitFailureInjector = null) : ITransactionRunner
 {
     public Task ExecuteAsync(
         Func<IApplicationTransaction, CancellationToken, Task> operation,
@@ -27,6 +27,7 @@ public sealed class SqliteTransactionRunner(SqliteConnectionFactory connectionFa
         try
         {
             var result = await operation(transactionContext, cancellationToken);
+            if (commitFailureInjector?.Invoke() is { } exception) throw exception;
             await transaction.CommitAsync(cancellationToken);
             return result;
         }

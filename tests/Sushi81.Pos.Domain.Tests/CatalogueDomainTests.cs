@@ -16,6 +16,17 @@ public sealed class CatalogueDomainTests
     }
 
     [TestMethod]
+    public void CategoryShortCodeIsIndependentAndLengthBounded()
+    {
+        var category = new Category(Guid.NewGuid(), "Plats", Now, Now) { ShortCode = " PL " };
+
+        Assert.AreEqual(" PL ", category.ShortCode);
+        Assert.AreEqual("PL", category.NormalizedShortCode);
+        Assert.IsNull(CatalogueValidation.ValidateCategoryShortCode("123456789012"));
+        Assert.AreEqual("Category short code cannot exceed 12 characters.", CatalogueValidation.ValidateCategoryShortCode("1234567890123"));
+    }
+
+    [TestMethod]
     public void ProductValidationCoversRequiredPriceAndVatBoundaries()
     {
         Assert.AreEqual("Product code is required.", CatalogueValidation.ValidateProduct(" ", "Sushi", Guid.NewGuid(), Money.Zero, 10m));

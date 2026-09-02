@@ -143,14 +143,14 @@ New order entry includes:
 
 - fulfilment mode;
 - planned fulfilment date;
-- optional planned fulfilment time;
+- required planned fulfilment time for new POS confirmation;
 - optional telephone;
 - optional delivery address;
 - optional free-text comment.
 
 Fulfilment mode is initially unselected. Confirmation requires exactly one of `RETRAIT` or `LIVRAISON`.
 
-Planned fulfilment date is required persisted data; UI may initialize it from `IBusinessClock.BusinessDate`. Planned time is optional.
+Planned fulfilment date and time are required for new POS confirmation; the UI may initialize the date from `IBusinessClock.BusinessDate`, but must start a new order with no selected time until the operator chooses an approved slot. The selectable time is exactly hours `11, 12, 13, 14, 18, 19, 20, 21, 22` and minutes `00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55`. The persisted time field remains nullable only so historical snapshots with no time remain readable.
 
 Telephone is optional for both modes. Delivery address is optional even for initial Livraison confirmation. Do not introduce mandatory telephone/address validation absent from Approved sources.
 
@@ -368,7 +368,7 @@ Provide exact stable-ID lookup (`GetOrderByIdAsync` or equivalent).
 
 Loaded representation must come from persisted Order/OrderItem/Adjustment/Tax snapshots and must not reconstruct historical business values from current Catalogue.
 
-M04 may expose only the minimum exact-ID committed-order reload needed for verification. Do not implement M05 live telephone/comment/order search.
+M04 retains the exact-ID committed-order reload needed for verification and, under the approved 2026-09-01 operator-retrieval amendment, may also expose a read-only browser filtered by persisted `planned_fulfilment_date`. The browser may show planned time, fulfilment mode, status, Total TTC and telephone for past, current or future dates, uses a narrow deterministic SQLite query, and loads the selected row through the exact-ID snapshot path. It must not add telephone/comment/order search, payment controls, lifecycle actions, dashboard views or export behavior.
 
 Loaded confirmed order is read-only with respect to post-confirmation business modification in M04. Same-ID saved modification belongs to M05.
 
@@ -416,7 +416,7 @@ Physical schema must equivalently store:
 - created/updated timestamps;
 - nullable closed/cancelled timestamps;
 - fulfilment mode;
-- planned date and nullable time;
+- planned date and nullable historical-compatible time;
 - advance marker;
 - nullable telephone/address/comment;
 - total TTC cents;
@@ -529,7 +529,7 @@ After success, transition to a clearly committed state in which repeated clickin
 
 ### 12.8 Reload
 
-Expose only minimum practical exact-ID committed-order reload. Do not implement general live search or M05 same-ID edit/save.
+Expose the minimum practical exact-ID committed-order reload plus the approved read-only date browser. Do not implement general telephone/comment/order search or M05 same-ID edit/save.
 
 ## 13. Control-state preservation
 

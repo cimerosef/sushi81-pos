@@ -8,6 +8,12 @@ using Sushi81.Pos.Domain;
 
 namespace Sushi81.Pos.Desktop;
 
+public sealed class BusinessSettingsSavedEventArgs(BusinessSettings previous, BusinessSettings current) : EventArgs
+{
+    public BusinessSettings Previous { get; } = previous ?? throw new ArgumentNullException(nameof(previous));
+    public BusinessSettings Current { get; } = current ?? throw new ArgumentNullException(nameof(current));
+}
+
 /// <summary>Small testable presentation seam for M03 maintenance workflows.</summary>
 public sealed class M03ShellViewModel : INotifyPropertyChanged
 {
@@ -54,6 +60,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+    public event EventHandler<BusinessSettingsSavedEventArgs>? SettingsSaved;
     public event EventHandler? FilterRefreshFailed;
 
     public ObservableCollection<CategorySummary> Categories { get; }
@@ -411,7 +418,11 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
             var current = loadedSettings ?? await settings.GetAsync(cancellationToken);
             var updated = current with { PickupDiscountRate = percent / 100m, PickupDiscountMinTotalTtc = pickupMoney, DeliveryMinMerchandiseTotalTtc = deliveryMoney, DeliveryFeeEnabled = DeliveryFeeEnabled, DeliveryFeeAmountTtc = feeMoney };
             var result = await settings.UpdateAsync(updated, cancellationToken);
-            if (result.Succeeded) loadedSettings = updated;
+            if (result.Succeeded)
+            {
+                loadedSettings = updated;
+                SettingsSaved?.Invoke(this, new BusinessSettingsSavedEventArgs(current, updated));
+            }
             return result;
         }
         finally { mutationBusy = false; IsBusy = false; }
@@ -421,7 +432,9 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => catalogue.CreateProductAsync(draft, cancellationToken);
     public Task<OperationResult> UpdateProductAsync(Guid id, ProductDraft draft, CancellationToken cancellationToken = default) => catalogue.UpdateProductAsync(id, draft, cancellationToken);
     public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => catalogue.CreateCategoryAsync(name, cancellationToken);
+    public Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default) => catalogue.CreateCategoryWithCodeAsync(name, shortCode, cancellationToken);
     public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid id, string name, CancellationToken cancellationToken = default) => catalogue.RenameCategoryAsync(id, name, cancellationToken);
+    public Task<OperationResult<CategorySummary>> RenameCategoryWithCodeAsync(Guid id, string name, string? shortCode, CancellationToken cancellationToken = default) => catalogue.RenameCategoryWithCodeAsync(id, name, shortCode, cancellationToken);
     public Task<OperationResult> SetProductActiveAsync(Guid id, bool active, CancellationToken cancellationToken = default) => catalogue.SetProductActiveAsync(id, active, cancellationToken);
     public async Task<BulkProductActiveStateRequest> CaptureBulkProductActiveStateAsync(bool targetIsActive, CancellationToken cancellationToken = default)
     {

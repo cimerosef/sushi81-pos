@@ -123,7 +123,7 @@ Bulk maintenance under section 7 changes only active/inactive state and never ac
 
 Every current Product belongs to one Category.
 
-Each Category has an opaque internal `category_id` and an editable operator-facing name.
+Each Category has an opaque internal `category_id`, an editable operator-facing name and an optional editable operator-facing `short_code` used for compact navigation.
 
 ### 5.1 Category-name uniqueness
 
@@ -145,9 +145,16 @@ This rule is also recorded in `docs/decisions/category-name-uniqueness.md`.
 
 The application must allow the current category names needed by product maintenance to be created/renamed and products to be reassigned between categories.
 
-V1 does not require the former VBA `RaccourciCat` field or a specific category-shortcut persistence model.
+The approved M04 operator-retrieval amendment defines the current shortcut semantics:
 
-Category navigation may use tabs, buttons, grouping, filtering or another compact mechanism. Exact visual order/shortcut controls are implementation-level UI choices provided:
+- `short_code` is optional and independent from the category name; it is never derived from the name and is not an exact-one-character field;
+- the displayed code is trimmed and modestly length-bounded, while uniqueness is checked case-insensitively after Unicode normalization;
+- code creation/editing is atomic; a name-only rename preserves an existing code, and an explicit blank code clears it;
+- category maintenance shows the code with the full name, while Caisse navigation shows the code as the primary label and falls back to the full name when no code exists;
+- coded categories use deterministic normalized-code order, followed by uncoded categories in deterministic ID order;
+- the current M04 implementation persists the code in SQLite. No `.xlsx` code import/export is introduced by this amendment.
+
+Category navigation may use tabs, buttons, grouping, filtering or another compact mechanism. Exact visual controls remain implementation-level provided:
 
 - category-based product selection remains fast;
 - current category-name uniqueness is preserved;
@@ -461,7 +468,7 @@ Implementation must preserve all of the following:
 - the complete current filtered result can be bulk activated/deactivated only after explicit impact confirmation;
 - filtered bulk activation/deactivation skips already-target-state products, performs no write for zero effective changes and commits all required state changes atomically;
 - filtered bulk state changes alter only Product active/inactive state and never provide bulk permanent deletion;
-- category-based navigation remains practical without requiring the legacy VBA shortcut field;
+- category-based navigation remains practical with the optional independent operator-facing short code and full-name fallback;
 - structured per-product options support required/optional single/multi behavior and min/max validation;
 - individual options support active state, positive/negative/zero adjustments and saved display order;
 - option prompting occurs automatically for option-enabled products;

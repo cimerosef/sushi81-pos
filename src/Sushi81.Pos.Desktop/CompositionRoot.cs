@@ -8,8 +8,10 @@ using Sushi81.Pos.Infrastructure.Time;
 using Sushi81.Pos.Infrastructure.Ids;
 using Sushi81.Pos.Infrastructure.Catalogue;
 using Sushi81.Pos.Infrastructure.Settings;
+using Sushi81.Pos.Infrastructure.Order;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Settings;
+using Sushi81.Pos.Application.OrderEntry;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
 
@@ -28,6 +30,7 @@ public static partial class CompositionRoot
         var startupSucceeded = false;
         CatalogueService? catalogueService = null;
         BusinessSettingsService? settingsService = null;
+        OrderEntryService? orderEntryService = null;
 
         try
         {
@@ -50,8 +53,13 @@ public static partial class CompositionRoot
             await migrations.InitializeAsync();
             var transactionRunner = new SqliteTransactionRunner(connectionFactory);
             var idGenerator = new GuidV7IdGenerator(TimeProvider.System);
-            catalogueService = new CatalogueService(new SqliteCatalogueStore(connectionFactory, transactionRunner, idGenerator, clock));
-            settingsService = new BusinessSettingsService(new SqliteBusinessSettingsStore(connectionFactory, transactionRunner, clock));
+            var catalogueStore = new SqliteCatalogueStore(connectionFactory, transactionRunner, idGenerator, clock);
+            var settingsStore = new SqliteBusinessSettingsStore(connectionFactory, transactionRunner, clock);
+            catalogueService = new CatalogueService(catalogueStore);
+            settingsService = new BusinessSettingsService(settingsStore);
+            var orderStore = new SqliteOrderStore(connectionFactory, transactionRunner, null, idGenerator);
+            orderEntryService = new OrderEntryService(
+                new OrderEntryCatalogueService(catalogueStore), settingsStore, orderStore, new NoOpOrderPrintDispatcher(), idGenerator, clock);
             LogFoundationStartupSucceeded(logger);
             startupSucceeded = true;
         }
@@ -64,7 +72,7 @@ public static partial class CompositionRoot
             }
         }
 
-        var viewModel = new ShellViewModel(cultureStore, startupSucceeded, catalogueService, settingsService);
+        var viewModel = new ShellViewModel(cultureStore, startupSucceeded, catalogueService, settingsService, orderEntryService);
         var window = new MainWindow(viewModel);
         application.MainWindow = window;
         application.Exit += (_, _) => loggerProvider?.Dispose();
@@ -76,4 +84,5 @@ public static partial class CompositionRoot
 
     [LoggerMessage(EventId = 1101, Level = LogLevel.Error, Message = "Foundation startup failed.")]
     private static partial void LogFoundationStartupFailed(ILogger logger, Exception exception);
+
 }

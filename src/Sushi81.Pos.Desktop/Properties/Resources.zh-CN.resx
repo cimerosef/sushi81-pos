@@ -26,6 +26,8 @@
   <data name="Deactivate" xml:space="preserve"><value>停用</value></data>
   <data name="DeletePermanently" xml:space="preserve"><value>永久删除</value></data>
   <data name="ManageCategories" xml:space="preserve"><value>管理分类</value></data>
+  <data name="CategoryShortCode" xml:space="preserve"><value>操作员分类短码</value></data>
+  <data name="CategoryShortCodeTooltip" xml:space="preserve"><value>收银台导航使用的短码（最多 12 个字符）</value></data>
   <data name="Code" xml:space="preserve"><value>编码</value></data>
   <data name="Name" xml:space="preserve"><value>名称</value></data>
   <data name="PriceTtc" xml:space="preserve"><value>含税价</value></data>
@@ -62,6 +64,8 @@
   <data name="ValidationGeneric" xml:space="preserve"><value>输入无效。</value></data>
   <data name="ValidationRequired" xml:space="preserve"><value>此字段为必填项。</value></data>
   <data name="ValidationCategoryDuplicate" xml:space="preserve"><value>已存在同名分类。</value></data>
+  <data name="ValidationCategoryShortCodeDuplicate" xml:space="preserve"><value>已存在使用此短码的分类。</value></data>
+  <data name="ValidationCategoryShortCodeTooLong" xml:space="preserve"><value>分类短码过长（最多 12 个字符）。</value></data>
   <data name="ValidationCategoryMissing" xml:space="preserve"><value>该分类已不存在。</value></data>
   <data name="ValidationProductMissing" xml:space="preserve"><value>该商品已不存在。</value></data>
   <data name="ValidationProductDuplicateCode" xml:space="preserve"><value>已存在使用此编码的商品。</value></data>
@@ -92,4 +96,70 @@
 实际变更数：{2}</value></data>
   <data name="BulkNoChange" xml:space="preserve"><value>筛选结果无需变更。</value></data>
   <data name="BulkSuccess" xml:space="preserve"><value>已更新 {0} 个商品。</value></data>
+  <data name="Caisse" xml:space="preserve"><value>收银台</value></data>
+  <data name="Products" xml:space="preserve"><value>商品</value></data>
+  <data name="OrderSearch" xml:space="preserve"><value>搜索编码/名称</value></data>
+  <data name="Add" xml:space="preserve"><value>添加</value></data>
+  <data name="Cart" xml:space="preserve"><value>购物车</value></data>
+  <data name="Fulfilment" xml:space="preserve"><value>方式</value></data>
+  <data name="PlannedDate" xml:space="preserve"><value>计划日期</value></data>
+  <data name="PlannedTime" xml:space="preserve"><value>计划时间</value></data>
+  <data name="TimeHour" xml:space="preserve"><value>小时</value></data>
+  <data name="TimeMinute" xml:space="preserve"><value>分钟</value></data>
+  <data name="TimeUnset" xml:space="preserve"><value>—</value></data>
+  <data name="Telephone" xml:space="preserve"><value>电话</value></data>
+  <data name="DeliveryAddress" xml:space="preserve"><value>地址</value></data>
+  <data name="Comment" xml:space="preserve"><value>备注</value></data>
+  <data name="PickupDiscountRequest" xml:space="preserve"><value>申请自取折扣</value></data>
+  <data name="TotalTtc" xml:space="preserve"><value>含税总额</value></data>
+  <data name="Confirm" xml:space="preserve"><value>确认</value></data>
+  <data name="ReloadOrder" xml:space="preserve"><value>按 ID 重新加载</value></data>
+  <data name="Quantity" xml:space="preserve"><value>数量</value></data>
+  <data name="CustomAdjustments" xml:space="preserve"><value>自定义调整（每件）</value></data>
+  <data name="AddAdjustment" xml:space="preserve"><value>调整</value></data>
+  <data name="InvalidQuantity" xml:space="preserve"><value>数量必须为正整数。</value></data>
+  <data name="InvalidOptions" xml:space="preserve"><value>选项组“{0}”的选择无效。</value></data>
+  <data name="InvalidAdjustment" xml:space="preserve"><value>每个调整必须有有效的名称和金额。</value></data>
+  <data name="FulfilmentUnselected" xml:space="preserve"><value>—</value></data>
+  <data name="Retrait" xml:space="preserve"><value>自取</value></data>
+  <data name="Livraison" xml:space="preserve"><value>配送</value></data>
+  <data name="NewOrder" xml:space="preserve"><value>新订单</value></data>
+  <data name="ManualTotalActive" xml:space="preserve"><value>手动总额为最终金额</value></data>
+  <data name="ReloadOrderTooltip" xml:space="preserve"><value>订单 ID</value></data>
+  <data name="ReloadedOrder" xml:space="preserve"><value>已加载订单</value></data>
+  <data name="OrderBrowser" xml:space="preserve"><value>按计划日期查看已保存订单</value></data>
+  <data name="BrowseDate" xml:space="preserve"><value>查看日期</value></data>
+  <data name="Browse" xml:space="preserve"><value>刷新</value></data>
+  <data name="OrderBrowserTime" xml:space="preserve"><value>时间</value></data>
+  <data name="OrderBrowserMode" xml:space="preserve"><value>方式</value></data>
+  <data name="OrderBrowserStatus" xml:space="preserve"><value>状态</value></data>
+  <data name="OrderBrowserTotal" xml:space="preserve"><value>含税总额</value></data>
+  <data name="OrderBrowserTelephone" xml:space="preserve"><value>电话</value></data>
+  <data name="OrderBrowserEmptyTelephone" xml:space="preserve"><value>—</value></data>
+  <data name="AdjustmentLabel" xml:space="preserve"><value>名称</value></data>
+  <data name="AdjustmentAmount" xml:space="preserve"><value>含税金额</value></data>
+  <data name="ProductInactive" xml:space="preserve"><value>该商品已停用。</value></data>
+  <data name="InvalidOrderId" xml:space="preserve"><value>订单 ID 无效。</value></data>
+  <data name="OrderNotFound" xml:space="preserve"><value>找不到订单。</value></data>
+  <data name="OrderSaved" xml:space="preserve"><value>订单 {0} 已保存。</value></data>
+  <data name="OrderSavedOutputFailed" xml:space="preserve"><value>订单 {0} 已保存，但输出发送失败。</value></data>
+  <data name="InvalidPlannedTime" xml:space="preserve"><value>计划时间无效。请选择有效的 5 分钟时间段。</value></data>
+  <data name="InvalidManualTotal" xml:space="preserve"><value>输入的含税总额无效。</value></data>
+  <data name="OrderId" xml:space="preserve"><value>订单 ID</value></data>
+  <data name="OrderStatus" xml:space="preserve"><value>状态</value></data>
+  <data name="OrderStatusOpen" xml:space="preserve"><value>开放</value></data>
+  <data name="OrderStatusClosed" xml:space="preserve"><value>已关闭</value></data>
+  <data name="OrderStatusCancelled" xml:space="preserve"><value>已取消</value></data>
+  <data name="OrderLines" xml:space="preserve"><value>明细</value></data>
+  <data name="Unit" xml:space="preserve"><value>件</value></data>
+  <data name="PickupDiscountApplied" xml:space="preserve"><value>自取折扣</value></data>
+  <data name="TaxSnapshot" xml:space="preserve"><value>已记录税额</value></data>
+  <data name="ValidationFulfilmentRequired" xml:space="preserve"><value>必须选择订单方式。</value></data>
+  <data name="ValidationPlannedDateRequired" xml:space="preserve"><value>必须选择计划日期。</value></data>
+  <data name="ValidationPlannedDatePast" xml:space="preserve"><value>计划日期不能早于营业日期。</value></data>
+  <data name="ValidationPlannedTimeRequired" xml:space="preserve"><value>请选择计划时间。</value></data>
+  <data name="ValidationPlannedTimeInvalid" xml:space="preserve"><value>计划时间必须使用有效的 5 分钟时间段。</value></data>
+  <data name="ValidationCartRequired" xml:space="preserve"><value>请添加至少一条明细。</value></data>
+  <data name="ValidationDeliveryMinimum" xml:space="preserve"><value>未达到配送最低金额。</value></data>
+  <data name="ValidationPickupDiscount" xml:space="preserve"><value>未应用自取折扣。</value></data>
 </root>

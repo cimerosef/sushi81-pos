@@ -81,6 +81,27 @@ public sealed class CatalogueApplicationTests
     }
 
     [TestMethod]
+    public async Task CategoryShortCodeIsValidatedAndForwardedWithoutChangingTheNameContract()
+    {
+        var store = new FakeCatalogueStore();
+        var service = new CatalogueService(store);
+
+        var created = await service.CreateCategoryWithCodeAsync(" Plats ", " PL ");
+
+        Assert.IsTrue(created.Succeeded, created.ErrorMessage);
+        Assert.AreEqual(1, store.CreateCategoryWithCodeCalls);
+        Assert.AreEqual(" Plats ", store.LastCategoryName);
+        Assert.AreEqual(" PL ", store.LastShortCode);
+        Assert.AreEqual(" PL ", created.Value!.NavigationLabel);
+
+        var invalid = await service.RenameCategoryWithCodeAsync(Guid.NewGuid(), "Desserts", "1234567890123");
+
+        Assert.IsFalse(invalid.Succeeded);
+        Assert.AreEqual(ValidationCodes.CategoryShortCodeTooLong, invalid.Issues.Single().StableCode);
+        Assert.AreEqual(0, store.RenameCategoryWithCodeCalls);
+    }
+
+    [TestMethod]
     public void ValidationIssuesExposeStableCodesForPresentation()
     {
         var issue = new ValidationIssue("price", "Product price cannot be negative.");
@@ -147,15 +168,21 @@ public sealed class CatalogueApplicationTests
         public int SetActiveCalls { get; private set; }
         public int DeleteCalls { get; private set; }
         public int BulkCalls { get; private set; }
+        public int CreateCategoryWithCodeCalls { get; private set; }
+        public int RenameCategoryWithCodeCalls { get; private set; }
         public Guid LastUpdateId { get; private set; }
         public ProductDraft LastDraft { get; private set; } = null!;
         public Guid CreatedProductId { get; init; } = Guid.NewGuid();
+        public string LastCategoryName { get; private set; } = string.Empty;
+        public string? LastShortCode { get; private set; }
 
         public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([]);
         public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([]);
         public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(null);
         public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(Guid.NewGuid(), name)));
         public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(categoryId, name)));
+        public Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default) { CreateCategoryWithCodeCalls++; LastCategoryName = name; LastShortCode = shortCode; return Task.FromResult(OperationResult<CategorySummary>.Success(new(Guid.NewGuid(), name, shortCode))); }
+        public Task<OperationResult<CategorySummary>> RenameCategoryWithCodeAsync(Guid categoryId, string name, string? shortCode, CancellationToken cancellationToken = default) { RenameCategoryWithCodeCalls++; LastCategoryName = name; LastShortCode = shortCode; return Task.FromResult(OperationResult<CategorySummary>.Success(new(categoryId, name, shortCode))); }
         public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) { CreateProductCalls++; LastDraft = draft; return Task.FromResult(OperationResult<Guid>.Success(CreatedProductId)); }
         public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) { UpdateProductCalls++; LastUpdateId = productId; LastDraft = draft; return Task.FromResult(OperationResult.Success()); }
         public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) { SetActiveCalls++; return Task.FromResult(OperationResult.Success()); }

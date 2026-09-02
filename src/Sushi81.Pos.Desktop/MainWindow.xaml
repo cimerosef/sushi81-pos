@@ -66,6 +66,111 @@
           <WrapPanel><Button Content="{Binding DataContext.Localized[Save], RelativeSource={RelativeSource AncestorType=Window}}" Padding="16,5" Margin="0,0,8,0" Click="OnSaveSettings" /><Button Content="{Binding DataContext.Localized[Cancel], RelativeSource={RelativeSource AncestorType=Window}}" Padding="16,5" Click="OnReloadSettings" /></WrapPanel>
         </StackPanel>
       </TabItem>
+      <TabItem Header="{Binding DataContext.Localized[Caisse], RelativeSource={RelativeSource AncestorType=Window}}" DataContext="{Binding DataContext.Entry, RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.IsM04Available, RelativeSource={RelativeSource AncestorType=Window}}">
+        <Grid Margin="8">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="1.15*" /><ColumnDefinition Width="1.25*" /></Grid.ColumnDefinitions>
+          <Border Grid.Column="0" Margin="0,0,10,0" BorderBrush="#FFD6D6D6" BorderThickness="0,0,1,0" Padding="0,0,10,0">
+            <Grid>
+              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" Text="{Binding DataContext.Localized[Products], RelativeSource={RelativeSource AncestorType=Window}}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
+              <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="132" MinWidth="112" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Grid Grid.Column="0" Margin="0,0,10,0">
+                  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                  <TextBlock Grid.Row="0" Text="{Binding DataContext.Localized[Category], RelativeSource={RelativeSource AncestorType=Window}}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                  <ListBox x:Name="orderCategoriesList" Grid.Row="1" ItemsSource="{Binding Categories}" DisplayMemberPath="NavigationLabel" SelectedValuePath="Id" SelectedValue="{Binding SelectedCategoryId, Mode=TwoWay}" ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                </Grid>
+                <Grid Grid.Column="1">
+                  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                  <TextBox x:Name="orderProductSearchBox" Grid.Row="0" Margin="0,0,0,6" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding DataContext.Localized[OrderSearch], RelativeSource={RelativeSource AncestorType=Window}}" />
+                  <DataGrid x:Name="orderProductsGrid" Grid.Row="1" ItemsSource="{Binding Products}" SelectedItem="{Binding SelectedProduct}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" MouseDoubleClick="OnAddOrderProduct">
+                    <DataGrid.Columns><DataGridTextColumn Header="" Binding="{Binding Code}" Width="78" /><DataGridTextColumn Header="" Binding="{Binding Name}" Width="*" /><DataGridTextColumn Header="" Binding="{Binding PriceTtc.Euros, StringFormat=F2}" Width="78" /></DataGrid.Columns>
+                  </DataGrid>
+                  <Button x:Name="orderAddButton" Grid.Row="2" HorizontalAlignment="Left" Padding="14,5" Margin="0,8,0,0" Content="{Binding DataContext.Localized[Add], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanAddSelectedProduct}" Click="OnAddOrderProduct" />
+                </Grid>
+              </Grid>
+            </Grid>
+          </Border>
+
+          <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <Grid Margin="4,0,0,0">
+              <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+              <TextBlock Grid.Row="0" FontSize="18" FontWeight="SemiBold" Text="{Binding DataContext.Localized[Cart], RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,0,0,6" />
+              <ListBox x:Name="orderCartList" Grid.Row="1" ItemsSource="{Binding Cart}" SelectedItem="{Binding SelectedCartLine}" BorderThickness="1" MinHeight="72" MaxHeight="230" ScrollViewer.VerticalScrollBarVisibility="Auto" MouseDoubleClick="OnEditOrderLine">
+                <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate><DataTemplate><Grid Margin="4" MinHeight="48">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="0" /><ColumnDefinition Width="88" /><ColumnDefinition Width="40" /><ColumnDefinition Width="40" /><ColumnDefinition Width="40" /></Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="0" MinWidth="0" Margin="0,0,6,0"><TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextWrapping="Wrap" /><TextBlock Text="{Binding Configuration}" FontSize="11" TextWrapping="Wrap" /><TextBlock Text="{Binding QuantityDisplayText}" /></StackPanel>
+                  <TextBlock Grid.Column="1" Text="{Binding LineTotalText, StringFormat={}{0} €}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0" />
+                  <Button Grid.Column="2" Width="34" Height="30" Content="−" Tag="{Binding}" Click="OnDecreaseOrderQuantity" />
+                  <Button Grid.Column="3" Width="34" Height="30" Content="+" Tag="{Binding}" Click="OnIncreaseOrderQuantity" />
+                  <Button Grid.Column="4" Width="34" Height="30" Content="×" Tag="{Binding}" Click="OnRemoveOrderLine" />
+                </Grid></DataTemplate></ListBox.ItemTemplate>
+              </ListBox>
+              <Separator Grid.Row="2" Margin="0,8" />
+              <Grid Grid.Row="3">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="105" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding DataContext.Localized[Fulfilment], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,8,6" />
+                <ComboBox Grid.Row="0" Grid.Column="1" MinWidth="150" HorizontalAlignment="Stretch" Margin="0,0,0,6" ItemsSource="{Binding FulfilmentChoices}" DisplayMemberPath="Label" SelectedValuePath="Mode" SelectedValue="{Binding SelectedFulfilment, Mode=TwoWay}" />
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding DataContext.Localized[PlannedDate], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,8,6" />
+                <DatePicker x:Name="orderPlannedDatePicker" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="150" Margin="0,0,0,6" SelectedDate="{Binding PlannedDate, Mode=TwoWay}" DisplayDateStart="{Binding MinimumPlannedDate, Mode=OneWay}" />
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding DataContext.Localized[Telephone], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,8,6" />
+                <TextBox Grid.Row="2" Grid.Column="1" HorizontalAlignment="Stretch" Margin="0,0,0,6" Text="{Binding Telephone, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="{Binding DataContext.Localized[DeliveryAddress], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Top" Margin="0,3,8,6" />
+                <TextBox x:Name="orderDeliveryAddressBox" Grid.Row="3" Grid.Column="1" HorizontalAlignment="Stretch" MinHeight="42" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,0,0,6" Text="{Binding DeliveryAddress, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="{Binding DataContext.Localized[PlannedTime], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,8,6" />
+                <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,6">
+                  <ComboBox x:Name="plannedHourBox" Width="72" ItemsSource="{Binding PlannedHourChoices}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding SelectedPlannedHour, Mode=TwoWay}" ToolTip="{Binding DataContext.Localized[TimeHour], RelativeSource={RelativeSource AncestorType=Window}}" />
+                  <TextBlock Text=":" VerticalAlignment="Center" Margin="5,0" />
+                  <ComboBox x:Name="plannedMinuteBox" Width="72" ItemsSource="{Binding PlannedMinuteChoices}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding SelectedPlannedMinute, Mode=TwoWay}" ToolTip="{Binding DataContext.Localized[TimeMinute], RelativeSource={RelativeSource AncestorType=Window}}" />
+                </StackPanel>
+                <TextBlock Grid.Row="5" Grid.Column="0" Text="{Binding DataContext.Localized[Comment], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Top" Margin="0,3,8,6" />
+                <TextBox x:Name="orderCommentBox" Grid.Row="5" Grid.Column="1" HorizontalAlignment="Stretch" MinHeight="42" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,0,0,6" Text="{Binding Comment, UpdateSourceTrigger=PropertyChanged}" />
+                <CheckBox Grid.Row="6" Grid.Column="1" Content="{Binding DataContext.Localized[PickupDiscountRequest], RelativeSource={RelativeSource AncestorType=Window}}" IsChecked="{Binding PickupDiscountRequested}" IsEnabled="{Binding IsPickupDiscountEnabled}" Margin="0,0,0,8" />
+                <Grid Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2">
+                  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="105" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                  <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding DataContext.Localized[TotalTtc], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,8,4" />
+                  <TextBox x:Name="orderTotalBox" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch" Margin="0,0,0,4" Text="{Binding TotalText, Mode=OneWay}" LostFocus="OnManualOrderTotalChanged" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ManualTotalStateText}" Visibility="{Binding IsManualTotalOverrideActive, Converter={StaticResource BoolToVisibility}}" Foreground="DarkOrange" Margin="0,0,0,3" />
+                  <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Text="{Binding ValidationMessage}" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,2,0,3" />
+                  <WrapPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,3,0,0"><Button MinHeight="32" Padding="12,4" Content="{Binding DataContext.Localized[Confirm], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanConfirm}" Click="OnConfirmOrder" /><Button MinHeight="32" Padding="12,4" Margin="6,0,0,0" Content="{Binding NewOrderLabel}" IsEnabled="{Binding CanStartNewOrder}" Click="OnNewOrder" /><TextBlock Text="{Binding CommittedMessage}" Margin="8,6,0,0" TextWrapping="Wrap" /></WrapPanel>
+                </Grid>
+              </Grid>
+              <GroupBox x:Name="orderSavedGroup" Grid.Row="4" Header="{Binding DataContext.Localized[ReloadedOrder], RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,10,0,0" MinHeight="170" MaxHeight="280">
+                <Grid Margin="6">
+                  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="105" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding DataContext.Localized[OrderId], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,8,4" />
+                  <TextBox x:Name="orderReloadIdBox" Grid.Row="0" Grid.Column="1" Text="{Binding ReloadOrderIdText, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding DataContext.Localized[ReloadOrderTooltip], RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,0,6,4" />
+                  <Button Grid.Row="0" Grid.Column="2" Content="{Binding DataContext.Localized[ReloadOrder], RelativeSource={RelativeSource AncestorType=Window}}" Padding="8,3" Click="OnReloadOrder" />
+                  <ScrollViewer Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" VerticalScrollBarVisibility="Auto"><TextBlock x:Name="orderReloadedDisplay" Text="{Binding ReloadedOrderDisplay}" TextWrapping="Wrap" FontFamily="Consolas" Margin="0,6,0,0" /></ScrollViewer>
+                </Grid>
+              </GroupBox>
+              <GroupBox x:Name="orderBrowserGroup" Grid.Row="5" Header="{Binding DataContext.Localized[OrderBrowser], RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,10,0,0" MinHeight="190" MaxHeight="300">
+                <Grid Margin="6">
+                  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                  <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                    <TextBlock Text="{Binding DataContext.Localized[BrowseDate], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <DatePicker x:Name="orderBrowserDatePicker" SelectedDate="{Binding BrowseDate, Mode=TwoWay}" Width="150" />
+                    <Button x:Name="orderBrowserRefreshButton" Content="{Binding DataContext.Localized[Browse], RelativeSource={RelativeSource AncestorType=Window}}" Padding="10,3" Margin="8,0,0,0" Click="OnRefreshOrderBrowser" />
+                  </StackPanel>
+                  <DataGrid x:Name="orderBrowserGrid" Grid.Row="1" ItemsSource="{Binding BrowserOrders}" SelectedItem="{Binding SelectedBrowserOrder, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" SelectionChanged="OnOrderBrowserSelectionChanged" HeadersVisibility="Column">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Header="" Binding="{Binding PlannedTimeText}" Width="70" />
+                      <DataGridTextColumn Header="" Binding="{Binding FulfilmentText}" Width="88" />
+                      <DataGridTextColumn Header="" Binding="{Binding StatusText}" Width="88" />
+                      <DataGridTextColumn Header="" Binding="{Binding TotalText, StringFormat={}{0} €}" Width="90" />
+                      <DataGridTextColumn Header="" Binding="{Binding TelephoneText}" Width="*" />
+                    </DataGrid.Columns>
+                  </DataGrid>
+                </Grid>
+              </GroupBox>
+            </Grid>
+          </ScrollViewer>
+        </Grid>
+      </TabItem>
     </TabControl>
     <TextBlock Grid.Row="2" Text="{Binding Status}" TextWrapping="Wrap" />
   </Grid>
