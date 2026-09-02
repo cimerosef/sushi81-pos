@@ -51,7 +51,9 @@ Current side-by-side composition (orders list left, selected-order detail right)
 - orders list across the full width in the upper area;
 - selected-order detail in the lower area;
 - horizontal and vertical scrolling on the orders list;
-- additional useful list columns including fulfilment mode, comment and delivery address, alongside the existing reference/date/time/status/financial/telephone facts.
+- keep the current list columns and add only `Mode`, `Commentaire` and `Adresse`.
+
+Do not add CB, Espèce, paid-total, difference/remaining or any other new financial columns to the Commandes list. Those payment facts remain available in the selected-order detail.
 
 The intent is to make the master list materially more informative without squeezing every column into the viewport.
 
