@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation, the authorized AC-CAT-013 extension, all review remediations through `M03-LANGUAGE-COMBO-HEIGHT-FIX-16`, and the complete operator Windows/WPF acceptance checklist are Passed on `codex/m03-catalogue-settings`. M04 is authorized on `codex/m04-order-entry`; the `M04-REVIEW-FIX-06` implementation/evidence is complete at `35b2a2e3f5100b1893a647ce1dc7dd618d08a822` and passed CI run #268, while the required manual Windows/WPF rerun and project-owner merge approval remain outstanding.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings implementation, the authorized AC-CAT-013 extension, all review remediations through `M03-LANGUAGE-COMBO-HEIGHT-FIX-16`, and the complete operator Windows/WPF acceptance checklist are Passed on `codex/m03-catalogue-settings`. M04 is Passed for its accepted implementation behavior on `codex/m04-order-entry`: the accepted implementation head is `76a41df917282763fc5957be7118bbffbeb21568`, its final manual Windows/WPF acceptance is recorded in `docs/implementation/milestone-04-final-manual-acceptance.md`, and CI #272 is green. PR #6 remains open/unmerged pending explicit project-owner merge approval; M05 remains unauthorized and not started.
 
 ## 1. Status vocabulary
 
@@ -23,7 +23,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 | M01 — Foundation and safe persistence spine | Passed | Merged to `main` via PR #1 after automated verification and successful Windows/WPF manual re-verification. |
 | M02 — remote handoff feasibility gate | Passed | Original competitive OneDrive model remains historically Blocked. Approved GitHub private Release Asset transport, automated failure evidence, real private-repository A → B v1 / B → A v2 round-trip evidence, and isolated destructive newest-three retention evidence are complete; the amended M02 gate is closed by evidence. |
 | M03 — Catalogue and settings | Passed | Authorized by `CODEX_HANDOFF_READY: M03-IMPLEMENT-01`; migration 2, layered catalogue/settings services, localized WPF maintenance shell, automated evidence, and the complete operator Windows/WPF checklist are recorded on the applicable head. Cross-milestone regressions explicitly owned by M04 remain deferred. |
-| M04 — Order-entry vertical slice | In progress | Authorized by `CODEX_HANDOFF_READY: M04-IMPLEMENT-01`; `M04-REVIEW-FIX-06` is implemented at `35b2a2e3f5100b1893a647ce1dc7dd618d08a822` and passed CI run #268. The manual Windows/WPF rerun and merge approval remain pending. |
+| M04 — Order-entry vertical slice | Passed | Authorized by `CODEX_HANDOFF_READY: M04-IMPLEMENT-01`; accepted implementation head `76a41df917282763fc5957be7118bbffbeb21568` passed the automated M04 evidence and CI #272, and the project owner passed the final Windows/WPF manual acceptance on 2026-09-02. PR #6 remains open/unmerged pending explicit merge approval. |
 | M05 — Lifecycle/payments/search/dashboard | Not started | Pending M04 |
 | M06 — Local recovery/read-only enforcement | Not started | Pending M05 |
 | M07 — Handoff and disaster recovery | Not started | Pending M06; must implement amended target-directed protocol |
@@ -56,28 +56,37 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 | AC-CAT-003 | M03 | Partial | Current-product maintenance and the M04 historical-order snapshot regression are automated/passing; the cross-milestone operator gate remains pending |
 | AC-CAT-004 | M03 | Passed | Required-field, price and VAT boundary validation tests |
 | AC-CAT-005 | M03 | Passed | Structured group/option validation, ordering, signed adjustments and aggregate persistence tests |
-| AC-CAT-006 | M04 | Partial | Ordinary option-selection UI plus required/optional single/multi, boundary, stale/inactive and dormant-option validation, plus direct-add simple-product paths, are implemented/tested; full milestone acceptance remains pending operator review |
-| AC-CAT-007 | M04 | Partial | Positive/negative/zero cent custom line adjustments, required labels, per-unit quantity semantics and actual option-dialog controls are implemented/tested; full milestone acceptance remains pending operator review |
+| AC-CAT-006 | M04 | Passed | Ordinary option-selection UI plus required/optional single/multi, boundary, stale/inactive and dormant-option validation, direct-add simple-product paths, and the final category-first/direct-add WPF acceptance are recorded in the M04 evidence and final acceptance document |
+| AC-CAT-007 | M04 | Passed | Positive/negative/zero cent custom line adjustments, required labels, per-unit quantity semantics, actual option-dialog controls, automated regression coverage and final operator acceptance are complete |
 | AC-CAT-008 | M10 | Not started | — |
 | AC-CAT-009 | M10 | Not started | — |
 | AC-CAT-010 | M10 | Not started | — |
 | AC-CAT-011 | M10 | Not started | — |
-| AC-CAT-012 | M04 | Partial | Sale-time product/category/price/VAT/eligibility/option snapshots survive catalogue mutation and deletion, including restart reload; full milestone acceptance remains pending operator review |
+| AC-CAT-012 | M04 | Passed | Sale-time product/category/price/VAT/eligibility/option snapshots survive catalogue mutation and deletion, including restart reload; automated evidence and final read-only exact-snapshot operator acceptance are complete |
 | AC-CAT-013 | M03 | Passed | Application/SQLite/presentation automation plus completed three-filter intersection and precise bulk-mutation Windows/WPF checklist |
 
 ### Order creation and business rules
 
 | Criterion | Owner | Status | Evidence |
 |---|---:|---|---|
-| AC-ORD-001 through AC-ORD-010 | M04 | Partial | Domain/Application/SQLite/STA-WPF evidence, including the date-browser selection/refresh boundary and 24-hour display regression, is present on the M04 remediation head; manual operator acceptance remains pending |
+| AC-ORD-001 | M04 | Passed | Fast cart editing, direct add/double-click, quantity/action alignment and the corresponding final Windows/WPF operator path passed |
+| AC-ORD-002 | M04 | Partial | M04 explicit Retrait/Livraison selection and new-order validation passed; reusable information from an earlier order and its fresh fulfilment selection remain M05-owned |
+| AC-ORD-003 | M04 | Partial | Optional telephone/address and initial Livraison confirmation passed; later same-ID saved address correction remains M05-owned |
+| AC-ORD-004 | M04 | Passed | Shared French telephone normalization/display evidence is automated and included in the accepted M04 implementation |
+| AC-ORD-005 | M04 | Passed | Retrait discount default/request, eligibility, signed components, threshold and current-settings behavior are covered by automated M04 pricing evidence and accepted operator behavior |
+| AC-ORD-006 | M04 | Passed | Livraison minimum and fee ordering/boundaries are covered by automated M04 pricing evidence and accepted operator behavior |
+| AC-ORD-007 | M04 | Passed | Positive/negative option-adjustment VAT behavior is covered by the M04 tax evidence and accepted implementation |
+| AC-ORD-008 | M04 | Passed | Integer-cent, decimal and half-up monetary rounding is covered by the M04 pricing/tax regressions and accepted implementation |
+| AC-ORD-009 | M04 | Passed | The authoritative total override and price-affecting reset/preservation behavior are covered by automated M04 evidence and accepted operator behavior |
+| AC-ORD-010 | M04 | Passed | The exact single 10% VAT bucket during manual-total override and normal mixed-tax restoration are covered by M04 persistence/tax evidence |
 | AC-ORD-011 | M03 | Passed | BusinessSettings UI/persistence plus M04 pricing-consumer current-settings/repricing evidence |
 
 ### Lifecycle, payments and operational views
 
 | Criterion | Owner | Status | Evidence |
 |---|---:|---|---|
-| AC-LIFE-001 | M04 | Not started | Windows printing cross-check in M08 |
-| AC-LIFE-002 | M04 | Not started | — |
+| AC-LIFE-001 | M04 | Passed | M04 commit-before-deterministic-fake-dispatch, restart and post-commit failure evidence passed; the final Windows print-adapter cross-check remains explicitly owned by M08 |
+| AC-LIFE-002 | M04 | Passed | Controlled Open/Closed/Cancelled status model and persistence evidence are complete; M04 does not expose later lifecycle actions |
 | AC-LIFE-003 through AC-LIFE-014 | M05 | Not started | Record individual tests before marking Passed |
 | AC-LIFE-015 | M12 | Not started | Live-search portion implemented in M05; archive portion closes in M12 |
 
@@ -441,7 +450,7 @@ Final local verification for this remediation is **225 passed, 0 failed, 0 skipp
   M04 snapshot regression; AC-ORD-011 pricing-consumer integration remains explicitly deferred to M04.
 - **Manual Windows/WPF verification:** the complete M03 checklist passed on the final FIX-16 artifact, including both French and
   zh-CN presentation and persistence paths. No manual M03 acceptance work remains outstanding.
-- **M04:** authorized and in progress on `codex/m04-order-entry`; the automated FIX-04 evidence is recorded below, while the manual Windows/WPF rerun and project-owner merge approval remain outstanding. **Blockers:** none for the authorized M04 remediation.
+- **M04:** Passed for the accepted implementation behavior on `codex/m04-order-entry`; the earlier stopped/manual findings and all subsequent remediation evidence remain recorded below, and the final project-owner Windows/WPF acceptance is linked in `docs/implementation/milestone-04-final-manual-acceptance.md`. PR #6 remains open/unmerged for explicit project-owner merge approval. **Blockers:** none for M04; M05 is not authorized.
 
 ### Final operator acceptance closure — head `40f6e3884af488e4dd496f26b29bf9f6ca97bece`
 
@@ -478,4 +487,12 @@ The Application boundary now rejects any planned `TimeOnly` containing non-zero 
 
 The authorized follow-up adds the approved independent optional category short code and the read-only date browser. Migration v4 adds nullable code columns with normalized partial uniqueness and a narrow planned-date/time/order index; v3 reads and legacy category mutations remain compatible before the additive upgrade, and the migration regression verifies existing category/product/order preservation with blank migrated codes. Category maintenance shows code plus full name, Caisse uses code with full-name fallback, and code edits preserve the opaque category identity and product relationships.
 
-The Caisse browser queries persisted `planned_fulfilment_date` for past, current or future dates, includes every persisted lifecycle status, exposes only planned time/mode/status/Total TTC/telephone, and loads a selected row through the exact-ID snapshot path. Refresh and same-date confirmation retain prior rows while selecting the new exact row; date, selection and loaded snapshot survive FR ↔ zh-CN label updates. Shared invariant `HH:mm` formatting protects evening values such as `18:25` from the former `06:25` display defect. Local Release verification on `35b2a2e3f5100b1893a647ce1dc7dd618d08a822` passed 284 tests with 0 failures/skips; Release build passed with 0 warnings/errors, the isolated self-contained `win-x64` publish passed, and GitHub Actions `Continuous integration` run #268 passed Restore, Build and Test. Manual Windows/WPF acceptance remains pending and M05 was not started.
+The Caisse browser queries persisted `planned_fulfilment_date` for past, current or future dates, includes every persisted lifecycle status, exposes only planned time/mode/status/Total TTC/telephone, and loads a selected row through the exact-ID snapshot path. Refresh and same-date confirmation retain prior rows while selecting the new exact row; date, selection and loaded snapshot survive FR ↔ zh-CN label updates. Shared invariant `HH:mm` formatting protects evening values such as `18:25` from the former `06:25` display defect. Local Release verification on `35b2a2e3f5100b1893a647ce1dc7dd618d08a822` passed 284 tests with 0 failures/skips; Release build passed with 0 warnings/errors, the isolated self-contained `win-x64` publish passed, and GitHub Actions `Continuous integration` run #268 passed Restore, Build and Test. Manual Windows/WPF acceptance was subsequently passed by the project owner on 2026-09-02 as recorded below; M05 was not started.
+
+### M04 final operator acceptance closure — `M04-FINAL-CLOSURE-07`
+
+The project owner completed the final Windows/WPF manual acceptance on 2026-09-02 for accepted implementation head `76a41df917282763fc5957be7118bbffbeb21568`. The durable checklist and result are recorded in [`docs/implementation/milestone-04-final-manual-acceptance.md`](implementation/milestone-04-final-manual-acceptance.md). It confirms category-first navigation and assigned short codes, direct add/double-click and option-dialog routing, cart/layout/time/date behavior, 24-hour display, immediate and persisted dated order browsing, multiple same-date orders, restart rediscovery, exact read-only snapshot selection and FR/zh-CN behavior.
+
+This closes the M04 Windows/WPF operator gate. M04-owned criteria AC-CAT-006, AC-CAT-007, AC-CAT-012, AC-ORD-001 and AC-ORD-004 through AC-ORD-010, AC-LIFE-001 and AC-LIFE-002 are recorded as `Passed` above. AC-ORD-002 and AC-ORD-003 remain `Partial` only for their explicit M05-owned reusable-information and later same-ID address-correction portions. AC-CAT-003 remains `Partial` under its M03 ownership and cross-milestone boundary; its M04 historical snapshot regression remains recorded as evidence without overstating the M03 gate.
+
+The accepted implementation/evidence was covered by CI #272 on the final branch head; the preceding implementation and delivery heads also passed CI #268 and #270. PR #6 remains open/unmerged and requires project-owner merge approval. The final operator review's non-blocking M05 carry-over is preserved: add a human-friendly operator order reference while retaining the GUID technical identity, improve order-detail visual grouping/readability, and provide a dedicated existing-order page/workspace. M05 was not started or authorized, and `POST_TASK_POWER_ACTION: NONE`.

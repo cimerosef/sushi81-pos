@@ -1,6 +1,6 @@
 # M04 implementation worklog
 
-**Status:** Authorized / `M04-REVIEW-FIX-06` complete pending ChatGPT review, manual rerun and project-owner merge approval
+**Status:** Passed for accepted implementation behavior / `M04-FINAL-CLOSURE-07` documentation closure pending project-owner merge approval
 **Milestone:** M04 — First complete order-entry vertical slice  
 **Implementation branch:** `codex/m04-order-entry`  
 **Approved branch base:** `0926decdcae59ed0aa4ea95c2d0f9d79aa44a36e`  
@@ -17,7 +17,7 @@ This worklog is the durable implementation/evidence record for M04.
 - A1/B1/C1 clarification is approved and durable.
 - M04 branch is created from the documented latest preparation `main` baseline.
 - Production implementation is now present on the implementation branch; final merge remains pending project-owner review.
-- GitHub issue #4 is OPEN for the authorized `M04-REVIEW-FIX-06` remediation; no later milestone is being inferred.
+- GitHub issue #4 is OPEN for the authorized `M04-FINAL-CLOSURE-07` documentation closure; no later milestone is being inferred.
 - M05 is not authorized.
 
 ## Evidence policy
@@ -113,6 +113,15 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 - CI: GitHub Actions `Continuous integration` run **#268** completed successfully for commit `35b2a2e3f5100b1893a647ce1dc7dd618d08a822`; Restore, Build and Test all passed.
 - Browser notification: succeeded after the durable `CODEX_DONE` comment was published; the same outcome is recorded in that PR comment.
 - PR #6 remains open and unmerged; project-owner merge approval is required. The execution gate was OPEN for this handoff.
+
+## Final manual acceptance closure — `M04-FINAL-CLOSURE-07`
+
+- The project owner completed the final Windows/WPF manual acceptance on 2026-09-02 for accepted implementation head `76a41df917282763fc5957be7118bbffbeb21568`; the durable result is recorded in [`docs/implementation/milestone-04-final-manual-acceptance.md`](milestone-04-final-manual-acceptance.md).
+- The accepted paths include category-first navigation and assigned short codes, direct add/double-click and option-dialog routing, cart/layout/time/date behavior, 24-hour display including evening values, immediate and persisted dated order browsing with multiple same-date orders, restart rediscovery, exact read-only snapshot selection and FR/zh-CN presentation behavior.
+- M04 is therefore `Passed` for its accepted implementation behavior. M04-owned acceptance rows are closed to their approved scope in `docs/implementation-status.md`; AC-ORD-002 reusable prior-order information and AC-ORD-003 later same-ID address correction remain explicit M05 carry-over portions. AC-CAT-003 remains Partial under M03 ownership and its cross-milestone boundary.
+- The final manual checklist records three non-blocking M05 carry-over items: a human-friendly operator order reference while retaining the GUID technical identity, stronger order-detail visual grouping/readability, and a dedicated existing-order page/workspace. These do not reopen M04 and do not authorize M05.
+- The resulting implementation diff for this closure handoff is documentation/status only; no production code, tests, schema, XAML or runtime behavior was changed. The existing earlier failed/stopped acceptance and remediation history remains intact.
+- Accepted implementation head CI #272 is green; the final closure commit's CI result will be recorded in the delivery comment after push. PR #6 remains open/unmerged, M05 is not authorized or started, and `POST_TASK_POWER_ACTION: NONE`.
 
 ## Delivery record — `M04-REVIEW-FIX-05`
 
