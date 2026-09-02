@@ -4,6 +4,7 @@ using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Time;
@@ -81,6 +82,128 @@ public sealed class M05DesktopTests
         });
     }
 
+    [TestMethod]
+    public void MainWindowUsesRealCommandesSelectionAbandonReuseAndDashboardRoutesOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var order = Snapshot(new DateOnly(2026, 9, 2));
+            var store = new LifecycleStore(order);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            var ids = new DeterministicIds();
+            using var lifecycleService = new OrderLifecycleService(store, ids, new FixedClock(), settings: settings);
+            using var entryService = new OrderEntryService(new OrderEntryCatalogueService(new EmptyCatalogueStore()), settings, store, new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                new CatalogueService(new EmptyCatalogueStore()),
+                new BusinessSettingsService(settings), entryService, lifecycleService);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                var entry = shell.Entry!;
+                var mainTabs = Field<TabControl>(window, "mainTabs");
+                var commandes = mainTabs.Items.OfType<TabItem>().Single(item => item.DataContext is OrderLifecycleShellViewModel);
+                var caisse = mainTabs.Items.OfType<TabItem>().Single(item => item.DataContext is OrderEntryShellViewModel);
+                commandes.IsSelected = true;
+                window.UpdateLayout();
+
+                var grid = Field<DataGrid>(window, "commandesGrid");
+                Assert.HasCount(1, grid.Items);
+                grid.SelectedIndex = 0;
+                grid.GetBindingExpression(DataGrid.SelectedItemProperty)?.UpdateSource();
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+                Assert.AreEqual(order.Id, lifecycle.SelectedOrder!.Id);
+
+                var modify = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["OrderModify"]));
+                modify.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.IsTrue(lifecycle.IsEditing);
+                lifecycle.EditTelephone = "0699999999";
+                var abandon = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["OrderAbandon"]));
+                abandon.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.IsFalse(lifecycle.IsEditing);
+                Assert.AreEqual(order.Telephone, lifecycle.EditTelephone);
+
+                var reuse = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["OrderNewFromDetails"]));
+                reuse.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.IsTrue(caisse.IsSelected);
+                Assert.AreEqual(order.Telephone, entry.Telephone);
+                Assert.AreEqual(order.DeliveryAddress, entry.DeliveryAddress);
+                Assert.AreEqual(order.Comment, entry.Comment);
+                Assert.IsEmpty(entry.Cart);
+                Assert.IsNull(entry.SelectedFulfilment);
+                Assert.IsNull(entry.PlannedTime);
+
+                entry.Comment = "unrelated draft survives tab navigation";
+                commandes.IsSelected = true;
+                caisse.IsSelected = true;
+                Assert.AreEqual("unrelated draft survives tab navigation", entry.Comment);
+
+                var futureButton = Field<Button>(window, "dashboardFutureButton");
+                futureButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+                Assert.IsTrue(commandes.IsSelected);
+                Assert.AreEqual(new DateTime(2026, 9, 1), lifecycle.BrowseDate);
+                Assert.HasCount(1, lifecycle.Orders);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public async Task LiveSearchAndDateRefreshCannotLetAnOlderLifecycleQueryOverwriteTheLatest()
+    {
+        var oldRow = Row(Guid.Parse("61000000-0000-0000-0000-000000000001"), "old-result", new DateOnly(2026, 8, 30));
+        var newRow = Row(Guid.Parse("61000000-0000-0000-0000-000000000002"), "new-result", new DateOnly(2026, 9, 1));
+        var store = new BlockingLifecycleStore(oldRow, newRow);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock());
+        using var viewModel = new OrderLifecycleShellViewModel(service);
+
+        viewModel.SearchText = "old";
+        var stale = viewModel.RefreshAsync();
+        await store.OldSearchStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        viewModel.SearchText = "new";
+        var latest = viewModel.RefreshAsync();
+        await latest;
+        store.ReleaseOldSearch();
+        await stale;
+
+        Assert.HasCount(1, viewModel.Orders);
+        Assert.AreEqual(newRow.Reference, viewModel.Orders[0].ReferenceText);
+        Assert.AreEqual("new", viewModel.SearchText);
+    }
+
+    [TestMethod]
+    public void LifecycleOperationsDoNotOwnAutomaticPrintingAndCloseEligibilityIsExactOnSta()
+    {
+        Assert.IsFalse(typeof(OrderLifecycleService).GetConstructors().Single().GetParameters().Any(parameter => parameter.ParameterType == typeof(IOrderPrintDispatcher)));
+        RunOnSta(() =>
+        {
+            var order = Snapshot(new DateOnly(2026, 8, 30));
+            var store = new LifecycleStore(order);
+            using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))), orderLifecycleService: service);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                Assert.IsFalse(lifecycle.CanClose);
+                lifecycle.BeginModification();
+                lifecycle.EditCard = "10";
+                lifecycle.EditCash = "0";
+                lifecycle.EditTotal = "10";
+                Assert.IsTrue(lifecycle.EditCloseEligibilityText.Contains(shell.Localized["OrderCloseEligible"], StringComparison.Ordinal));
+                Assert.IsTrue(lifecycle.CanSave);
+                lifecycle.AbandonModification();
+                Assert.IsFalse(lifecycle.CanClose);
+            }
+            finally { window.Close(); }
+        });
+    }
+
     private static OrderSnapshot Snapshot(DateOnly plannedDate) => new(
         Guid.NewGuid(), OrderSourceType.Pos, OrderStatus.Open,
         new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero),
@@ -88,6 +211,10 @@ public sealed class M05DesktopTests
         "06 00 00 00 00", "12 rue des Tests", "synthetic", Money.FromCents(1000), false, false, null, Money.Zero,
         [new(Guid.NewGuid(), 0, Guid.NewGuid(), "P", "Plat", "Plats", Money.FromCents(1000), 10m, true, 1, Money.FromCents(1000), Money.FromCents(1000), [])], [])
     { Reference = "20260830-001" };
+
+    private static OrderBrowserRow Row(Guid id, string reference, DateOnly plannedDate) => new(id, plannedDate, new TimeOnly(11, 0), FulfilmentMode.Retrait, OrderStatus.Open, Money.FromCents(1000), "06 00 00 00 00") { Reference = reference };
+
+    private static T Field<T>(MainWindow window, string name) => (T)typeof(MainWindow).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
 
     private static IEnumerable<T> VisualDescendants<T>(DependencyObject root) where T : DependencyObject
     {
@@ -116,6 +243,32 @@ public sealed class M05DesktopTests
         public Task<IReadOnlyList<OrderBrowserRow>> SearchAsync(string? query, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>([Row(Snapshot)]);
         public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) => Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0));
         private static OrderBrowserRow Row(OrderSnapshot value) => new(value.Id, value.PlannedFulfilmentDate, value.PlannedFulfilmentTime, value.Fulfilment, value.Status, value.TotalTtc, value.Telephone) { Reference = value.Reference };
+    }
+
+    private sealed class BlockingLifecycleStore(OrderBrowserRow oldRow, OrderBrowserRow newRow) : IOrderStore, IOrderLifecycleStore
+    {
+        private readonly TaskCompletionSource<IReadOnlyList<OrderBrowserRow>> oldSearch = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> OldSearchStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default) => Task.FromResult<OrderSnapshot?>(null);
+        public Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>([]);
+        public Task SaveLifecycleAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<IReadOnlyList<OrderBrowserRow>> SearchAsync(string? query, CancellationToken cancellationToken = default)
+        {
+            if (string.Equals(query, "old", StringComparison.Ordinal))
+            {
+                OldSearchStarted.TrySetResult(true);
+                return oldSearch.Task;
+            }
+            return Task.FromResult<IReadOnlyList<OrderBrowserRow>>([newRow]);
+        }
+        public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) => Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0));
+        public void ReleaseOldSearch() => oldSearch.TrySetResult([oldRow]);
+    }
+
+    private sealed class NoopDispatcher : IOrderPrintDispatcher
+    {
+        public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class SettingsStore(BusinessSettings current) : IBusinessSettingsStore

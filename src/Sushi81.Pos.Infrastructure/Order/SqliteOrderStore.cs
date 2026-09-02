@@ -59,6 +59,7 @@ public sealed class SqliteOrderStore(
                     pickup_discount_rate=$rate,delivery_fee_ttc_cents=$fee,card_payment_ttc_cents=$card,cash_payment_ttc_cents=$cash,
                     order_reference=$reference WHERE order_id=$id;
                     """, token, Parameters(snapshot, reference));
+                Inject("order-after-parent");
                 await ExecuteAsync(sqlite, "DELETE FROM order_items WHERE order_id=$id;", token, ("$id", snapshot.Id.ToString()));
                 await ExecuteAsync(sqlite, "DELETE FROM order_tax_breakdown WHERE order_id=$id;", token, ("$id", snapshot.Id.ToString()));
             }
@@ -75,8 +76,9 @@ public sealed class SqliteOrderStore(
             }
 
             await WriteChildrenAsync(sqlite, snapshot, token);
-            foreach (var adjustment in adjustments)
+            for (var paymentIndex = 0; paymentIndex < adjustments.Count; paymentIndex++)
             {
+                var adjustment = adjustments[paymentIndex];
                 Inject("payment");
                 await ExecuteAsync(sqlite, """
                     INSERT INTO payment_adjustments(payment_adjustment_id,order_id,bucket,delta_cents,effective_business_date,effective_at,recorded_at)
@@ -85,6 +87,7 @@ public sealed class SqliteOrderStore(
                     ("$id", adjustment.Id.ToString()), ("$order", adjustment.OrderId.ToString()), ("$bucket", BucketName(adjustment.Bucket)),
                     ("$delta", adjustment.Delta.Cents), ("$effectiveDate", adjustment.EffectiveBusinessDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
                     ("$effectiveAt", Format(adjustment.EffectiveAt)), ("$recordedAt", Format(adjustment.RecordedAt)));
+                Inject($"payment-after-{paymentIndex + 1}");
             }
         }, cancellationToken);
     }
@@ -167,11 +170,13 @@ public sealed class SqliteOrderStore(
     public async Task<IReadOnlyList<OrderBrowserRow>> SearchAsync(string? query, CancellationToken cancellationToken = default)
     {
         await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
+        var trimmedQuery = (query ?? string.Empty).Trim();
+        var normalizedTelephoneQuery = TelephoneNormalization.Normalize(trimmedQuery) ?? trimmedQuery;
         await using var command = connection.CreateCommand(); command.CommandText = """
             SELECT order_id,order_reference,planned_fulfilment_date,planned_fulfilment_time,fulfilment_mode,status,total_ttc_cents,advance_order_marker,telephone,card_payment_ttc_cents,cash_payment_ttc_cents
-            FROM orders WHERE $query='' OR order_reference=$query OR telephone LIKE '%' || $query || '%' OR comment LIKE '%' || $query || '%'
+            FROM orders WHERE $query='' OR order_reference=$query OR telephone LIKE '%' || $query || '%' OR telephone LIKE '%' || $telephoneQuery || '%' OR comment LIKE '%' || $query || '%'
             ORDER BY planned_fulfilment_date,planned_fulfilment_time IS NULL,planned_fulfilment_time,order_id;
-            """; command.Parameters.AddWithValue("$query", (query ?? string.Empty).Trim());
+            """; command.Parameters.AddWithValue("$query", trimmedQuery); command.Parameters.AddWithValue("$telephoneQuery", normalizedTelephoneQuery);
         var result = new List<OrderBrowserRow>(); await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken)) result.Add(new(ParseGuid(reader.GetString(0)), DateOnly.ParseExact(reader.GetString(2), "yyyy-MM-dd", CultureInfo.InvariantCulture), ReadNullableTime(reader, 3), ParseFulfilment(reader.GetString(4)), ParseStatus(reader.GetString(5)), Money.FromCents(reader.GetInt64(6)), ReadNullableString(reader, 8)) { Reference = reader.GetString(1), AdvanceOrderMarker = reader.GetInt64(7) == 1, CardPaymentTtc = Money.FromCents(reader.GetInt64(9)), CashPaymentTtc = Money.FromCents(reader.GetInt64(10)) });
         return result;
