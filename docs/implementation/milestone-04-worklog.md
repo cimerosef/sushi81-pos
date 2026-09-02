@@ -121,7 +121,7 @@ Manual acceptance must never be fabricated. PR merge remains explicitly reserved
 - M04 is therefore `Passed` for its accepted implementation behavior. M04-owned acceptance rows are closed to their approved scope in `docs/implementation-status.md`; AC-ORD-002 reusable prior-order information and AC-ORD-003 later same-ID address correction remain explicit M05 carry-over portions. AC-CAT-003 remains Partial under M03 ownership and its cross-milestone boundary.
 - The final manual checklist records three non-blocking M05 carry-over items: a human-friendly operator order reference while retaining the GUID technical identity, stronger order-detail visual grouping/readability, and a dedicated existing-order page/workspace. These do not reopen M04 and do not authorize M05.
 - The resulting implementation diff for this closure handoff is documentation/status only; no production code, tests, schema, XAML or runtime behavior was changed. The existing earlier failed/stopped acceptance and remediation history remains intact.
-- Accepted implementation head CI #272 is green; the final closure commit's CI result will be recorded in the delivery comment after push. PR #6 remains open/unmerged, M05 is not authorized or started, and `POST_TASK_POWER_ACTION: NONE`.
+- Accepted implementation head `76a41df917282763fc5957be7118bbffbeb21568` CI #272 is green, and documentation closure commit `38cc158c92adf5b02ce9f170753daaf727645156` CI #276 is green with Restore, Build and Test passed. PR #6 remains open/unmerged, M05 is not authorized or started, and `POST_TASK_POWER_ACTION: NONE`.
 
 ## Delivery record — `M04-REVIEW-FIX-05`
 
