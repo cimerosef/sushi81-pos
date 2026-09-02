@@ -395,7 +395,7 @@ public sealed class M04DesktopTests
                 var plannedMinute = VisualDescendants<ComboBox>(window).Single(combo => combo.Name == "plannedMinuteBox");
                 Assert.IsNull(entry.SelectedPlannedHour);
                 Assert.IsNull(entry.SelectedPlannedMinute);
-                Assert.IsFalse(entry.CanConfirm);
+                Assert.IsTrue(entry.CanConfirm, "A fully unset planned time is valid when the fulfilment mode and date are valid.");
                 CollectionAssert.AreEqual(
                     new int?[] { null, 11, 12, 13, 14, 18, 19, 20, 21, 22 },
                     plannedHour.Items.Cast<TimeChoice>().Select(choice => choice.Value).ToArray());
@@ -436,7 +436,7 @@ public sealed class M04DesktopTests
                 plannedHour.SelectedValue = null;
                 window.UpdateLayout();
                 Assert.IsNull(entry.PlannedTime);
-                Assert.IsFalse(entry.CanConfirm);
+                Assert.IsTrue(entry.CanConfirm, "Clearing the complete planned time is valid; only a partial selection is invalid.");
                 entry.SelectedFulfilment = FulfilmentMode.Retrait;
                 plannedHour.SelectedValue = 11;
                 plannedMinute.SelectedValue = 0;

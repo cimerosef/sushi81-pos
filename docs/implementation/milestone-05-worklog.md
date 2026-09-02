@@ -110,3 +110,23 @@ This remediation follows the approved search/layout clarification in `docs/decis
 Verification on the working head before delivery: locked restore passed after the approved NuGet network retry; Release build passed with 0 warnings and 0 errors; the full Release suite passed 302 tests, 0 failed and 0 skipped; `git diff --check` passed; and a fresh self-contained `win-x64` publish passed to the ignored evidence directory `artifacts/m05-manual-acceptance-search-layout-fix-05-publish/`. The artifact was not deployed to an acceptance directory and was not launched. Final pushed SHA and CI status are recorded in the matching completion comment.
 
 M05 remains `Partial` pending the project-owner Windows/WPF manual checklist. No real customer/order/payment/credential data was read, migrated or written by this remediation. PR #10 remains open/unmerged, issue #4 was OPEN for execution, M06 remains unauthorized, and `POST_TASK_POWER_ACTION: NONE`.
+
+## Manual-acceptance follow-up localization/time/layout remediation — `M05-MANUAL-ACCEPTANCE-LOCALIZATION-TIME-LAYOUT-FIX-06` — 2026-09-02
+
+This follow-up closes the three findings recorded in `docs/implementation/milestone-05-manual-acceptance-findings-02.md` while preserving FIX-05 and the frozen M05 boundary.
+
+### Defect-escape retrospective
+
+- Static resources and labels were tested, but an already-visible validation message was not tested across a live FR ↔ zh-CN switch; the message therefore retained its old language and a ComboBox collection refresh could transiently clear the selected mode.
+- The prior Commandes filler/scroll checks passed positive and scrollability assertions without asserting useful viewport occupation, so the two long-text columns could remain at their minimum while leaving empty viewport space.
+- Mandatory planned time was copied from M04 §4.5 even though FR-017 and the Data Model allowed a null time; the M04 contract's stop-on-conflict rule was not carried through to the implementation handoff.
+
+### Changes and evidence
+
+- `OrderEntryShellViewModel` and `OrderLifecycleShellViewModel` now retain fulfilment, date/time selector and draft state while localized choice collections are refreshed, and retain structured pricing/operation validation issues so currently visible messages rerender immediately in the selected language. User-entered telephone, address and comment text is not translated.
+- Planned time is now optional at both entry and lifecycle persistence layers: date and fulfilment mode remain required; both selectors unset means `null`; both selected values must use hours 11–14 or 18–22 and five-minute minutes; half-selected or out-of-slot values remain invalid. Clearing either selector clears the other to avoid an inconsistent half-selection.
+- Commandes keeps exactly nine columns, with only Commentaire and Adresse treated as long-text columns. The WPF size handler assigns their leftover wide-window viewport equally and keeps their minimum widths so narrow windows retain horizontal scrolling.
+- `M03Presentation` now maps payment-negative validation for lifecycle message rerendering. Tests cover null-time Retrait/Livraison confirmation and reload, valid selected time, invalid partial time, date/mode requirements, future operational semantics, null-time modification, live localization state preservation, and actual Commandes widths at 980x680, 1280x900 and 760x520. Migration files 1–5 were not changed.
+- The independent read-only Luna audit found the same direct-message/state and selector risks in the broader desktop surface, plus the need for actual width assertions; it made no edits. This handoff integrates the focused fixes required here and leaves unrelated historical UI paths unchanged.
+
+Verification on the final working head: locked restore passed, Release solution build passed with 0 warnings and 0 errors, and the full Release suite passed 307 tests, 0 failed and 0 skipped. A self-contained `win-x64` publish passed with `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=false -o artifacts/m05-manual-acceptance-localization-time-layout-fix-06-publish --no-restore`; its complete output is evidence-only at `artifacts/m05-manual-acceptance-localization-time-layout-fix-06-publish/` and was not deployed or launched. No acceptance directory, real business database, real order data, account, profile redirection or M06 work was used. Manual Windows/WPF acceptance remains pending; PR #10 remains open/unmerged, issue #4 was OPEN for execution, and `POST_TASK_POWER_ACTION: NONE`.

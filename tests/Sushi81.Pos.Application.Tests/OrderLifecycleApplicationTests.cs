@@ -43,6 +43,20 @@ public sealed class OrderLifecycleApplicationTests
     }
 
     [TestMethod]
+    public async Task ExistingOrderWithNullPlannedTimeRemainsEditableWithoutInventingTime()
+    {
+        var current = Snapshot(BusinessDate, total: 1000) with { PlannedFulfilmentTime = null };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow)));
+
+        var result = await service.SaveModificationAsync(current with { Comment = "updated without a time" }, BusinessDate);
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.IsNull(store.Snapshot.PlannedFulfilmentTime);
+        Assert.AreEqual("updated without a time", store.Snapshot.Comment);
+    }
+
+    [TestMethod]
     public async Task ExistingQuantityChangeUsesCurrentSettingsAndHistoricalLineSnapshot()
     {
         var item = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "P-HIST", "Plat historique", "Plats", Money.FromCents(3000), 10m, true, 1, Money.FromCents(3000), Money.FromCents(2700), []);

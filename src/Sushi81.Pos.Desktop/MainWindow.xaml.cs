@@ -79,6 +79,20 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnCommandesGridSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is not DataGrid grid || grid.Columns.Count < 9) return;
+        var fixedWidth = grid.Columns.Take(7).Sum(column => column.ActualWidth);
+        var availableForLongText = grid.ActualWidth - 2 - fixedWidth;
+        if (availableForLongText < grid.Columns[7].MinWidth + grid.Columns[8].MinWidth) return;
+        var longTextWidth = availableForLongText / 2;
+        for (var index = 7; index <= 8; index++)
+        {
+            if (Math.Abs(grid.Columns[index].ActualWidth - longTextWidth) > 0.5)
+                grid.Columns[index].Width = new DataGridLength(longTextWidth, DataGridLengthUnitType.Pixel);
+        }
+    }
+
     private async void OnRefreshCatalogue(object sender, RoutedEventArgs e)
     {
         if (DataContext is ShellViewModel { Admin: { } admin }) await admin.RefreshAsync();

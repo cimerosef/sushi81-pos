@@ -159,10 +159,7 @@ public sealed class OrderEntryService(
             if (normalizedDraft.PlannedFulfilmentDate.Value < clock.BusinessDate)
                 return ConfirmOrderResult.Failure(new ValidationIssue("order", "The planned fulfilment date cannot be in the past.", ValidationCodes.PastPlannedDate));
 
-            if (normalizedDraft.PlannedFulfilmentTime is null)
-                return ConfirmOrderResult.Failure(new ValidationIssue("order", "A planned fulfilment time is required.", ValidationCodes.PlannedTimeRequired));
-
-            if (!IsApprovedPlannedTime(normalizedDraft.PlannedFulfilmentTime.Value))
+            if (normalizedDraft.PlannedFulfilmentTime is { } plannedTime && !IsApprovedPlannedTime(plannedTime))
                 return ConfirmOrderResult.Failure(new ValidationIssue("order", "The planned fulfilment time is not valid.", ValidationCodes.PlannedTimeInvalid));
 
             var now = clock.UtcNow;

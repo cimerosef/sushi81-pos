@@ -65,6 +65,7 @@ public static class M03Presentation
             ValidationCodes.GroupStructure => "ValidationGroupStructure",
             ValidationCodes.OptionStructure => "ValidationOptionStructure",
             ValidationCodes.Conflict => "ValidationConflict",
+            ValidationCodes.PaymentNegative => "ValidationPaymentNegative",
             ValidationCodes.PastPlannedDate => "ValidationPlannedDatePast",
             ValidationCodes.PlannedTimeRequired => "ValidationPlannedTimeRequired",
             ValidationCodes.PlannedTimeInvalid => "ValidationPlannedTimeInvalid",

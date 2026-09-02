@@ -74,7 +74,7 @@
             <DatePicker Width="145" SelectedDate="{Binding BrowseDate, Mode=TwoWay}" Margin="0,0,8,0" />
             <Button Content="{Binding DataContext.Localized[DashboardRefresh], RelativeSource={RelativeSource AncestorType=Window}}" Padding="10,3" Click="OnRefreshCommandes" />
           </WrapPanel>
-          <DataGrid x:Name="commandesGrid" Grid.Row="1" ItemsSource="{Binding Orders}" SelectedItem="{Binding SelectedRow, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" MinHeight="140" Margin="0,0,0,8" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto">
+          <DataGrid x:Name="commandesGrid" Grid.Row="1" ItemsSource="{Binding Orders}" SelectedItem="{Binding SelectedRow, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" MinHeight="140" Margin="0,0,0,8" SizeChanged="OnCommandesGridSizeChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto">
             <DataGrid.Columns>
               <DataGridTextColumn Header="" Binding="{Binding ReferenceText}" Width="120" />
               <DataGridTextColumn Header="" Binding="{Binding PlannedDateText}" Width="100" />
@@ -83,8 +83,8 @@
               <DataGridTextColumn Header="" Binding="{Binding TotalText, StringFormat={}{0} €}" Width="95" />
               <DataGridTextColumn Header="" Binding="{Binding TelephoneText}" Width="150" />
               <DataGridTextColumn Header="" Binding="{Binding FulfilmentText}" Width="100" />
-              <DataGridTextColumn Header="" Binding="{Binding CommentText}" Width="220" />
-              <DataGridTextColumn Header="" Binding="{Binding AddressText}" Width="220" />
+              <DataGridTextColumn Header="" Binding="{Binding CommentText}" Width="2*" MinWidth="180" />
+              <DataGridTextColumn Header="" Binding="{Binding AddressText}" Width="2*" MinWidth="180" />
             </DataGrid.Columns>
           </DataGrid>
           <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">

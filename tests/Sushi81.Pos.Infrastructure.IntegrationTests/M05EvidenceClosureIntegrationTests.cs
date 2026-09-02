@@ -1,10 +1,12 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
+using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.OrderEntry;
+using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Domain;
 using Sushi81.Pos.Infrastructure.Migrations;
 using Sushi81.Pos.Infrastructure.Order;
@@ -278,6 +280,41 @@ public sealed class M05EvidenceClosureIntegrationTests
         Assert.AreEqual(summary.ReceivedTtc, afterHiboutik.ReceivedTtc);
     }
 
+    [TestMethod]
+    public async Task OptionalPlannedTimePersistsForBothFulfilmentModesAndKeepsDateSemantics()
+    {
+        using var paths = new TestPaths();
+        var clock = new FixedClock();
+        var factory = await InitializeProductionAsync(paths, clock);
+        var product = new OrderEntryProduct(new ProductAggregate(
+            new Product(Guid.Parse("23000000-0000-0000-0000-000000000001"), "P-OPTIONAL-TIME", "Plat", Guid.NewGuid(), Money.FromCents(4000), 10m, true, true, false, default, default),
+            [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Plats");
+        var settings = new TestSettingsStore(BusinessSettings.Defaults(clock.UtcNow) with { DeliveryMinMerchandiseTotalTtc = Money.Zero });
+        var store = new SqliteOrderStore(factory, new SqliteTransactionRunner(factory), clock: clock);
+        using var service = new OrderEntryService(new SingleEntryCatalogue(product), settings, store, new NoopDispatcher(), new DeterministicIds(), clock);
+
+        foreach (var mode in new[] { FulfilmentMode.Retrait, FulfilmentMode.Livraison })
+        {
+            var result = await service.ConfirmNewOrderAsync(new NewOrderDraft(
+                [new OrderLineDraft(Guid.Empty, product.Aggregate, [], [], 1, product.CategoryName)],
+                mode, BusinessDate.AddDays(2), null, null, null, null, false));
+
+            Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+            Assert.IsNull(result.CommittedOrder!.PlannedFulfilmentTime);
+            var reloaded = await store.GetByIdAsync(result.CommittedOrder.Id);
+            Assert.IsNotNull(reloaded);
+            Assert.IsNull(reloaded!.PlannedFulfilmentTime);
+            Assert.IsTrue(reloaded.AdvanceOrderMarker);
+        }
+
+        var selected = await service.ConfirmNewOrderAsync(new NewOrderDraft(
+            [new OrderLineDraft(Guid.Empty, product.Aggregate, [], [], 1, product.CategoryName)],
+            FulfilmentMode.Retrait, BusinessDate.AddDays(2), new TimeOnly(18, 25), null, null, null, false));
+        Assert.IsTrue(selected.Succeeded, string.Join(";", selected.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(new TimeOnly(18, 25), (await store.GetByIdAsync(selected.CommittedOrder!.Id))!.PlannedFulfilmentTime);
+        Assert.AreEqual(3, (await store.GetOperationalSummaryAsync(BusinessDate)).FutureOrderCount);
+    }
+
     private static async Task<SqliteConnectionFactory> InitializeProductionAsync(TestPaths paths, IBusinessClock clock)
     {
         var factory = new SqliteConnectionFactory(paths);
@@ -412,6 +449,24 @@ public sealed class M05EvidenceClosureIntegrationTests
             Changes.Add(change);
             return Task.FromResult(new RecoverySnapshotResult("synthetic.db", "synthetic.json", "checksum", change.CommittedAtUtc, change.Sequence, 1));
         }
+    }
+
+    private sealed class SingleEntryCatalogue(OrderEntryProduct product) : IOrderEntryCatalogueQueries
+    {
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([new(product.Aggregate.Product.CategoryId, product.CategoryName)]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? categoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([new(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name, product.Aggregate.Product.CategoryId, product.CategoryName, product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, true, false)]);
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(productId == product.Aggregate.Product.Id ? product : null);
+    }
+
+    private sealed class NoopDispatcher : IOrderPrintDispatcher
+    {
+        public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class TestSettingsStore(BusinessSettings current) : IBusinessSettingsStore
+    {
+        public Task<BusinessSettings> GetAsync(CancellationToken cancellationToken = default) => Task.FromResult(current);
+        public Task<OperationResult> UpdateAsync(BusinessSettings settings, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
     }
 
     private sealed class FixedClock : IBusinessClock

@@ -262,6 +262,140 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
+    public void MainWindowCaisseLanguageRefreshAndOptionalPlannedTimeRemainCorrectOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(Guid.NewGuid(), "P-OPTIONAL", "Plat optionnel", categoryId, Money.FromCents(1000), 10m, true, true, false, default, default), [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Plats");
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { DeliveryMinMerchandiseTotalTtc = Money.Zero });
+            var store = new LifecycleStore(Snapshot(new DateOnly(2026, 8, 31)));
+            using var entryService = new OrderEntryService(new SingleEntryCatalogue(product), settings, store, new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                new CatalogueService(new EmptyCatalogueStore()),
+                new BusinessSettingsService(settings), entryService);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 680 };
+            window.Show();
+            try
+            {
+                var entry = shell.Entry!;
+                var caisse = Field<TabControl>(window, "mainTabs").Items.OfType<TabItem>().Single(item => item.DataContext is OrderEntryShellViewModel);
+                caisse.IsSelected = true;
+                entry.AddConfiguredLine(product, [], [], 2);
+                entry.Telephone = "06 12 34 56 78";
+                entry.DeliveryAddress = "12 rue de la Paix";
+                entry.Comment = "sans traduction";
+                entry.RepriceAsync(clearManualOverride: true).GetAwaiter().GetResult();
+                window.UpdateLayout();
+
+                Assert.IsNull(entry.SelectedFulfilment);
+                Assert.IsNull(entry.PlannedTime);
+                StringAssert.Contains(entry.ValidationMessage, shell.Localized["ValidationFulfilmentRequired"]);
+                Assert.IsTrue(VisualDescendants<TextBlock>(window).Any(text => text.Text == entry.ValidationMessage && text.Foreground == System.Windows.Media.Brushes.Firebrick));
+
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                window.UpdateLayout();
+                Assert.AreEqual(shell.Localized["ValidationFulfilmentRequired"], entry.ValidationMessage);
+                Assert.IsFalse(entry.ValidationMessage.Contains("Le mode de commande", StringComparison.Ordinal));
+                Assert.AreEqual(2, entry.Cart.Single().Quantity);
+                Assert.AreEqual("06 12 34 56 78", entry.Telephone);
+                Assert.AreEqual("12 rue de la Paix", entry.DeliveryAddress);
+                Assert.AreEqual("sans traduction", entry.Comment);
+                Assert.IsNull(entry.PlannedTime);
+
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                Assert.AreEqual(shell.Localized["ValidationFulfilmentRequired"], entry.ValidationMessage);
+
+                entry.SelectedFulfilment = FulfilmentMode.Retrait;
+                entry.RepriceAsync(clearManualOverride: true).GetAwaiter().GetResult();
+                Assert.IsTrue(entry.CanConfirm, "A valid date and fulfilment mode must be enough when the planned time is fully unset.");
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                Assert.IsNull(entry.PlannedTime, "Language changes must not silently select a planned time.");
+
+                entry.SelectedPlannedHour = 18;
+                Assert.IsFalse(entry.PlannedTimeValid, "A half-selected planned time must remain invalid.");
+                Assert.IsFalse(entry.CanConfirm);
+                var partial = entry.ConfirmAsync().GetAwaiter().GetResult();
+                Assert.IsFalse(partial!.Succeeded);
+                Assert.AreEqual(ValidationCodes.PlannedTimeInvalid, partial.Issues.Single().StableCode);
+                entry.SelectedPlannedHour = null;
+                Assert.IsNull(entry.SelectedPlannedMinute);
+                Assert.IsTrue(entry.CanConfirm, "A fully unset planned time must remain valid after a language change.");
+
+                var withoutTime = entry.ConfirmAsync().GetAwaiter().GetResult();
+                Assert.IsTrue(withoutTime!.Succeeded, string.Join(";", withoutTime.Issues.Select(issue => issue.Message)));
+                Assert.IsNull(withoutTime.CommittedOrder!.PlannedFulfilmentTime);
+                Assert.IsNull(store.Snapshot.PlannedFulfilmentTime);
+
+                entry.StartNewOrder();
+                entry.AddConfiguredLine(product, [], [], 1);
+                entry.SelectedFulfilment = FulfilmentMode.Retrait;
+                entry.SelectedPlannedHour = 18;
+                entry.SelectedPlannedMinute = 25;
+                entry.RepriceAsync(clearManualOverride: true).GetAwaiter().GetResult();
+                var withTime = entry.ConfirmAsync().GetAwaiter().GetResult();
+                Assert.IsTrue(withTime!.Succeeded, string.Join(";", withTime.Issues.Select(issue => issue.Message)));
+                Assert.AreEqual(new TimeOnly(18, 25), withTime.CommittedOrder!.PlannedFulfilmentTime);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void MainWindowCommandesUsesLongTextWidthWithoutAddingColumnsOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var order = Snapshot(new DateOnly(2026, 8, 31)) with
+            {
+                Comment = new string('c', 80),
+                DeliveryAddress = new string('a', 80)
+            };
+            var store = new LifecycleStore(order);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var lifecycleService = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                new CatalogueService(new EmptyCatalogueStore()),
+                new BusinessSettingsService(settings), orderLifecycleService: lifecycleService);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 680 };
+            window.Show();
+            try
+            {
+                var commandes = Field<TabControl>(window, "mainTabs").Items.OfType<TabItem>().Single(item => item.DataContext is OrderLifecycleShellViewModel);
+                commandes.IsSelected = true;
+                var grid = Field<DataGrid>(window, "commandesGrid");
+                window.UpdateLayout();
+                Assert.HasCount(9, grid.Columns);
+                Assert.AreEqual(DataGridLengthUnitType.Star, grid.Columns[7].Width.UnitType);
+                Assert.AreEqual(DataGridLengthUnitType.Star, grid.Columns[8].Width.UnitType);
+                Assert.IsGreaterThanOrEqualTo(180D, grid.Columns[7].MinWidth);
+                Assert.IsGreaterThanOrEqualTo(180D, grid.Columns[8].MinWidth);
+
+                window.Width = 1280;
+                window.Height = 900;
+                window.UpdateLayout();
+                var wideScroll = VisualDescendants<ScrollViewer>(grid).First(viewer => viewer.ViewportWidth > 0);
+                Assert.IsGreaterThan(180D, grid.Columns[7].ActualWidth, "Commentaire must expand on a wide window.");
+                Assert.IsGreaterThan(180D, grid.Columns[8].ActualWidth, "Adresse must expand on a wide window.");
+                Assert.IsLessThanOrEqualTo(1D, Math.Max(0D, wideScroll.ViewportWidth - wideScroll.ExtentWidth), "Wide layout must not leave a filler region after Adresse.");
+
+                window.Width = 760;
+                window.Height = 520;
+                window.UpdateLayout();
+                var narrowScroll = VisualDescendants<ScrollViewer>(grid).First(viewer => viewer.ViewportWidth > 0);
+                Assert.IsGreaterThan(0D, narrowScroll.ScrollableWidth, "Narrow supported sizes must keep horizontal scrolling.");
+                Assert.IsGreaterThanOrEqualTo(180D, grid.Columns[7].ActualWidth);
+                Assert.IsGreaterThanOrEqualTo(180D, grid.Columns[8].ActualWidth);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
     public void LifecycleOperationsDoNotOwnAutomaticPrintingAndCloseEligibilityIsExactOnSta()
     {
         Assert.IsFalse(typeof(OrderLifecycleService).GetConstructors().Single().GetParameters().Any(parameter => parameter.ParameterType == typeof(IOrderPrintDispatcher)));
