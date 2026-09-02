@@ -73,3 +73,18 @@ Exact new STA/WPF tests in `tests/Sushi81.Pos.ArchitectureTests/M05DesktopTests.
 - `LifecycleOperationsDoNotOwnAutomaticPrintingAndCloseEligibilityIsExactOnSta`: verifies the lifecycle service has no print-dispatch dependency, exact live payment equality enables the close feedback, and Abandon restores the non-eligible state.
 
 The only minimal production adjustments in this closure are count-aware `order-after-parent` and `payment-after-N` failure-injection stages for transaction evidence, stable generated names for the existing dashboard button controls, and phone search accepting both stored normalized and raw forms. Existing production behavior and the frozen M05 business rules are otherwise unchanged. AC-LIFE-003 through AC-LIFE-014 and live-search AC-LIFE-015 remain `Partial` pending the project-owner Windows/WPF checklist; the M12 archive portion remains out of scope.
+
+## Acceptance-publish process correction — 2026-09-02
+
+A post-review attempt to prepare the project-owner acceptance artifact introduced unnecessary synthetic Windows-profile / `LOCALAPPDATA` isolation. That isolation did not prove a production-code startup defect and complicated a routine local publish/launch path. The project owner stopped the task before completion.
+
+The mailbox record formerly named `CODEX_HANDOFF_READY: M05-WINDOWS-STARTUP-BLOCKER-04` was converted to `CANCELLED_HANDOFF: M05-WINDOWS-STARTUP-BLOCKER-04`; no `CODEX_DONE` is expected and no production-code change from that cancelled task is accepted or required. Issue #4 was returned to CLOSED after cancellation.
+
+The durable process rule is now recorded in `docs/implementation/agent-execution-contract.md`:
+
+- Codex still performs self-contained win-x64 publish during milestone verification as evidence that the exact implementation head is publishable.
+- Routine project-owner Windows/WPF acceptance deployment is not a Codex implementation task by default; use the already-proven direct local PowerShell `dotnet publish` and normal Windows launch path for the exact reviewed head.
+- Do not invent synthetic `LOCALAPPDATA`/profile redirection solely for ordinary acceptance. If important local application data may be migrated or mutated, protect it first with the approved backup/recovery procedure.
+- If the normal local publish/launch later reveals a reproducible software defect, create a new distinct diagnostic/remediation handoff.
+
+M05 manual Windows/WPF acceptance remains pending. PR #10 remains open/unmerged and M06 remains unauthorized.
