@@ -44,22 +44,15 @@ The dedicated Commandes workspace must place:
 
 The list must support both vertical and horizontal scrolling. Column widths should remain practical rather than compressing every field to fit the viewport.
 
-The operator-facing list should expose enough distinguishing information to make the wider horizontal list useful, including at least:
+Keep the existing Commandes list columns and add **only** these three new operator-facing columns:
 
-- human reference;
-- planned date;
-- planned time;
-- fulfilment mode (Retrait/Livraison);
-- status;
-- Total TTC;
-- CB;
-- Espèce;
-- difference/remaining;
-- telephone;
-- comment;
-- delivery address.
+- fulfilment mode (`Mode`, Retrait/Livraison);
+- comment (`Commentaire`);
+- delivery address (`Adresse`).
 
-Presentation width/order is a technical choice as long as the fields remain readable in French and Simplified Chinese and horizontal scrolling works at supported window sizes.
+Do **not** add new CB, Espèce, paid-total, difference/remaining or other financial columns to the Commandes list as part of this clarification. Existing detail/payment controls remain unchanged in the lower selected-order detail.
+
+Presentation width/order is a technical choice as long as the existing columns plus these three additions remain readable in French and Simplified Chinese and horizontal scrolling works at supported window sizes.
 
 The selected-order detail keeps the existing M05 structured edit/payment/lifecycle behavior and must remain vertically scrollable when the available lower area is smaller than its content.
 
