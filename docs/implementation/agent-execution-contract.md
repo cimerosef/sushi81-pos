@@ -124,6 +124,12 @@ For larger milestones, use this default order when applicable:
 8. main agent runs the full required restore/build/test/publish/CI matrix;
 9. manual/operator evidence remains separate and must never be fabricated.
 
+The `publish` in step 8 is a **verification publish** proving that the exact implementation head can produce the required Windows artifact. It is not, by itself, an instruction for Codex to deploy or install that artifact on the project owner's workstation.
+
+For project-owner Windows/WPF acceptance, prefer the simplest already-proven local path: the owner may publish the exact reviewed head directly from PowerShell and launch it normally. Do not create a separate Codex handoff merely to execute a routine local `dotnet publish`, copy an artifact, or launch the application when the owner can do that faster and no code diagnosis/change is required. Codex becomes appropriate again if the normal local publish/launch reveals a reproducible software defect that requires investigation or repository changes.
+
+Do not invent synthetic Windows-profile or `LOCALAPPDATA` redirection solely to protect an acceptance run unless the milestone explicitly requires such isolation. When acceptance may migrate or mutate important local application data, protect it with the approved backup/recovery procedure before the normal-user launch instead of replacing the real Windows profile semantics.
+
 Do not delegate downstream work before the interface it depends on is stable merely to maximize concurrency.
 
 ## 9. Required subagent task contract
