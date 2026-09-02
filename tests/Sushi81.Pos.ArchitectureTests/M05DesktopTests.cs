@@ -379,7 +379,7 @@ public sealed class M05DesktopTests
                 window.Height = 900;
                 window.UpdateLayout();
                 var wideScroll = VisualDescendants<ScrollViewer>(grid).First(viewer => viewer.ViewportWidth > 0);
-                Assert.IsGreaterThan(180D, grid.Columns[7].ActualWidth, "Commentaire must expand on a wide window.");
+                Assert.IsGreaterThan(180D, grid.Columns[7].ActualWidth, $"Commentaire must expand on a wide window. window={window.ActualWidth}; grid={grid.ActualWidth}; viewport={wideScroll.ViewportWidth}; extent={wideScroll.ExtentWidth}; comment={grid.Columns[7].ActualWidth}; address={grid.Columns[8].ActualWidth}");
                 Assert.IsGreaterThan(180D, grid.Columns[8].ActualWidth, "Adresse must expand on a wide window.");
                 Assert.IsLessThanOrEqualTo(1D, Math.Max(0D, wideScroll.ViewportWidth - wideScroll.ExtentWidth), "Wide layout must not leave a filler region after Adresse.");
 
