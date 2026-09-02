@@ -74,7 +74,8 @@ public sealed class OrderLifecycleService(
         if (string.IsNullOrWhiteSpace(query)) return rows;
         var text = query.Trim();
         return rows.Where(row => row.Reference.Contains(text, StringComparison.OrdinalIgnoreCase)
-            || (row.Telephone?.Contains(text, StringComparison.OrdinalIgnoreCase) ?? false)).ToArray();
+            || (row.Comment?.Contains(text, StringComparison.OrdinalIgnoreCase) ?? false)
+            || TelephoneSearchNormalization.QueryTerms(text).Any(term => TelephoneSearchNormalization.Digits(row.Telephone).Contains(term, StringComparison.Ordinal))).ToArray();
     }
 
     public async Task<IReadOnlyList<OrderBrowserRow>> ListOperationalAsync(OperationalOrderView view, DateOnly businessDate, CancellationToken cancellationToken = default)

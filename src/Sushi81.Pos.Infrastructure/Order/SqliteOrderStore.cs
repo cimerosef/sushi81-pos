@@ -148,7 +148,7 @@ public sealed class SqliteOrderStore(
         var hasM05 = await HasColumnAsync(connection, "orders", "order_reference", cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = hasM05
-            ? "SELECT order_id,order_reference,planned_fulfilment_date,planned_fulfilment_time,fulfilment_mode,status,total_ttc_cents,advance_order_marker,telephone,card_payment_ttc_cents,cash_payment_ttc_cents FROM orders WHERE planned_fulfilment_date=$date ORDER BY planned_fulfilment_time IS NULL,planned_fulfilment_time,order_id;"
+            ? "SELECT order_id,order_reference,planned_fulfilment_date,planned_fulfilment_time,fulfilment_mode,status,total_ttc_cents,advance_order_marker,telephone,delivery_address,comment,card_payment_ttc_cents,cash_payment_ttc_cents FROM orders WHERE planned_fulfilment_date=$date ORDER BY planned_fulfilment_time IS NULL,planned_fulfilment_time,order_id;"
             : "SELECT order_id,planned_fulfilment_date,planned_fulfilment_time,fulfilment_mode,status,total_ttc_cents,telephone FROM orders WHERE planned_fulfilment_date=$date ORDER BY planned_fulfilment_time IS NULL,planned_fulfilment_time,order_id;";
         command.Parameters.AddWithValue("$date", plannedDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         var result = new List<OrderBrowserRow>();
@@ -159,8 +159,10 @@ public sealed class SqliteOrderStore(
             {
                 Reference = hasM05 ? reader.GetString(1) : string.Empty,
                 AdvanceOrderMarker = hasM05 && reader.GetInt64(7) == 1,
-                CardPaymentTtc = hasM05 ? Money.FromCents(reader.GetInt64(9)) : Money.Zero,
-                CashPaymentTtc = hasM05 ? Money.FromCents(reader.GetInt64(10)) : Money.Zero
+                DeliveryAddress = hasM05 ? ReadNullableString(reader, 9) : null,
+                Comment = hasM05 ? ReadNullableString(reader, 10) : null,
+                CardPaymentTtc = hasM05 ? Money.FromCents(reader.GetInt64(11)) : Money.Zero,
+                CashPaymentTtc = hasM05 ? Money.FromCents(reader.GetInt64(12)) : Money.Zero
             };
             result.Add(row);
         }
@@ -171,14 +173,35 @@ public sealed class SqliteOrderStore(
     {
         await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
         var trimmedQuery = (query ?? string.Empty).Trim();
-        var normalizedTelephoneQuery = TelephoneNormalization.Normalize(trimmedQuery) ?? trimmedQuery;
+        var telephoneTerms = TelephoneSearchNormalization.QueryTerms(trimmedQuery);
+        var telephoneTerm0 = telephoneTerms.ElementAtOrDefault(0) ?? string.Empty;
+        var telephoneTerm1 = telephoneTerms.ElementAtOrDefault(1) ?? string.Empty;
         await using var command = connection.CreateCommand(); command.CommandText = """
-            SELECT order_id,order_reference,planned_fulfilment_date,planned_fulfilment_time,fulfilment_mode,status,total_ttc_cents,advance_order_marker,telephone,card_payment_ttc_cents,cash_payment_ttc_cents
-            FROM orders WHERE $query='' OR order_reference=$query OR telephone LIKE '%' || $query || '%' OR telephone LIKE '%' || $telephoneQuery || '%' OR comment LIKE '%' || $query || '%'
+            SELECT order_id,order_reference,planned_fulfilment_date,planned_fulfilment_time,fulfilment_mode,status,total_ttc_cents,advance_order_marker,telephone,delivery_address,comment,card_payment_ttc_cents,cash_payment_ttc_cents
+            FROM orders
+            WHERE $query='' OR COALESCE(order_reference,'') LIKE $queryPattern ESCAPE '\'
+               OR COALESCE(comment,'') LIKE $queryPattern ESCAPE '\'
+               OR ($telephoneTerm0 <> '' AND (
+                    replace(replace(replace(replace(replace(replace(COALESCE(telephone,''),' ',''),'-',''),'.',''),'(',''),')',''),'+','') LIKE $telephonePattern0 ESCAPE '\'
+                    OR ($telephoneTerm1 <> '' AND replace(replace(replace(replace(replace(replace(COALESCE(telephone,''),' ',''),'-',''),'.',''),'(',''),')',''),'+','') LIKE $telephonePattern1 ESCAPE '\')))
             ORDER BY planned_fulfilment_date,planned_fulfilment_time IS NULL,planned_fulfilment_time,order_id;
-            """; command.Parameters.AddWithValue("$query", trimmedQuery); command.Parameters.AddWithValue("$telephoneQuery", normalizedTelephoneQuery);
+            """;
+        command.Parameters.AddWithValue("$query", trimmedQuery);
+        command.Parameters.AddWithValue("$queryPattern", $"%{EscapeLikePattern(trimmedQuery)}%");
+        command.Parameters.AddWithValue("$telephoneTerm0", telephoneTerm0);
+        command.Parameters.AddWithValue("$telephoneTerm1", telephoneTerm1);
+        command.Parameters.AddWithValue("$telephonePattern0", $"%{EscapeLikePattern(telephoneTerm0)}%");
+        command.Parameters.AddWithValue("$telephonePattern1", $"%{EscapeLikePattern(telephoneTerm1)}%");
         var result = new List<OrderBrowserRow>(); await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken)) result.Add(new(ParseGuid(reader.GetString(0)), DateOnly.ParseExact(reader.GetString(2), "yyyy-MM-dd", CultureInfo.InvariantCulture), ReadNullableTime(reader, 3), ParseFulfilment(reader.GetString(4)), ParseStatus(reader.GetString(5)), Money.FromCents(reader.GetInt64(6)), ReadNullableString(reader, 8)) { Reference = reader.GetString(1), AdvanceOrderMarker = reader.GetInt64(7) == 1, CardPaymentTtc = Money.FromCents(reader.GetInt64(9)), CashPaymentTtc = Money.FromCents(reader.GetInt64(10)) });
+        while (await reader.ReadAsync(cancellationToken)) result.Add(new(ParseGuid(reader.GetString(0)), DateOnly.ParseExact(reader.GetString(2), "yyyy-MM-dd", CultureInfo.InvariantCulture), ReadNullableTime(reader, 3), ParseFulfilment(reader.GetString(4)), ParseStatus(reader.GetString(5)), Money.FromCents(reader.GetInt64(6)), ReadNullableString(reader, 8))
+        {
+            Reference = ReadNullableString(reader, 1) ?? string.Empty,
+            DeliveryAddress = ReadNullableString(reader, 9),
+            Comment = ReadNullableString(reader, 10),
+            AdvanceOrderMarker = reader.GetInt64(7) == 1,
+            CardPaymentTtc = Money.FromCents(reader.GetInt64(11)),
+            CashPaymentTtc = Money.FromCents(reader.GetInt64(12))
+        });
         return result;
     }
 
@@ -277,6 +300,7 @@ public sealed class SqliteOrderStore(
     private static TimeOnly? ReadNullableTime(SqliteDataReader reader, int index) => reader.IsDBNull(index) ? null : TimeOnly.ParseExact(reader.GetString(index), "HH:mm:ss.fffffff", CultureInfo.InvariantCulture);
     private static string? ReadNullableString(SqliteDataReader reader, int index) => reader.IsDBNull(index) ? null : reader.GetString(index);
     private static decimal? ReadNullableDecimal(SqliteDataReader reader, int index) => reader.IsDBNull(index) ? null : ParseDecimal(reader.GetString(index));
+    private static string EscapeLikePattern(string value) => value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal);
     private static string? ReadOptionalColumn(SqliteDataReader reader, string name) { try { var index = reader.GetOrdinal(name); return reader.IsDBNull(index) ? null : reader.GetString(index); } catch (ArgumentException) { return null; } }
     private static long? ReadOptionalInt64(SqliteDataReader reader, string name) { try { var index = reader.GetOrdinal(name); return reader.IsDBNull(index) ? null : reader.GetInt64(index); } catch (ArgumentException) { return null; } }
     private static Guid ParseGuid(string value) => Guid.TryParse(value, out var id) ? id : throw new InvalidDataException("The database contains an invalid opaque identifier.");

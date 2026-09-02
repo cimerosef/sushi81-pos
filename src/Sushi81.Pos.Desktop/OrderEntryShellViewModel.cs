@@ -533,7 +533,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
                 return result;
             }
             IsCommitted = true;
-        var committedId = result.CommittedOrder?.Id ?? result.PersistedOrderId;
+            var committedId = result.CommittedOrder?.Id ?? result.PersistedOrderId;
+            var committedLabel = !string.IsNullOrWhiteSpace(result.CommittedOrder?.Reference)
+                ? result.CommittedOrder!.Reference
+                : committedId?.ToString() ?? "—";
             if (committedId is { } id)
             {
                 ReloadOrderIdText = id.ToString();
@@ -547,8 +550,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
                 }
             }
             CommittedMessage = result.HasOutputFailure
-                ? string.Format(CultureInfo.CurrentCulture, Localized("OrderSavedOutputFailed", "Commande {0} enregistrée ; l’envoi de sortie a échoué."), committedId)
-                : string.Format(CultureInfo.CurrentCulture, Localized("OrderSaved", "Commande {0} enregistrée."), committedId);
+                ? string.Format(CultureInfo.CurrentCulture, Localized("OrderSavedOutputFailed", "Commande {0} enregistrée ; l’envoi de sortie a échoué."), committedLabel)
+                : string.Format(CultureInfo.CurrentCulture, Localized("OrderSaved", "Commande {0} enregistrée."), committedLabel);
             ValidationMessage = result.HasOutputFailure ? string.Join(Environment.NewLine, result.Issues.Select(LocalizeIssue)) : string.Empty;
             return result;
         }

@@ -249,6 +249,25 @@ public static class TelephoneNormalization
     }
 }
 
+/// <summary>Builds stable, punctuation-insensitive search terms without changing persisted telephone values.</summary>
+public static class TelephoneSearchNormalization
+{
+    public static string Digits(string? value) => new((value ?? string.Empty).Where(char.IsDigit).ToArray());
+
+    public static IReadOnlyList<string> QueryTerms(string? value)
+    {
+        var digits = Digits(value);
+        if (digits.Length == 0) return [];
+
+        var terms = new HashSet<string>(StringComparer.Ordinal) { digits };
+        if (digits.StartsWith("33", StringComparison.Ordinal) && digits.Length > 2)
+            terms.Add("0" + digits[2..]);
+        if (digits.StartsWith('0') && digits.Length > 1)
+            terms.Add("33" + digits[1..]);
+        return terms.ToArray();
+    }
+}
+
 /// <summary>Pure M04 order pricing. All amounts are integer cents and rates are decimal.</summary>
 public static class OrderPricingService
 {

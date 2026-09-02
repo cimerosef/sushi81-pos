@@ -90,6 +90,8 @@ public sealed record OrderBrowserRow(
     string? Telephone)
 {
     public string Reference { get; init; } = string.Empty;
+    public string? DeliveryAddress { get; init; }
+    public string? Comment { get; init; }
     public Money CardPaymentTtc { get; init; } = Money.Zero;
     public Money CashPaymentTtc { get; init; } = Money.Zero;
     public bool AdvanceOrderMarker { get; init; }

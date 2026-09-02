@@ -58,7 +58,7 @@ public sealed class M04DesktopTests
     }
 
     [TestMethod]
-    public void MainWindowM04LifecycleRendersLocalizedChoicesQuantityAndReloadSnapshot()
+    public void MainWindowM04LifecycleRendersLocalizedChoicesQuantityAndRetainsCompatibilitySeams()
     {
         RunOnSta(() =>
         {
@@ -85,11 +85,7 @@ public sealed class M04DesktopTests
                 var caisse = VisualDescendants<TabItem>(window).Single(item => string.Equals(item.Header?.ToString(), shell.Localized["Caisse"], StringComparison.Ordinal));
                 caisse.IsSelected = true;
                 window.UpdateLayout();
-                var browserGrid = VisualDescendants<DataGrid>(window).Single(grid => grid.Name == "orderBrowserGrid");
-                Assert.IsTrue(browserGrid.IsReadOnly);
-                Assert.HasCount(5, browserGrid.Columns);
-                var browserDate = VisualDescendants<DatePicker>(window).Single(picker => picker.Name == "orderBrowserDatePicker");
-                Assert.IsNull(browserDate.DisplayDateStart);
+                Assert.IsFalse(VisualDescendants<FrameworkElement>(window).Any(element => element.Name is "orderBrowserGrid" or "orderBrowserGroup" or "orderSavedGroup" or "orderReloadIdBox" or "orderReloadedDisplay"), "The duplicated M04 saved-order/reload controls must not be present in Caisse.");
                 var entry = shell.Entry!;
                 entry.AddConfiguredLine(product, [], [], 2);
                 entry.SelectedFulfilment = FulfilmentMode.Retrait;
@@ -131,14 +127,10 @@ public sealed class M04DesktopTests
 
                 entry.SelectBrowserOrderAsync(entry.BrowserOrders.Single(row => row.Id == firstId)).GetAwaiter().GetResult();
                 Assert.AreEqual(firstId, entry.ReloadedOrder!.Id);
-                Assert.AreEqual(entry.BrowseDate, browserDate.SelectedDate);
+                Assert.IsNotNull(entry.BrowseDate);
 
                 entry.ReloadOrderIdText = firstId.ToString();
-                Assert.IsTrue(entry.ReloadOrderAsync().GetAwaiter().GetResult());
-                window.UpdateLayout();
-                var snapshotText = VisualDescendants<TextBlock>(window).Single(text => text.Text.Contains(firstId.ToString(), StringComparison.Ordinal));
-                StringAssert.Contains(snapshotText.Text, firstId.ToString());
-                StringAssert.Contains(snapshotText.Text, "Total TTC");
+                Assert.IsTrue(entry.ReloadOrderAsync().GetAwaiter().GetResult(), "The compatibility reload seam remains available without the removed Caisse controls.");
 
                 shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
                 window.UpdateLayout();
@@ -147,7 +139,6 @@ public sealed class M04DesktopTests
                 Assert.AreEqual(firstId, entry.ReloadedOrder!.Id);
                 Assert.AreEqual("18:25", entry.BrowserOrders.Single(row => row.Id == firstId).PlannedTimeText);
                 Assert.AreEqual("配送", entry.BrowserOrders.Single(row => row.Id == firstId).FulfilmentText);
-                StringAssert.Contains(entry.ReloadedOrderDisplay, "18:25");
                 shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
                 Assert.AreEqual("Retrait", ((FulfilmentChoice)fulfilment.Items[1]).Label);
                 Assert.AreEqual("Livraison", entry.BrowserOrders.Single(row => row.Id == firstId).FulfilmentText);
@@ -506,14 +497,12 @@ public sealed class M04DesktopTests
                 var add = (Button)typeof(MainWindow).GetField("orderAddButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
                 var address = (TextBox)typeof(MainWindow).GetField("orderDeliveryAddressBox", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
                 var datePicker = (DatePicker)typeof(MainWindow).GetField("orderPlannedDatePicker", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
-                var saved = (GroupBox)typeof(MainWindow).GetField("orderSavedGroup", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
 
                 Assert.HasCount(3, categories.Items);
                 Assert.AreEqual(shell.Localized["Code"], productsGrid.Columns[0].Header?.ToString());
                 Assert.AreEqual(shell.Localized["Name"], productsGrid.Columns[1].Header?.ToString());
                 Assert.AreEqual(shell.Localized["PriceTtc"], productsGrid.Columns[2].Header?.ToString());
                 Assert.IsGreaterThan(145D, address.ActualWidth, "The delivery address must have usable width.");
-                Assert.AreEqual(Visibility.Visible, saved.Visibility);
                 Assert.AreEqual(entry.MinimumPlannedDate.Date, datePicker.DisplayDateStart?.Date);
 
                 productsGrid.SelectedItem = entry.Products.Single(product => product.Id == first.Aggregate.Product.Id);
@@ -552,8 +541,7 @@ public sealed class M04DesktopTests
                 var result = entry.ConfirmAsync().GetAwaiter().GetResult();
                 Assert.IsTrue(result!.Succeeded);
                 window.UpdateLayout();
-                Assert.IsGreaterThan(0D, saved.ActualHeight);
-                StringAssert.Contains(((TextBlock)typeof(MainWindow).GetField("orderReloadedDisplay", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!).Text, result.CommittedOrder!.Id.ToString());
+                Assert.IsFalse(VisualDescendants<FrameworkElement>(window).Any(element => element.Name is "orderSavedGroup" or "orderReloadIdBox" or "orderReloadedDisplay"), "The old reload display must not be recreated after a successful save.");
 
                 categories.SelectedValue = secondCategoryId;
                 entry.RefreshAsync().GetAwaiter().GetResult();

@@ -24,6 +24,8 @@ public sealed class OrderManagementRowViewModel(OrderBrowserRow row) : INotifyPr
     public string CashText => Row.CashPaymentTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string DifferenceText => Row.DifferenceTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string TelephoneText => Row.Telephone ?? Text("OrderBrowserEmptyTelephone", "—");
+    public string AddressText => Row.DeliveryAddress ?? string.Empty;
+    public string CommentText => Row.Comment ?? string.Empty;
     public void ApplyLocalization(IReadOnlyDictionary<string, string> values)
     {
         localized = values ?? new Dictionary<string, string>();

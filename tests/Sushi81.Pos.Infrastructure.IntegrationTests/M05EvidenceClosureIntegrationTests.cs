@@ -250,7 +250,23 @@ public sealed class M05EvidenceClosureIntegrationTests
         var cancelledReference = await TextAsync(factory, "SELECT order_reference FROM orders WHERE order_id=$id;", cancelled.Id.ToString());
         foreach (var term in new[] { todayReference, today.Telephone!, today.Comment!, cancelled.Telephone!, cancelled.Comment! })
             Assert.IsTrue((await store.SearchAsync(term)).Any(row => row.Id == today.Id || row.Id == cancelled.Id), term);
+        Assert.IsTrue((await store.SearchAsync(todayReference[6..])).Any(row => row.Id == today.Id), "A reference substring must match.");
+        Assert.IsTrue((await store.SearchAsync("0610")).Any(row => row.Id == today.Id), "A local-format telephone fragment must match.");
+        Assert.IsTrue((await store.SearchAsync("06 10")).Any(row => row.Id == today.Id), "Telephone spacing must not affect matching.");
+        Assert.IsTrue((await store.SearchAsync("6101")).Any(row => row.Id == today.Id), "A telephone fragment without the leading zero must match.");
+        Assert.IsTrue((await store.SearchAsync("+33 6 10")).Any(row => row.Id == today.Id), "An international telephone fragment must match local storage.");
+        var projectedToday = (await store.SearchAsync(todayReference)).Single(row => row.Id == today.Id);
+        Assert.AreEqual(today.DeliveryAddress, projectedToday.DeliveryAddress);
+        Assert.AreEqual(today.Comment, projectedToday.Comment);
+        var datedToday = (await store.ListByPlannedDateAsync(BusinessDate)).Single(row => row.Id == today.Id);
+        Assert.AreEqual(today.DeliveryAddress, datedToday.DeliveryAddress);
+        Assert.AreEqual(today.Comment, datedToday.Comment);
         Assert.HasCount(1, await store.SearchAsync(cancelledReference));
+        var literalComment = today with { Comment = "literal %_ marker" };
+        await store.SaveLifecycleAsync(literalComment, []);
+        var literalMatches = await store.SearchAsync("%_");
+        Assert.HasCount(1, literalMatches);
+        Assert.AreEqual(today.Id, literalMatches[0].Id, "LIKE metacharacters must be treated literally.");
         Assert.AreEqual(0L, await ScalarAsync(factory, "SELECT COUNT(*) FROM payment_adjustments WHERE effective_business_date='2026-08-31' AND order_id='" + overdue.Id + "';"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM payment_adjustments WHERE effective_business_date='2026-08-30' AND order_id='" + overdue.Id + "';"));
 

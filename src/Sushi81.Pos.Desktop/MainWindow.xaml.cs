@@ -36,7 +36,6 @@ public partial class MainWindow : Window
             if (viewModel.Entry is { } entry)
             {
                 await entry.RefreshAsync();
-                await entry.RefreshOrderBrowserAsync();
             }
             if (viewModel.Lifecycle is { } lifecycle) { await lifecycle.RefreshAsync(); await lifecycle.RefreshDashboardAsync(); }
         }
@@ -66,15 +65,7 @@ public partial class MainWindow : Window
             orderProductsGrid.Columns[1].Header = LocalizedText(this, "Name", "Name");
             orderProductsGrid.Columns[2].Header = LocalizedText(this, "PriceTtc", "TTC price");
         }
-        if (orderBrowserGrid.Columns.Count >= 5)
-        {
-            orderBrowserGrid.Columns[0].Header = LocalizedText(this, "OrderBrowserTime", "Time");
-            orderBrowserGrid.Columns[1].Header = LocalizedText(this, "OrderBrowserMode", "Mode");
-            orderBrowserGrid.Columns[2].Header = LocalizedText(this, "OrderBrowserStatus", "Status");
-            orderBrowserGrid.Columns[3].Header = LocalizedText(this, "OrderBrowserTotal", "Total TTC");
-            orderBrowserGrid.Columns[4].Header = LocalizedText(this, "OrderBrowserTelephone", "Telephone");
-        }
-        if (commandesGrid.Columns.Count >= 6)
+        if (commandesGrid.Columns.Count >= 9)
         {
             commandesGrid.Columns[0].Header = LocalizedText(this, "OrderReference", "Reference");
             commandesGrid.Columns[1].Header = LocalizedText(this, "PlannedDate", "Date");
@@ -82,6 +73,9 @@ public partial class MainWindow : Window
             commandesGrid.Columns[3].Header = LocalizedText(this, "OrderStatus", "Status");
             commandesGrid.Columns[4].Header = LocalizedText(this, "TotalTtc", "Total TTC");
             commandesGrid.Columns[5].Header = LocalizedText(this, "Telephone", "Telephone");
+            commandesGrid.Columns[6].Header = LocalizedText(this, "Fulfilment", "Mode");
+            commandesGrid.Columns[7].Header = LocalizedText(this, "Comment", "Comment");
+            commandesGrid.Columns[8].Header = LocalizedText(this, "DeliveryAddress", "Address");
         }
     }
 

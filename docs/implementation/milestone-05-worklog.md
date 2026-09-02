@@ -88,3 +88,25 @@ The durable process rule is now recorded in `docs/implementation/agent-execution
 - If the normal local publish/launch later reveals a reproducible software defect, create a new distinct diagnostic/remediation handoff.
 
 M05 manual Windows/WPF acceptance remains pending. PR #10 remains open/unmerged and M06 remains unauthorized.
+
+## Manual-acceptance search/layout remediation — `M05-MANUAL-ACCEPTANCE-SEARCH-LAYOUT-FIX-05` — 2026-09-02
+
+This remediation follows the approved search/layout clarification in `docs/decisions/m05-manual-acceptance-search-and-layout-clarifications.md`. It remains limited to PR #10 and does not change the order/payment model, migrations 1–5, archive boundary or M06 scope.
+
+### Defect-escape retrospective
+
+- The partial-phone defect escaped the earlier tests because persistence normalizes an ordinary ten-digit French local number to spaced pairs (for example `06 12 34 56 78`), while the earlier query asserted only raw/normalized whole-value `LIKE` forms. The new shared search normalization compares digits-only fragments and both local `0…` and international `33…` prefixes without changing persisted meaning.
+- Exact-only reference search remained because the earlier SQL used equality for `order_reference`; the new parameterized query uses an escaped substring pattern for references and comments.
+- The application fallback previously searched only reference and raw telephone text, so it could diverge from the SQLite production path. It now uses the same shared telephone terms and includes comments; SQLite remains the production query path with a compact single-row projection.
+- The Caisse visual audit found the duplicated saved/reloaded GUID group, reload row and date browser/list. Those controls are removed from the actual WPF tree while the underlying compatibility seams remain available for existing regressions.
+
+### Changes and evidence
+
+- `OrderBrowserRow` now carries only the approved compact fulfilment mode/comment/address additions; SQLite date/live queries project those fields in one query without full snapshot/N+1 loads.
+- Commandes is now actual top controls → full-width horizontally/vertically scrollable list → vertically scrollable selected-order detail. It retains the existing columns and adds only Mode, Commentaire and Adresse; no financial columns were added.
+- Caisse retains the dashboard strip and fast-entry fields/actions, removes the duplicate M04 browser/reload UI, gives Panier a substantially larger available region with its own scroll, and reports the persisted human reference in normal success/output-failure feedback, with a technical ID only for abnormal reload fallback.
+- Focused infrastructure/application and actual STA/WPF regressions cover partial reference/telephone/comment search (including local/international telephone forms), literal `%`/`_`, compact date/live projection, stale-search protection, FR/zh-CN headers, selection/detail and Modify/Abandon, dashboard routing, minimum/larger windows, Caisse control absence, cart scrolling and human-reference feedback.
+
+Verification on the working head before delivery: locked restore passed after the approved NuGet network retry; Release build passed with 0 warnings and 0 errors; the full Release suite passed 302 tests, 0 failed and 0 skipped; `git diff --check` passed; and a fresh self-contained `win-x64` publish passed to the ignored evidence directory `artifacts/m05-manual-acceptance-search-layout-fix-05-publish/`. The artifact was not deployed to an acceptance directory and was not launched. Final pushed SHA and CI status are recorded in the matching completion comment.
+
+M05 remains `Partial` pending the project-owner Windows/WPF manual checklist. No real customer/order/payment/credential data was read, migrated or written by this remediation. PR #10 remains open/unmerged, issue #4 was OPEN for execution, M06 remains unauthorized, and `POST_TASK_POWER_ACTION: NONE`.
