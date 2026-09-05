@@ -328,8 +328,9 @@ public static class OrderPricingService
                 var candidateLines = lines.Select(line =>
                 {
                     if (!line.Draft.Product.Product.DiscountEligible) return line;
-                    var discount = BusinessRounding.ToCents(line.ProductVatComponentTtc.Euros * settings.PickupDiscountRate);
-                    return line with { DiscountTtc = Money.FromCents(discount), CalculatedLineTotalTtc = line.CalculatedLineTotalTtc - Money.FromCents(discount) };
+                    var discountedProductComponent = Money.FromCents(BusinessRounding.ToCents(line.ProductVatComponentTtc.Euros * (1m - settings.PickupDiscountRate)));
+                    var discount = line.ProductVatComponentTtc - discountedProductComponent;
+                    return line with { DiscountTtc = discount, CalculatedLineTotalTtc = discountedProductComponent + line.PositiveAdjustmentComponentTtc };
                 }).ToArray();
                 var candidateTotal = candidateLines.Aggregate(Money.Zero, (total, line) => total + line.CalculatedLineTotalTtc);
                 if (candidateTotal < settings.PickupDiscountMinTotalTtc)
@@ -435,8 +436,8 @@ public static class OrderPricingService
                 var candidate = priced.Select(line =>
                 {
                     if (!line.Item.ProductDiscountEligible) return line;
-                    var discount = Money.FromCents(BusinessRounding.ToCents(line.ProductComponent.Euros * settings.PickupDiscountRate));
-                    return (Item: line.Item with { CalculatedLineTotalTtc = line.Item.CalculatedLineTotalTtc - discount }, line.ProductComponent, line.PositiveComponent);
+                    var discountedProductComponent = Money.FromCents(BusinessRounding.ToCents(line.ProductComponent.Euros * (1m - settings.PickupDiscountRate)));
+                    return (Item: line.Item with { CalculatedLineTotalTtc = discountedProductComponent + line.PositiveComponent }, line.ProductComponent, line.PositiveComponent);
                 }).ToList();
                 var candidateTotal = candidate.Aggregate(Money.Zero, (sum, line) => sum + line.Item.CalculatedLineTotalTtc);
                 if (candidateTotal < settings.PickupDiscountMinTotalTtc)

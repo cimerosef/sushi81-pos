@@ -65,6 +65,25 @@ public sealed class ExistingOrderSnapshotPricingTests
         Assert.AreEqual(0.121m, withDifferentCurrentRate.PickupDiscountRate);
     }
 
+    [TestMethod]
+    public void ExistingSnapshotsUseLineComponentFirstRoundingAtTwelvePointFivePercent()
+    {
+        var priced = OrderPricingService.CalculateSnapshots(
+            [
+                Item("TST002", 1200, true, adjustments: [Adjustment("Sans accompagnement", -100), Adjustment("Sauce premium", 100)]),
+                Item("TST001A", 850, true, quantity: 2)
+            ],
+            FulfilmentMode.Retrait,
+            pickupDiscountRequested: true,
+            Settings(rate: 0.125m));
+
+        Assert.IsTrue(priced.IsValid, string.Join(";", priced.ValidationErrors));
+        Assert.AreEqual(2551L, priced.TotalTtc.Cents);
+        Assert.AreEqual(1063L, priced.Items.Single(item => item.ProductCode == "TST002").CalculatedLineTotalTtc.Cents);
+        Assert.AreEqual(1488L, priced.Items.Single(item => item.ProductCode == "TST001A").CalculatedLineTotalTtc.Cents);
+        Assert.AreEqual(2451L, priced.TaxBreakdown.Single(tax => tax.VatRate == 10m).TaxableTtc.Cents);
+    }
+
     private static OrderItemSnapshot Item(string code, long unitCents, bool eligible, int quantity = 1, IReadOnlyList<OrderLineAdjustmentSnapshot>? adjustments = null) => new(
         Guid.NewGuid(), 0, Guid.NewGuid(), code, code, "Synthetic", Money.FromCents(unitCents), 10m, eligible, quantity,
         Money.FromCents(unitCents * quantity), Money.FromCents(unitCents * quantity), adjustments ?? []);

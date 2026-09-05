@@ -123,6 +123,45 @@ public sealed class OrderLifecycleApplicationTests
         }
     }
 
+    [TestMethod]
+    public async Task ExistingOrderRepriceUsesLineComponentFirstRoundingAndKeepsHistoricalSnapshotAuthority()
+    {
+        var first = PricingItem("TST002", 1200, true, adjustments: [Adjustment("Sans accompagnement", -100), Adjustment("Sauce premium", 100)]) with
+        {
+            CalculatedLineTotalTtc = Money.FromCents(1062)
+        };
+        var second = PricingItem("TST001A", 850, true, quantity: 2) with
+        {
+            CalculatedLineTotalTtc = Money.FromCents(1487)
+        };
+        var current = Snapshot(BusinessDate, total: 2549) with
+        {
+            Items = [first, second],
+            PickupDiscountApplied = true,
+            PickupDiscountRate = 0.125m,
+            ManualTotalOverrideActive = true
+        };
+        var store = new LifecycleStore(current);
+        var catalogue = new ThrowingCatalogueQueries();
+        var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with
+        {
+            PickupDiscountRate = 0.125m,
+            PickupDiscountMinTotalTtc = Money.Zero
+        });
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), catalogue, settings);
+
+        var proposedSecond = second with { CalculatedLineTotalTtc = Money.FromCents(1700) };
+        var result = await service.SaveModificationAsync(current with { Items = [first, proposedSecond] });
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(2551L, store.Snapshot!.TotalTtc.Cents);
+        Assert.AreEqual(1063L, store.Snapshot.Items.Single(item => item.ProductCode == "TST002").CalculatedLineTotalTtc.Cents);
+        Assert.AreEqual(1488L, store.Snapshot.Items.Single(item => item.ProductCode == "TST001A").CalculatedLineTotalTtc.Cents);
+        Assert.IsFalse(store.Snapshot.ManualTotalOverrideActive);
+        Assert.AreEqual(0, catalogue.Calls);
+        CollectionAssert.AreEqual(first.Adjustments.ToArray(), store.Snapshot.Items.Single(item => item.ProductCode == "TST002").Adjustments.ToArray());
+    }
+
     private static OrderItemSnapshot PricingItem(string code, long unitCents, bool eligible, int quantity = 1, IReadOnlyList<OrderLineAdjustmentSnapshot>? adjustments = null) => new(
         Guid.NewGuid(), code == "TST002" ? 0 : 1, Guid.NewGuid(), code, code, "Synthetic", Money.FromCents(unitCents), 10m, eligible,
         quantity, Money.FromCents(unitCents * quantity), Money.FromCents(unitCents * quantity), adjustments ?? []);

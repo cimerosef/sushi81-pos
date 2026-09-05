@@ -474,6 +474,113 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
+    public void ExistingOrderHalfCentRepriceKeepsVisibleAndPersistedTotalsOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var firstAdjustments = new[]
+            {
+                new OrderLineAdjustmentSnapshot(Guid.NewGuid(), 0, OrderAdjustmentKind.CustomAdjustment, null, null, "Sans accompagnement", Money.FromCents(-100), 10m),
+                new OrderLineAdjustmentSnapshot(Guid.NewGuid(), 1, OrderAdjustmentKind.CustomAdjustment, null, null, "Sauce premium", Money.FromCents(100), 5.5m)
+            };
+            var first = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "TST002", "Produit 12", "Tests", Money.FromCents(1200), 10m, true, 1, Money.FromCents(1200), Money.FromCents(1062), firstAdjustments);
+            var second = new OrderItemSnapshot(Guid.NewGuid(), 1, Guid.NewGuid(), "TST001A", "Produit 8.50", "Tests", Money.FromCents(850), 10m, true, 2, Money.FromCents(1700), Money.FromCents(1487), []);
+            var order = Snapshot(new DateOnly(2026, 8, 31)) with
+            {
+                Items = [first, second],
+                TotalTtc = Money.FromCents(2549),
+                ManualTotalOverrideActive = true,
+                PickupDiscountApplied = true,
+                PickupDiscountRate = 0.125m
+            };
+            var store = new LifecycleStore(order);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountRate = 0.125m, PickupDiscountMinTotalTtc = Money.Zero });
+            using var lifecycleService = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), orderLifecycleService: lifecycleService);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                lifecycle.BeginModification();
+                lifecycle.DetailLines.Single(line => line.Item.ProductCode == "TST001A").Quantity = 1;
+                lifecycle.DetailLines.Single(line => line.Item.ProductCode == "TST001A").Quantity = 2;
+                lifecycle.SaveModificationAsync().GetAwaiter().GetResult();
+                window.UpdateLayout();
+
+                Assert.AreEqual(2551L, store.Snapshot.TotalTtc.Cents);
+                Assert.AreEqual(Money.FromCents(2551).Euros.ToString("0.00", CultureInfo.CurrentCulture), lifecycle.TotalText);
+                Assert.AreEqual(Money.FromCents(2551).Euros.ToString("0.00", CultureInfo.CurrentCulture), Field<TextBox>(window, "lifecycleEditTotalBox").Text);
+                Assert.IsFalse(store.Snapshot.ManualTotalOverrideActive);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void CommandesSelectedOrderLineActionsShareOneRightAlignedColumnOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var shortLine = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "SHORT", "Court", "Tests", Money.FromCents(1000), 10m, true, 1, Money.FromCents(1000), Money.FromCents(1000), []);
+            var longLine = new OrderItemSnapshot(Guid.NewGuid(), 1, Guid.NewGuid(), "LONG", new string('L', 80), "Tests", Money.FromCents(1200), 10m, true, 1, Money.FromCents(1200), Money.FromCents(1200), [
+                new(Guid.NewGuid(), 0, OrderAdjustmentKind.CustomAdjustment, null, null, new string('O', 120), Money.FromCents(-100), 10m)
+            ]);
+            var order = Snapshot(new DateOnly(2026, 8, 31)) with { Items = [shortLine, longLine], TotalTtc = Money.FromCents(2200) };
+            var store = new LifecycleStore(order);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var lifecycleService = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), orderLifecycleService: lifecycleService);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                var detail = Field<ListBox>(window, "lifecycleDetailLinesList");
+                var commandes = Field<TabControl>(window, "mainTabs").Items.OfType<TabItem>().Single(item => item.DataContext is OrderLifecycleShellViewModel);
+                commandes.IsSelected = true;
+                AssertAligned("normal");
+
+                window.Width = 760;
+                window.Height = 520;
+                AssertAligned("small");
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                AssertAligned("zh-CN");
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                AssertAligned("fr-FR");
+                Assert.HasCount(2, lifecycle.DetailLines, "Language refresh must preserve selected-order lines.");
+
+                void AssertAligned(string size)
+                {
+                    window.UpdateLayout();
+                    var containers = detail.Items.Cast<object>().Select(item => detail.ItemContainerGenerator.ContainerFromItem(item)).OfType<ListBoxItem>().ToArray();
+                    Assert.HasCount(2, containers, $"{size}: both selected-order rows must be realized.");
+                    var quantities = containers.Select(container => VisualDescendants<TextBox>(container).Single()).ToArray();
+                    var buttons = containers.Select(container => VisualDescendants<Button>(container).ToArray()).ToArray();
+                    var leftPanels = containers.Select(container => VisualDescendants<StackPanel>(container).First()).ToArray();
+                    var quantityLefts = quantities.Select(element => LeftEdge(element, window)).ToArray();
+                    var editLefts = buttons.Select(row => LeftEdge(row[0], window)).ToArray();
+                    var deleteLefts = buttons.Select(row => LeftEdge(row[1], window)).ToArray();
+                    var deleteRights = buttons.Select(row => RightEdge(row[1], window)).ToArray();
+                    var detailRight = RightEdge(detail, window);
+                    Assert.IsLessThanOrEqualTo(1D, quantityLefts.Max() - quantityLefts.Min(), $"{size}: quantities must align vertically.");
+                    Assert.IsLessThanOrEqualTo(1D, editLefts.Max() - editLefts.Min(), $"{size}: edit buttons must align vertically.");
+                    Assert.IsLessThanOrEqualTo(1D, deleteLefts.Max() - deleteLefts.Min(), $"{size}: delete buttons must align vertically.");
+                    Assert.IsLessThanOrEqualTo(1D, deleteRights.Max() - deleteRights.Min(), $"{size}: actions must share the same right edge.");
+                    Assert.IsTrue(deleteRights.All(edge => edge <= detailRight + 1D), $"{size}: action area must stay inside detail width.");
+                    Assert.IsTrue(leftPanels.All(panel => RightEdge(panel, window) <= quantityLefts.Min() + 1D), $"{size}: long text must not overlap the action area.");
+                }
+
+                static double LeftEdge(FrameworkElement element, Window window) => element.TransformToAncestor(window).Transform(new Point(0, 0)).X;
+                static double RightEdge(FrameworkElement element, Window window) => element.TransformToAncestor(window).Transform(new Point(element.ActualWidth, 0)).X;
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
     public void LifecycleOperationsDoNotOwnAutomaticPrintingAndCloseEligibilityIsExactOnSta()
     {
         Assert.IsFalse(typeof(OrderLifecycleService).GetConstructors().Single().GetParameters().Any(parameter => parameter.ParameterType == typeof(IOrderPrintDispatcher)));
