@@ -37,14 +37,17 @@ public sealed class OrderManagementRowViewModel(OrderBrowserRow row) : INotifyPr
 public sealed class OrderDetailLineViewModel(OrderItemSnapshot item) : INotifyPropertyChanged
 {
     private int quantity = item.Quantity;
+    private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>();
     public event PropertyChangedEventHandler? PropertyChanged;
     public OrderItemSnapshot Item { get; private set; } = item ?? throw new ArgumentNullException(nameof(item));
     public string ProductText => $"{Item.ProductCode} — {Item.ProductName}";
-    public string OptionsText => string.Join(", ", Item.Adjustments.Select(adjustment => adjustment.Label));
-    public int Quantity { get => quantity; set { if (value <= 0 || quantity == value) return; quantity = value; PropertyChanged?.Invoke(this, new(nameof(Quantity))); } }
+    public string PriceBreakdownText => string.Format(CultureInfo.CurrentCulture, "{0:0.00} € × {1} = {2:0.00} €", Item.ProductBasePriceTtc.Euros, Quantity, Item.ProductBasePriceTtc.Euros * Quantity);
+    public string OptionsText => string.Join(", ", Item.Adjustments.OrderBy(adjustment => adjustment.DisplayOrder).Select(adjustment =>
+        $"{adjustment.Label} ({adjustment.AdjustmentTtcPerUnit.Euros:+0.00;-0.00;0.00} €/{Text("Unit", "unité")})"));
+    public int Quantity { get => quantity; set { if (value <= 0 || quantity == value) return; quantity = value; PropertyChanged?.Invoke(this, new(nameof(Quantity))); PropertyChanged?.Invoke(this, new(nameof(PriceBreakdownText))); } }
     public OrderItemSnapshot ToSnapshot()
     {
-        var unitBase = Item.Quantity == 0 ? Money.Zero : Money.FromCents(Item.ExtendedBaseTtc.Cents / Item.Quantity);
+        var unitBase = Item.ProductBasePriceTtc;
         var adjustmentUnit = Item.Adjustments.Aggregate(Money.Zero, (sum, adjustment) => sum + adjustment.AdjustmentTtcPerUnit);
         return Item with { Quantity = quantity, ExtendedBaseTtc = unitBase * quantity, CalculatedLineTotalTtc = unitBase * quantity + adjustmentUnit * quantity };
     }
@@ -52,7 +55,13 @@ public sealed class OrderDetailLineViewModel(OrderItemSnapshot item) : INotifyPr
         Item.Id, product.Aggregate, Item.Adjustments.Where(adjustment => adjustment.SourceOptionId is not null).Select(adjustment => adjustment.SourceOptionId!.Value).ToArray(),
         Item.Adjustments.Where(adjustment => adjustment.Kind == OrderAdjustmentKind.CustomAdjustment).Select(adjustment => new OrderLineAdjustmentDraft(
             null, adjustment.GroupName, adjustment.Label, adjustment.AdjustmentTtcPerUnit, OrderAdjustmentKind.CustomAdjustment, adjustment.DisplayOrder)).ToArray(), quantity, Item.CategoryName);
+    public void ApplyLocalization(IReadOnlyDictionary<string, string> values)
+    {
+        localized = values ?? new Dictionary<string, string>();
+        PropertyChanged?.Invoke(this, new(nameof(OptionsText)));
+    }
     public void SetPosition(int position) { Item = Item with { Position = position }; }
+    private string Text(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
 }
 
 /// <summary>Presentation state for the dedicated M05 Commandes master/detail workflow.</summary>
@@ -173,6 +182,9 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     public string FulfilmentText => SelectedOrder is null ? string.Empty : SelectedOrder.Fulfilment == FulfilmentMode.Retrait ? Text("Retrait", "Retrait") : Text("Livraison", "Livraison");
     public string AdvanceText => SelectedOrder?.AdvanceOrderMarker == true ? Text("OrderAdvance", "Commande anticipée") : string.Empty;
     public string ManualTotalText => SelectedOrder?.ManualTotalOverrideActive == true ? Text("ManualTotalActive", "Total TTC manuel") : string.Empty;
+    public string PickupDiscountText => SelectedOrder is { PickupDiscountApplied: true, PickupDiscountRate: { } rate }
+        ? $"{Text("PickupDiscountApplied", "Remise Retrait")} {rate * 100m:0.##}%"
+        : string.Empty;
     public string TaxSummaryText => SelectedOrder is null ? string.Empty : string.Join(" · ", SelectedOrder.TaxBreakdown.OrderBy(tax => tax.VatRate).Select(tax => $"{tax.VatRate:0.#}% {tax.IncludedVatTtc.Euros:0.00} €"));
     public string PlannedDateText => SelectedOrder?.PlannedFulfilmentDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty;
     public string PlannedTimeText => OrderTimeFormatting.Format(SelectedOrder?.PlannedFulfilmentTime);
@@ -228,6 +240,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         editPlannedHour = previousHour;
         editPlannedMinute = previousMinute;
         foreach (var row in Orders) row.ApplyLocalization(localized);
+        foreach (var line in DetailLines) line.ApplyLocalization(localized);
         RaiseDetailProperties();
         OnPropertyChanged(nameof(EditFulfilment));
         OnPropertyChanged(nameof(EditPlannedHour));
@@ -286,14 +299,15 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     {
         var order = await service.GetOrderAsync(row.Id, cancellationToken);
         SelectedOrder = order;
-        if (order is not null && !IsEditing) LoadEditableFields(order);
+        if (order is not null && !IsEditing) { LoadEditableFields(order); LoadDetailLines(order); }
+        else if (order is null) DetailLines.Clear();
         ValidationMessage = order is null ? Text("OrderNotFound", "Commande introuvable.") : string.Empty;
     }
 
     public void BeginModification()
     {
         if (!CanModify || SelectedOrder is null) return;
-        LoadEditableFields(SelectedOrder); DetailLines.Clear(); foreach (var item in SelectedOrder.Items.OrderBy(item => item.Position)) DetailLines.Add(new OrderDetailLineViewModel(item)); IsEditing = true;
+        LoadEditableFields(SelectedOrder); LoadDetailLines(SelectedOrder); IsEditing = true;
     }
 
     public async Task SaveModificationAsync(CancellationToken cancellationToken = default)
@@ -314,7 +328,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         if (manual) proposed = proposed with { TaxBreakdown = [new OrderTaxBreakdown(OrderPricingService.DeliveryFeeVatRate, total, Money.FromCents(BusinessRounding.ToCents(total.Euros * OrderPricingService.DeliveryFeeVatRate / (100m + OrderPricingService.DeliveryFeeVatRate))), Guid.NewGuid())] };
         var result = await service.SaveModificationAsync(proposed, DateOnly.FromDateTime(EffectivePaymentDate?.Date ?? service.BusinessDate.ToDateTime(TimeOnly.MinValue)), cancellationToken);
         if (!result.Succeeded) { SetValidationIssues(result.Issues); return; }
-        SelectedOrder = result.Snapshot; IsEditing = false; DetailLines.Clear(); await RefreshAsync(cancellationToken);
+        SelectedOrder = result.Snapshot; IsEditing = false; if (result.Snapshot is not null) { LoadEditableFields(result.Snapshot); LoadDetailLines(result.Snapshot); } await RefreshAsync(cancellationToken);
     }
 
     public async Task CloseSelectedAsync(CancellationToken cancellationToken = default)
@@ -330,7 +344,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     public void AbandonModification()
     {
         if (!IsEditing) return;
-        IsEditing = false; DetailLines.Clear(); if (SelectedOrder is not null) LoadEditableFields(SelectedOrder); ValidationMessage = string.Empty;
+        IsEditing = false; if (SelectedOrder is not null) { LoadEditableFields(SelectedOrder); LoadDetailLines(SelectedOrder); } ValidationMessage = string.Empty;
     }
 
     public void ReuseCustomer() { if (SelectedOrder is not null) ReuseCustomerRequested?.Invoke(this, SelectedOrder); }
@@ -341,7 +355,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         var line = await service.CreateCurrentCatalogueLineAsync(draft, cancellationToken);
         if (line is null) { ValidationMessage = Text("ProductInactive", "Le produit n’est plus actif ou sa configuration est invalide."); return; }
         line = line with { Position = DetailLines.Count };
-        DetailLines.Add(new OrderDetailLineViewModel(line));
+        var viewModel = new OrderDetailLineViewModel(line); viewModel.ApplyLocalization(localized); DetailLines.Add(viewModel);
         ValidationMessage = string.Empty;
         OnPropertyChanged(nameof(CanSave));
     }
@@ -360,12 +374,22 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         if (replacement is null) { ValidationMessage = Text("ProductInactive", "Le produit n’est plus actif ou sa configuration est invalide."); return; }
         var index = DetailLines.IndexOf(line);
         if (index < 0) return;
-        DetailLines[index] = new OrderDetailLineViewModel(replacement with { Id = line.Item.Id, Position = index });
+        var viewModel = new OrderDetailLineViewModel(replacement with { Id = line.Item.Id, Position = index }); viewModel.ApplyLocalization(localized); DetailLines[index] = viewModel;
         ValidationMessage = string.Empty;
         OnPropertyChanged(nameof(CanSave));
     }
 
-    private void ApplyResult(OrderLifecycleResult result) { if (!result.Succeeded) { SetValidationIssues(result.Issues); return; } SelectedOrder = result.Snapshot; _ = RefreshAsync(); }
+    private void ApplyResult(OrderLifecycleResult result) { if (!result.Succeeded) { SetValidationIssues(result.Issues); return; } SelectedOrder = result.Snapshot; if (result.Snapshot is not null && !IsEditing) { LoadEditableFields(result.Snapshot); LoadDetailLines(result.Snapshot); } _ = RefreshAsync(); }
+    private void LoadDetailLines(OrderSnapshot order)
+    {
+        DetailLines.Clear();
+        foreach (var item in order.Items.OrderBy(item => item.Position))
+        {
+            var line = new OrderDetailLineViewModel(item);
+            line.ApplyLocalization(localized);
+            DetailLines.Add(line);
+        }
+    }
     private void LoadEditableFields(OrderSnapshot order) { EditFulfilment = order.Fulfilment; editPickupDiscountRequested = order.PickupDiscountApplied; OnPropertyChanged(nameof(EditPickupDiscountRequested)); OnPropertyChanged(nameof(IsEditPickupDiscountEnabled)); EditPlannedDate = order.PlannedFulfilmentDate.ToDateTime(TimeOnly.MinValue); EditPlannedHour = order.PlannedFulfilmentTime?.Hour; EditPlannedMinute = order.PlannedFulfilmentTime?.Minute; EditTelephone = order.Telephone ?? string.Empty; EditAddress = order.DeliveryAddress ?? string.Empty; EditComment = order.Comment ?? string.Empty; EditTotal = order.TotalTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture); EditCard = order.CardPaymentTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture); EditCash = order.CashPaymentTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture); EffectivePaymentDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue); RaiseEditPaymentProperties(); }
     private string LocalizeStatus(OrderStatus status) => status switch { OrderStatus.Open => Text("OrderStatusOpen", "Ouverte"), OrderStatus.Closed => Text("OrderStatusClosed", "Clôturée"), _ => Text("OrderStatusCancelled", "Annulée") };
     private string Text(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
@@ -390,7 +414,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         time.Hour is 11 or 12 or 13 or 14 or 18 or 19 or 20 or 21 or 22 &&
         time.Minute % 5 == 0 && time.Ticks % TimeSpan.TicksPerMinute == 0;
     private static bool TryParse(string value, out Money money) { if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.CurrentCulture, out var parsed)) { money = Money.FromEuros(parsed); return true; } money = Money.Zero; return false; }
-    private void RaiseDetailProperties() { OnPropertyChanged(nameof(HasSelectedOrder)); OnPropertyChanged(nameof(MinimumEditPlannedDate)); foreach (var name in new[] { nameof(ReferenceText), nameof(StatusText), nameof(FulfilmentText), nameof(AdvanceText), nameof(ManualTotalText), nameof(TaxSummaryText), nameof(PlannedDateText), nameof(PlannedTimeText), nameof(TotalText), nameof(PaidText), nameof(DifferenceText), nameof(TelephoneText), nameof(AddressText), nameof(CommentText), nameof(EditPickupDiscountRequested), nameof(IsEditPickupDiscountEnabled) }) OnPropertyChanged(name); RaiseEditPaymentProperties(); RaiseCommandProperties(); }
+    private void RaiseDetailProperties() { OnPropertyChanged(nameof(HasSelectedOrder)); OnPropertyChanged(nameof(MinimumEditPlannedDate)); foreach (var name in new[] { nameof(ReferenceText), nameof(StatusText), nameof(FulfilmentText), nameof(AdvanceText), nameof(ManualTotalText), nameof(PickupDiscountText), nameof(TaxSummaryText), nameof(PlannedDateText), nameof(PlannedTimeText), nameof(TotalText), nameof(PaidText), nameof(DifferenceText), nameof(TelephoneText), nameof(AddressText), nameof(CommentText), nameof(EditPickupDiscountRequested), nameof(IsEditPickupDiscountEnabled) }) OnPropertyChanged(name); RaiseEditPaymentProperties(); RaiseCommandProperties(); }
     private void RaiseCommandProperties() { foreach (var name in new[] { nameof(CanModify), nameof(CanSave), nameof(CanAbandon), nameof(CanClose), nameof(CanCancel), nameof(CanReuseCustomer), nameof(CanAddCurrentLine), nameof(IsEditPickupDiscountEnabled), nameof(EditCloseEligibilityText) }) OnPropertyChanged(name); }
     private void RaiseEditPaymentProperties() { foreach (var name in new[] { nameof(EditPaidText), nameof(EditDifferenceText), nameof(EditCloseEligibilityText) }) OnPropertyChanged(name); }
     private static bool ItemsEquivalent(IReadOnlyList<OrderItemSnapshot> left, OrderItemSnapshot[] right) =>

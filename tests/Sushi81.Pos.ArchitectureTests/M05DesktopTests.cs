@@ -405,6 +405,75 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
+    public void ExistingOrderQuantitySaveKeepsTheVisibleHistoricalPriceBreakdownInParityWithPersistenceOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var historicalAdjustment = new OrderLineAdjustmentSnapshot(Guid.NewGuid(), 0, OrderAdjustmentKind.CustomAdjustment, null, null, "Ajustement historique", Money.FromCents(-68), 10m);
+            var first = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "TST002", "Produit 12", "Tests", Money.FromCents(1200), 10m, true, 1, Money.FromCents(1200), Money.FromCents(1019), [historicalAdjustment]);
+            var second = new OrderItemSnapshot(Guid.NewGuid(), 1, Guid.NewGuid(), "TST001A", "Produit 8.50", "Tests", Money.FromCents(850), 10m, true, 1, Money.FromCents(850), Money.FromCents(765), []);
+            var order = Snapshot(new DateOnly(2026, 8, 31)) with
+            {
+                Items = [first, second],
+                TotalTtc = Money.FromCents(1784),
+                PickupDiscountApplied = true,
+                PickupDiscountRate = 0.10m
+            };
+            var store = new LifecycleStore(order);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountMinTotalTtc = Money.Zero });
+            using var lifecycleService = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), orderLifecycleService: lifecycleService);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                Field<TabControl>(window, "mainTabs").Items.OfType<TabItem>().Single(item => item.DataContext is OrderLifecycleShellViewModel).IsSelected = true;
+                lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                var detailLines = Field<ListBox>(window, "lifecycleDetailLinesList");
+                window.UpdateLayout();
+
+                Assert.HasCount(2, detailLines.Items, "A selected saved order must expose its historical lines before modification begins.");
+                StringAssert.Contains(lifecycle.DetailLines[0].PriceBreakdownText, "× 1 =");
+                StringAssert.Contains(lifecycle.DetailLines[0].PriceBreakdownText, Money.FromCents(1200).Euros.ToString("0.00", CultureInfo.CurrentCulture));
+                StringAssert.Contains(lifecycle.DetailLines[0].OptionsText, Money.FromCents(-68).Euros.ToString("+0.00;-0.00;0.00", CultureInfo.CurrentCulture) + " €/unité");
+                StringAssert.Contains(lifecycle.PickupDiscountText, "10%");
+
+                lifecycle.BeginModification();
+                lifecycle.DetailLines.Single(line => line.Item.ProductCode == "TST001A").Quantity = 2;
+                lifecycle.SaveModificationAsync().GetAwaiter().GetResult();
+                window.UpdateLayout();
+
+                Assert.IsFalse(lifecycle.IsEditing);
+                Assert.AreEqual(2549L, store.Snapshot.TotalTtc.Cents);
+                Assert.AreEqual(store.Snapshot.TotalTtc, lifecycle.SelectedOrder!.TotalTtc);
+                Assert.AreEqual(Money.FromCents(2549).Euros.ToString("0.00", CultureInfo.CurrentCulture), lifecycle.TotalText);
+                Assert.AreEqual(Money.FromCents(2549).Euros.ToString("0.00", CultureInfo.CurrentCulture), Field<TextBox>(window, "lifecycleEditTotalBox").Text);
+                Assert.HasCount(2, detailLines.Items, "The saved selected-order detail must continue to expose the persisted line components.");
+                StringAssert.Contains(lifecycle.DetailLines.Single(line => line.Item.ProductCode == "TST002").OptionsText, Money.FromCents(-68).Euros.ToString("+0.00;-0.00;0.00", CultureInfo.CurrentCulture) + " €/unité");
+                CollectionAssert.Contains(VisualDescendants<TextBlock>(detailLines).Select(text => text.Text).ToArray(), lifecycle.DetailLines.Single(line => line.Item.ProductCode == "TST002").OptionsText);
+
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                StringAssert.Contains(lifecycle.DetailLines.Single(line => line.Item.ProductCode == "TST002").OptionsText, "/件");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void ExistingLineQuantityUsesItsPersistedUnitPriceRatherThanAPreviouslyDerivedExtendedValue()
+    {
+        var historical = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "HIST", "Historique", "Tests", Money.FromCents(1200), 10m, true, 2, Money.FromCents(2399), Money.FromCents(2399), []);
+        var line = new OrderDetailLineViewModel(historical) { Quantity = 3 };
+
+        var snapshot = line.ToSnapshot();
+
+        Assert.AreEqual(1200L, snapshot.ProductBasePriceTtc.Cents);
+        Assert.AreEqual(3600L, snapshot.ExtendedBaseTtc.Cents);
+        Assert.AreEqual(3600L, snapshot.CalculatedLineTotalTtc.Cents);
+    }
+
+    [TestMethod]
     public void LifecycleOperationsDoNotOwnAutomaticPrintingAndCloseEligibilityIsExactOnSta()
     {
         Assert.IsFalse(typeof(OrderLifecycleService).GetConstructors().Single().GetParameters().Any(parameter => parameter.ParameterType == typeof(IOrderPrintDispatcher)));

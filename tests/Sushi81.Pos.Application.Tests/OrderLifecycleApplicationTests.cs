@@ -76,6 +76,60 @@ public sealed class OrderLifecycleApplicationTests
         Assert.IsFalse(store.Snapshot.ManualTotalOverrideActive);
     }
 
+    [TestMethod]
+    public async Task ExistingQuantityChangeRepricesTheFullPricingMatrixFromHistoricalSnapshots()
+    {
+        var scenarios = new[]
+        {
+            (Name: "both eligible", FirstEligible: true, SecondEligible: true, FirstAdjustments: Array.Empty<OrderLineAdjustmentSnapshot>(), ExpectedCents: 2610L),
+            (Name: "first non-eligible", FirstEligible: false, SecondEligible: true, FirstAdjustments: Array.Empty<OrderLineAdjustmentSnapshot>(), ExpectedCents: 2730L),
+            (Name: "second non-eligible", FirstEligible: true, SecondEligible: false, FirstAdjustments: Array.Empty<OrderLineAdjustmentSnapshot>(), ExpectedCents: 2780L),
+            (Name: "neither eligible", FirstEligible: false, SecondEligible: false, FirstAdjustments: Array.Empty<OrderLineAdjustmentSnapshot>(), ExpectedCents: 2900L),
+            (Name: "eligible negative adjustment", FirstEligible: true, SecondEligible: true, FirstAdjustments: new[] { Adjustment("Reduction", -200) }, ExpectedCents: 2430L),
+            (Name: "eligible positive surcharge", FirstEligible: true, SecondEligible: true, FirstAdjustments: new[] { Adjustment("Supplement", 200) }, ExpectedCents: 2810L),
+            (Name: "non-eligible signed adjustments", FirstEligible: false, SecondEligible: true, FirstAdjustments: new[] { Adjustment("Reduction", -200), Adjustment("Supplement", 300) }, ExpectedCents: 2830L)
+        };
+
+        foreach (var scenario in scenarios)
+        {
+            var first = PricingItem("TST002", 1200, scenario.FirstEligible, adjustments: scenario.FirstAdjustments);
+            var second = PricingItem("TST001A", 850, scenario.SecondEligible);
+            var current = Snapshot(BusinessDate, total: 9999) with
+            {
+                Items = [first, second],
+                PickupDiscountApplied = true,
+                PickupDiscountRate = 0.10m,
+                ManualTotalOverrideActive = true
+            };
+            var store = new LifecycleStore(current);
+            var catalogue = new ThrowingCatalogueQueries();
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountMinTotalTtc = Money.Zero });
+            using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), catalogue, settings);
+
+            var quantityChangedSecond = second with { Quantity = 2, ExtendedBaseTtc = Money.FromCents(1700), CalculatedLineTotalTtc = Money.FromCents(1700) };
+            var result = await service.SaveModificationAsync(current with { Items = [first, quantityChangedSecond] });
+
+            Assert.IsTrue(result.Succeeded, $"{scenario.Name}: {string.Join(";", result.Issues.Select(issue => issue.Message))}");
+            Assert.AreEqual(scenario.ExpectedCents, store.Snapshot!.TotalTtc.Cents, scenario.Name);
+            Assert.IsFalse(store.Snapshot.ManualTotalOverrideActive, scenario.Name);
+            Assert.AreEqual(0, catalogue.Calls, "An existing historical quantity edit must not read current Catalogue data.");
+            Assert.AreEqual(1200L, store.Snapshot.Items[0].ProductBasePriceTtc.Cents);
+            Assert.AreEqual(scenario.FirstEligible, store.Snapshot.Items[0].ProductDiscountEligible);
+            Assert.AreEqual(10m, store.Snapshot.Items[0].ProductVatRate);
+            CollectionAssert.AreEqual(scenario.FirstAdjustments, store.Snapshot.Items[0].Adjustments.ToArray());
+            Assert.AreEqual(850L, store.Snapshot.Items[1].ProductBasePriceTtc.Cents);
+            Assert.AreEqual(scenario.SecondEligible, store.Snapshot.Items[1].ProductDiscountEligible);
+            Assert.AreEqual(2, store.Snapshot.Items[1].Quantity);
+        }
+    }
+
+    private static OrderItemSnapshot PricingItem(string code, long unitCents, bool eligible, int quantity = 1, IReadOnlyList<OrderLineAdjustmentSnapshot>? adjustments = null) => new(
+        Guid.NewGuid(), code == "TST002" ? 0 : 1, Guid.NewGuid(), code, code, "Synthetic", Money.FromCents(unitCents), 10m, eligible,
+        quantity, Money.FromCents(unitCents * quantity), Money.FromCents(unitCents * quantity), adjustments ?? []);
+
+    private static OrderLineAdjustmentSnapshot Adjustment(string label, long perUnitCents) => new(
+        Guid.NewGuid(), 0, OrderAdjustmentKind.CustomAdjustment, null, null, label, Money.FromCents(perUnitCents), perUnitCents < 0 ? 10m : 5.5m);
+
     private static OrderSnapshot Snapshot(DateOnly plannedDate, long total) => new(
         Guid.NewGuid(), OrderSourceType.Pos, OrderStatus.Open,
         new DateTimeOffset(2026, 8, 31, 8, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 8, 31, 8, 0, 0, TimeSpan.Zero),
@@ -101,6 +155,15 @@ public sealed class OrderLifecycleApplicationTests
     {
         public Task<BusinessSettings> GetAsync(CancellationToken cancellationToken = default) => Task.FromResult(initial);
         public Task<OperationResult> UpdateAsync(BusinessSettings settings, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+    }
+
+    private sealed class ThrowingCatalogueQueries : IOrderEntryCatalogueQueries
+    {
+        public int Calls { get; private set; }
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Throw<IReadOnlyList<CategorySummary>>();
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) => Throw<IReadOnlyList<ProductSummary>>();
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Throw<OrderEntryProduct?>();
+        private Task<T> Throw<T>() { Calls++; throw new AssertFailedException("Historical quantity repricing must not consult current Catalogue data."); }
     }
 
     private sealed class FixedClock : IBusinessClock
