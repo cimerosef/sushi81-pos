@@ -557,24 +557,64 @@ public sealed class M05DesktopTests
                     window.UpdateLayout();
                     var containers = detail.Items.Cast<object>().Select(item => detail.ItemContainerGenerator.ContainerFromItem(item)).OfType<ListBoxItem>().ToArray();
                     Assert.HasCount(2, containers, $"{size}: both selected-order rows must be realized.");
-                    var quantities = containers.Select(container => VisualDescendants<TextBox>(container).Single()).ToArray();
+                    var quantities = containers.Select(container => VisualDescendants<TextBox>(container).ToArray()).ToArray();
                     var buttons = containers.Select(container => VisualDescendants<Button>(container).ToArray()).ToArray();
                     var leftPanels = containers.Select(container => VisualDescendants<StackPanel>(container).First()).ToArray();
-                    var quantityLefts = quantities.Select(element => LeftEdge(element, window)).ToArray();
+                    Assert.IsTrue(quantities.All(row => row.Length == 0), $"{size}: selected-order rows must not contain an inline quantity TextBox.");
+                    Assert.IsTrue(buttons.All(row => row.Length == 2), $"{size}: each selected-order row must contain exactly edit and delete buttons.");
                     var editLefts = buttons.Select(row => LeftEdge(row[0], window)).ToArray();
                     var deleteLefts = buttons.Select(row => LeftEdge(row[1], window)).ToArray();
                     var deleteRights = buttons.Select(row => RightEdge(row[1], window)).ToArray();
                     var detailRight = RightEdge(detail, window);
-                    Assert.IsLessThanOrEqualTo(1D, quantityLefts.Max() - quantityLefts.Min(), $"{size}: quantities must align vertically.");
                     Assert.IsLessThanOrEqualTo(1D, editLefts.Max() - editLefts.Min(), $"{size}: edit buttons must align vertically.");
                     Assert.IsLessThanOrEqualTo(1D, deleteLefts.Max() - deleteLefts.Min(), $"{size}: delete buttons must align vertically.");
                     Assert.IsLessThanOrEqualTo(1D, deleteRights.Max() - deleteRights.Min(), $"{size}: actions must share the same right edge.");
                     Assert.IsTrue(deleteRights.All(edge => edge <= detailRight + 1D), $"{size}: action area must stay inside detail width.");
-                    Assert.IsTrue(leftPanels.All(panel => RightEdge(panel, window) <= quantityLefts.Min() + 1D), $"{size}: long text must not overlap the action area.");
+                    Assert.IsTrue(leftPanels.All(panel => RightEdge(panel, window) <= editLefts.Min() + 1D), $"{size}: long text must not overlap the action area.");
+                    StringAssert.Contains(lifecycle.DetailLines[1].PriceBreakdownText, "× 1 =");
                 }
 
                 static double LeftEdge(FrameworkElement element, Window window) => element.TransformToAncestor(window).Transform(new Point(0, 0)).X;
                 static double RightEdge(FrameworkElement element, Window window) => element.TransformToAncestor(window).Transform(new Point(element.ActualWidth, 0)).X;
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void ExistingOrderPencilReplacementPathPersistsQuantityThroughLifecycleServiceOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var productId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(productId, "EDIT", "Produit éditable", Guid.NewGuid(), Money.FromCents(1000), 10m, true, true, false, default, default),
+                [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Tests");
+            var item = new OrderItemSnapshot(Guid.NewGuid(), 0, productId, "EDIT", "Produit éditable", "Tests", Money.FromCents(1000), 10m, true, 1, Money.FromCents(1000), Money.FromCents(1000), []);
+            var order = Snapshot(new DateOnly(2026, 8, 31)) with { Items = [item], TotalTtc = Money.FromCents(1000) };
+            var store = new LifecycleStore(order);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            var catalogue = new SingleEntryCatalogue(product);
+            using var lifecycleService = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), catalogue, settings);
+            using var entryService = new OrderEntryService(catalogue, settings, store, new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), entryService, lifecycleService);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                lifecycle.BeginModification();
+                var line = lifecycle.DetailLines.Single();
+                var currentProduct = shell.Entry!.GetActiveProductForEditAsync(productId).GetAwaiter().GetResult()!;
+                lifecycle.ReplaceLineAsync(line, new OrderLineDraft(line.Item.Id, currentProduct.Aggregate, [], [], 3, currentProduct.CategoryName)).GetAwaiter().GetResult();
+                Assert.AreEqual(3, lifecycle.DetailLines.Single().Quantity);
+                Assert.IsTrue(lifecycle.CanSave);
+                lifecycle.SaveModificationAsync().GetAwaiter().GetResult();
+
+                Assert.AreEqual(3, store.Snapshot.Items.Single().Quantity);
+                Assert.AreEqual(3000L, store.Snapshot.TotalTtc.Cents);
+                StringAssert.Contains(lifecycle.DetailLines.Single().PriceBreakdownText, "× 3 =");
             }
             finally { window.Close(); }
         });
