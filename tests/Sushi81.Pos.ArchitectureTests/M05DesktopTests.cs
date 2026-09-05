@@ -621,6 +621,116 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
+    public void ExistingOrderPencilQuantityOnlyPathPreservesHistoricalSnapshotThroughWpfPresentationOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var productId = Guid.NewGuid();
+            var currentProduct = new OrderEntryProduct(new ProductAggregate(
+                new Product(productId, "SNAP", "Produit historique", Guid.NewGuid(), Money.FromCents(950), 20m, false, true, false, default, default),
+                [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Tests");
+            var historicalAdjustment = new OrderLineAdjustmentSnapshot(Guid.NewGuid(), 0, OrderAdjustmentKind.CustomAdjustment, null, null, "Ajustement historique", Money.FromCents(-50), 5.5m);
+            var item = new OrderItemSnapshot(Guid.NewGuid(), 0, productId, "SNAP", "Produit historique", "Tests", Money.FromCents(850), 5.5m, true, 2, Money.FromCents(1700), Money.FromCents(1600), [historicalAdjustment]);
+            var order = Snapshot(new DateOnly(2026, 8, 31)) with { Items = [item], TotalTtc = Money.FromCents(1600) };
+            var store = new LifecycleStore(order);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            var catalogue = new SingleEntryCatalogue(currentProduct);
+            using var lifecycleService = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), catalogue, settings);
+            using var entryService = new OrderEntryService(catalogue, settings, store, new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), entryService, lifecycleService);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                lifecycle.BeginModification();
+                var detail = Field<ListBox>(window, "lifecycleDetailLinesList");
+                Field<TabControl>(window, "mainTabs").Items.OfType<TabItem>().Single(item => item.DataContext is OrderLifecycleShellViewModel).IsSelected = true;
+                window.UpdateLayout();
+                var edit = VisualDescendants<Button>(detail).Single(button => Equals(button.Content, "✎"));
+                Assert.IsTrue(edit.IsEnabled, "The pencil action must remain enabled during existing-order modification.");
+                var line = lifecycle.DetailLines.Single();
+                Assert.IsTrue(lifecycle.UpdateLineQuantity(line, 3), "The presentation edit path must accept a quantity-only update without a Catalogue rewrite.");
+
+                Assert.AreEqual(3, lifecycle.DetailLines.Single().Quantity);
+                Assert.AreEqual(850L, lifecycle.DetailLines.Single().Item.ProductBasePriceTtc.Cents);
+                Assert.AreEqual(5.5m, lifecycle.DetailLines.Single().Item.ProductVatRate);
+                Assert.IsTrue(lifecycle.DetailLines.Single().Item.ProductDiscountEligible);
+                Assert.AreEqual(-50L, lifecycle.DetailLines.Single().Item.Adjustments.Single().AdjustmentTtcPerUnit.Cents);
+
+                lifecycle.SaveModificationAsync().GetAwaiter().GetResult();
+                var saved = store.Snapshot.Items.Single();
+                Assert.AreEqual(3, saved.Quantity);
+                Assert.AreEqual(850L, saved.ProductBasePriceTtc.Cents);
+                Assert.AreEqual(5.5m, saved.ProductVatRate);
+                Assert.IsTrue(saved.ProductDiscountEligible);
+                Assert.AreEqual(-50L, saved.Adjustments.Single().AdjustmentTtcPerUnit.Cents);
+                Assert.AreEqual(2400L, store.Snapshot.TotalTtc.Cents);
+                Assert.AreEqual(Money.FromCents(2400).Euros.ToString("0.00", CultureInfo.CurrentCulture), lifecycle.TotalText);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void ExistingOrderLineConfigurationComparisonKeepsUnchangedHistoricalOptionsAndCustomAdjustmentsInSnapshotMode()
+    {
+        var optionId = Guid.NewGuid();
+        var item = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "CFG", "Configurable", "Tests", Money.FromCents(850), 10m, true, 1, Money.FromCents(850), Money.FromCents(900),
+        [
+            new(Guid.NewGuid(), 0, OrderAdjustmentKind.PredefinedOption, optionId, "Choix", "Option", Money.FromCents(25), 10m),
+            new(Guid.NewGuid(), 1, OrderAdjustmentKind.CustomAdjustment, null, null, "Ajustement", Money.FromCents(-10), 10m)
+        ]);
+        var line = new OrderDetailLineViewModel(item);
+
+        Assert.IsTrue(line.HasSameConfiguration([optionId], [new(null, null, "Ajustement", Money.FromCents(-10), OrderAdjustmentKind.CustomAdjustment, 0)]));
+        Assert.IsFalse(line.HasSameConfiguration([optionId], [new(null, null, "Ajustement", Money.FromCents(-11), OrderAdjustmentKind.CustomAdjustment, 0)]));
+        Assert.IsFalse(line.HasSameConfiguration([], [new(null, null, "Ajustement", Money.FromCents(-10), OrderAdjustmentKind.CustomAdjustment, 0)]));
+    }
+
+    [TestMethod]
+    public void ExistingOrderExplicitReconfigurationUsesCurrentCatalogueAndRejectsUnavailableConfigurationOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var productId = Guid.NewGuid();
+            var currentProduct = new OrderEntryProduct(new ProductAggregate(
+                new Product(productId, "RECONF", "Produit configurable", Guid.NewGuid(), Money.FromCents(950), 20m, true, true, false, default, default),
+                [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Tests");
+            var historical = new OrderItemSnapshot(Guid.NewGuid(), 0, productId, "RECONF", "Produit configurable", "Tests", Money.FromCents(850), 5.5m, false, 1, Money.FromCents(850), Money.FromCents(900), [new(Guid.NewGuid(), 0, OrderAdjustmentKind.CustomAdjustment, null, null, "Choix historique", Money.FromCents(50), 5.5m)]);
+            var order = Snapshot(new DateOnly(2026, 8, 31)) with { Items = [historical], TotalTtc = Money.FromCents(900) };
+            var store = new LifecycleStore(order);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            var catalogue = new SingleEntryCatalogue(currentProduct);
+            using var lifecycleService = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), catalogue, settings);
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), orderLifecycleService: lifecycleService);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                lifecycle.BeginModification();
+                Assert.IsTrue(lifecycle.IsEditing);
+                var line = lifecycle.DetailLines.Single();
+
+                lifecycle.ReplaceLineAsync(line, new OrderLineDraft(line.Item.Id, currentProduct.Aggregate, [], [new(null, null, "Choix actuel", Money.FromCents(125))], 1, currentProduct.CategoryName)).GetAwaiter().GetResult();
+                Assert.AreEqual(950L, lifecycle.DetailLines.Single().Item.ProductBasePriceTtc.Cents, lifecycle.ValidationMessage);
+                Assert.AreEqual(20m, lifecycle.DetailLines.Single().Item.ProductVatRate);
+                Assert.AreEqual(125L, lifecycle.DetailLines.Single().Item.Adjustments.Single().AdjustmentTtcPerUnit.Cents);
+
+                var beforeInvalid = lifecycle.DetailLines.Single().Item;
+                lifecycle.ReplaceLineAsync(lifecycle.DetailLines.Single(), new OrderLineDraft(beforeInvalid.Id, currentProduct.Aggregate, [Guid.NewGuid()], [], 1, currentProduct.CategoryName)).GetAwaiter().GetResult();
+                Assert.IsFalse(string.IsNullOrWhiteSpace(lifecycle.ValidationMessage));
+                Assert.AreEqual(950L, lifecycle.DetailLines.Single().Item.ProductBasePriceTtc.Cents);
+                Assert.AreEqual(125L, lifecycle.DetailLines.Single().Item.Adjustments.Single().AdjustmentTtcPerUnit.Cents);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
     public void LifecycleOperationsDoNotOwnAutomaticPrintingAndCloseEligibilityIsExactOnSta()
     {
         Assert.IsFalse(typeof(OrderLifecycleService).GetConstructors().Single().GetParameters().Any(parameter => parameter.ParameterType == typeof(IOrderPrintDispatcher)));

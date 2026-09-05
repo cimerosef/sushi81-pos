@@ -51,6 +51,29 @@ public sealed class OrderDetailLineViewModel(OrderItemSnapshot item) : INotifyPr
         var adjustmentUnit = Item.Adjustments.Aggregate(Money.Zero, (sum, adjustment) => sum + adjustment.AdjustmentTtcPerUnit);
         return Item with { Quantity = quantity, ExtendedBaseTtc = unitBase * quantity, CalculatedLineTotalTtc = unitBase * quantity + adjustmentUnit * quantity };
     }
+    public bool HasSameConfiguration(IReadOnlyList<Guid> selectedOptionIds, IReadOnlyList<OrderLineAdjustmentDraft> customAdjustments)
+    {
+        ArgumentNullException.ThrowIfNull(selectedOptionIds);
+        ArgumentNullException.ThrowIfNull(customAdjustments);
+
+        var historicalOptions = Item.Adjustments
+            .Where(adjustment => adjustment.SourceOptionId is not null)
+            .Select(adjustment => adjustment.SourceOptionId!.Value)
+            .OrderBy(id => id)
+            .ToArray();
+        var proposedOptions = selectedOptionIds.OrderBy(id => id).ToArray();
+        if (!historicalOptions.SequenceEqual(proposedOptions)) return false;
+
+        var historicalCustom = Item.Adjustments
+            .Where(adjustment => adjustment.Kind == OrderAdjustmentKind.CustomAdjustment)
+            .OrderBy(adjustment => adjustment.DisplayOrder)
+            .ToArray();
+        if (historicalCustom.Length != customAdjustments.Count) return false;
+        return historicalCustom.Zip(customAdjustments, (historical, proposed) =>
+            string.Equals(historical.Label, proposed.Label, StringComparison.Ordinal)
+            && historical.AdjustmentTtcPerUnit == proposed.AmountTtcPerUnit
+            && historical.Kind == proposed.Kind).All(equal => equal);
+    }
     public OrderLineDraft ToCurrentDraft(OrderEntryProduct product) => new(
         Item.Id, product.Aggregate, Item.Adjustments.Where(adjustment => adjustment.SourceOptionId is not null).Select(adjustment => adjustment.SourceOptionId!.Value).ToArray(),
         Item.Adjustments.Where(adjustment => adjustment.Kind == OrderAdjustmentKind.CustomAdjustment).Select(adjustment => new OrderLineAdjustmentDraft(
@@ -358,6 +381,16 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         var viewModel = new OrderDetailLineViewModel(line); viewModel.ApplyLocalization(localized); DetailLines.Add(viewModel);
         ValidationMessage = string.Empty;
         OnPropertyChanged(nameof(CanSave));
+    }
+
+    public bool UpdateLineQuantity(OrderDetailLineViewModel line, int quantity)
+    {
+        ArgumentNullException.ThrowIfNull(line);
+        if (!IsEditing || quantity <= 0 || !DetailLines.Contains(line)) return false;
+        line.Quantity = quantity;
+        ValidationMessage = string.Empty;
+        OnPropertyChanged(nameof(CanSave));
+        return true;
     }
 
     public void RemoveLine(OrderDetailLineViewModel line)

@@ -283,13 +283,32 @@ public partial class MainWindow : Window
 
     private async void OnReconfigureOrderLine(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle, Entry: { } entry } || sender is not Button { Tag: OrderDetailLineViewModel line } || !lifecycle.IsEditing || line.Item.SourceProductId is not { } productId) return;
-        var product = await entry.GetActiveProductForEditAsync(productId);
-        if (product is null) { MessageBox.Show(this, LocalizedText(this, "ProductInactive", "Le produit n’est plus actif.")); return; }
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle, Entry: { } entry } || sender is not Button { Tag: OrderDetailLineViewModel line } || !lifecycle.IsEditing) return;
+
+        var choice = new ExistingLineEditDialog(this, line, canReconfigure: true);
+        if (choice.ShowDialog() != true) return;
+        if (choice.QuantityOnly)
+        {
+            lifecycle.UpdateLineQuantity(line, choice.Quantity);
+            return;
+        }
+
+        OrderEntryProduct? product = null;
+        if (line.Item.SourceProductId is { } productId)
+            product = await entry.GetActiveProductForEditAsync(productId);
+        if (product is null)
+        {
+            MessageBox.Show(this, LocalizedText(this, "ProductInactive", "Le produit n’est plus actif."));
+            return;
+        }
+
         var draft = line.ToCurrentDraft(product);
-        var dialog = new OptionSelectionDialog(this, product, draft.Quantity, draft.SelectedOptionIds, draft.CustomAdjustments);
+        var dialog = new OptionSelectionDialog(this, product, choice.Quantity, draft.SelectedOptionIds, draft.CustomAdjustments);
         if (dialog.ShowDialog() == true)
-            await lifecycle.ReplaceLineAsync(line, draft with { SelectedOptionIds = dialog.SelectedOptionIds, CustomAdjustments = dialog.CustomAdjustments, Quantity = dialog.Quantity }, default);
+            if (line.HasSameConfiguration(dialog.SelectedOptionIds, dialog.CustomAdjustments))
+                lifecycle.UpdateLineQuantity(line, dialog.Quantity);
+            else
+                await lifecycle.ReplaceLineAsync(line, draft with { SelectedOptionIds = dialog.SelectedOptionIds, CustomAdjustments = dialog.CustomAdjustments, Quantity = dialog.Quantity }, default);
     }
 
     private void OnRemoveLifecycleLine(object sender, RoutedEventArgs e)
@@ -500,7 +519,7 @@ public partial class MainWindow : Window
             var title = $"{group.Name} — {(group.SelectionMode == DomainSelectionMode.Single ? Label("Single", "SINGLE") : $"{Label("Multi", "MULTI")} {group.MinSelections}-{group.MaxSelections}")} {(group.IsRequired ? Label("Required", "requis") : Label("Optional", "optionnel"))}";
             panel.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 2) });
             var list = new List<FrameworkElement>(); controls[group.Id] = list;
-            foreach (var option in (product.Aggregate.OptionsByGroup.TryGetValue(group.Id, out var values) ? values : []).Where(option => option.IsActive).OrderBy(option => option.DisplayOrder))
+            foreach (var option in (product.Aggregate.OptionsByGroup.TryGetValue(group.Id, out var values) ? values : []).Where(option => option.IsActive || existing.Contains(option.Id)).OrderBy(option => option.DisplayOrder))
             {
                 FrameworkElement control = group.SelectionMode == DomainSelectionMode.Single
                     ? new RadioButton { Content = $"{option.Name} ({option.PriceAdjustmentTtc.Euros:0.00} €)", GroupName = $"group-{group.Id}", IsChecked = existing.Contains(option.Id), Tag = option.Id }
@@ -538,6 +557,65 @@ public partial class MainWindow : Window
                 custom.Add(new(null, null, label, Money.FromEuros(amount), OrderAdjustmentKind.CustomAdjustment, custom.Count));
             }
             SelectedOptionIds = selected; CustomAdjustments = custom; Quantity = parsedQuantity; DialogResult = true;
+        }
+
+        private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private sealed class ExistingLineEditDialog : Window
+    {
+        private readonly TextBox quantity;
+        private readonly IReadOnlyDictionary<string, string> localized;
+        private readonly bool canReconfigure;
+
+        public ExistingLineEditDialog(Window owner, OrderDetailLineViewModel line, bool canReconfigure)
+        {
+            localized = (owner.DataContext as ShellViewModel)?.Localized ?? new Dictionary<string, string>();
+            this.canReconfigure = canReconfigure;
+            Owner = owner; WindowStartupLocation = WindowStartupLocation.CenterOwner; Title = Label("OrderEdit", "Modifier"); Width = 440; Height = 220; MinHeight = 180;
+            var root = new DockPanel { Margin = new Thickness(14) };
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancel = new Button { Content = Label("Cancel", "Annuler"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) };
+            cancel.Click += (_, _) => DialogResult = false;
+            var saveQuantity = new Button { Content = Label("OrderSave", "Enregistrer la modification"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) };
+            saveQuantity.Click += (_, _) => Accept(quantityOnly: true);
+            buttons.Children.Add(cancel);
+            buttons.Children.Add(saveQuantity);
+            if (canReconfigure)
+            {
+                var options = new Button { Content = Label("Options", "Choix"), Padding = new Thickness(12, 5, 12, 5) };
+                options.Click += (_, _) => Accept(quantityOnly: false);
+                buttons.Children.Add(options);
+            }
+            DockPanel.SetDock(buttons, Dock.Bottom); root.Children.Add(buttons);
+            var panel = new StackPanel();
+            panel.Children.Add(new TextBlock { Text = line.ProductText, FontSize = 18, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
+            quantity = AddText(panel, Label("Quantity", "Quantité"), line.Quantity.ToString(CultureInfo.InvariantCulture));
+            root.Children.Add(panel);
+            Content = root;
+        }
+
+        public bool QuantityOnly { get; private set; }
+        public int Quantity { get; private set; }
+
+        private void Accept(bool quantityOnly)
+        {
+            if (!int.TryParse(quantity.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedQuantity) || parsedQuantity <= 0)
+            {
+                MessageBox.Show(this, Label("InvalidQuantity", "La quantité doit être un entier positif."));
+                return;
+            }
+            QuantityOnly = quantityOnly;
+            Quantity = parsedQuantity;
+            DialogResult = true;
+        }
+
+        private static TextBox AddText(Panel panel, string label, string value)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            row.Children.Add(new TextBlock { Text = label, Width = 150, VerticalAlignment = VerticalAlignment.Center });
+            var box = new TextBox { Width = 100, Text = value };
+            row.Children.Add(box); panel.Children.Add(row); return box;
         }
 
         private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
