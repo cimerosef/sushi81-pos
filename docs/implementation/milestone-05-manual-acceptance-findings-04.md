@@ -4,8 +4,8 @@
 **Date:** 2026-09-05  
 **Performed by:** project owner  
 **PR:** #10 — `M05: lifecycle payments search and operational dashboard`  
-**Production-code baseline under test:** `e4796207c0ffa7c8e3c3655b8a14d950e0d421a6`  
-**Overall result:** Failed / blocked — existing-order quantity-edit pricing produced an unexplained incorrect total. Remaining M05 manual acceptance is paused until this pricing path is diagnosed and corrected.
+**Initial production-code baseline under test:** `e4796207c0ffa7c8e3c3655b8a14d950e0d421a6`  
+**Current state:** pricing/rounding portion resolved and manually accepted through FIX-08/FIX-09; a follow-up D2 snapshot-preservation regression was found by code review after FIX-09 and blocks continuation of items 8–10 until fixed.
 
 ## Finding — acceptance item 7 existing-order quantity modification
 
@@ -15,16 +15,16 @@ During acceptance item 7, the project owner tested order `20260902-004` and obse
 - `TST001A`: quantity 2, unit base price €8.50, extended base €17.00;
 - simple merchandise base total: €29.00.
 
-With a 10% ordinary Retrait discount and no other price component, two discount-eligible lines would produce €26.10 under the approved line/component-first round-half-up rule (`12.00 × 90% + 17.00 × 90%`). The application instead showed an authoritative order total of **€25.49** after the existing-order edit path.
+The order also contained historical signed option adjustments and a 12.5% Retrait discount. Follow-up diagnosis showed that the old persisted €25.49 total reflected the pre-FIX-08 rounding sequence. FIX-08 corrected the shared Domain pricing rule to the already-approved line/component-first sequence.
 
-The observed €25.49 cannot be explained by the simple €29.00 base total under any ordinary combination of the two lines being discount-eligible/non-eligible at a 10% rate:
+The owner then manually verified:
 
-- both eligible: €26.10;
-- only €17.00 line eligible: €27.30;
-- only €12.00 line eligible: €27.80;
-- neither eligible: €29.00.
+- merely viewing the old persisted order did not silently rewrite its historical total;
+- a genuine price-affecting edit repriced the old order to the corrected authoritative total of **€25.51**;
+- a new equivalent order also calculated **€25.51**;
+- after changing `TST001A` quantity from 2 to 3, the application calculated **€32.94**, matching the corrected approved arithmetic.
 
-The live order may contain persisted line adjustments or other historical pricing state not represented in the concise operator report, so the defect diagnosis must not assume the live data shape. Codex must not access or modify the owner's real business database. Reproduce with synthetic snapshots first and determine whether the existing-order repricing path itself is wrong or whether UI/detail presentation hides a persisted price component that legitimately contributes to the total.
+Result for the FIX-08 pricing/rounding defect: **Passed**.
 
 ## Approved pricing authority to preserve
 
@@ -38,23 +38,44 @@ The existing frozen V1 rules remain unchanged:
 6. Existing-order quantity edits use persisted sale-time line snapshots plus current BusinessSettings; current Catalogue price/eligibility must not silently rewrite an existing line.
 7. A prior manual total override is cleared by a price-affecting change and the ordinary calculated total becomes authoritative again.
 
-## Required regression matrix
+## FIX-09 visual result
 
-The remediation must add direct tests for the M05 existing-order snapshot repricing path using synthetic prices equivalent to the operator scenario:
+FIX-09 removed the redundant inline quantity TextBox from selected-order rows. The owner manually confirmed:
 
-- €12.00 × 1 plus €8.50 × 2, both discount-eligible, 10% => €26.10;
-- €12.00 line non-eligible, €8.50 line eligible => €27.30;
-- €12.00 line eligible, €8.50 line non-eligible => €27.80;
-- both non-eligible => €29.00;
-- eligible line with a negative adjustment: adjustment reduces discountable component before the 10%;
-- eligible line with a positive adjustment: positive surcharge is added after discount and is not discounted;
-- non-eligible line with signed adjustments: the entire resulting line remains outside the ordinary Retrait discount;
-- quantity change must preserve historical `ProductBasePriceTtc`, `ProductDiscountEligible`, adjustment snapshots and VAT snapshots rather than consulting current Catalogue data.
+- each row now keeps only the right-aligned edit/pencil and delete actions;
+- the layout is visually acceptable;
+- quantity can still be changed through the pencil dialog;
+- the modified quantity is saved and repriced.
 
-Tests should cover the pure `OrderPricingService.CalculateSnapshots` boundary and the real M05 existing-order `SaveModificationAsync` path. A WPF/view-model regression should verify that the operator-visible total after quantity save equals the persisted authoritative total.
+Visual/UI result: **Passed**.
+
+## Follow-up finding — FIX-09 quantity-edit path can violate D2 snapshot preservation
+
+**Status:** Open / blocker for continuing acceptance items 8–10.
+
+During review immediately after FIX-09 manual UI acceptance, the production path at head `d7f5146cb051482c192c7217f337da447909a098` was rechecked against approved D2 semantics.
+
+Current production behavior:
+
+- `MainWindow.OnReconfigureOrderLine` always loads the current active Catalogue product before opening the edit dialog;
+- it builds the draft with `line.ToCurrentDraft(product)`;
+- confirmation calls `ReplaceLineAsync`;
+- `ReplaceLineAsync` calls `CreateCurrentCatalogueLineAsync`, rebuilding the line from the current Catalogue product.
+
+Consequences:
+
+1. a quantity-only edit through the pencil action can adopt current Catalogue product/option facts instead of preserving the persisted sale-time snapshot;
+2. if the historical product is now inactive or unavailable, the only remaining quantity-edit entry path may be blocked entirely;
+3. this conflicts with approved D2 behavior: quantity changes use persisted line snapshots; explicit option reconfiguration uses current Catalogue; removed/inactive historical lines remain viewable, quantity-changeable and removable.
+
+This is implementation-review evidence, not a speculative UI preference. The owner should not need to mutate real test Catalogue data merely to prove a code path already demonstrated by inspection.
+
+Required remediation is tracked by handoff `M05-MANUAL-ACCEPTANCE-SNAPSHOT-QUANTITY-RECONFIG-FIX-10`.
 
 ## Acceptance state
 
-Acceptance item 7 is Failed / blocked. Items 8–10 are not yet accepted and should wait for this pricing correction because they exercise the same snapshot repricing boundary.
+- Item 7 pricing/rounding behavior: Passed after FIX-08 manual retest.
+- FIX-09 visual layout: Passed.
+- Items 8–10: paused pending FIX-10 because they exercise the historical-snapshot/current-Catalogue boundary directly.
 
 Do not mark M05 Passed. PR #10 remains open/unmerged. M06 remains not authorized.
