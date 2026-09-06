@@ -240,10 +240,14 @@ Current local implementation verification on the remediation working head:
   `tests/Sushi81.Pos.OneDriveFeasibility.Tests` 32 and `tools/Sushi81.Pos.OneDriveFeasibility.Tests` 92. The remediation adds
   four Application cancellation regressions, four Infrastructure authority/sequence regressions plus one real SQLite recovery
   integration, and one Architecture dependency regression plus one real STA/WPF regression.
-- Self-contained `win-x64` publish: Passed to ignored `artifacts/m06-publish`.
+- Self-contained `win-x64` publish: Passed to ignored `artifacts/m06-remediation-publish`.
 - `git diff --check`: Passed.
 - Existing snapshot retention, scheduler, rollback and incomplete-unit tests: Passed within the infrastructure result above.
-- Exact-head GitHub Actions CI: Pending push and remote run; the worklog will identify whether GitHub checked the raw head or PR merge ref.
+- Exact-head GitHub Actions CI: Passed. GitHub Actions `Continuous integration` run #504
+  (`34045439728`) was triggered by `push` and checked raw head `1b8e2a8d15afe7983a6d85fbd95b5da5c98425c2`;
+  the corresponding `pull_request` run #505 (`34045442017`) also passed and checked the PR ref. Both
+  `build-and-test` jobs succeeded; GitHub recorded one existing Node.js 20 deprecation warning annotation and no test/build
+  failure.
 
 ## Windows/WPF project-owner acceptance
 
@@ -275,5 +279,5 @@ Final completion record must confirm:
 
 ## Completion state
 
-Implementation in progress. PR #11 must remain open/unmerged. Project-owner Windows/WPF acceptance is still pending and M07 is
-not authorized by M06 completion.
+Remediation implementation is complete at `1b8e2a8d15afe7983a6d85fbd95b5da5c98425c2`; PR #11 must remain open/unmerged.
+Project-owner Windows/WPF acceptance is still pending and M07 is not authorized by M06 completion.
