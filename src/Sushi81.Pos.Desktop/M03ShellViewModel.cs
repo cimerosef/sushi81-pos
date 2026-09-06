@@ -233,6 +233,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     public Task RefreshAsync(CancellationToken cancellationToken = default)
     {
+        PerformanceTrace.Log("m03.refresh.request.full");
         var request = BeginRefreshRequest(isFullRefresh: true, cancellationToken);
         IsBusy = true;
         var task = ExecuteRefreshAsync(request, cancellationToken);
@@ -246,6 +247,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     private async Task ExecuteRefreshAsync(RefreshRequest request, CancellationToken cancellationToken)
     {
+        PerformanceTrace.Log("m03.refresh.full.start");
         try
         {
             var categories = await catalogue.ListCategoriesAsync(request.Cancellation.Token);
@@ -286,6 +288,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         finally
         {
             if (EndRefreshRequest(request)) IsBusy = false;
+            PerformanceTrace.Log("m03.refresh.full.end");
         }
     }
 
@@ -299,6 +302,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     private async Task RunFilterRefreshAsync(RefreshRequest request, bool debounce)
     {
+        PerformanceTrace.Log("m03.refresh.filter.start");
         try
         {
             if (debounce) await Task.Delay(SearchDebounce, request.Cancellation.Token);
@@ -321,6 +325,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         finally
         {
             EndRefreshRequest(request);
+            PerformanceTrace.Log("m03.refresh.filter.end");
         }
     }
 
@@ -389,6 +394,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     public async Task LoadSettingsAsync(CancellationToken cancellationToken = default)
     {
+        PerformanceTrace.Log("m03.settings.start");
         loadedSettings = await settings.GetAsync(cancellationToken);
         PickupDiscountRateText = (loadedSettings.PickupDiscountRate * 100m).ToString("0.#############################", CultureInfo.InvariantCulture);
         PickupDiscountMinText = loadedSettings.PickupDiscountMinTotalTtc.Euros.ToString("0.00", CultureInfo.InvariantCulture);
@@ -396,6 +402,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         DeliveryFeeEnabled = loadedSettings.DeliveryFeeEnabled;
         DeliveryFeeAmountText = loadedSettings.DeliveryFeeAmountTtc.Euros.ToString("0.00", CultureInfo.InvariantCulture);
         OnPropertyChanged(nameof(PickupDiscountRateText)); OnPropertyChanged(nameof(PickupDiscountMinText)); OnPropertyChanged(nameof(DeliveryMinText)); OnPropertyChanged(nameof(DeliveryFeeEnabled)); OnPropertyChanged(nameof(DeliveryFeeAmountText));
+        PerformanceTrace.Log("m03.settings.end");
     }
 
     public async Task<OperationResult> SaveSettingsAsync(CancellationToken cancellationToken = default)

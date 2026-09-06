@@ -33,8 +33,31 @@ public sealed class OrderPricingTests
         var oneLine = Draft(new OrderLineDraft(Guid.Empty, product, [], [], 1), FulfilmentMode.Retrait) with { PickupDiscountRequested = true };
         var result = OrderPricingService.Calculate(oneLine with { Lines = [oneLine.Lines[0], oneLine.Lines[0] with { LineId = Guid.NewGuid() }] }, Settings(rate: 0.5m, minPickup: Money.Zero));
         Assert.IsTrue(result.PickupDiscountApplied);
-        Assert.AreEqual(2L, result.Lines.Sum(line => line.DiscountTtc.Cents));
-        Assert.AreEqual(0L, result.TotalTtc.Cents);
+        Assert.AreEqual(0L, result.Lines.Sum(line => line.DiscountTtc.Cents), "Each 0.005 EUR discounted component rounds to 0.01 EUR; the discount amount is therefore zero cents.");
+        Assert.AreEqual(2L, result.TotalTtc.Cents);
+    }
+
+    [TestMethod]
+    public void C1RoundsTheDiscountedProductComponentBeforeAddingPositiveSurcharge()
+    {
+        var firstProduct = ProductWithOptions(Guid.NewGuid(), Money.FromCents(1200), 10m, true);
+        var secondProduct = ProductWithOptions(Guid.NewGuid(), Money.FromCents(850), 10m, true);
+        var first = new OrderLineDraft(Guid.Empty, firstProduct, [], [
+            new(null, null, "Sans accompagnement", Money.FromCents(-100)),
+            new(null, null, "Sauce premium", Money.FromCents(100))
+        ]);
+        var second = new OrderLineDraft(Guid.NewGuid(), secondProduct, [], [], 2);
+        var result = OrderPricingService.Calculate(
+            Draft(first, FulfilmentMode.Retrait) with { Lines = [first, second], PickupDiscountRequested = true },
+            Settings(rate: 0.125m, minPickup: Money.Zero));
+
+        Assert.IsTrue(result.IsValid, string.Join(";", result.ValidationErrors));
+        Assert.AreEqual(2551L, result.TotalTtc.Cents);
+        Assert.AreEqual(1063L, result.Lines[0].CalculatedLineTotalTtc.Cents);
+        Assert.AreEqual(1488L, result.Lines[1].CalculatedLineTotalTtc.Cents);
+        Assert.AreEqual(137L, result.Lines[0].DiscountTtc.Cents, "11.00 - roundHalfUp(11.00 x 87.5%) = 1.37; discount-amount-first would produce 1.38.");
+        Assert.AreEqual(100L, result.Lines[0].PositiveAdjustmentComponentTtc.Cents);
+        Assert.AreEqual(2451L, result.TaxBreakdown.Single(tax => tax.VatRate == 10m).TaxableTtc.Cents);
     }
 
     [TestMethod]
@@ -298,6 +321,30 @@ public sealed class OrderPricingTests
         Assert.IsTrue(at.IsValid);
         Assert.AreEqual(299L, at.DeliveryFeeTtc.Cents);
         Assert.AreEqual(3299L, at.TotalTtc.Cents);
+    }
+
+    [TestMethod]
+    public void ExistingSnapshotRepricingUsesCurrentSettingsWithoutReadingCatalogue()
+    {
+        var item = new OrderItemSnapshot(
+            Guid.NewGuid(), 0, Guid.NewGuid(), "P-HIST", "Plat historique", "Plats",
+            Money.FromCents(3000), 10m, true, 1, Money.FromCents(3000), Money.FromCents(2700),
+            [new(Guid.NewGuid(), 0, OrderAdjustmentKind.CustomAdjustment, null, null, "Sauce", Money.FromCents(100), 5.5m)]);
+
+        var current = OrderPricingService.CalculateSnapshots(
+            [item], FulfilmentMode.Retrait, pickupDiscountRequested: true,
+            Settings(rate: 0.20m, minPickup: Money.FromCents(2000)) with
+            {
+                DeliveryFeeEnabled = true,
+                DeliveryFeeAmountTtc = Money.FromCents(500)
+            });
+
+        Assert.IsTrue(current.IsValid, string.Join(";", current.ValidationErrors));
+        Assert.AreEqual(2500L, current.TotalTtc.Cents);
+        Assert.AreEqual(0.20m, current.PickupDiscountRate);
+        Assert.AreEqual(3000L, current.Items.Single().ExtendedBaseTtc.Cents);
+        Assert.AreEqual(2500L, current.Items.Single().CalculatedLineTotalTtc.Cents);
+        Assert.AreEqual(5.5m, current.TaxBreakdown.Single(tax => tax.VatRate == 5.5m).VatRate);
     }
 
     [TestMethod]

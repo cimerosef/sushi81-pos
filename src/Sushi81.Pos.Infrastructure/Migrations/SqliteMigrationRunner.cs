@@ -84,6 +84,9 @@ public sealed class SqliteMigrationRunner
                 await migrationCommand.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            if (migration.PostApplyAsync is { } postApply)
+                await postApply(connection, transaction, clock, cancellationToken);
+
             await using (var recordCommand = connection.CreateCommand())
             {
                 recordCommand.Transaction = transaction;

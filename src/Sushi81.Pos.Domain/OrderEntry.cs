@@ -25,6 +25,44 @@ public enum OrderAdjustmentKind
     CustomAdjustment
 }
 
+public enum PaymentBucket
+{
+    Card,
+    Cash
+}
+
+/// <summary>A signed change to one cumulative payment bucket.</summary>
+public sealed record PaymentAdjustment(
+    Guid Id,
+    Guid OrderId,
+    PaymentBucket Bucket,
+    Money Delta,
+    DateTimeOffset EffectiveAt,
+    DateTimeOffset RecordedAt)
+{
+    public DateOnly EffectiveBusinessDate => DateOnly.FromDateTime(EffectiveAt.Date);
+}
+
+public sealed record OrderPaymentState(Money Card, Money Cash, Money Total, Money Difference)
+{
+    public bool IsNonNegative => Card >= Money.Zero && Cash >= Money.Zero;
+    public bool IsExactlyReconciled => Difference == Money.Zero;
+
+    public static OrderPaymentState From(OrderSnapshot order) => From(order.TotalTtc, order.CardPaymentTtc, order.CashPaymentTtc);
+
+    public static OrderPaymentState From(Money total, Money card, Money cash) =>
+        new(card, cash, card + cash, total - card - cash);
+}
+
+public static class OrderReference
+{
+    public static string Format(DateOnly businessDate, int sequence) =>
+        sequence <= 0 ? throw new ArgumentOutOfRangeException(nameof(sequence)) : $"{businessDate:yyyyMMdd}-{sequence:D3}";
+
+    public static bool IsValid(string? reference) =>
+        reference is not null && System.Text.RegularExpressions.Regex.IsMatch(reference, "^[0-9]{8}-[0-9]{3,}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+}
+
 /// <summary>A per-unit adjustment captured while an order is being composed.</summary>
 public sealed record OrderLineAdjustmentDraft(
     Guid? OptionId,
@@ -103,6 +141,27 @@ public sealed record OrderPricingResult(
         false, errors, [], Money.Zero, Money.Zero, false, false, false, null, null, Money.Zero, Money.Zero, []);
 }
 
+/// <summary>
+/// Repricing result for an existing order. It deliberately accepts only persisted
+/// line snapshots, so changing current Catalogue data cannot rewrite history.
+/// </summary>
+public sealed record OrderSnapshotPricingResult(
+    bool IsValid,
+    IReadOnlyList<string> ValidationErrors,
+    IReadOnlyList<OrderItemSnapshot> Items,
+    Money TotalBeforeManualOverride,
+    Money TotalTtc,
+    bool PickupDiscountApplied,
+    decimal? PickupDiscountRate,
+    string? DiscountNotAppliedReason,
+    Money DeliveryCommercialAmountTtc,
+    Money DeliveryFeeTtc,
+    IReadOnlyList<OrderTaxBreakdown> TaxBreakdown)
+{
+    public static OrderSnapshotPricingResult Invalid(params string[] errors) => new(
+        false, errors, [], Money.Zero, Money.Zero, false, null, null, Money.Zero, Money.Zero, []);
+}
+
 /// <summary>Immutable sale-time line snapshot. It has no current-catalogue authority.</summary>
 public sealed record OrderItemSnapshot(
     Guid Id,
@@ -151,7 +210,20 @@ public sealed record OrderSnapshot(
     decimal? PickupDiscountRate,
     Money DeliveryFeeTtc,
     IReadOnlyList<OrderItemSnapshot> Items,
-    IReadOnlyList<OrderTaxBreakdown> TaxBreakdown);
+    IReadOnlyList<OrderTaxBreakdown> TaxBreakdown)
+{
+    /// <summary>Immutable operator-facing reference allocated by SQLite at creation.</summary>
+    public string Reference { get; init; } = string.Empty;
+
+    /// <summary>Current cumulative card amount. It is kept separately from signed adjustments for fast detail reads.</summary>
+    public Money CardPaymentTtc { get; init; } = Money.Zero;
+
+    /// <summary>Current cumulative cash amount. It is kept separately from signed adjustments for fast detail reads.</summary>
+    public Money CashPaymentTtc { get; init; } = Money.Zero;
+
+    public Money CbPaymentTtc { get => CardPaymentTtc; init => CardPaymentTtc = value; }
+    public Money EspecePaymentTtc { get => CashPaymentTtc; init => CashPaymentTtc = value; }
+}
 
 /// <summary>Shared operator-facing representation for persisted planned times.</summary>
 public static class OrderTimeFormatting
@@ -174,6 +246,25 @@ public static class TelephoneNormalization
         }
 
         return trimmed;
+    }
+}
+
+/// <summary>Builds stable, punctuation-insensitive search terms without changing persisted telephone values.</summary>
+public static class TelephoneSearchNormalization
+{
+    public static string Digits(string? value) => new((value ?? string.Empty).Where(char.IsDigit).ToArray());
+
+    public static IReadOnlyList<string> QueryTerms(string? value)
+    {
+        var digits = Digits(value);
+        if (digits.Length == 0) return [];
+
+        var terms = new HashSet<string>(StringComparer.Ordinal) { digits };
+        if (digits.StartsWith("33", StringComparison.Ordinal) && digits.Length > 2)
+            terms.Add("0" + digits[2..]);
+        if (digits.StartsWith('0') && digits.Length > 1)
+            terms.Add("33" + digits[1..]);
+        return terms.ToArray();
     }
 }
 
@@ -237,8 +328,9 @@ public static class OrderPricingService
                 var candidateLines = lines.Select(line =>
                 {
                     if (!line.Draft.Product.Product.DiscountEligible) return line;
-                    var discount = BusinessRounding.ToCents(line.ProductVatComponentTtc.Euros * settings.PickupDiscountRate);
-                    return line with { DiscountTtc = Money.FromCents(discount), CalculatedLineTotalTtc = line.CalculatedLineTotalTtc - Money.FromCents(discount) };
+                    var discountedProductComponent = Money.FromCents(BusinessRounding.ToCents(line.ProductVatComponentTtc.Euros * (1m - settings.PickupDiscountRate)));
+                    var discount = line.ProductVatComponentTtc - discountedProductComponent;
+                    return line with { DiscountTtc = discount, CalculatedLineTotalTtc = discountedProductComponent + line.PositiveAdjustmentComponentTtc };
                 }).ToArray();
                 var candidateTotal = candidateLines.Aggregate(Money.Zero, (total, line) => total + line.CalculatedLineTotalTtc);
                 if (candidateTotal < settings.PickupDiscountMinTotalTtc)
@@ -281,6 +373,132 @@ public static class OrderPricingService
         }
 
         return new(true, [], lines, calculatedTotal, total, manual, draft.PickupDiscountRequested, pickupApplied, pickupRate, discountReason, commercialAmount, deliveryFee, taxes);
+    }
+
+    /// <summary>
+    /// Reprices an existing order from its persisted sale-time snapshots and current
+    /// business settings. No Catalogue lookup or historical-value reconstruction is
+    /// performed here.
+    /// </summary>
+    public static OrderSnapshotPricingResult CalculateSnapshots(
+        IReadOnlyList<OrderItemSnapshot> items,
+        FulfilmentMode fulfilment,
+        bool pickupDiscountRequested,
+        BusinessSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(settings);
+
+        var errors = new List<string>();
+        if (items.Count == 0) errors.Add("At least one order line is required.");
+        if (CatalogueValidation.ValidateSettings(settings) is { } settingsError) errors.Add(settingsError);
+
+        var priced = new List<(OrderItemSnapshot Item, Money ProductComponent, Money PositiveComponent)>();
+        foreach (var item in items.OrderBy(item => item.Position))
+        {
+            if (item.Quantity <= 0)
+            {
+                errors.Add($"Quantity for '{item.ProductName}' must be positive.");
+                continue;
+            }
+
+            var baseTotal = item.ProductBasePriceTtc * item.Quantity;
+            var negativeAdjustments = item.Adjustments
+                .Where(adjustment => adjustment.AdjustmentTtcPerUnit < Money.Zero)
+                .Aggregate(Money.Zero, (sum, adjustment) => sum + adjustment.AdjustmentTtcPerUnit * item.Quantity);
+            var positiveAdjustments = item.Adjustments
+                .Where(adjustment => adjustment.AdjustmentTtcPerUnit > Money.Zero)
+                .Aggregate(Money.Zero, (sum, adjustment) => sum + adjustment.AdjustmentTtcPerUnit * item.Quantity);
+            priced.Add((item with
+            {
+                ExtendedBaseTtc = baseTotal,
+                CalculatedLineTotalTtc = baseTotal + negativeAdjustments + positiveAdjustments
+            }, baseTotal + negativeAdjustments, positiveAdjustments));
+        }
+
+        if (errors.Count > 0) return OrderSnapshotPricingResult.Invalid(errors.ToArray());
+
+        var commercialAmount = priced.Aggregate(Money.Zero, (sum, line) => sum + line.Item.CalculatedLineTotalTtc);
+        var pickupApplied = false;
+        decimal? pickupRate = null;
+        string? discountReason = null;
+        var normalLines = priced;
+
+        if (fulfilment == FulfilmentMode.Retrait && pickupDiscountRequested)
+        {
+            var eligibleLines = priced.Where(line => line.Item.ProductDiscountEligible).ToArray();
+            if (eligibleLines.Length == 0)
+            {
+                discountReason = "No eligible product line is present.";
+            }
+            else
+            {
+                var candidate = priced.Select(line =>
+                {
+                    if (!line.Item.ProductDiscountEligible) return line;
+                    var discountedProductComponent = Money.FromCents(BusinessRounding.ToCents(line.ProductComponent.Euros * (1m - settings.PickupDiscountRate)));
+                    return (Item: line.Item with { CalculatedLineTotalTtc = discountedProductComponent + line.PositiveComponent }, line.ProductComponent, line.PositiveComponent);
+                }).ToList();
+                var candidateTotal = candidate.Aggregate(Money.Zero, (sum, line) => sum + line.Item.CalculatedLineTotalTtc);
+                if (candidateTotal < settings.PickupDiscountMinTotalTtc)
+                {
+                    discountReason = "The discounted total is below the pickup minimum.";
+                }
+                else
+                {
+                    normalLines = candidate;
+                    pickupApplied = settings.PickupDiscountRate != 0m;
+                    pickupRate = pickupApplied ? settings.PickupDiscountRate : null;
+                    if (!pickupApplied) discountReason = "The configured pickup discount rate is zero.";
+                }
+            }
+        }
+
+        var deliveryFee = Money.Zero;
+        if (fulfilment == FulfilmentMode.Livraison)
+        {
+            if (commercialAmount < settings.DeliveryMinMerchandiseTotalTtc)
+                errors.Add("The delivery merchandise total is below the configured minimum.");
+            else if (settings.DeliveryFeeEnabled)
+                deliveryFee = settings.DeliveryFeeAmountTtc;
+        }
+
+        var total = normalLines.Aggregate(Money.Zero, (sum, line) => sum + line.Item.CalculatedLineTotalTtc) + deliveryFee;
+        var taxes = new Dictionary<decimal, Money>();
+        foreach (var line in normalLines)
+        {
+            var discount = line.ProductComponent + line.PositiveComponent - line.Item.CalculatedLineTotalTtc;
+            Add(taxes, line.Item.ProductVatRate, line.ProductComponent - discount);
+            Add(taxes, PositiveAdjustmentVatRate, line.PositiveComponent);
+        }
+        Add(taxes, DeliveryFeeVatRate, deliveryFee);
+        var taxSnapshots = taxes.Where(pair => pair.Value != Money.Zero)
+            .OrderBy(pair => pair.Key)
+            .Select(pair => new OrderTaxBreakdown(pair.Key, pair.Value, IncludedVat(pair.Value, pair.Key)))
+            .ToArray();
+
+        return new(
+            errors.Count == 0,
+            errors,
+            normalLines.Select(line => line.Item).ToArray(),
+            total - deliveryFee,
+            total,
+            pickupApplied,
+            pickupRate,
+            discountReason,
+            commercialAmount,
+            deliveryFee,
+            taxSnapshots);
+
+        static void Add(Dictionary<decimal, Money> values, decimal rate, Money amount)
+        {
+            if (amount == Money.Zero) return;
+            values[rate] = values.TryGetValue(rate, out var current) ? current + amount : amount;
+        }
+
+        static Money IncludedVat(Money taxable, decimal rate) => rate == 0m
+            ? Money.Zero
+            : Money.FromCents(BusinessRounding.ToCents(taxable.Euros * rate / (100m + rate)));
     }
 
     private static List<ResolvedOrderAdjustment> ResolveAdjustments(OrderLineDraft line, List<string> errors)

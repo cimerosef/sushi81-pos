@@ -80,6 +80,9 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private Money? manualTotalOverride;
     private OrderPricingResult? pricing;
     private string validationMessage = string.Empty;
+    private IReadOnlyList<ValidationIssue>? activeValidationIssues;
+    private bool pricingValidationActive;
+    private bool renderingValidationMessage;
     private string committedMessage = string.Empty;
     private string reloadOrderIdText = string.Empty;
     private OrderSnapshot? reloadedOrder;
@@ -151,6 +154,11 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         string? browseRefresh = null,
         string? browseEmpty = null)
     {
+        var previousFulfilment = selectedFulfilment;
+        var previousHour = selectedPlannedHour;
+        var previousMinute = selectedPlannedMinute;
+        var previousPlannedTime = plannedTime;
+        var previousPickupDiscount = pickupDiscountRequested;
         if (labels is not null) localized = labels;
         allCategoriesLabel = string.IsNullOrWhiteSpace(allCategories) ? "Toutes" : allCategories;
         unselectedFulfilmentLabel = string.IsNullOrWhiteSpace(unselectedFulfilment) ? "—" : unselectedFulfilment;
@@ -159,7 +167,11 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         manualTotalStateText = string.IsNullOrWhiteSpace(manualTotalState) ? "Total manuel" : manualTotalState;
         newOrderLabel = string.IsNullOrWhiteSpace(newOrder) ? "Nouvelle commande" : newOrder;
         this.quantityLabel = string.IsNullOrWhiteSpace(quantityLabel) ? "Quantité" : quantityLabel;
-        if (Categories.Count > 0) Categories[0] = new CategorySummary(Guid.Empty, allCategoriesLabel);
+        if (Categories.Count > 0 && !string.Equals(Categories[0].Name, allCategoriesLabel, StringComparison.Ordinal))
+        {
+            Categories[0] = new CategorySummary(Guid.Empty, allCategoriesLabel);
+            OnPropertyChanged(nameof(SelectedCategoryId));
+        }
         if (PlannedHourChoices.Count > 0) PlannedHourChoices[0] = new TimeChoice(null, Localized("TimeUnset", "—"));
         if (PlannedMinuteChoices.Count > 0) PlannedMinuteChoices[0] = new TimeChoice(null, Localized("TimeUnset", "—"));
         if (FulfilmentChoices.Count == 3)
@@ -168,9 +180,23 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             FulfilmentChoices[1] = new FulfilmentChoice(FulfilmentMode.Retrait, retraitFulfilmentLabel);
             FulfilmentChoices[2] = new FulfilmentChoice(FulfilmentMode.Livraison, livraisonFulfilmentLabel);
         }
+        selectedFulfilment = previousFulfilment;
+        selectedPlannedHour = previousHour;
+        selectedPlannedMinute = previousMinute;
+        plannedTime = previousPlannedTime;
+        pickupDiscountRequested = previousPickupDiscount;
         foreach (var line in Cart) line.SetQuantityLabel(this.quantityLabel);
         foreach (var row in BrowserOrders) row.ApplyLocalization(localized);
+        if (pricingValidationActive) RenderPricingValidationMessage();
+        else if (activeValidationIssues is { Count: > 0 }) RenderValidationIssues();
         OnPropertyChanged(nameof(AllCategoriesLabel));
+        OnPropertyChanged(nameof(SelectedFulfilment));
+        OnPropertyChanged(nameof(SelectedPlannedHour));
+        OnPropertyChanged(nameof(SelectedPlannedMinute));
+        OnPropertyChanged(nameof(PlannedTime));
+        OnPropertyChanged(nameof(PlannedTimeValid));
+        OnPropertyChanged(nameof(PickupDiscountRequested));
+        OnPropertyChanged(nameof(IsPickupDiscountEnabled));
         OnPropertyChanged(nameof(ManualTotalStateText));
         OnPropertyChanged(nameof(NewOrderLabel));
         OnPropertyChanged(nameof(ReloadedOrderDisplay));
@@ -255,8 +281,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         {
             if (selectedPlannedMinute == value) return;
             selectedPlannedMinute = value;
+            if (value is null) selectedPlannedHour = null;
             UpdatePlannedTime();
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedPlannedHour));
             OnPropertyChanged(nameof(CanConfirm));
             _ = RepriceAsync(clearManualOverride: false);
         }
@@ -279,12 +307,44 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanAddSelectedProduct)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
     public bool IsCommitted { get => isCommitted; private set { isCommitted = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
     public bool CanAddSelectedProduct => !IsBusy && !IsCommitted && SelectedProduct is not null;
-    public bool CanConfirm => !IsBusy && !IsCommitted && PlannedDateValid && PlannedTime is { } time && IsApprovedPlannedTime(time) && pricing?.IsValid == true;
+    public bool CanConfirm => !IsBusy && !IsCommitted && PlannedDateValid && PlannedTimeValid && pricing?.IsValid == true;
     public bool CanStartNewOrder => IsCommitted && !IsBusy;
-    public bool PlannedTimeValid => PlannedTime is null || IsApprovedPlannedTime(PlannedTime.Value);
+
+    public bool HasUncommittedDraft => !IsCommitted && (Cart.Count > 0 || SelectedFulfilment is not null || !string.IsNullOrWhiteSpace(Telephone) || !string.IsNullOrWhiteSpace(DeliveryAddress) || !string.IsNullOrWhiteSpace(Comment));
+
+    public void ApplyCustomerDetailsFromOrder(OrderSnapshot source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (HasUncommittedDraft) throw new InvalidOperationException("The current Caisse draft is not empty.");
+        StartNewOrderFromCustomer(source);
+    }
+
+    public void StartNewOrderFromCustomer(OrderSnapshot source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        Cart.Clear(); SelectedCartLine = null; selectedFulfilment = null; plannedDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue); plannedTime = null; selectedPlannedHour = null; selectedPlannedMinute = null;
+        telephone = source.Telephone ?? string.Empty; deliveryAddress = source.DeliveryAddress ?? string.Empty; comment = source.Comment ?? string.Empty; pickupDiscountRequested = false; manualTotalOverride = null; pricing = null; totalText = "0.00"; isCommitted = false; reloadOrderIdText = string.Empty; reloadedOrder = null;
+        activeValidationIssues = null; pricingValidationActive = false;
+        OnPropertyChanged(string.Empty); _ = RepriceAsync(clearManualOverride: true);
+    }
+    public bool PlannedTimeValid => (SelectedPlannedHour is null && SelectedPlannedMinute is null)
+        || (SelectedPlannedHour is { } && SelectedPlannedMinute is { } && PlannedTime is { } time && IsApprovedPlannedTime(time));
     public bool IsPickupDiscountEnabled => !IsBusy && !IsCommitted && SelectedFulfilment == FulfilmentMode.Retrait;
     public string TotalText { get => totalText; private set { totalText = value; OnPropertyChanged(); } }
-    public string ValidationMessage { get => validationMessage; private set { validationMessage = value; OnPropertyChanged(); } }
+    public string ValidationMessage
+    {
+        get => validationMessage;
+        private set
+        {
+            validationMessage = value;
+            if (!renderingValidationMessage)
+            {
+                activeValidationIssues = null;
+                pricingValidationActive = false;
+            }
+            OnPropertyChanged();
+        }
+    }
     public string CommittedMessage { get => committedMessage; private set { committedMessage = value; OnPropertyChanged(); } }
     public string ReloadOrderIdText { get => reloadOrderIdText; set { reloadOrderIdText = value ?? string.Empty; OnPropertyChanged(); } }
     public OrderSnapshot? ReloadedOrder
@@ -306,31 +366,24 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
+        PerformanceTrace.Log("entry.refresh.start");
         var request = BeginRefresh(cancellationToken);
         try
         {
             var categories = await service.ListCategoriesAsync(request.Cancellation.Token);
             var products = await service.ListActiveProductsAsync(request.SearchText, request.CategoryId == Guid.Empty ? null : request.CategoryId, request.Cancellation.Token);
             if (!IsCurrent(request)) return;
-            Categories.Clear();
-            Categories.Add(new CategorySummary(Guid.Empty, AllCategoriesLabel));
-            foreach (var category in categories) Categories.Add(category);
-            if (selectedCategoryId != Guid.Empty && !categories.Any(category => category.Id == selectedCategoryId))
-            {
-                selectedCategoryId = Guid.Empty;
-                OnPropertyChanged(nameof(SelectedCategoryId));
-            }
-            Products.Clear();
-            foreach (var product in products) Products.Add(product);
-            if (SelectedProduct is not null) SelectedProduct = Products.FirstOrDefault(product => product.Id == SelectedProduct.Id);
+            ApplyCategories(categories);
+            ApplyProducts(products);
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
         catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; }
-        finally { EndRefresh(request); }
+        finally { EndRefresh(request); PerformanceTrace.Log("entry.refresh.end"); }
     }
 
     public async Task RefreshOrderBrowserAsync(Guid? preferredOrderId = null, CancellationToken cancellationToken = default)
     {
+        PerformanceTrace.Log("entry.browser-refresh.start");
         var request = BeginBrowserRefresh(cancellationToken);
         CancelBrowserSelection();
         var previousId = preferredOrderId ?? SelectedBrowserOrder?.Id;
@@ -362,11 +415,12 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
         catch (Exception exception) when (IsCurrentBrowserRefresh(request)) { ValidationMessage = exception.Message; }
-        finally { EndBrowserRefresh(request); }
+        finally { EndBrowserRefresh(request); PerformanceTrace.Log("entry.browser-refresh.end"); }
     }
 
     public async Task SelectBrowserOrderAsync(OrderBrowserRowViewModel? row, CancellationToken cancellationToken = default)
     {
+        PerformanceTrace.Log("entry.browser-selection.start");
         SelectedBrowserOrder = row;
         if (row is null)
         {
@@ -389,7 +443,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             ReloadedOrder = null;
             ValidationMessage = exception.Message;
         }
-        finally { EndBrowserSelection(request); }
+        finally { EndBrowserSelection(request); PerformanceTrace.Log("entry.browser-selection.end"); }
     }
 
     public async Task AddSelectedProductAsync(CancellationToken cancellationToken = default)
@@ -421,6 +475,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     }
 
     public Task<OrderEntryProduct?> GetActiveProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => service.GetActiveProductAsync(productId, cancellationToken);
+    public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, CancellationToken cancellationToken = default) => service.ListActiveProductsAsync(search, null, cancellationToken);
 
     public void UpdateConfiguredLine(OrderEntryCartLineViewModel line, IReadOnlyList<Guid> selectedOptionIds, IReadOnlyList<OrderLineAdjustmentDraft> customAdjustments, int? quantity = null)
     {
@@ -437,14 +492,19 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     public void ChangeQuantity(OrderEntryCartLineViewModel line, int quantity)
     {
-        if (IsCommitted || quantity <= 0) return;
+        if (IsCommitted) return;
+        if (quantity <= 0)
+        {
+            if (quantity == 0) RemoveLine(line);
+            return;
+        }
         line.Replace(line.Draft with { Quantity = quantity });
         _ = RepriceAsync(clearManualOverride: true);
     }
 
     public void SetManualTotal(string text)
     {
-        if (!decimal.TryParse(text, NumberStyles.Number, CultureInfo.CurrentCulture, out var euros))
+        if (!M03Presentation.TryParseDecimalInput(text, out var euros))
         {
             manualTotalOverride = null;
             TotalText = (pricing?.TotalTtc ?? Money.Zero).Euros.ToString("0.00", CultureInfo.CurrentCulture);
@@ -502,6 +562,12 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public async Task<ConfirmOrderResult?> ConfirmAsync(CancellationToken cancellationToken = default)
     {
         if (disposed || IsCommitted) return null;
+        if (!PlannedTimeValid)
+        {
+            var invalidTime = ConfirmOrderResult.Failure(new ValidationIssue("planned-time", "The planned fulfilment time is not valid.", ValidationCodes.PlannedTimeInvalid));
+            SetValidationIssues(invalidTime.Issues);
+            return invalidTime;
+        }
         using var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetimeCancellation.Token);
         var operationToken = operationCancellation.Token;
         IsBusy = true;
@@ -511,11 +577,14 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             if (disposed) return result;
             if (!result.Succeeded)
             {
-                ValidationMessage = string.Join(Environment.NewLine, result.Issues.Select(LocalizeIssue));
+                SetValidationIssues(result.Issues);
                 return result;
             }
             IsCommitted = true;
-        var committedId = result.CommittedOrder?.Id ?? result.PersistedOrderId;
+            var committedId = result.CommittedOrder?.Id ?? result.PersistedOrderId;
+            var committedLabel = !string.IsNullOrWhiteSpace(result.CommittedOrder?.Reference)
+                ? result.CommittedOrder!.Reference
+                : committedId?.ToString() ?? "—";
             if (committedId is { } id)
             {
                 ReloadOrderIdText = id.ToString();
@@ -529,8 +598,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
                 }
             }
             CommittedMessage = result.HasOutputFailure
-                ? string.Format(CultureInfo.CurrentCulture, Localized("OrderSavedOutputFailed", "Commande {0} enregistrée ; l’envoi de sortie a échoué."), committedId)
-                : string.Format(CultureInfo.CurrentCulture, Localized("OrderSaved", "Commande {0} enregistrée."), committedId);
+                ? string.Format(CultureInfo.CurrentCulture, Localized("OrderSavedOutputFailed", "Commande {0} enregistrée ; l’envoi de sortie a échoué."), committedLabel)
+                : string.Format(CultureInfo.CurrentCulture, Localized("OrderSaved", "Commande {0} enregistrée."), committedLabel);
             ValidationMessage = result.HasOutputFailure ? string.Join(Environment.NewLine, result.Issues.Select(LocalizeIssue)) : string.Empty;
             return result;
         }
@@ -565,6 +634,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         pickupDiscountRequested = false;
         manualTotalOverride = null;
         pricing = null;
+        activeValidationIssues = null;
+        pricingValidationActive = false;
         totalText = "0.00";
         validationMessage = string.Empty;
         committedMessage = string.Empty;
@@ -609,20 +680,47 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         pricing = result;
         TotalText = pricing.TotalTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
         for (var index = 0; index < Math.Min(Cart.Count, pricing.Lines.Count); index++) Cart[index].SetLineTotal(pricing.Lines[index].CalculatedLineTotalTtc);
+        pricingValidationActive = true;
+        activeValidationIssues = null;
+        RenderPricingValidationMessage();
+        OnPropertyChanged(nameof(IsManualTotalOverrideActive));
+        OnPropertyChanged(nameof(ManualTotalStateText));
+        OnPropertyChanged(nameof(CanConfirm));
+    }
+
+    private void SetValidationIssues(IReadOnlyList<ValidationIssue> issues)
+    {
+        activeValidationIssues = issues;
+        pricingValidationActive = false;
+        if (issues.Count == 0) ValidationMessage = string.Empty;
+        else RenderValidationIssues();
+    }
+
+    private void RenderValidationIssues()
+    {
+        if (activeValidationIssues is not { Count: > 0 }) return;
+        RenderValidationMessage(string.Join(Environment.NewLine, activeValidationIssues.Select(LocalizeIssue)));
+    }
+
+    private void RenderPricingValidationMessage()
+    {
+        if (!pricingValidationActive || pricing is null) return;
         var messages = pricing.ValidationErrors
             .Concat(pricing.DiscountNotAppliedReason is { } reason && PickupDiscountRequested ? [reason] : [])
             .Select(message => LocalizeOrderMessage(message))
             .ToList();
         if (!PlannedDateValid && PlannedDate is not null)
             messages.Insert(0, Localized("ValidationPlannedDatePast", "La date prévue ne peut pas être antérieure à la date d’activité."));
-        if (PlannedTime is null)
-            messages.Insert(0, Localized("ValidationPlannedTimeRequired", "Sélectionnez une heure prévue."));
-        else if (!PlannedTimeValid)
+        if (!PlannedTimeValid)
             messages.Insert(0, Localized("ValidationPlannedTimeInvalid", "L’heure prévue doit utiliser un créneau autorisé de 5 minutes."));
-        ValidationMessage = string.Join(Environment.NewLine, messages);
-        OnPropertyChanged(nameof(IsManualTotalOverrideActive));
-        OnPropertyChanged(nameof(ManualTotalStateText));
-        OnPropertyChanged(nameof(CanConfirm));
+        RenderValidationMessage(string.Join(Environment.NewLine, messages));
+    }
+
+    private void RenderValidationMessage(string message)
+    {
+        renderingValidationMessage = true;
+        try { ValidationMessage = message; }
+        finally { renderingValidationMessage = false; }
     }
 
     private static bool PricingOutcomeEquals(OrderPricingResult left, OrderPricingResult right) =>
@@ -865,9 +963,49 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private readonly record struct PriceRequest(long Version, CancellationTokenSource Cancellation);
     private readonly record struct BrowserRefreshRequest(long Version, CancellationTokenSource Cancellation);
     private readonly record struct BrowserSelectionRequest(long Version, CancellationTokenSource Cancellation);
+    private void ApplyCategories(IReadOnlyList<CategorySummary> categories)
+    {
+        var desired = new CategorySummary[1 + categories.Count];
+        desired[0] = new CategorySummary(Guid.Empty, AllCategoriesLabel);
+        for (var index = 0; index < categories.Count; index++) desired[index + 1] = categories[index];
+
+        if (Categories.Count == desired.Length && Categories.SequenceEqual(desired)) return;
+
+        var previousSelectedCategoryId = selectedCategoryId;
+        Categories.Clear();
+        foreach (var category in desired) Categories.Add(category);
+
+        if (previousSelectedCategoryId != Guid.Empty && !categories.Any(category => category.Id == previousSelectedCategoryId))
+        {
+            selectedCategoryId = Guid.Empty;
+        }
+        else
+        {
+            selectedCategoryId = previousSelectedCategoryId;
+        }
+        OnPropertyChanged(nameof(SelectedCategoryId));
+    }
+
+    private void ApplyProducts(IReadOnlyList<ProductSummary> products)
+    {
+        Products.Clear();
+        foreach (var product in products) Products.Add(product);
+        if (SelectedProduct is not null) SelectedProduct = Products.FirstOrDefault(product => product.Id == SelectedProduct.Id);
+    }
+
     private async Task RefreshProductsAsync()
     {
-        try { await RefreshAsync(); } catch { }
+        PerformanceTrace.Log("entry.products-refresh.start");
+        var request = BeginRefresh(CancellationToken.None);
+        try
+        {
+            var products = await service.ListActiveProductsAsync(request.SearchText, request.CategoryId == Guid.Empty ? null : request.CategoryId, request.Cancellation.Token);
+            if (!IsCurrent(request)) return;
+            ApplyProducts(products);
+        }
+        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
+        catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; }
+        finally { EndRefresh(request); PerformanceTrace.Log("entry.products-refresh.end"); }
     }
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

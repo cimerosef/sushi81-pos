@@ -67,7 +67,7 @@ public sealed class M04OrderIntegrationTests
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM products WHERE product_id='" + product + "' AND code='V2-P1';"));
 
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, snapshots).InitializeAsync();
-        Assert.AreEqual(4L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(5L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM categories WHERE category_id='" + category.Id + "' AND name='Plats v2';"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM products WHERE product_id='" + product + "' AND code='V2-P1';"));
         Assert.IsTrue(snapshots.Changes.Any(change => change.Sequence == 2));
@@ -86,7 +86,7 @@ public sealed class M04OrderIntegrationTests
         var product = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P1", "Plat", category.Id, Money.FromCents(1250), 10m, true, true, false, []))).Value!;
         var snapshot = new SqliteLocalRecoverySnapshotService(paths, factory, clock);
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, snapshot).InitializeAsync();
-        Assert.AreEqual(4L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(5L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM categories WHERE category_id='" + category.Id + "';"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM products WHERE product_id='" + product + "';"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM business_settings;"));
@@ -294,10 +294,11 @@ public sealed class M04OrderIntegrationTests
         using var orderService = new OrderEntryService(new OrderEntryCatalogueService(catalogueStore), new SqliteBusinessSettingsStore(factory, runner, clock), new SqliteOrderStore(factory, runner), new NoopDispatcher(), ids, clock);
         var order = await orderService.ConfirmNewOrderAsync(new NewOrderDraft([new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [], 1, selected.CategoryName)], FulfilmentMode.Retrait, clock.BusinessDate, new TimeOnly(18, 25), null, null, null, false));
         Assert.IsTrue(order.Succeeded, string.Join("; ", order.Issues.Select(issue => issue.Message)));
+        Assert.IsNotNull(order.CommittedOrder, string.Join("; ", order.Issues.Select(issue => issue.Message)));
 
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, new SqliteLocalRecoverySnapshotService(paths, factory, clock)).InitializeAsync();
 
-        Assert.AreEqual(4L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(5L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.AreEqual(1L, await ScalarAsync(factory, $"SELECT COUNT(*) FROM categories WHERE category_id='{category.Id}' AND short_code IS NULL AND normalized_short_code IS NULL;"));
         Assert.AreEqual(1L, await ScalarAsync(factory, $"SELECT COUNT(*) FROM products WHERE product_id='{productId}' AND category_id='{category.Id}';"));
         Assert.AreEqual(1L, await ScalarAsync(factory, $"SELECT COUNT(*) FROM orders WHERE order_id='{order.CommittedOrder!.Id}';"));
@@ -389,6 +390,48 @@ public sealed class M04OrderIntegrationTests
 
         var restarted = await new SqliteOrderStore(factory, new SqliteTransactionRunner(factory)).ListByPlannedDateAsync(clock.BusinessDate);
         CollectionAssert.AreEqual(today.ToArray(), restarted.ToArray());
+    }
+
+    [TestMethod]
+    public async Task M05AllocatesStableReferencesPersistsSignedPaymentsAndAppliesLifecycleExclusions()
+    {
+        using var paths = new TestPaths();
+        var clock = new FixedClock();
+        var factory = await InitializeAsync(paths, clock);
+        var ids = new DeterministicIds();
+        var runner = new SqliteTransactionRunner(factory);
+        var catalogueStore = new SqliteCatalogueStore(factory, runner, ids, clock);
+        var category = (await new CatalogueService(catalogueStore).CreateCategoryAsync("Plats")).Value!;
+        var productId = (await new CatalogueService(catalogueStore).CreateProductAsync(new ProductDraft(Guid.Empty, "M05-1", "Produit M05", category.Id, Money.FromCents(1250), 10m, true, true, false, []))).Value!;
+        var selected = (await new OrderEntryCatalogueService(catalogueStore).GetActiveProductAsync(productId))!;
+        var store = new SqliteOrderStore(factory, runner, null, ids, clock);
+        using var entry = new OrderEntryService(new OrderEntryCatalogueService(catalogueStore), new SqliteBusinessSettingsStore(factory, runner, clock), store, new NoopDispatcher(), ids, clock);
+        var first = (await entry.ConfirmNewOrderAsync(new NewOrderDraft([new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [], 1, selected.CategoryName)], FulfilmentMode.Retrait, clock.BusinessDate, new TimeOnly(11, 0), "0612345678", null, "client-test", false))).CommittedOrder!;
+        var second = (await entry.ConfirmNewOrderAsync(new NewOrderDraft([new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [], 1, selected.CategoryName)], FulfilmentMode.Retrait, clock.BusinessDate, new TimeOnly(11, 5), null, null, "second-test", false))).CommittedOrder!;
+        Assert.AreEqual("20260831-001", first.Reference);
+        Assert.AreEqual("20260831-002", second.Reference);
+
+        using var lifecycle = new OrderLifecycleService(store, ids, clock);
+        var paid = await lifecycle.SaveModificationAsync(first with { CardPaymentTtc = Money.FromCents(1250) }, clock.BusinessDate);
+        Assert.IsTrue(paid.Succeeded, string.Join(";", paid.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(Money.FromCents(1250), paid.Snapshot!.CardPaymentTtc);
+        Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM payment_adjustments WHERE order_id='" + first.Id + "' AND bucket='CB' AND delta_cents=1250;"));
+        var summary = await lifecycle.GetOperationalSummaryAsync(clock.BusinessDate);
+        Assert.AreEqual(Money.FromCents(2500), summary.TurnoverTtc);
+        Assert.AreEqual(Money.FromCents(1250), summary.ReceivedCardTtc);
+
+        var closed = await lifecycle.CloseAsync(first.Id);
+        Assert.IsTrue(closed.Succeeded, string.Join(";", closed.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(OrderStatus.Closed, closed.Snapshot!.Status);
+        var reopened = await lifecycle.SaveModificationAsync(closed.Snapshot with { TotalTtc = Money.FromCents(1300) });
+        Assert.IsTrue(reopened.Succeeded, string.Join(";", reopened.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(OrderStatus.Open, reopened.Snapshot!.Status);
+        var cancelled = await lifecycle.CancelAsync(first.Id);
+        Assert.IsTrue(cancelled.Succeeded);
+        var afterCancel = await lifecycle.GetOperationalSummaryAsync(clock.BusinessDate);
+        Assert.AreEqual(Money.FromCents(1250), afterCancel.TurnoverTtc);
+        Assert.AreEqual(Money.Zero, afterCancel.ReceivedTtc);
+        Assert.HasCount(1, await lifecycle.SearchLiveAsync("client-test"));
     }
 
     private static async Task<SqliteConnectionFactory> InitializeAsync(IAppPaths paths, IBusinessClock clock)

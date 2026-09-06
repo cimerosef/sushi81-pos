@@ -110,7 +110,7 @@ public sealed class OrderEntryApplicationTests
     }
 
     [TestMethod]
-    public async Task MissingPlannedTimeIsRejectedBeforePersistenceAndDispatch()
+    public async Task MissingPlannedTimeIsAcceptedAndPersistedAsNull()
     {
         var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
         var store = new RecordingOrderStore();
@@ -119,14 +119,15 @@ public sealed class OrderEntryApplicationTests
 
         var result = await service.ConfirmNewOrderAsync(Draft(product) with { PlannedFulfilmentTime = null });
 
-        Assert.IsFalse(result.Succeeded);
-        Assert.AreEqual(ValidationCodes.PlannedTimeRequired, result.Issues.Single().StableCode);
-        Assert.AreEqual(0, store.SaveCalls);
-        Assert.AreEqual(0, dispatcher.Calls);
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.IsNull(result.CommittedOrder!.PlannedFulfilmentTime);
+        Assert.IsNull((await service.GetOrderByIdAsync(result.CommittedOrder.Id))!.PlannedFulfilmentTime);
+        Assert.AreEqual(1, store.SaveCalls);
+        Assert.AreEqual(1, dispatcher.Calls);
     }
 
     [TestMethod]
-    public async Task ManualTotalDoesNotBypassMissingPlannedTime()
+    public async Task ManualTotalAlsoAllowsMissingPlannedTime()
     {
         var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
         var store = new RecordingOrderStore();
@@ -139,10 +140,33 @@ public sealed class OrderEntryApplicationTests
             ManualTotalOverride = Money.FromCents(2500)
         });
 
-        Assert.IsFalse(result.Succeeded);
-        Assert.AreEqual(ValidationCodes.PlannedTimeRequired, result.Issues.Single().StableCode);
-        Assert.AreEqual(0, store.SaveCalls);
-        Assert.AreEqual(0, dispatcher.Calls);
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.IsNull(result.CommittedOrder!.PlannedFulfilmentTime);
+        Assert.AreEqual(1, store.SaveCalls);
+        Assert.AreEqual(1, dispatcher.Calls);
+    }
+
+    [TestMethod]
+    public async Task LivraisonWithoutPlannedTimeIsAcceptedWhenItsCommercialRulesAreSatisfied()
+    {
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false, price: Money.FromCents(4000));
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingDispatcher();
+        var settings = BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { DeliveryMinMerchandiseTotalTtc = Money.Zero };
+        using var service = CreateService(new FakeCatalogue(Entry(product)), store, dispatcher, settings);
+
+        var result = await service.ConfirmNewOrderAsync(Draft(product) with
+        {
+            Fulfilment = FulfilmentMode.Livraison,
+            PlannedFulfilmentTime = null
+        });
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(FulfilmentMode.Livraison, result.CommittedOrder!.Fulfilment);
+        Assert.IsNull(result.CommittedOrder.PlannedFulfilmentTime);
+        Assert.IsNull((await service.GetOrderByIdAsync(result.CommittedOrder.Id))!.PlannedFulfilmentTime);
+        Assert.AreEqual(1, store.SaveCalls);
+        Assert.AreEqual(1, dispatcher.Calls);
     }
 
     [TestMethod]

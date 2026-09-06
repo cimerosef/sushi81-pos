@@ -15,6 +15,9 @@ public partial class MainWindow : Window
 {
     private bool loaded;
     private bool orderProductAddInProgress;
+    private int commandesGridResizeInvocationCount;
+    private int commandesGridWidthMutationCount;
+    private IDisposable? performanceTraceProbe;
     private readonly CatalogueHeaderSet catalogueHeaders = new();
 
     public MainWindow(ShellViewModel viewModel)
@@ -23,24 +26,35 @@ public partial class MainWindow : Window
         DataContext = viewModel;
         if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
         ApplyCatalogueHeaders();
-        Closed += (_, _) => (DataContext as ShellViewModel)?.Dispose();
+        Closed += OnClosed;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         if (loaded || DataContext is not ShellViewModel viewModel || viewModel.Admin is null && viewModel.Entry is null) return;
         loaded = true;
+        performanceTraceProbe = PerformanceTrace.StartDispatcherGapProbe(Dispatcher);
+        PerformanceTrace.Log("window.loaded");
         try
         {
-            if (viewModel.Admin is { } admin) { await admin.RefreshAsync(); await admin.LoadSettingsAsync(); }
+            if (viewModel.Admin is { } admin) { PerformanceTrace.Log("m03.refresh.start"); await admin.RefreshAsync(); PerformanceTrace.Log("m03.refresh.end"); PerformanceTrace.Log("m03.settings.start"); await admin.LoadSettingsAsync(); PerformanceTrace.Log("m03.settings.end"); }
             if (viewModel.Entry is { } entry)
             {
+                PerformanceTrace.Log("entry.refresh.start");
                 await entry.RefreshAsync();
-                await entry.RefreshOrderBrowserAsync();
+                PerformanceTrace.Log("entry.refresh.end");
             }
+            if (viewModel.Lifecycle is { } lifecycle) { PerformanceTrace.Log("lifecycle.refresh.start"); await lifecycle.RefreshAsync(); PerformanceTrace.Log("lifecycle.refresh.end"); PerformanceTrace.Log("lifecycle.dashboard.start"); await lifecycle.RefreshDashboardAsync(); PerformanceTrace.Log("lifecycle.dashboard.end"); }
         }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
         ApplyCatalogueHeaders();
+    }
+
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        performanceTraceProbe?.Dispose();
+        PerformanceTrace.Log("window.closed");
+        (DataContext as ShellViewModel)?.Dispose();
     }
 
     private async void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -65,13 +79,72 @@ public partial class MainWindow : Window
             orderProductsGrid.Columns[1].Header = LocalizedText(this, "Name", "Name");
             orderProductsGrid.Columns[2].Header = LocalizedText(this, "PriceTtc", "TTC price");
         }
-        if (orderBrowserGrid.Columns.Count >= 5)
+        if (commandesGrid.Columns.Count >= 9)
         {
-            orderBrowserGrid.Columns[0].Header = LocalizedText(this, "OrderBrowserTime", "Time");
-            orderBrowserGrid.Columns[1].Header = LocalizedText(this, "OrderBrowserMode", "Mode");
-            orderBrowserGrid.Columns[2].Header = LocalizedText(this, "OrderBrowserStatus", "Status");
-            orderBrowserGrid.Columns[3].Header = LocalizedText(this, "OrderBrowserTotal", "Total TTC");
-            orderBrowserGrid.Columns[4].Header = LocalizedText(this, "OrderBrowserTelephone", "Telephone");
+            commandesGrid.Columns[0].Header = LocalizedText(this, "OrderReference", "Reference");
+            commandesGrid.Columns[1].Header = LocalizedText(this, "PlannedDate", "Date");
+            commandesGrid.Columns[2].Header = LocalizedText(this, "PlannedTime", "Time");
+            commandesGrid.Columns[3].Header = LocalizedText(this, "OrderStatus", "Status");
+            commandesGrid.Columns[4].Header = LocalizedText(this, "TotalTtc", "Total TTC");
+            commandesGrid.Columns[5].Header = LocalizedText(this, "Telephone", "Telephone");
+            commandesGrid.Columns[6].Header = LocalizedText(this, "Fulfilment", "Mode");
+            commandesGrid.Columns[7].Header = LocalizedText(this, "Comment", "Comment");
+            commandesGrid.Columns[8].Header = LocalizedText(this, "DeliveryAddress", "Address");
+        }
+    }
+
+    private void OnCommandesGridSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        PerformanceTrace.Log("commandes.grid.size-changed");
+        if (sender is DataGrid grid) ResizeCommandesColumns(grid);
+    }
+
+    private void OnCommandesGridLoaded(object sender, RoutedEventArgs e)
+    {
+        PerformanceTrace.Log("commandes.grid.loaded");
+        if (sender is DataGrid grid) ResizeCommandesColumns(grid);
+    }
+
+    private void OnMainWindowSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is not Window || commandesGrid.ActualWidth <= 0) return;
+        PerformanceTrace.Log("window.size-changed");
+        var widthDelta = e.NewSize.Width - e.PreviousSize.Width;
+        var estimatedGridWidth = commandesGrid.ActualWidth + widthDelta;
+        var targetGridWidth = estimatedGridWidth <= ActualWidth ? estimatedGridWidth : commandesGrid.ActualWidth;
+        ResizeCommandesColumns(commandesGrid, targetGridWidth);
+    }
+
+    private void OnMainTabsSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not TabControl || mainTabs.SelectedItem is not TabItem selected) return;
+        var key = mainTabs.Items.IndexOf(selected) switch
+        {
+            0 => "catalogue",
+            1 => "settings",
+            2 => "commandes",
+            3 => "caisse",
+            _ => "settings"
+        };
+        PerformanceTrace.Log($"tab.selected.{key}");
+    }
+
+    private void ResizeCommandesColumns(DataGrid grid, double? targetWidth = null)
+    {
+        commandesGridResizeInvocationCount++;
+        if (grid.Columns.Count < 9) return;
+        var fixedWidth = grid.Columns.Take(7).Sum(column => column.ActualWidth);
+        var availableForLongText = (targetWidth ?? grid.ActualWidth) - 2 - fixedWidth;
+        if (availableForLongText < grid.Columns[7].MinWidth + grid.Columns[8].MinWidth) return;
+        var longTextWidth = availableForLongText / 2;
+        for (var index = 7; index <= 8; index++)
+        {
+            if (Math.Abs(grid.Columns[index].ActualWidth - longTextWidth) > 0.5)
+            {
+                grid.Columns[index].Width = new DataGridLength(longTextWidth, DataGridLengthUnitType.Pixel);
+                commandesGridWidthMutationCount++;
+                PerformanceTrace.Log("commandes.grid.width-mutated");
+            }
         }
     }
 
@@ -135,7 +208,9 @@ public partial class MainWindow : Window
             var product = await entry.GetActiveProductForEditAsync(productId);
             if (product is null) { MessageBox.Show(this, LocalizedText(this, "ProductInactive", "Le produit n’est plus actif."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Warning); return; }
             var dialog = new OptionSelectionDialog(this, product, line);
-            if (dialog.ShowDialog() == true) entry.UpdateConfiguredLine(line, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
+            var result = dialog.ShowDialog();
+            if (dialog.RemoveRequested) entry.RemoveLine(line);
+            else if (result == true) entry.UpdateConfiguredLine(line, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
         }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
@@ -143,7 +218,7 @@ public partial class MainWindow : Window
     private void OnDecreaseOrderQuantity(object sender, RoutedEventArgs e)
     {
         if (DataContext is ShellViewModel { Entry: { } entry } && (sender as Button)?.Tag is OrderEntryCartLineViewModel line)
-            if (line.Quantity > 1) entry.ChangeQuantity(line, line.Quantity - 1);
+            entry.ChangeQuantity(line, line.Quantity - 1);
     }
 
     private void OnIncreaseOrderQuantity(object sender, RoutedEventArgs e)
@@ -190,6 +265,143 @@ public partial class MainWindow : Window
     {
         if (DataContext is ShellViewModel { Entry: { } entry } && e.AddedItems.OfType<OrderBrowserRowViewModel>().LastOrDefault() is { } row)
             _ = entry.SelectBrowserOrderAsync(row);
+    }
+
+    private async void OnRefreshCommandes(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) await lifecycle.RefreshAsync();
+    }
+
+    private async void OnRefreshDashboard(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) await lifecycle.RefreshDashboardAsync();
+    }
+
+    private void OnDashboardEntry(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle }) return;
+        lifecycle.SelectOperationalView((sender as Button)?.Tag?.ToString());
+        mainTabs.SelectedItem = mainTabs.Items.OfType<TabItem>().FirstOrDefault(item => item.DataContext is OrderLifecycleShellViewModel);
+    }
+
+    private void OnBrowseByDate(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) lifecycle.ReturnToDateBrowse();
+    }
+
+    private async void OnCommandesSearchChanged(object sender, TextChangedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle } && IsLoaded) await lifecycle.RefreshAsync();
+    }
+
+    private void OnModifyOrder(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) lifecycle.BeginModification();
+    }
+
+    private async void OnSaveOrderModification(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) await lifecycle.SaveModificationAsync();
+    }
+
+    private void OnAbandonOrderModification(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) lifecycle.AbandonModification();
+    }
+
+    private async void OnAddCurrentOrderLine(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle, Entry: { } entry } || !lifecycle.CanAddCurrentLine) return;
+        var products = await entry.ListActiveProductsAsync();
+        var picker = new CatalogueProductPickerDialog(this, products);
+        if (picker.ShowDialog() != true || picker.SelectedProduct is not { } summary) return;
+        var product = await entry.GetActiveProductForEditAsync(summary.Id);
+        if (product is null) return;
+        var dialog = new OptionSelectionDialog(this, product, null);
+        if (dialog.ShowDialog() == true)
+            await lifecycle.AddCurrentCatalogueLineAsync(new OrderLineDraft(Guid.Empty, product.Aggregate, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity, product.CategoryName));
+    }
+
+    private async void OnReconfigureOrderLine(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle, Entry: { } entry } || sender is not Button { Tag: OrderDetailLineViewModel line } || !lifecycle.IsEditing) return;
+
+        var choice = new ExistingLineEditDialog(this, line, canReconfigure: true);
+        var choiceResult = choice.ShowDialog();
+        if (choice.RemoveRequested)
+        {
+            lifecycle.RemoveLine(line);
+            return;
+        }
+        if (choiceResult != true) return;
+        if (choice.QuantityOnly)
+        {
+            lifecycle.UpdateLineQuantity(line, choice.Quantity);
+            return;
+        }
+
+        OrderEntryProduct? product = null;
+        if (line.Item.SourceProductId is { } productId)
+            product = await entry.GetActiveProductForEditAsync(productId);
+        if (product is null)
+        {
+            MessageBox.Show(this, LocalizedText(this, "ProductInactive", "Le produit n’est plus actif."));
+            return;
+        }
+
+        var draft = line.ToCurrentDraft(product);
+        var dialog = new OptionSelectionDialog(this, product, choice.Quantity, draft.SelectedOptionIds, draft.CustomAdjustments);
+        var dialogResult = dialog.ShowDialog();
+        if (dialog.RemoveRequested)
+        {
+            lifecycle.RemoveLine(line);
+            return;
+        }
+        if (dialogResult == true)
+            if (line.HasSameConfiguration(dialog.SelectedOptionIds, dialog.CustomAdjustments))
+                lifecycle.UpdateLineQuantity(line, dialog.Quantity);
+            else
+                await lifecycle.ReplaceLineAsync(line, draft with { SelectedOptionIds = dialog.SelectedOptionIds, CustomAdjustments = dialog.CustomAdjustments, Quantity = dialog.Quantity }, default);
+    }
+
+    private void OnRemoveLifecycleLine(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle } && sender is Button { Tag: OrderDetailLineViewModel line }) lifecycle.RemoveLine(line);
+    }
+
+    private void OnDecreaseLifecycleQuantity(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle } || sender is not Button { Tag: OrderDetailLineViewModel line } || !lifecycle.IsEditing) return;
+        if (line.Quantity <= 1) lifecycle.RemoveLine(line);
+        else lifecycle.UpdateLineQuantity(line, line.Quantity - 1);
+    }
+
+    private void OnIncreaseLifecycleQuantity(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle } && sender is Button { Tag: OrderDetailLineViewModel line } && lifecycle.IsEditing)
+            lifecycle.UpdateLineQuantity(line, line.Quantity + 1);
+    }
+
+    private async void OnCloseOrder(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle }) return;
+        if (MessageBox.Show(this, LocalizedText(this, "OrderClose", "Clôturer cette commande ?"), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            await lifecycle.CloseSelectedAsync();
+    }
+
+    private async void OnCancelOrder(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle }) return;
+        if (MessageBox.Show(this, LocalizedText(this, "OrderCancel", "Annuler cette commande ?"), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+            await lifecycle.CancelSelectedAsync();
+    }
+
+    private void OnReuseOrderCustomer(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle, Entry: { } entry } || lifecycle.SelectedOrder is not { } order) return;
+        if (entry.HasUncommittedDraft && MessageBox.Show(this, LocalizedText(this, "Discard", "Remplacer le brouillon Caisse en cours ?"), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        entry.StartNewOrderFromCustomer(order);
+        mainTabs.SelectedItem = mainTabs.Items.OfType<TabItem>().FirstOrDefault(item => item.DataContext is OrderEntryShellViewModel);
     }
 
     private void OnFilterRefreshFailed(object? sender, EventArgs e)
@@ -330,9 +542,12 @@ public partial class MainWindow : Window
         private readonly Dictionary<Guid, List<FrameworkElement>> controls = [];
         private readonly StackPanel customPanel = new();
         private readonly List<(TextBox Label, TextBox Amount, Button Remove)> customRows = [];
-        private readonly TextBox quantity;
+        private TextBox quantity = null!;
         private readonly IReadOnlyDictionary<string, string> localized;
         public OptionSelectionDialog(Window owner, OrderEntryProduct product, OrderEntryCartLineViewModel? existing)
+            : this(owner, product, existing?.Quantity ?? 1, existing?.Draft.SelectedOptionIds ?? [], existing?.Draft.CustomAdjustments ?? []) { }
+
+        public OptionSelectionDialog(Window owner, OrderEntryProduct product, int quantityValue, IReadOnlyList<Guid> existingOptions, IReadOnlyList<OrderLineAdjustmentDraft> existingCustomAdjustments)
         {
             this.product = product;
             localized = (owner.DataContext as ShellViewModel)?.Localized ?? new Dictionary<string, string>();
@@ -342,11 +557,11 @@ public partial class MainWindow : Window
             var cancel = new Button { Content = Label("Cancel", "Annuler"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) }; cancel.Click += (_, _) => DialogResult = false;
             var ok = new Button { Content = Label("Add", "Ajouter"), Padding = new Thickness(12, 5, 12, 5) }; ok.Click += (_, _) => Accept(); buttons.Children.Add(cancel); buttons.Children.Add(ok); DockPanel.SetDock(buttons, Dock.Bottom); root.Children.Add(buttons);
             var panel = new StackPanel(); panel.Children.Add(new TextBlock { Text = $"{product.Aggregate.Product.Code} — {product.Aggregate.Product.Name}", FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
-            quantity = AddText(panel, Label("Quantity", "Quantité"), existing?.Quantity.ToString(CultureInfo.InvariantCulture) ?? "1");
+            AddQuantityEditor(panel, quantityValue);
             if (product.Aggregate.Product.OptionsEnabled)
-                foreach (var group in product.Aggregate.Groups.OrderBy(group => group.DisplayOrder)) AddGroup(panel, group, existing?.Draft.SelectedOptionIds ?? []);
+                foreach (var group in product.Aggregate.Groups.OrderBy(group => group.DisplayOrder)) AddGroup(panel, group, existingOptions);
             panel.Children.Add(new TextBlock { Text = Label("CustomAdjustments", "Ajustements personnalisés (par unité)"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
-            foreach (var current in existing?.Draft.CustomAdjustments ?? []) AddCustomRow(current);
+            foreach (var current in existingCustomAdjustments) AddCustomRow(current);
             var addCustom = new Button { Content = "+ " + Label("AddAdjustment", "Ajustement"), Padding = new Thickness(8, 3, 8, 3), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 4) }; addCustom.Click += (_, _) => AddCustomRow(null);
             panel.Children.Add(customPanel); panel.Children.Add(addCustom);
             root.Children.Add(new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }); Content = root;
@@ -355,12 +570,47 @@ public partial class MainWindow : Window
         public IReadOnlyList<Guid> SelectedOptionIds { get; private set; } = [];
         public IReadOnlyList<OrderLineAdjustmentDraft> CustomAdjustments { get; private set; } = [];
         public int Quantity { get; private set; }
+        public bool RemoveRequested { get; private set; }
+
+        private void AddQuantityEditor(Panel panel, int quantityValue)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            row.Children.Add(new TextBlock { Text = Label("Quantity", "Quantité"), Width = 150, VerticalAlignment = VerticalAlignment.Center });
+            quantity = new TextBox { Width = 70, Text = quantityValue.ToString(CultureInfo.InvariantCulture) };
+            NumericInputBehavior.SetSelectAllOnFocus(quantity, true);
+            var decrease = new Button { Content = "−", Width = 28, Height = 26, Margin = new Thickness(6, 0, 2, 0) };
+            var increase = new Button { Content = "+", Width = 28, Height = 26 };
+            decrease.Click += (_, _) => AdjustQuantity(-1);
+            increase.Click += (_, _) => AdjustQuantity(1);
+            row.Children.Add(quantity);
+            row.Children.Add(decrease);
+            row.Children.Add(increase);
+            panel.Children.Add(row);
+        }
+
+        private void AdjustQuantity(int delta)
+        {
+            var current = int.TryParse(quantity.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0 ? parsed : 1;
+            var next = current + delta;
+            if (next > 0)
+            {
+                quantity.Text = next.ToString(CultureInfo.InvariantCulture);
+                return;
+            }
+
+            if (delta < 0 && current == 1)
+            {
+                RemoveRequested = true;
+                DialogResult = false;
+            }
+        }
 
         private void AddCustomRow(OrderLineAdjustmentDraft? current)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
             var label = new TextBox { Width = 210, ToolTip = Label("AdjustmentLabel", "Libellé"), Text = current?.Label ?? string.Empty };
             var amount = new TextBox { Width = 90, Margin = new Thickness(6, 0, 0, 0), ToolTip = Label("AdjustmentAmount", "Montant TTC"), Text = current is null ? string.Empty : current.AmountTtcPerUnit.Euros.ToString("0.00", CultureInfo.InvariantCulture) };
+            NumericInputBehavior.SetSelectAllOnFocus(amount, true);
             var remove = new Button { Content = "×", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(5, 2, 5, 2) };
             var tuple = (label, amount, remove); remove.Click += (_, _) => { customPanel.Children.Remove(row); customRows.Remove(tuple); }; row.Children.Add(label); row.Children.Add(amount); row.Children.Add(remove); customPanel.Children.Add(row); customRows.Add(tuple);
         }
@@ -370,18 +620,13 @@ public partial class MainWindow : Window
             var title = $"{group.Name} — {(group.SelectionMode == DomainSelectionMode.Single ? Label("Single", "SINGLE") : $"{Label("Multi", "MULTI")} {group.MinSelections}-{group.MaxSelections}")} {(group.IsRequired ? Label("Required", "requis") : Label("Optional", "optionnel"))}";
             panel.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 2) });
             var list = new List<FrameworkElement>(); controls[group.Id] = list;
-            foreach (var option in (product.Aggregate.OptionsByGroup.TryGetValue(group.Id, out var values) ? values : []).Where(option => option.IsActive).OrderBy(option => option.DisplayOrder))
+            foreach (var option in (product.Aggregate.OptionsByGroup.TryGetValue(group.Id, out var values) ? values : []).Where(option => option.IsActive || existing.Contains(option.Id)).OrderBy(option => option.DisplayOrder))
             {
                 FrameworkElement control = group.SelectionMode == DomainSelectionMode.Single
                     ? new RadioButton { Content = $"{option.Name} ({option.PriceAdjustmentTtc.Euros:0.00} €)", GroupName = $"group-{group.Id}", IsChecked = existing.Contains(option.Id), Tag = option.Id }
                     : new CheckBox { Content = $"{option.Name} ({option.PriceAdjustmentTtc.Euros:0.00} €)", IsChecked = existing.Contains(option.Id), Tag = option.Id };
                 list.Add(control); panel.Children.Add(control);
             }
-        }
-
-        private static TextBox AddText(Panel panel, string label, string value)
-        {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) }; row.Children.Add(new TextBlock { Text = label, Width = 150, VerticalAlignment = VerticalAlignment.Center }); var box = new TextBox { Width = 100, Text = value }; row.Children.Add(box); panel.Children.Add(row); return box;
         }
 
         private void Accept()
@@ -404,13 +649,182 @@ public partial class MainWindow : Window
             {
                 var label = row.Label.Text.Trim();
                 if (label.Length == 0 && string.IsNullOrWhiteSpace(row.Amount.Text)) continue;
-                if (label.Length == 0 || !decimal.TryParse(row.Amount.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var amount)) { MessageBox.Show(this, Label("InvalidAdjustment", "Chaque ajustement doit avoir un libellé et un montant valides.")); return; }
+                if (label.Length == 0 || !M03Presentation.TryParseDecimalInput(row.Amount.Text, out var amount)) { MessageBox.Show(this, Label("InvalidAdjustment", "Chaque ajustement doit avoir un libellé et un montant valides.")); return; }
                 custom.Add(new(null, null, label, Money.FromEuros(amount), OrderAdjustmentKind.CustomAdjustment, custom.Count));
             }
             SelectedOptionIds = selected; CustomAdjustments = custom; Quantity = parsedQuantity; DialogResult = true;
         }
 
         private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private sealed class ExistingLineEditDialog : Window
+    {
+        private TextBox quantity = null!;
+        private readonly IReadOnlyDictionary<string, string> localized;
+        private readonly bool canReconfigure;
+
+        public ExistingLineEditDialog(Window owner, OrderDetailLineViewModel line, bool canReconfigure)
+        {
+            localized = (owner.DataContext as ShellViewModel)?.Localized ?? new Dictionary<string, string>();
+            this.canReconfigure = canReconfigure;
+            Owner = owner; WindowStartupLocation = WindowStartupLocation.CenterOwner; Title = Label("OrderEdit", "Modifier"); Width = 440; Height = 220; MinHeight = 180;
+            var root = new DockPanel { Margin = new Thickness(14) };
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancel = new Button { Content = Label("Cancel", "Annuler"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) };
+            cancel.Click += (_, _) => DialogResult = false;
+            var saveQuantity = new Button { Content = Label("OrderSave", "Enregistrer la modification"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) };
+            saveQuantity.Click += (_, _) => Accept(quantityOnly: true);
+            buttons.Children.Add(cancel);
+            buttons.Children.Add(saveQuantity);
+            if (canReconfigure)
+            {
+                var options = new Button { Content = Label("Options", "Choix"), Padding = new Thickness(12, 5, 12, 5) };
+                options.Click += (_, _) => Accept(quantityOnly: false);
+                buttons.Children.Add(options);
+            }
+            DockPanel.SetDock(buttons, Dock.Bottom); root.Children.Add(buttons);
+            var panel = new StackPanel();
+            panel.Children.Add(new TextBlock { Text = line.ProductText, FontSize = 18, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
+            AddQuantityEditor(panel, line.Quantity);
+            root.Children.Add(panel);
+            Content = root;
+        }
+
+        public bool QuantityOnly { get; private set; }
+        public int Quantity { get; private set; }
+        public bool RemoveRequested { get; private set; }
+
+        private void AddQuantityEditor(Panel panel, int quantityValue)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            row.Children.Add(new TextBlock { Text = Label("Quantity", "Quantité"), Width = 150, VerticalAlignment = VerticalAlignment.Center });
+            quantity = new TextBox { Width = 70, Text = quantityValue.ToString(CultureInfo.InvariantCulture) };
+            NumericInputBehavior.SetSelectAllOnFocus(quantity, true);
+            var decrease = new Button { Content = "−", Width = 28, Height = 26, Margin = new Thickness(6, 0, 2, 0) };
+            var increase = new Button { Content = "+", Width = 28, Height = 26 };
+            decrease.Click += (_, _) => AdjustQuantity(-1);
+            increase.Click += (_, _) => AdjustQuantity(1);
+            row.Children.Add(quantity);
+            row.Children.Add(decrease);
+            row.Children.Add(increase);
+            panel.Children.Add(row);
+        }
+
+        private void AdjustQuantity(int delta)
+        {
+            var current = int.TryParse(quantity.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0 ? parsed : 1;
+            var next = current + delta;
+            if (next > 0)
+            {
+                quantity.Text = next.ToString(CultureInfo.InvariantCulture);
+                return;
+            }
+
+            if (delta < 0 && current == 1)
+            {
+                RemoveRequested = true;
+                DialogResult = false;
+            }
+        }
+
+        private void Accept(bool quantityOnly)
+        {
+            if (!int.TryParse(quantity.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedQuantity) || parsedQuantity <= 0)
+            {
+                MessageBox.Show(this, Label("InvalidQuantity", "La quantité doit être un entier positif."));
+                return;
+            }
+            QuantityOnly = quantityOnly;
+            Quantity = parsedQuantity;
+            DialogResult = true;
+        }
+
+        private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private sealed class CatalogueProductPickerDialog : Window
+    {
+        private readonly ListBox products;
+        public CatalogueProductPickerDialog(Window owner, IReadOnlyList<ProductSummary> values)
+        {
+            Owner = owner;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            Title = LocalizedText(owner, "Products", "Produits");
+            Width = 420;
+            Height = 360;
+            MinWidth = 320;
+            MinHeight = 240;
+
+            var root = new DockPanel { Margin = new Thickness(12) };
+            var add = new Button
+            {
+                Content = LocalizedText(owner, "Add", "Ajouter"),
+                Padding = new Thickness(10, 4, 10, 4),
+                MinWidth = 84,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 10, 0, 0)
+            };
+            DockPanel.SetDock(add, Dock.Bottom);
+            root.Children.Add(add);
+
+            var source = values.ToList();
+            var view = new System.Windows.Data.ListCollectionView(source);
+            var list = new ListBox
+            {
+                ItemsSource = view,
+                MinHeight = 120,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                IsSynchronizedWithCurrentItem = false,
+                SelectedIndex = -1
+            };
+            list.Loaded += (_, _) => list.SelectedIndex = -1;
+            var search = new TextBox
+            {
+                MinHeight = 26,
+                Margin = new Thickness(0, 0, 0, 10),
+                ToolTip = LocalizedText(owner, "Search", "Search")
+            };
+            search.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, LocalizedText(owner, "Search", "Search"));
+            view.Filter = item =>
+            {
+                if (item is not ProductSummary product) return false;
+                var query = search.Text.Trim();
+                return query.Length == 0
+                    || product.Code.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || product.Name.Contains(query, StringComparison.OrdinalIgnoreCase);
+            };
+            search.TextChanged += (_, _) =>
+            {
+                var selected = list.SelectedItem;
+                view.Refresh();
+                if (selected is null || !view.Contains(selected)) list.SelectedIndex = -1;
+            };
+            var row = new FrameworkElementFactory(typeof(StackPanel));
+            row.SetValue(StackPanel.OrientationProperty, Orientation.Horizontal);
+
+            var code = new FrameworkElementFactory(typeof(TextBlock));
+            code.SetValue(TextBlock.FontWeightProperty, FontWeights.SemiBold);
+            code.SetValue(TextBlock.MarginProperty, new Thickness(0, 0, 6, 0));
+            code.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding(nameof(ProductSummary.Code)));
+            row.AppendChild(code);
+
+            var name = new FrameworkElementFactory(typeof(TextBlock));
+            name.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
+            name.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding(nameof(ProductSummary.Name)));
+            row.AppendChild(name);
+
+            list.ItemTemplate = new DataTemplate { VisualTree = row };
+            products = list;
+            list.MouseDoubleClick += (_, _) => { if (list.SelectedItem is not null) { DialogResult = true; Close(); } };
+            add.Click += (_, _) => { if (list.SelectedItem is not null) { DialogResult = true; Close(); } };
+            DockPanel.SetDock(search, Dock.Top);
+            root.Children.Add(search);
+            root.Children.Add(list);
+            Content = root;
+        }
+        public ProductSummary? SelectedProduct => products.SelectedItem as ProductSummary;
     }
 
     private static string LocalizedText(Window owner, string key, string fallback) => owner.DataContext is ShellViewModel viewModel && viewModel.Localized.TryGetValue(key, out var value) ? value : fallback;
@@ -510,7 +924,7 @@ public partial class MainWindow : Window
             validation = new TextBlock { Foreground = System.Windows.Media.Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }; panel.Children.Add(validation);
             code = AddText(panel, LocalizedText(owner, "Code", "Code"), existing?.Code ?? string.Empty); productName = AddText(panel, LocalizedText(owner, "Name", "Name"), existing?.Name ?? string.Empty);
             panel.Children.Add(new TextBlock { Text = LocalizedText(owner, "Category", "Category"), Margin = new Thickness(0, 8, 0, 2) }); category = new ComboBox { ItemsSource = categories, DisplayMemberPath = "Name", SelectedValuePath = "Id" }; category.SelectedValue = existing?.CategoryId ?? (categories.Count > 0 ? categories[0].Id : Guid.Empty); panel.Children.Add(category);
-            price = AddText(panel, LocalizedText(owner, "PriceTtc", "TTC price"), existing?.PriceTtc.Euros.ToString("0.00", CultureInfo.InvariantCulture) ?? "0.00"); vat = AddText(panel, LocalizedText(owner, "Vat", "VAT %"), existing?.VatRate.ToString(CultureInfo.InvariantCulture) ?? "10");
+            price = AddText(panel, LocalizedText(owner, "PriceTtc", "TTC price"), existing?.PriceTtc.Euros.ToString("0.00", CultureInfo.InvariantCulture) ?? "0.00"); vat = AddText(panel, LocalizedText(owner, "Vat", "VAT %"), existing?.VatRate.ToString(CultureInfo.InvariantCulture) ?? "10"); NumericInputBehavior.SetSelectAllOnFocus(price, true); NumericInputBehavior.SetSelectAllOnFocus(vat, true);
             active = AddCheck(panel, LocalizedText(owner, "Active", "Active"), existing?.IsActive ?? true); discount = AddCheck(panel, LocalizedText(owner, "DiscountEligible", "Retrait discount eligible"), existing?.DiscountEligible ?? true); options = AddCheck(panel, LocalizedText(owner, "OptionsEnabled", "Options enabled"), existing?.OptionsEnabled ?? false);
             panel.Children.Add(new TextBlock { Text = LocalizedText(owner, "OptionGroups", "Option groups"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
             var addGroup = new Button { Content = "+ " + LocalizedText(owner, "OptionGroups", "Group"), Padding = new Thickness(8, 3, 8, 3), HorizontalAlignment = HorizontalAlignment.Left }; addGroup.Click += (_, _) => { dirty = true; AddGroup(null); }; panel.Children.Add(addGroup);
@@ -571,7 +985,7 @@ public partial class MainWindow : Window
                 name = AddText(Root, owner.Label("Name", "Name"), draft?.Name ?? string.Empty); name.TextChanged += (_, _) => owner.dirty = true;
                 var modeRow = new Grid { Margin = new Thickness(0, 5, 0, 0) }; modeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); modeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) }); modeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); var modeLabel = new TextBlock { Text = owner.Label("SelectionMode", "Mode"), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap }; Grid.SetColumn(modeLabel, 0); modeRow.Children.Add(modeLabel); mode = new ComboBox { MinWidth = 150, HorizontalAlignment = HorizontalAlignment.Left, ItemsSource = new[] { new ModeItem(DomainSelectionMode.Single, owner.Label("Single", "Single")), new ModeItem(DomainSelectionMode.Multi, owner.Label("Multi", "Multi")) }, DisplayMemberPath = "Label", SelectedValuePath = "Mode" }; mode.SelectedValue = draft?.SelectionMode ?? DomainSelectionMode.Single; mode.SelectionChanged += (_, _) => { owner.dirty = true; UpdateLimits(); }; Grid.SetColumn(mode, 2); modeRow.Children.Add(mode); Root.Children.Add(modeRow);
                 required = new CheckBox { Content = owner.Label("Required", "Required"), IsChecked = draft?.IsRequired ?? false, Margin = new Thickness(0, 5, 0, 0) }; required.Checked += (_, _) => owner.dirty = true; required.Unchecked += (_, _) => owner.dirty = true; Root.Children.Add(required);
-                var limits = new WrapPanel { Orientation = Orientation.Horizontal }; limits.Children.Add(new TextBlock { Text = owner.Label("Minimum", "Min"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 3, 4, 3) }); min = new TextBox { Width = 55, Text = draft?.MinSelections?.ToString(CultureInfo.InvariantCulture) ?? "0", Margin = new Thickness(0, 3, 8, 3) }; limits.Children.Add(min); limits.Children.Add(new TextBlock { Text = owner.Label("Maximum", "Max"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 3, 4, 3) }); max = new TextBox { Width = 55, Text = draft?.MaxSelections?.ToString(CultureInfo.InvariantCulture) ?? "1", Margin = new Thickness(0, 3, 0, 3) }; limits.Children.Add(max); Root.Children.Add(limits);
+                var limits = new WrapPanel { Orientation = Orientation.Horizontal }; limits.Children.Add(new TextBlock { Text = owner.Label("Minimum", "Min"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 3, 4, 3) }); min = new TextBox { Width = 55, Text = draft?.MinSelections?.ToString(CultureInfo.InvariantCulture) ?? "0", Margin = new Thickness(0, 3, 8, 3) }; NumericInputBehavior.SetSelectAllOnFocus(min, true); limits.Children.Add(min); limits.Children.Add(new TextBlock { Text = owner.Label("Maximum", "Max"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 3, 4, 3) }); max = new TextBox { Width = 55, Text = draft?.MaxSelections?.ToString(CultureInfo.InvariantCulture) ?? "1", Margin = new Thickness(0, 3, 0, 3) }; NumericInputBehavior.SetSelectAllOnFocus(max, true); limits.Children.Add(max); Root.Children.Add(limits);
                 var groupButtons = new WrapPanel { Orientation = Orientation.Horizontal }; var add = new Button { Content = "+ " + owner.Label("Options", "Option"), Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(0, 2, 6, 2) }; add.Click += (_, _) => { owner.dirty = true; AddOption(null); }; var remove = new Button { Content = owner.Label("DeletePermanently", "Delete"), Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(0, 2, 6, 2) }; remove.Click += (_, _) => owner.RemoveGroup(this); var up = new Button { Content = owner.Label("MoveUp", "Up"), Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(0, 2, 6, 2) }; up.Click += (_, _) => owner.MoveGroup(this, -1); var down = new Button { Content = owner.Label("MoveDown", "Down"), Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(0, 2, 6, 2) }; down.Click += (_, _) => owner.MoveGroup(this, 1); groupButtons.Children.Add(add); groupButtons.Children.Add(remove); groupButtons.Children.Add(up); groupButtons.Children.Add(down); Root.Children.Add(groupButtons);
                 optionsPanel = new StackPanel { Margin = new Thickness(12, 0, 0, 0) }; Root.Children.Add(optionsPanel); foreach (var option in draft?.Options ?? []) AddOption(option); UpdateLimits(); min.TextChanged += (_, _) => owner.dirty = true; max.TextChanged += (_, _) => owner.dirty = true;
             }
@@ -601,7 +1015,7 @@ public partial class MainWindow : Window
             {
                 id = draft?.Id ?? Guid.Empty; Root = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
                 var namePanel = new StackPanel(); namePanel.Children.Add(new TextBlock { Text = owner.Label("OptionName", "Option name") }); name = new TextBox { Width = 130, Text = draft?.Name ?? string.Empty }; namePanel.Children.Add(name);
-                var adjustmentPanel = new StackPanel { Margin = new Thickness(5, 0, 5, 0) }; adjustmentPanel.Children.Add(new TextBlock { Text = owner.Label("AdjustmentTtc", "TTC adjustment") }); adjustment = new TextBox { Width = 80, Text = draft?.PriceAdjustmentTtc.Euros.ToString("0.00", CultureInfo.InvariantCulture) ?? "0.00" }; adjustmentPanel.Children.Add(adjustment);
+                var adjustmentPanel = new StackPanel { Margin = new Thickness(5, 0, 5, 0) }; adjustmentPanel.Children.Add(new TextBlock { Text = owner.Label("AdjustmentTtc", "TTC adjustment") }); adjustment = new TextBox { Width = 80, Text = draft?.PriceAdjustmentTtc.Euros.ToString("0.00", CultureInfo.InvariantCulture) ?? "0.00" }; NumericInputBehavior.SetSelectAllOnFocus(adjustment, true); adjustmentPanel.Children.Add(adjustment);
                 active = new CheckBox { Content = owner.Label("OptionActive", "Active option"), IsChecked = draft?.IsActive ?? true, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 5, 3) }; name.TextChanged += (_, _) => owner.dirty = true; adjustment.TextChanged += (_, _) => owner.dirty = true; active.Checked += (_, _) => owner.dirty = true; active.Unchecked += (_, _) => owner.dirty = true;
                 var delete = new Button { Content = "×", Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(5, 15, 0, 0) }; delete.Click += (_, _) => remove(); var up = new Button { Content = owner.Label("MoveUp", "↑"), Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(5, 15, 0, 0) }; up.Click += (_, _) => move(-1); var down = new Button { Content = owner.Label("MoveDown", "↓"), Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(5, 15, 0, 0) }; down.Click += (_, _) => move(1); Root.Children.Add(namePanel); Root.Children.Add(adjustmentPanel); Root.Children.Add(active); Root.Children.Add(up); Root.Children.Add(down); Root.Children.Add(delete);
             }

@@ -212,4 +212,6 @@ M02's original generic acquisition design correctly ended `BLOCKED — specifica
 
 M03 is `Passed`. PR #5 was explicitly approved and merged to `main` at `57f89cac0672d6d98dda7dc3c9a8ba7b3434e292`. Its complete operator Windows/WPF acceptance is recorded in `implementation-status.md` and `implementation/milestone-03-worklog.md`.
 
-M04 — First complete order-entry vertical slice — is the current authorized milestone. Its approved contract is `implementation/milestone-04-order-entry.md`, authorization is `implementation/milestone-04-authorization.md`, and A1/B1/C1 clarification is `decisions/m04-order-entry-pricing-clarifications.md`. M04 implementation must use a fresh branch/PR and the issue #4 active-mailbox gate. M05 is not authorized by M04 preparation or completion.
+M04 — First complete order-entry vertical slice — is Passed and merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a`, with its final Windows/WPF acceptance recorded in the M04 evidence.
+
+M05 — Lifecycle, payments, search and operational dashboard — is the current authorized implementation milestone on `codex/m05-lifecycle-payments-search-dashboard`, durable mailbox PR #10, under `implementation/milestone-05-lifecycle-payments-search-dashboard.md`. Its single-use authorization is `CODEX_HANDOFF_READY: M05-IMPLEMENT-01` while issue #4 is OPEN. M06 and later milestones are not authorized by M05 implementation or completion.

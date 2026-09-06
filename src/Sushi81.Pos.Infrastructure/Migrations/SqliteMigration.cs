@@ -1,6 +1,13 @@
+using Microsoft.Data.Sqlite;
+using Sushi81.Pos.Application.Foundation.Time;
+
 namespace Sushi81.Pos.Infrastructure.Migrations;
 
-public sealed record SqliteMigration(int Version, string Name, string Sql)
+public sealed record SqliteMigration(
+    int Version,
+    string Name,
+    string Sql,
+    Func<SqliteConnection, SqliteTransaction, IBusinessClock, CancellationToken, Task>? PostApplyAsync = null)
 {
     public void Validate()
     {

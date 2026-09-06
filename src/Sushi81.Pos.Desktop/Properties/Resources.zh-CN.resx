@@ -162,4 +162,36 @@
   <data name="ValidationCartRequired" xml:space="preserve"><value>请添加至少一条明细。</value></data>
   <data name="ValidationDeliveryMinimum" xml:space="preserve"><value>未达到配送最低金额。</value></data>
   <data name="ValidationPickupDiscount" xml:space="preserve"><value>未应用自取折扣。</value></data>
+  <data name="ValidationPaymentNegative" xml:space="preserve"><value>已收款金额不能为负数。</value></data>
+  <data name="Commandes" xml:space="preserve"><value>订单</value></data>
+  <data name="OrderReference" xml:space="preserve"><value>参考号</value></data>
+  <data name="OrderCard" xml:space="preserve"><value>银行卡</value></data>
+  <data name="OrderCash" xml:space="preserve"><value>现金</value></data>
+  <data name="OrderPaid" xml:space="preserve"><value>已收款</value></data>
+  <data name="OrderDifference" xml:space="preserve"><value>差额</value></data>
+  <data name="OrderCloseEligible" xml:space="preserve"><value>可以关闭</value></data>
+  <data name="OrderSearchLive" xml:space="preserve"><value>实时搜索</value></data>
+  <data name="OrderModify" xml:space="preserve"><value>修改</value></data>
+  <data name="OrderAbandon" xml:space="preserve"><value>放弃修改</value></data>
+  <data name="OrderCancel" xml:space="preserve"><value>取消订单</value></data>
+  <data name="OrderNewFromDetails" xml:space="preserve"><value>使用这些联系信息新建订单</value></data>
+  <data name="OrderClose" xml:space="preserve"><value>关闭订单</value></data>
+  <data name="OrderEffectiveDate" xml:space="preserve"><value>收款日期</value></data>
+  <data name="OrderEffectiveDateEdit" xml:space="preserve"><value>实际收款日期</value></data>
+  <data name="OrderEffectiveDateHint" xml:space="preserve"><value>仅在保存本次修改时使用。</value></data>
+  <data name="OrderBrowseByDate" xml:space="preserve"><value>按日期查看</value></data>
+  <data name="OrderSave" xml:space="preserve"><value>保存修改</value></data>
+  <data name="OrderReadOnly" xml:space="preserve"><value>已保存状态</value></data>
+  <data name="OrderEdit" xml:space="preserve"><value>正在修改</value></data>
+  <data name="OrderAdvance" xml:space="preserve"><value>预订订单</value></data>
+  <data name="OrderSearchHint" xml:space="preserve"><value>参考号、电话或备注</value></data>
+  <data name="OrderNoSelection" xml:space="preserve"><value>请选择订单。</value></data>
+  <data name="DashboardTurnover" xml:space="preserve"><value>今日营业额</value></data>
+  <data name="DashboardReceived" xml:space="preserve"><value>今日收款</value></data>
+  <data name="DashboardReceivedCard" xml:space="preserve"><value>今日银行卡</value></data>
+  <data name="DashboardReceivedCash" xml:space="preserve"><value>今日现金</value></data>
+  <data name="DashboardFuture" xml:space="preserve"><value>未来订单</value></data>
+  <data name="DashboardDueToday" xml:space="preserve"><value>今日待处理预订</value></data>
+  <data name="DashboardOverdue" xml:space="preserve"><value>逾期未结算</value></data>
+  <data name="DashboardRefresh" xml:space="preserve"><value>刷新</value></data>
 </root>
