@@ -26,13 +26,28 @@ public sealed partial class AuthorityStateCoordinator(
     /// newly created database from qualifying for the one-time legacy bootstrap merely because
     /// startup just created its migration history.
     /// </summary>
-    public async Task<AuthorityResolution> InitializeAsync(bool legacyBootstrapEvidence, CancellationToken cancellationToken = default)
+    public Task<AuthorityResolution> InitializeAsync(
+        bool legacyBootstrapEvidence,
+        CancellationToken cancellationToken = default)
+        => InitializeAsync(legacyBootstrapEvidence, preMigrationLiveDatabaseEvidence: true, cancellationToken);
+
+    /// <summary>
+    /// Resolves authority after migration using evidence captured before migration. The live
+    /// database evidence is a defense-in-depth input: an established state must never become
+    /// writable after startup has already observed that its pre-existing database was absent.
+    /// </summary>
+    public async Task<AuthorityResolution> InitializeAsync(
+        bool legacyBootstrapEvidence,
+        bool preMigrationLiveDatabaseEvidence,
+        CancellationToken cancellationToken = default)
     {
         try
         {
             var document = await store.LoadAsync(cancellationToken);
             if (document is not null)
             {
+                if (!preMigrationLiveDatabaseEvidence)
+                    return FailClosed(new InvalidDataException("The established authority state cannot be restored without pre-existing live database evidence."));
                 if (!await store.HasBootstrapMarkerAsync(cancellationToken))
                     return FailClosed(new InvalidDataException("The durable authority state exists without its bootstrap marker."));
                 if (!await store.HasBootstrapAnchorAsync(cancellationToken))

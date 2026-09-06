@@ -116,6 +116,16 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths) : IAuthorityStateSt
         return Task.FromResult(File.Exists(Path.Combine(paths.DataDirectory, BootstrapAnchorFileName)));
     }
 
+    public Task<bool> HasEstablishedAuthorityArtifactsAsync(CancellationToken cancellationToken = default)
+    {
+        paths.EnsureInitialized();
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(
+            File.Exists(Path.Combine(paths.ConfigDirectory, StateFileName))
+            || File.Exists(Path.Combine(paths.ConfigDirectory, BootstrapMarkerFileName))
+            || File.Exists(Path.Combine(paths.DataDirectory, BootstrapAnchorFileName)));
+    }
+
     public async Task WriteBootstrapAnchorAsync(CancellationToken cancellationToken = default)
     {
         paths.EnsureInitialized();

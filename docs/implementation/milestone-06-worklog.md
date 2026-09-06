@@ -8,6 +8,7 @@
 **Initial handoff:** `CODEX_HANDOFF_READY: M06-IMPLEMENT-01`  
 **Remediation handoff:** `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-02`
 **Third remediation handoff:** `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-03`
+**Fourth remediation handoff:** `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-04`
 **POST_TASK_POWER_ACTION:** `NONE`
 
 ## Preparation state
@@ -19,9 +20,9 @@ older acceptance/findings paragraphs retain their historical as-of wording and a
 
 M06 preparation review found no unresolved product/business/data-semantic decision. The frozen specification is sufficient for controlled implementation.
 
-The initial implementation and second remediation were reviewed before owner manual acceptance. This third controlled remediation pass
-closes the production-safety findings on the same PR/branch; project-owner Windows/WPF manual acceptance remains `Pending` and is not
-claimed here.
+The initial implementation and prior remediations were reviewed before owner manual acceptance. This fourth controlled remediation pass
+closes the remaining startup-safety finding on the same PR/branch; project-owner Windows/WPF manual acceptance remains `Pending` and is
+not claimed here.
 
 ## Scope boundary
 
@@ -123,6 +124,12 @@ files followed by atomic move/replace. The coordinator loads the document after 
 surfaces are created. Legacy M01-M05 evidence is captured before startup migration and passed into the coordinator; a freshly created
 migration history therefore cannot qualify a new database for legacy bootstrap. Once established, every authority-state load requires
 both the marker and independent data-directory anchor, so deletion of the anchor cannot silently restore writable authority.
+
+Before the migration runner opens the live database, `AuthorityStartupPreflight` captures whether a non-empty pre-existing
+`Data/live.db` is present and whether any persisted authority artifact exists. An established state, marker or anchor without that
+pre-existing database blocks startup before SQLite can create a replacement. The same pre-migration database evidence is passed into
+`AuthorityStateCoordinator` as defense in depth, so an established document cannot become writable if the production startup path
+reports that the live database was absent. No missing production database is deleted, reset, replaced, seeded or restored automatically.
 
 Once bootstrap has completed, missing state, missing marker, missing anchor, malformed JSON, unsupported schema, invalid enum or
 persistence failure resolves the single guard to `RecoveryRequired`; it never silently restores writable authority.
@@ -241,10 +248,16 @@ Remediation-specific evidence includes:
   proves blocked/no-op paths do not advance the recovery sequence.
 - `M06DesktopTests.RealStaWindowCloseFlushesPendingRecoveryBeforeCompleting`, which proves the production close-coordination
   seam flushes the pending sequence on a real STA/WPF Dispatcher within a bounded timeout.
+- `InfrastructureIntegrationTests.EstablishedAuthorityWithoutPreExistingLiveDatabaseIsBlockedBeforeReplacementCreation`, which
+  proves the pre-migration startup preflight blocks established authority artifacts before a missing `Data/live.db` can be created,
+  and the coordinator defense-in-depth path remains read-only.
+- `InfrastructureIntegrationTests.AuthorityStartupPreflightAllowsSupportedExistingLiveDatabase`, which proves the accepted
+  existing-local-database path remains eligible for migration/authority resolution when no authority artifacts are present.
 
 ## Automated verification
 
-Current local implementation verification on remediation code head `29b7cdc` (`M06: remediate shutdown and bootstrap safety`):
+Current local implementation verification for remediation-04 is recorded on the final evidence head after the verification
+commands below. The remediation-03 values above remain historical evidence for that handoff.
 
 - `dotnet --info`: Passed — SDK 10.0.400, Windows 10.0.26200 x64.
 - `dotnet restore Sushi81.Pos.sln --locked-mode`: Passed.
@@ -288,7 +301,19 @@ Final completion record must confirm:
 - no local `live.db`, Recovery files, authority-state files, logs or publish artifacts were committed;
 - authority/recovery failures never auto-delete/recreate the production database.
 
+## Fourth remediation evidence
+
+The fourth controlled remediation adds a pre-migration authority-continuity preflight and passes its captured live-database
+evidence into the authority coordinator. The established-state path therefore cannot restore `Authoritative` after the persisted
+authority document/marker/anchor survive while the supported pre-existing `Data/live.db` is gone. The missing database remains
+missing, and startup fails closed before the migration runner can create a replacement. The accepted one-time M01-M05 bootstrap path
+continues to use genuinely pre-existing schema evidence.
+
+The final evidence head, Release counts, publish result, exact-head CI run IDs and ref semantics are recorded in the matching
+`CODEX_DONE: M06-REVIEW-REMEDIATION-04` PR comment. Project-owner Windows/WPF acceptance remains `Pending`; PR #11 remains
+open/unmerged and M07 remains unauthorized.
+
 ## Completion state
 
-Third remediation implementation is complete at code head `29b7cdc`; PR #11 must remain open/unmerged. Project-owner Windows/WPF
-acceptance is still pending and M07 is not authorized by M06 completion.
+Fourth remediation implementation is complete on its pushed evidence head; PR #11 must remain open/unmerged. Project-owner
+Windows/WPF acceptance is still pending and M07 is not authorized by M06 completion.

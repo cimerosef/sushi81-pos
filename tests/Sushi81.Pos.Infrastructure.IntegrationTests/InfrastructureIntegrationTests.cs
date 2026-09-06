@@ -382,6 +382,51 @@ public sealed class InfrastructureIntegrationTests
     }
 
     [TestMethod]
+    public async Task EstablishedAuthorityWithoutPreExistingLiveDatabaseIsBlockedBeforeReplacementCreation()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await using (var legacyConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.LiveDatabasePath, Pooling = false }.ToString()))
+        {
+            await legacyConnection.OpenAsync();
+            await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
+        }
+
+        var store = new JsonAuthorityStateStore(paths);
+        var legacyEvidence = await store.HasLegacyBootstrapEvidenceAsync();
+        await new AuthorityStateCoordinator(store, new WriteAuthorityGuard(), new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance)
+            .InitializeAsync(legacyEvidence);
+        File.Delete(paths.LiveDatabasePath);
+
+        await Assert.ThrowsAsync<AuthorityStartupBlockedException>(() => AuthorityStartupPreflight.CaptureAsync(paths, store));
+        Assert.IsFalse(File.Exists(paths.LiveDatabasePath));
+
+        var guard = new WriteAuthorityGuard();
+        var resolution = await new AuthorityStateCoordinator(store, guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance)
+            .InitializeAsync(legacyEvidence, preMigrationLiveDatabaseEvidence: false);
+
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, resolution.State);
+        Assert.Throws<WriteAuthorityException>(guard.RequireWriteAuthority);
+    }
+
+    [TestMethod]
+    public async Task AuthorityStartupPreflightAllowsSupportedExistingLiveDatabase()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await using (var legacyConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.LiveDatabasePath, Pooling = false }.ToString()))
+        {
+            await legacyConnection.OpenAsync();
+            await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
+        }
+
+        var evidence = await AuthorityStartupPreflight.CaptureAsync(paths, new JsonAuthorityStateStore(paths));
+
+        Assert.IsTrue(evidence.HasPreExistingLiveDatabase);
+        Assert.IsFalse(evidence.HasEstablishedAuthorityArtifacts);
+    }
+
+    [TestMethod]
     public async Task FreshMigratedDatabaseDoesNotQualifyAsLegacyBootstrapEvidence()
     {
         using var paths = new TestAppPaths();

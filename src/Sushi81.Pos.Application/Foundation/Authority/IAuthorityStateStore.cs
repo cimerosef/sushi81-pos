@@ -26,4 +26,11 @@ public interface IAuthorityStateStore
     Task<bool> HasBootstrapAnchorAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
 
     Task WriteBootstrapAnchorAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    /// <summary>
+    /// Reports whether any persisted authority artifact exists before startup migrations.
+    /// This is used to prevent a missing established database from being recreated and then
+    /// accepted as the authoritative local database.
+    /// </summary>
+    Task<bool> HasEstablishedAuthorityArtifactsAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
 }

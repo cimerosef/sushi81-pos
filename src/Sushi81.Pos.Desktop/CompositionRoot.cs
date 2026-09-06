@@ -56,6 +56,7 @@ public static partial class CompositionRoot
             var connectionFactory = new SqliteConnectionFactory(paths);
             var snapshotService = new SqliteLocalRecoverySnapshotService(paths, connectionFactory, clock);
             var authorityStateStore = new JsonAuthorityStateStore(paths);
+            var authorityStartupEvidence = await AuthorityStartupPreflight.CaptureAsync(paths, authorityStateStore);
             var legacyBootstrapEvidence = await authorityStateStore.HasLegacyBootstrapEvidenceAsync();
             var migrations = new SqliteMigrationRunner(
                 connectionFactory,
@@ -63,7 +64,8 @@ public static partial class CompositionRoot
                 clock,
                 snapshotService);
             await migrations.InitializeAsync();
-            authorityResolution = await new AuthorityStateCoordinator(authorityStateStore, authorityGuard, clock, logger).InitializeAsync(legacyBootstrapEvidence);
+            authorityResolution = await new AuthorityStateCoordinator(authorityStateStore, authorityGuard, clock, logger)
+                .InitializeAsync(legacyBootstrapEvidence, authorityStartupEvidence.HasPreExistingLiveDatabase);
             recoveryScheduler = new DebouncedRecoveryScheduler(snapshotService, TimeProvider.System, logger);
             durableChangeNotifier = new DurableChangeNotifier(paths, clock, recoveryScheduler, logger);
             var transactionRunner = new SqliteTransactionRunner(connectionFactory);
