@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Domain;
 
@@ -91,6 +92,7 @@ public sealed class OrderDetailLineViewModel(OrderItemSnapshot item) : INotifyPr
 public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly OrderLifecycleService service;
+    private readonly IWriteAuthorityGuard? authorityGuard;
     private readonly object refreshLock = new();
     private CancellationTokenSource? refreshCancellation;
     private long refreshVersion;
@@ -119,9 +121,10 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private OperationalOrderView? operationalView;
     private OrderOperationalSummary summary = new(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0);
 
-    public OrderLifecycleShellViewModel(OrderLifecycleService service)
+    public OrderLifecycleShellViewModel(OrderLifecycleService service, IWriteAuthorityGuard? authorityGuard = null)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
+        this.authorityGuard = authorityGuard;
         browseDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue);
         effectivePaymentDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue);
         Orders = new ObservableCollection<OrderManagementRowViewModel>();
@@ -263,15 +266,16 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     public string TelephoneText => SelectedOrder?.Telephone ?? string.Empty;
     public string AddressText => SelectedOrder?.DeliveryAddress ?? string.Empty;
     public string CommentText => SelectedOrder?.Comment ?? string.Empty;
-    public bool CanModify => SelectedOrder is { Status: not OrderStatus.Cancelled } && !IsEditing;
+    public bool CanWrite => authorityGuard is null || authorityGuard.State == WriteAuthorityState.Authoritative;
+    public bool CanModify => CanWrite && SelectedOrder is { Status: not OrderStatus.Cancelled } && !IsEditing;
     public bool EditPlannedTimeValid => (EditPlannedHour is null && EditPlannedMinute is null)
         || (EditPlannedHour is { } hour && EditPlannedMinute is { } minute && IsApprovedPlannedTime(new TimeOnly(hour, minute)));
-    public bool CanSave => SelectedOrder is not null && IsEditing && DetailLines.Count > 0 && EditFulfilment is not null && EditPlannedDate is not null && EditPlannedTimeValid && TryParse(EditTotal, out var total) && TryParse(EditCard, out var card) && TryParse(EditCash, out var cash) && total >= Money.Zero && card >= Money.Zero && cash >= Money.Zero;
+    public bool CanSave => CanWrite && SelectedOrder is not null && IsEditing && DetailLines.Count > 0 && EditFulfilment is not null && EditPlannedDate is not null && EditPlannedTimeValid && TryParse(EditTotal, out var total) && TryParse(EditCard, out var card) && TryParse(EditCash, out var cash) && total >= Money.Zero && card >= Money.Zero && cash >= Money.Zero;
     public bool CanAbandon => IsEditing;
-    public bool CanClose => SelectedOrder is { Status: not OrderStatus.Cancelled } && !IsEditing && OrderPaymentState.From(SelectedOrder).IsExactlyReconciled;
-    public bool CanCancel => SelectedOrder is { Status: not OrderStatus.Cancelled } && !IsEditing;
+    public bool CanClose => CanWrite && SelectedOrder is { Status: not OrderStatus.Cancelled } && !IsEditing && OrderPaymentState.From(SelectedOrder).IsExactlyReconciled;
+    public bool CanCancel => CanWrite && SelectedOrder is { Status: not OrderStatus.Cancelled } && !IsEditing;
     public bool CanReuseCustomer => SelectedOrder is not null;
-    public bool CanAddCurrentLine => IsEditing && SelectedOrder is not null;
+    public bool CanAddCurrentLine => CanWrite && IsEditing && SelectedOrder is not null;
     public string DashboardTurnoverText => summary.TurnoverTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string DashboardReceivedText => summary.ReceivedTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string DashboardReceivedCardText => summary.ReceivedCardTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);

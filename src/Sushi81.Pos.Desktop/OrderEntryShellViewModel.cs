@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Domain;
 
@@ -61,6 +62,7 @@ public sealed class OrderBrowserRowViewModel(OrderBrowserRow row) : INotifyPrope
 public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly OrderEntryService service;
+    private readonly IWriteAuthorityGuard? authorityGuard;
     private ProductSummary? selectedProduct;
     private OrderEntryCartLineViewModel? selectedCartLine;
     private Guid selectedCategoryId;
@@ -110,9 +112,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private string quantityLabel = "Quantité";
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>(StringComparer.Ordinal);
 
-    public OrderEntryShellViewModel(OrderEntryService service)
+    public OrderEntryShellViewModel(OrderEntryService service, IWriteAuthorityGuard? authorityGuard = null)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
+        this.authorityGuard = authorityGuard;
         Categories = new ObservableCollection<CategorySummary>();
         Products = new ObservableCollection<ProductSummary>();
         Cart = new ObservableCollection<OrderEntryCartLineViewModel>();
@@ -304,10 +307,11 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             _ = RepriceAsync(clearManualOverride: true);
         }
     }
+    public bool CanWrite => authorityGuard is null || authorityGuard.State == WriteAuthorityState.Authoritative;
     public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanAddSelectedProduct)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
     public bool IsCommitted { get => isCommitted; private set { isCommitted = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
-    public bool CanAddSelectedProduct => !IsBusy && !IsCommitted && SelectedProduct is not null;
-    public bool CanConfirm => !IsBusy && !IsCommitted && PlannedDateValid && PlannedTimeValid && pricing?.IsValid == true;
+    public bool CanAddSelectedProduct => CanWrite && !IsBusy && !IsCommitted && SelectedProduct is not null;
+    public bool CanConfirm => CanWrite && !IsBusy && !IsCommitted && PlannedDateValid && PlannedTimeValid && pricing?.IsValid == true;
     public bool CanStartNewOrder => IsCommitted && !IsBusy;
 
     public bool HasUncommittedDraft => !IsCommitted && (Cart.Count > 0 || SelectedFulfilment is not null || !string.IsNullOrWhiteSpace(Telephone) || !string.IsNullOrWhiteSpace(DeliveryAddress) || !string.IsNullOrWhiteSpace(Comment));
@@ -329,7 +333,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     }
     public bool PlannedTimeValid => (SelectedPlannedHour is null && SelectedPlannedMinute is null)
         || (SelectedPlannedHour is { } && SelectedPlannedMinute is { } && PlannedTime is { } time && IsApprovedPlannedTime(time));
-    public bool IsPickupDiscountEnabled => !IsBusy && !IsCommitted && SelectedFulfilment == FulfilmentMode.Retrait;
+    public bool IsPickupDiscountEnabled => CanWrite && !IsBusy && !IsCommitted && SelectedFulfilment == FulfilmentMode.Retrait;
     public string TotalText { get => totalText; private set { totalText = value; OnPropertyChanged(); } }
     public string ValidationMessage
     {
@@ -776,9 +780,12 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         return message;
     }
 
-    private string LocalizeIssue(ValidationIssue issue) => issue.StableCode == ValidationCodes.Busy
-        ? Localized("ValidationBusy", "Une opération est déjà en cours.")
-        : LocalizeOrderMessage(issue.Message);
+    private string LocalizeIssue(ValidationIssue issue) => issue.StableCode switch
+    {
+        ValidationCodes.Busy => Localized("ValidationBusy", "Une opération est déjà en cours."),
+        ValidationCodes.AuthorityBlocked => Localized("ValidationAuthorityBlocked", "Les écritures sont bloquées : cette instance n’a pas l’autorité locale."),
+        _ => LocalizeOrderMessage(issue.Message)
+    };
 
     private string FormatSnapshot(OrderSnapshot snapshot)
     {

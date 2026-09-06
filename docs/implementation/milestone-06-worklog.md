@@ -12,7 +12,8 @@
 
 M05 is Passed and merged through PR #10. Accepted M05 production-code head: `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`. Final M05 docs head: `217d187dd3ef5498c11f21bc516eccc6737fa952`. Main merge commit: `79499d7c6ed65a74f524097c1507ca648dc151c3`.
 
-The M05 merge occurred after the final status documents were written; current-state references that still describe PR #10 as open/unmerged are stale merge-state text and must be cleaned without rewriting truthful historical evidence sections.
+The M05 merge occurred after the final status documents were written. Current-state references have been updated to the merge commit;
+older acceptance/findings paragraphs retain their historical as-of wording and are not rewritten as evidence.
 
 M06 preparation review found no unresolved product/business/data-semantic decision. The frozen specification is sufficient for controlled implementation.
 
@@ -34,14 +35,30 @@ M06 does not implement M07 pairing/real handoff/GitHub transfer/target acquisiti
 
 | Criterion | M06 responsibility | Final evidence status |
 |---|---|---|
-| AC-STO-006 | Owner — local recovery generation/retention and all current durable mutation triggers; preserve mandatory seam for M10 import cross-check | Pending implementation |
-| AC-STO-010 | Owner — persistent non-authoritative/pending read-only state, centralized blocking and WPF presentation; M08 printing/M12 archive later cross-checks | Pending implementation |
-| AC-PROD-002 | Partial — authoritative local operation and local authority/recovery enforcement remain network-independent | Pending implementation |
-| AC-NFR-004 | Supporting failure-path evidence; final owner M13 | Pending implementation |
+| AC-STO-006 | Owner — local recovery generation/retention and all current durable mutation triggers; preserve mandatory seam for M10 import cross-check | In progress — M01 recovery primitives are wired through the M03–M05 Application mutation boundaries; final evidence pending |
+| AC-STO-010 | Owner — persistent non-authoritative/pending read-only state, centralized blocking and WPF presentation; M08 printing/M12 archive later cross-checks | In progress — durable state, fail-closed startup, centralized guard and localized banner implemented; manual gate pending |
+| AC-PROD-002 | Partial — authoritative local operation and local authority/recovery enforcement remain network-independent | In progress — M06 local authority path implemented; final owner remains M07 |
+| AC-NFR-004 | Supporting failure-path evidence; final owner M13 | In progress — M06 failure-path regressions added; final owner remains M13 |
 
 ## Final current mutation inventory
 
-Codex must replace this preparation list with the exact audited production inventory and concrete service/method paths before completion.
+The M05 merged baseline has these durable mutation paths. Each Application service calls the single `IWriteAuthorityGuard`
+before delegating; the existing SQLite transaction is the commit point; and `IDurableChangeNotifier` is called only after a
+successful store result. Notification exceptions cannot roll back or report a committed business mutation as failed.
+
+| Mutation | Application path | No-op / recovery rule |
+|---|---|---|
+| New POS order | `OrderEntryService.ConfirmNewOrderAsync` | Guard before write; notify after `SqliteOrderStore.SaveAsync` commit; validation, rollback and output-only failure do not notify. |
+| Existing-order save, payment update and auto-reopen | `OrderLifecycleService.SaveModificationAsync` → common `SaveAsync` | Atomic order/payment commit; true business no-op returns current snapshot without write/notify. |
+| Close and Cancel | `OrderLifecycleService.CloseAsync` / `CancelAsync` → common `SaveAsync` | Common Application guard; idempotent Closed/Cancelled operations do not notify. |
+| Category create/rename | `CatalogueService.CreateCategory*` / `RenameCategory*` | Guard before catalogue transaction; validation and authority rejection do not notify. |
+| Product create/update/delete | `CatalogueService.CreateProductAsync` / `UpdateProductAsync` / `DeleteProductAsync` | Guard before transaction; effective no-op update is not written/notified. |
+| Product activation and filtered bulk state | `CatalogueService.SetProductActiveAsync` / `BulkSetProductsActiveAsync` | Zero-effective single/bulk changes do not notify. |
+| Option group/option aggregate changes | Product create/update aggregate transaction | Same guard, transaction and notifier seam; no independent M05 writer exists. |
+| Business settings | `BusinessSettingsService.UpdateAsync` | Persistence-only `UpdatedAt` difference is ignored for recovery; the existing settings-save transaction is preserved, but a true no-op is not notified. |
+
+Future M10 import and M12 archive writers must use this same seam. The preparation list below is retained as historical scope
+reference; the audited current paths above are authoritative for this implementation.
 
 Expected minimum:
 
@@ -69,7 +86,10 @@ For each final entry record:
 
 ## Implementation topology
 
-To be completed by Codex.
+This handoff was executed serially by the main Codex worker. No subagents or parallel worktrees were used. The existing M01
+authority guard, recovery scheduler and snapshot service were reused; the shared Application notifier seam was then wired through
+M03-M05, followed by CompositionRoot/WPF integration, tests and documentation review. Integration ownership and final diff review
+remain with the main worker.
 
 Record:
 
@@ -80,7 +100,17 @@ Record:
 
 ## Durable authority-state design
 
-To be completed by Codex after implementation.
+M06 implementation record:
+
+`JsonAuthorityStateStore` persists schema version `1` at `Config/authority-state.json` and a separate
+`Config/authority-bootstrap.marker`. Both use create-new temporary files followed by atomic move/replace. The coordinator loads
+the document after successful SQLite migration and before business surfaces are created. On the one-time missing-state /
+missing-marker path, the migrated local M01-M05 installation is bootstrapped as `Authoritative`, then both durable records are
+written. Once the marker exists, missing state, missing marker, malformed JSON, unsupported schema, invalid enum or persistence
+failure resolves the single guard to `RecoveryRequired`; it never silently restores writable authority.
+
+`Authoritative`, `NonAuthoritativeReadOnly`, `Transitioning` and `RecoveryRequired` reconstruct directly on restart. All except
+`Authoritative` fail `RequireWriteAuthority()`. No M07 pairing, generation, target or force-acquire metadata/UI was added.
 
 Record:
 
@@ -94,7 +124,12 @@ Record:
 
 ## Recovery mutation/scheduler design
 
-To be completed by Codex.
+`IDurableChangeNotifier` is the common post-commit seam. `DurableChangeNotifier` persists a monotonic sequence under
+`Config/recovery-sequence.json`, then calls the existing `DebouncedRecoveryScheduler`. Application services call it only after a
+successful durable store result; validation, authority rejection, rollback, persistence failure and true no-op paths do not call
+it. The scheduler coalesces nearby changes for three seconds, permits only one snapshot at a time, preserves a newer pending
+sequence if a change arrives during an active snapshot, and flushes during orderly shutdown. Snapshot creation, validation,
+promotion and retention failures preserve the committed live database and prior valid units; later commit or shutdown can retry.
 
 Record:
 
@@ -108,7 +143,11 @@ Record:
 
 ## WPF/read-only design
 
-To be completed by Codex.
+`ShellViewModel` exposes the resolved authority state and a persistent top-level localized banner. FR and zh-CN resources cover
+ordinary read-only, transitioning and recovery-required messages, with stale/read-only wording and no fabricated freshness.
+Catalogue/settings mutation controls use `CanWrite`; order confirmation and lifecycle mutation properties are also guarded, while
+order search/date browse/detail, dashboard and catalogue queries remain available. The central Application guard remains the
+safety boundary if a stale command is invoked. No M07 target-selection, retarget or force-acquire UI was added.
 
 Record:
 
@@ -121,6 +160,13 @@ Record:
 - confirmation no M07 target-selection/force-acquire UI was added.
 
 ## Required failure-injection evidence
+
+Implemented/passing locally: transaction rollback and authority rejection do not notify; snapshot failure does not claim a new
+snapshot; validated latest-five retention and failed sixth preservation; incomplete/staging exclusion; nearby-change debounce;
+active-snapshot commit preservation; shutdown flush; post-commit notifier failure preserves the business success; malformed/future
+authority state fails closed; direct Application catalogue/lifecycle bypass attempts are blocked; read-only query paths remain
+separate from mutation guards. The existing M01 checksum, integrity, promotion, cleanup and metadata-validation tests remain in
+the Infrastructure suite. Full final-head evidence and STA/WPF owner checks are still pending.
 
 Record exact test names/results for:
 
@@ -145,15 +191,16 @@ Record exact test names/results for:
 
 ## Automated verification
 
-To be filled with exact final-head results.
+Current local implementation verification on the current working head:
 
-- `dotnet --info`: Pending.
-- `dotnet restore Sushi81.Pos.sln --locked-mode`: Pending.
-- Release build: Pending; required 0 warnings / 0 errors.
-- Full Release tests: Pending; required all passed.
-- Self-contained `win-x64` publish: Pending.
-- `git diff --check`: Pending.
-- Exact-head GitHub Actions CI: Pending.
+- `dotnet --info`: Passed — SDK 10.0.400, Windows 10.0.26200 x64.
+- `dotnet restore Sushi81.Pos.sln --locked-mode`: Passed.
+- `dotnet build Sushi81.Pos.sln -c Release --no-restore`: Passed, 0 warnings / 0 errors.
+- Full Release tests: Passed, 348/348, 0 failed / 0 skipped (Domain 33; Application 43; Infrastructure 56; Architecture/WPF 92; OneDrive feasibility 32; OneDrive feasibility tools 92).
+- Self-contained `win-x64` publish: Passed to ignored `artifacts/m06-publish`.
+- `git diff --check`: Passed.
+- Existing snapshot retention, scheduler, rollback and incomplete-unit tests: Passed within the infrastructure result above.
+- Exact-head GitHub Actions CI: Pending push and remote run.
 
 ## Windows/WPF project-owner acceptance
 
@@ -185,4 +232,5 @@ Final completion record must confirm:
 
 ## Completion state
 
-Pending implementation. PR must remain open/unmerged. M07 is not authorized by M06 completion.
+Implementation in progress. PR #11 must remain open/unmerged. Project-owner Windows/WPF acceptance is still pending and M07 is
+not authorized by M06 completion.

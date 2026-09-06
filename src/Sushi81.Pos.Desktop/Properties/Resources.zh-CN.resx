@@ -7,6 +7,9 @@
   <data name="ShellTitle" xml:space="preserve"><value>Sushi81 POS</value></data>
   <data name="FoundationReady" xml:space="preserve"><value>基础已就绪。</value></data>
   <data name="StartupFailure" xml:space="preserve"><value>启动失败。请查看诊断信息。</value></data>
+  <data name="AuthorityReadOnly" xml:space="preserve"><value>只读模式：此实例不是本地权威实例。仍可搜索和查看数据。</value></data>
+  <data name="AuthorityTransitioning" xml:space="preserve"><value>权威状态切换中：暂时禁止写入。</value></data>
+  <data name="AuthorityRecoveryRequired" xml:space="preserve"><value>需要本地恢复：在本地状态验证完成前禁止写入。</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>语言</value></data>
   <data name="LanguageSaveFailure" xml:space="preserve"><value>无法保存语言偏好设置。请重试。</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>法语</value></data>
@@ -62,6 +65,7 @@
   <data name="EnterValidValues" xml:space="preserve"><value>请输入有效值。</value></data>
   <data name="Saved" xml:space="preserve"><value>已保存。</value></data>
   <data name="ValidationGeneric" xml:space="preserve"><value>输入无效。</value></data>
+  <data name="ValidationAuthorityBlocked" xml:space="preserve"><value>写入已禁止：此实例没有本地权威状态。</value></data>
   <data name="ValidationRequired" xml:space="preserve"><value>此字段为必填项。</value></data>
   <data name="ValidationCategoryDuplicate" xml:space="preserve"><value>已存在同名分类。</value></data>
   <data name="ValidationCategoryShortCodeDuplicate" xml:space="preserve"><value>已存在使用此短码的分类。</value></data>

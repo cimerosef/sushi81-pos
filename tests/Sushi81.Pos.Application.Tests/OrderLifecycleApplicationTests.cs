@@ -1,4 +1,5 @@
 using Sushi81.Pos.Application.Foundation.Ids;
+using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.OrderEntry;
@@ -54,6 +55,22 @@ public sealed class OrderLifecycleApplicationTests
         Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
         Assert.IsNull(store.Snapshot.PlannedFulfilmentTime);
         Assert.AreEqual("updated without a time", store.Snapshot.Comment);
+    }
+
+    [TestMethod]
+    public async Task NonAuthoritativeLifecycleMutationIsRejectedBeforePersistence()
+    {
+        var current = Snapshot(BusinessDate, total: 1000) with { CardPaymentTtc = Money.FromCents(1000) };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(
+            store, new DeterministicIds(), new FixedClock(),
+            authorityGuard: new TestWriteAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly));
+
+        var result = await service.CloseAsync(current.Id);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(ValidationCodes.AuthorityBlocked, result.Issues.Single().StableCode);
+        Assert.AreEqual(0, store.SaveCalls);
     }
 
     [TestMethod]
@@ -216,5 +233,14 @@ public sealed class OrderLifecycleApplicationTests
     {
         private int counter;
         public Guid NewId() => Guid.Parse($"20000000-0000-0000-0000-{Interlocked.Increment(ref counter):D12}");
+    }
+
+    private sealed class TestWriteAuthorityGuard(WriteAuthorityState initialState) : IWriteAuthorityGuard
+    {
+        public WriteAuthorityState State { get; } = initialState;
+        public void RequireWriteAuthority()
+        {
+            if (State != WriteAuthorityState.Authoritative) throw new WriteAuthorityException(State);
+        }
     }
 }

@@ -1,5 +1,7 @@
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Ids;
+using Sushi81.Pos.Application.Foundation.Authority;
+using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Foundation.Transactions;
 using Sushi81.Pos.Application.Settings;
@@ -81,7 +83,9 @@ public sealed class OrderEntryService(
     IOrderStore orders,
     IOrderPrintDispatcher dispatcher,
     IIdGenerator idGenerator,
-    IBusinessClock clock) : IDisposable
+    IBusinessClock clock,
+    IWriteAuthorityGuard? authorityGuard = null,
+    IDurableChangeNotifier? notifier = null) : IDisposable
 {
     private readonly IOrderEntryCatalogueQueries catalogue = catalogue ?? throw new ArgumentNullException(nameof(catalogue));
     private readonly IBusinessSettingsStore settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -89,6 +93,8 @@ public sealed class OrderEntryService(
     private readonly IOrderPrintDispatcher dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
     private readonly IIdGenerator idGenerator = idGenerator ?? throw new ArgumentNullException(nameof(idGenerator));
     private readonly IBusinessClock clock = clock ?? throw new ArgumentNullException(nameof(clock));
+    private readonly IWriteAuthorityGuard? authorityGuard = authorityGuard;
+    private readonly IDurableChangeNotifier notifier = notifier ?? new NoOpDurableChangeNotifier();
     private readonly SemaphoreSlim confirmationGate = new(1, 1);
     private readonly object lifecycleLock = new();
     private int activeConfirmationCalls;
@@ -127,6 +133,14 @@ public sealed class OrderEntryService(
             if (!await confirmationGate.WaitAsync(0, cancellationToken))
                 return ConfirmOrderResult.Failure(new ValidationIssue("order", "An order confirmation is already in progress.", ValidationCodes.Busy));
             acquired = true;
+            try
+            {
+                authorityGuard?.RequireWriteAuthority();
+            }
+            catch (WriteAuthorityException exception)
+            {
+                return ConfirmOrderResult.Failure(new ValidationIssue("authority", $"Local write authority is unavailable ({exception.State}).", ValidationCodes.AuthorityBlocked));
+            }
             var businessSettings = await settings.GetAsync(cancellationToken);
             var currentLines = new List<OrderLineDraft>();
             foreach (var line in draft.Lines ?? [])
@@ -190,6 +204,8 @@ public sealed class OrderEntryService(
                 pricing.TaxBreakdown.Select(tax => tax with { Id = idGenerator.NewId() }).ToArray());
 
             await orders.SaveAsync(snapshot, cancellationToken);
+            try { await notifier.NotifyCommittedAsync(cancellationToken); }
+            catch { /* Snapshot scheduling cannot undo a committed order. */ }
             OrderSnapshot? committed;
             try { committed = await orders.GetByIdAsync(orderId, cancellationToken); }
             catch (OperationCanceledException) { throw; }

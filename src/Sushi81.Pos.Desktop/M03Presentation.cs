@@ -70,6 +70,7 @@ public static class M03Presentation
             ValidationCodes.PlannedTimeRequired => "ValidationPlannedTimeRequired",
             ValidationCodes.PlannedTimeInvalid => "ValidationPlannedTimeInvalid",
             ValidationCodes.BulkRequestInvalid => "ValidationGeneric",
+            ValidationCodes.AuthorityBlocked => "ValidationAuthorityBlocked",
             _ => issue.Field switch
             {
                 "code" or "name" or "product" or "groups" or "options" => "ValidationRequired",

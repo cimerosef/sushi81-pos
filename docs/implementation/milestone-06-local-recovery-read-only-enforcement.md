@@ -495,7 +495,8 @@ Record recovery/authority failure injection as supporting evidence. M13 remains 
 
 ## 17. M05 merge-state documentation cleanup
 
-The M05 final status documentation was written before PR #10 merged. Current-state text that still says PR #10 is open/unmerged is stale and must be corrected as part of M06 branch documentation maintenance.
+The M05 final status documentation was written before PR #10 merged. M05 is now merged to `main` at
+`79499d7c6ed65a74f524097c1507ca648dc151c3`; this M06 contract is the current authorized implementation scope on PR #11.
 
 Do not rewrite historical time-stamped evidence sections merely because they truthfully describe the state when recorded.
 

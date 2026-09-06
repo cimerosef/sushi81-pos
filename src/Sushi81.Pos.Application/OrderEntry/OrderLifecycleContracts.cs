@@ -1,5 +1,7 @@
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Ids;
+using Sushi81.Pos.Application.Foundation.Authority;
+using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Domain;
@@ -45,13 +47,17 @@ public sealed class OrderLifecycleService(
     IIdGenerator idGenerator,
     IBusinessClock clock,
     IOrderEntryCatalogueQueries? catalogue = null,
-    IBusinessSettingsStore? settings = null) : IDisposable
+    IBusinessSettingsStore? settings = null,
+    IWriteAuthorityGuard? authorityGuard = null,
+    IDurableChangeNotifier? notifier = null) : IDisposable
 {
     private readonly IOrderStore orders = orders ?? throw new ArgumentNullException(nameof(orders));
     private readonly IIdGenerator idGenerator = idGenerator ?? throw new ArgumentNullException(nameof(idGenerator));
     private readonly IBusinessClock clock = clock ?? throw new ArgumentNullException(nameof(clock));
     private readonly IOrderEntryCatalogueQueries? catalogue = catalogue;
     private readonly IBusinessSettingsStore? settings = settings;
+    private readonly IWriteAuthorityGuard? authorityGuard = authorityGuard;
+    private readonly IDurableChangeNotifier notifier = notifier ?? new NoOpDurableChangeNotifier();
     private readonly SemaphoreSlim mutationGate = new(1, 1);
     private int activeCalls;
     private bool disposed;
@@ -155,6 +161,7 @@ public sealed class OrderLifecycleService(
 
             var validation = ValidatePayment(proposed);
             if (validation is not null) return OrderLifecycleResult.Failure(validation);
+            authorityGuard?.RequireWriteAuthority();
             var scheduleValidation = ValidateSchedule(current, proposed);
             if (scheduleValidation is not null) return OrderLifecycleResult.Failure(scheduleValidation);
 
@@ -210,10 +217,16 @@ public sealed class OrderLifecycleService(
                 normalized = normalized with { Status = status, ClosedAt = closedAt };
             }
             var adjustments = BuildPaymentAdjustments(current, normalized, paymentEffectiveDate ?? clock.BusinessDate, now);
+            if (BusinessStateEqual(current, normalized) && adjustments.Count == 0)
+                return new(true, current, []);
             await SaveAsync(normalized, adjustments, cancellationToken);
             return new(true, await orders.GetByIdAsync(current.Id, cancellationToken), []);
         }
         catch (OperationCanceledException) { throw; }
+        catch (WriteAuthorityException exception)
+        {
+            return OrderLifecycleResult.Failure(AuthorityIssue(exception));
+        }
         catch (Exception exception)
         {
             return OrderLifecycleResult.Failure(new ValidationIssue("order", exception.Message, ValidationCodes.Generic));
@@ -230,12 +243,17 @@ public sealed class OrderLifecycleService(
             var current = await orders.GetByIdAsync(orderId, cancellationToken);
             if (current is null) return OrderLifecycleResult.Failure(new ValidationIssue("order", "The order was not found.", ValidationCodes.NotFound));
             if (current.Status == OrderStatus.Cancelled) return OrderLifecycleResult.Failure(new ValidationIssue("order", "A cancelled order cannot be closed.", ValidationCodes.Conflict));
+            if (current.Status == OrderStatus.Closed) return new(true, current, []);
             if (!IsReconciled(current)) return OrderLifecycleResult.Failure(new ValidationIssue("payment", "CB + Espèce must equal the order total exactly before Close.", ValidationCodes.PaymentMismatch));
             var closed = current with { Status = OrderStatus.Closed, ClosedAt = clock.UtcNow, UpdatedAt = clock.UtcNow };
             await SaveAsync(closed, [], cancellationToken);
             return new(true, await orders.GetByIdAsync(orderId, cancellationToken), []);
         }
         catch (OperationCanceledException) { throw; }
+        catch (WriteAuthorityException exception)
+        {
+            return OrderLifecycleResult.Failure(AuthorityIssue(exception));
+        }
         catch (Exception exception) { return OrderLifecycleResult.Failure(new ValidationIssue("order", exception.Message, ValidationCodes.Generic)); }
         finally { Exit(); }
     }
@@ -254,17 +272,27 @@ public sealed class OrderLifecycleService(
             return new(true, await orders.GetByIdAsync(orderId, cancellationToken), []);
         }
         catch (OperationCanceledException) { throw; }
+        catch (WriteAuthorityException exception)
+        {
+            return OrderLifecycleResult.Failure(AuthorityIssue(exception));
+        }
         catch (Exception exception) { return OrderLifecycleResult.Failure(new ValidationIssue("order", exception.Message, ValidationCodes.Generic)); }
         finally { Exit(); }
     }
 
     private async Task SaveAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken)
     {
+        authorityGuard?.RequireWriteAuthority();
         if (orders is IOrderLifecycleStore lifecycleStore)
             await lifecycleStore.SaveLifecycleAsync(snapshot, adjustments, cancellationToken);
         else
             await orders.SaveAsync(snapshot, cancellationToken);
+        try { await notifier.NotifyCommittedAsync(cancellationToken); }
+        catch { /* The durable business commit remains; snapshot failure is non-rollback. */ }
     }
+
+    private static ValidationIssue AuthorityIssue(WriteAuthorityException exception) =>
+        new("authority", $"Local write authority is unavailable ({exception.State}).", ValidationCodes.AuthorityBlocked);
 
     private List<PaymentAdjustment> BuildPaymentAdjustments(OrderSnapshot before, OrderSnapshot after, DateOnly effectiveDate, DateTimeOffset recordedAt)
     {
@@ -309,6 +337,39 @@ public sealed class OrderLifecycleService(
         time.Minute % 5 == 0 && time.Ticks % TimeSpan.TicksPerMinute == 0;
 
     private static bool IsReconciled(OrderSnapshot snapshot) => OrderPaymentState.From(snapshot).IsExactlyReconciled;
+    private static bool BusinessStateEqual(OrderSnapshot left, OrderSnapshot right) =>
+        left.Status == right.Status
+        && left.ClosedAt == right.ClosedAt
+        && left.CancelledAt == right.CancelledAt
+        && left.Fulfilment == right.Fulfilment
+        && left.PlannedFulfilmentDate == right.PlannedFulfilmentDate
+        && left.PlannedFulfilmentTime == right.PlannedFulfilmentTime
+        && left.AdvanceOrderMarker == right.AdvanceOrderMarker
+        && string.Equals(left.Telephone, right.Telephone, StringComparison.Ordinal)
+        && string.Equals(left.DeliveryAddress, right.DeliveryAddress, StringComparison.Ordinal)
+        && string.Equals(left.Comment, right.Comment, StringComparison.Ordinal)
+        && left.TotalTtc == right.TotalTtc
+        && left.ManualTotalOverrideActive == right.ManualTotalOverrideActive
+        && left.PickupDiscountApplied == right.PickupDiscountApplied
+        && left.PickupDiscountRate == right.PickupDiscountRate
+        && left.DeliveryFeeTtc == right.DeliveryFeeTtc
+        && left.CardPaymentTtc == right.CardPaymentTtc
+        && left.CashPaymentTtc == right.CashPaymentTtc
+        && left.Items.SequenceEqual(right.Items, OrderItemComparer.Instance)
+        && left.TaxBreakdown.SequenceEqual(right.TaxBreakdown);
+
+    private sealed class OrderItemComparer : IEqualityComparer<OrderItemSnapshot>
+    {
+        public static OrderItemComparer Instance { get; } = new();
+        public bool Equals(OrderItemSnapshot? left, OrderItemSnapshot? right) => left is not null && right is not null
+            && left.Id == right.Id && left.Position == right.Position && left.SourceProductId == right.SourceProductId
+            && left.ProductCode == right.ProductCode && left.ProductName == right.ProductName && left.CategoryName == right.CategoryName
+            && left.ProductBasePriceTtc == right.ProductBasePriceTtc && left.ProductVatRate == right.ProductVatRate
+            && left.ProductDiscountEligible == right.ProductDiscountEligible && left.Quantity == right.Quantity
+            && left.ExtendedBaseTtc == right.ExtendedBaseTtc && left.CalculatedLineTotalTtc == right.CalculatedLineTotalTtc
+            && left.Adjustments.SequenceEqual(right.Adjustments);
+        public int GetHashCode(OrderItemSnapshot value) => value.Id.GetHashCode();
+    }
     private static bool ItemsMatch(IReadOnlyList<OrderItemSnapshot> left, IReadOnlyList<OrderItemSnapshot> right) =>
         left.Count == right.Count && left.OrderBy(item => item.Position).Zip(right.OrderBy(item => item.Position)).All(pair =>
             pair.First.Id == pair.Second.Id && pair.First.Position == pair.Second.Position && pair.First.SourceProductId == pair.Second.SourceProductId

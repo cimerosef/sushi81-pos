@@ -5,7 +5,7 @@
         Title="{Binding Title}" Width="980" Height="680" MinWidth="760" MinHeight="520" WindowStartupLocation="CenterScreen" Loaded="OnLoaded" SizeChanged="OnMainWindowSizeChanged">
   <Window.Resources><BooleanToVisibilityConverter x:Key="BoolToVisibility" /></Window.Resources>
   <Grid Margin="18">
-    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
     <DockPanel Grid.Row="0" Margin="0,0,0,12">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
         <TextBlock VerticalAlignment="Center" Margin="0,0,8,0" Text="{Binding LanguageLabel}" />
@@ -13,8 +13,13 @@
       </StackPanel>
       <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding Title}" />
     </DockPanel>
-    <TextBlock Grid.Row="1" Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
-    <TabControl x:Name="mainTabs" Grid.Row="1" DataContext="{Binding Admin}" SelectionChanged="OnMainTabsSelectionChanged" IsEnabled="{Binding IsM03Available, RelativeSource={RelativeSource AncestorType=Window}}" Visibility="{Binding IsM03Available, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+    <StackPanel Grid.Row="1" Margin="0,0,0,8">
+      <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
+      <Border Background="#FFFFE0" BorderBrush="#FFD08A" BorderThickness="1" Padding="8" Margin="0,6,0,0" Visibility="{Binding IsAuthorityWarningVisible, Converter={StaticResource BoolToVisibility}}">
+        <TextBlock Text="{Binding AuthorityStatus}" TextWrapping="Wrap" Foreground="#7A4300" />
+      </Border>
+    </StackPanel>
+    <TabControl x:Name="mainTabs" Grid.Row="2" DataContext="{Binding Admin}" SelectionChanged="OnMainTabsSelectionChanged" IsEnabled="{Binding IsM03Available, RelativeSource={RelativeSource AncestorType=Window}}" Visibility="{Binding IsM03Available, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
       <TabItem Header="{Binding DataContext.Localized[Catalogue], RelativeSource={RelativeSource AncestorType=Window}}">
         <Grid Margin="8">
           <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -45,18 +50,18 @@
             <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding HasProducts}" Value="False"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
           </TextBlock>
           <WrapPanel Grid.Row="2" Margin="0,10,0,0">
-            <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding DataContext.Localized[NewProduct], RelativeSource={RelativeSource AncestorType=Window}}" Click="OnNewProduct" />
+            <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding DataContext.Localized[NewProduct], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanCreateProduct}" Click="OnNewProduct" />
             <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding DataContext.Localized[Edit], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanEditProduct}" Click="OnEditProduct" />
              <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding ToggleProductActionLabel}" IsEnabled="{Binding CanToggleProduct}" Click="OnToggleProduct" />
              <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding DataContext.Localized[BulkActivate], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanBulkActivate}" Click="OnBulkActivate" />
              <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding DataContext.Localized[BulkDeactivate], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanBulkDeactivate}" Click="OnBulkDeactivate" />
              <Button Margin="0,0,8,0" Padding="12,4" Content="{Binding DataContext.Localized[DeletePermanently], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanDeleteProduct}" Click="OnDeleteProduct" />
-            <Button Padding="12,4" Content="{Binding DataContext.Localized[ManageCategories], RelativeSource={RelativeSource AncestorType=Window}}" Click="OnManageCategories" />
+            <Button Padding="12,4" Content="{Binding DataContext.Localized[ManageCategories], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanManageCategories}" Click="OnManageCategories" />
           </WrapPanel>
         </Grid>
       </TabItem>
       <TabItem Header="{Binding DataContext.Localized[Settings], RelativeSource={RelativeSource AncestorType=Window}}">
-        <StackPanel Margin="18" MaxWidth="520">
+        <StackPanel Margin="18" MaxWidth="520" IsEnabled="{Binding CanWrite}">
           <TextBlock Text="{Binding SettingsValidationMessage}" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,0,0,8" />
           <TextBlock Text="{Binding DataContext.Localized[PickupDiscount], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Text="{Binding PickupDiscountRateText, UpdateSourceTrigger=PropertyChanged}" local:NumericInputBehavior.SelectAllOnFocus="True" Margin="0,4,0,12" />
           <TextBlock Text="{Binding DataContext.Localized[PickupMinimum], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Text="{Binding PickupDiscountMinText, UpdateSourceTrigger=PropertyChanged}" local:NumericInputBehavior.SelectAllOnFocus="True" Margin="0,4,0,12" />
@@ -64,7 +69,7 @@
           <CheckBox Content="{Binding DataContext.Localized[DeliveryFeeEnabled], RelativeSource={RelativeSource AncestorType=Window}}" IsChecked="{Binding DeliveryFeeEnabled}" Margin="0,0,0,12" />
           <TextBlock Text="{Binding DataContext.Localized[DeliveryFee], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Text="{Binding DeliveryFeeAmountText, UpdateSourceTrigger=PropertyChanged}" local:NumericInputBehavior.SelectAllOnFocus="True" Margin="0,4,0,12" />
           <TextBlock Text="{Binding DataContext.Localized[DeliveryFeeVatFixed], RelativeSource={RelativeSource AncestorType=Window}}" Opacity="0.7" Margin="0,0,0,14" />
-          <WrapPanel><Button Content="{Binding DataContext.Localized[Save], RelativeSource={RelativeSource AncestorType=Window}}" Padding="16,5" Margin="0,0,8,0" Click="OnSaveSettings" /><Button Content="{Binding DataContext.Localized[Cancel], RelativeSource={RelativeSource AncestorType=Window}}" Padding="16,5" Click="OnReloadSettings" /></WrapPanel>
+          <WrapPanel><Button Content="{Binding DataContext.Localized[Save], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanSaveSettings}" Padding="16,5" Margin="0,0,8,0" Click="OnSaveSettings" /><Button Content="{Binding DataContext.Localized[Cancel], RelativeSource={RelativeSource AncestorType=Window}}" Padding="16,5" Click="OnReloadSettings" /></WrapPanel>
         </StackPanel>
       </TabItem>
       <TabItem Header="{Binding DataContext.Localized[Commandes], RelativeSource={RelativeSource AncestorType=Window}}" DataContext="{Binding DataContext.Lifecycle, RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.IsM05Available, RelativeSource={RelativeSource AncestorType=Window}}">
@@ -176,7 +181,7 @@
                 <Button Grid.Column="4" Width="34" Height="30" Content="×" Tag="{Binding}" Click="OnRemoveOrderLine" />
               </Grid></DataTemplate></ListBox.ItemTemplate>
             </ListBox>
-            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsEnabled="{Binding CanWrite}">
               <Grid>
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                 <Separator Grid.Row="0" Margin="0,8" />
@@ -216,6 +221,5 @@
         </Grid>
       </TabItem>
     </TabControl>
-    <TextBlock Grid.Row="2" Text="{Binding Status}" TextWrapping="Wrap" />
   </Grid>
 </Window>

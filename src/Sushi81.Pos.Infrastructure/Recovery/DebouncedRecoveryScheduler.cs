@@ -9,7 +9,7 @@ public sealed partial class DebouncedRecoveryScheduler : IRecoveryScheduler, IAs
     private static readonly TimeSpan DebounceInterval = TimeSpan.FromSeconds(3);
     private readonly ILocalRecoverySnapshotService snapshotService;
     private readonly TimeProvider timeProvider;
-    private readonly ILogger<DebouncedRecoveryScheduler> logger;
+    private readonly ILogger logger;
     private readonly SemaphoreSlim snapshotGate = new(1, 1);
     private readonly object stateLock = new();
     private CancellationTokenSource? debounceCancellation;
@@ -21,7 +21,7 @@ public sealed partial class DebouncedRecoveryScheduler : IRecoveryScheduler, IAs
     public DebouncedRecoveryScheduler(
         ILocalRecoverySnapshotService snapshotService,
         TimeProvider timeProvider,
-        ILogger<DebouncedRecoveryScheduler> logger)
+        ILogger logger)
     {
         this.snapshotService = snapshotService;
         this.timeProvider = timeProvider;
@@ -67,7 +67,16 @@ public sealed partial class DebouncedRecoveryScheduler : IRecoveryScheduler, IAs
             // A cancellation is expected when replacing a debounce interval or flushing shutdown work.
         }
 
-        await CreatePendingSnapshotAsync(cancellationToken);
+        // A durable commit may arrive while the first snapshot is active. Keep flushing until
+        // the latest pending sequence is represented; the active snapshot itself is never cancelled.
+        while (true)
+        {
+            await CreatePendingSnapshotAsync(cancellationToken);
+            lock (stateLock)
+            {
+                if (pendingChange is null || pendingChange.Sequence <= lastSnapshottedSequence) return;
+            }
+        }
     }
 
     public async ValueTask DisposeAsync()
