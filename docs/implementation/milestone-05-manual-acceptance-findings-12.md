@@ -3,7 +3,7 @@
 **Milestone:** M05 — Lifecycle, payments, search and operational dashboard  
 **Date:** 2026-09-06  
 **Performed by:** ChatGPT code/evidence review after owner-requested FIX-18 review  
-**PR:** #10 — `M05: lifecycle payments search and operational dashboard`  
+**PR:** #10 — `M05: lifecycle payments, search and operational dashboard`  
 **Production-code baseline reviewed:** FIX-18 `e38a688e6314d82c042595537441195e1a3d23d3`  
 **Overall result:** FIX-18 responsiveness remediation and evidence are accepted for owner-side retest, but one concrete payment-date visibility regression blocks republish until a minimal correction is made.
 
