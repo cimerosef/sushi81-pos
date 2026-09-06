@@ -977,7 +977,8 @@ public sealed class M05DesktopTests
         {
             var order = Snapshot(new DateOnly(2026, 8, 31));
             var store = new LifecycleStore(order);
-            using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock());
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
             using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))), orderLifecycleService: service);
             var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
             window.Show();
@@ -1053,10 +1054,218 @@ public sealed class M05DesktopTests
             window.Show();
             try
             {
-                Assert.AreEqual(Brushes.DarkRed, Field<TextBlock>(window, "dashboardFutureCountText").Foreground);
-                Assert.AreEqual(Brushes.DarkBlue, Field<TextBlock>(window, "dashboardReceivedCardText").Foreground);
-                Assert.AreEqual(Brushes.DarkGreen, Field<TextBlock>(window, "dashboardReceivedCashText").Foreground);
-                Assert.AreEqual(FontWeights.Bold, Field<TextBlock>(window, "dashboardTurnoverText").FontWeight);
+                void AssertDashboardStyles()
+                {
+                    Assert.AreEqual(Brushes.DarkRed, Field<TextBlock>(window, "dashboardFutureCountText").Foreground);
+                    Assert.AreEqual(Brushes.DarkRed, Field<TextBlock>(window, "dashboardDueCountText").Foreground);
+                    Assert.AreEqual(Brushes.DarkRed, Field<TextBlock>(window, "dashboardOverdueCountText").Foreground);
+                    Assert.AreEqual(Brushes.DarkBlue, Field<TextBlock>(window, "dashboardReceivedCardText").Foreground);
+                    Assert.AreEqual(Brushes.DarkGreen, Field<TextBlock>(window, "dashboardReceivedCashText").Foreground);
+                    Assert.AreEqual(FontWeights.Bold, Field<TextBlock>(window, "dashboardTurnoverText").FontWeight);
+                }
+
+                AssertDashboardStyles();
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                AssertDashboardStyles();
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                AssertDashboardStyles();
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Fix14QuantityDialogsExposeCompactControlsAndZeroMeansRemovalOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var productId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(productId, "QCTRL", "Quantité contrôlée", Guid.NewGuid(), Money.FromCents(1000), 10m, true, true, false, default, default),
+                [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Tests");
+            var item = new OrderItemSnapshot(Guid.NewGuid(), 0, productId, "QCTRL", "Quantité contrôlée", "Tests", Money.FromCents(1000), 10m, true, 1, Money.FromCents(1000), Money.FromCents(1000), []);
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+            var owner = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            owner.Show();
+            try
+            {
+                var optionType = typeof(MainWindow).GetNestedType("OptionSelectionDialog", BindingFlags.NonPublic)!;
+                var optionConstructor = optionType.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null,
+                    [typeof(Window), typeof(OrderEntryProduct), typeof(int), typeof(IReadOnlyList<Guid>), typeof(IReadOnlyList<OrderLineAdjustmentDraft>)], null)!;
+                var plusDialog = (Window)optionConstructor.Invoke([owner, product, 1, Array.Empty<Guid>(), Array.Empty<OrderLineAdjustmentDraft>()]);
+                plusDialog.Show();
+                plusDialog.UpdateLayout();
+                try
+                {
+                    var controls = VisualDescendants<Button>(plusDialog).Where(button => button.Content is "−" or "+").ToArray();
+                    Assert.HasCount(2, controls);
+                    Assert.IsTrue(controls.All(button => button.Width <= 30D && button.ActualWidth > 0D), "Option quantity controls must stay compact and visible.");
+                    controls.Single(button => Equals(button.Content, "+")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Assert.AreEqual("2", ((TextBox)optionType.GetField("quantity", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(plusDialog)!).Text);
+                    controls.Single(button => Equals(button.Content, "−")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Assert.AreEqual("1", ((TextBox)optionType.GetField("quantity", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(plusDialog)!).Text);
+                }
+                finally { plusDialog.Close(); }
+
+                var optionRemove = (Window)optionConstructor.Invoke([owner, product, 1, Array.Empty<Guid>(), Array.Empty<OrderLineAdjustmentDraft>()]);
+                var optionFailure = default(Exception);
+                optionRemove.ContentRendered += (_, _) =>
+                {
+                    try { VisualDescendants<Button>(optionRemove).Single(button => Equals(button.Content, "−")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); }
+                    catch (Exception exception) { optionFailure = exception; optionRemove.Close(); }
+                };
+                Assert.IsFalse(optionRemove.ShowDialog());
+                if (optionFailure is not null) ExceptionDispatchInfo.Capture(optionFailure).Throw();
+                Assert.IsTrue((bool)optionType.GetProperty("RemoveRequested")!.GetValue(optionRemove)!);
+
+                var existingType = typeof(MainWindow).GetNestedType("ExistingLineEditDialog", BindingFlags.NonPublic)!;
+                var existingConstructor = existingType.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null,
+                    [typeof(Window), typeof(OrderDetailLineViewModel), typeof(bool)], null)!;
+                var existingLine = new OrderDetailLineViewModel(item);
+                var existingDialog = (Window)existingConstructor.Invoke([owner, existingLine, true]);
+                existingDialog.Show();
+                existingDialog.UpdateLayout();
+                try
+                {
+                    var controls = VisualDescendants<Button>(existingDialog).Where(button => button.Content is "−" or "+").ToArray();
+                    Assert.HasCount(2, controls);
+                    Assert.IsTrue(controls.All(button => button.Width <= 30D && button.ActualWidth > 0D), "Existing-line quantity controls must stay compact and visible.");
+                    controls.Single(button => Equals(button.Content, "+")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Assert.AreEqual("2", ((TextBox)existingType.GetField("quantity", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(existingDialog)!).Text);
+                }
+                finally { existingDialog.Close(); }
+
+                var existingRemove = (Window)existingConstructor.Invoke([owner, new OrderDetailLineViewModel(item), true]);
+                var existingFailure = default(Exception);
+                existingRemove.ContentRendered += (_, _) =>
+                {
+                    try { VisualDescendants<Button>(existingRemove).Single(button => Equals(button.Content, "−")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); }
+                    catch (Exception exception) { existingFailure = exception; existingRemove.Close(); }
+                };
+                Assert.IsFalse(existingRemove.ShowDialog());
+                if (existingFailure is not null) ExceptionDispatchInfo.Capture(existingFailure).Throw();
+                Assert.IsTrue((bool)existingType.GetProperty("RemoveRequested")!.GetValue(existingRemove)!);
+            }
+            finally { owner.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Fix14ExistingLineRemovalRestoresOnAbandonAndPersistsOnSaveOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var first = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "REMOVE", "À retirer", "Tests", Money.FromCents(1000), 10m, true, 1, Money.FromCents(1000), Money.FromCents(1000), []);
+            var second = new OrderItemSnapshot(Guid.NewGuid(), 1, Guid.NewGuid(), "KEEP", "À conserver", "Tests", Money.FromCents(1200), 10m, true, 1, Money.FromCents(1200), Money.FromCents(1200), []);
+            var order = Snapshot(new DateOnly(2026, 8, 31)) with { Items = [first, second], TotalTtc = Money.FromCents(2200) };
+            var store = new LifecycleStore(order);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), orderLifecycleService: service);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                lifecycle.BeginModification();
+                lifecycle.RemoveLine(lifecycle.DetailLines.Single(line => line.Item.ProductCode == "REMOVE"));
+                Assert.HasCount(1, lifecycle.DetailLines);
+                Assert.IsTrue(lifecycle.DetailLines.All(line => line.Quantity > 0), "Removal must not leave a zero-quantity line.");
+                lifecycle.AbandonModification();
+                Assert.HasCount(2, lifecycle.DetailLines, "Abandon must restore the complete saved snapshot.");
+
+                lifecycle.BeginModification();
+                lifecycle.RemoveLine(lifecycle.DetailLines.Single(line => line.Item.ProductCode == "REMOVE"));
+                lifecycle.SaveModificationAsync().GetAwaiter().GetResult();
+                Assert.HasCount(1, store.Snapshot.Items);
+                Assert.AreEqual("KEEP", store.Snapshot.Items.Single().ProductCode);
+                Assert.IsTrue(store.Snapshot.Items.All(item => item.Quantity > 0), "Persistence must never contain a zero-quantity item.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Fix14CaisseWidthsAndLifecycleSearchExitRemainUsableAcrossLanguagesOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var order = Snapshot(new DateOnly(2026, 8, 31)) with { DeliveryAddress = new string('a', 160), Comment = new string('c', 160) };
+            var store = new LifecycleStore(order);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            var entryProduct = new OrderEntryProduct(new ProductAggregate(
+                new Product(Guid.NewGuid(), "LAYOUT", "Produit de mise en page", Guid.NewGuid(), Money.FromCents(1000), 10m,  true, true, false, default, default),
+                [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Tests");
+            using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
+            using var entryService = new OrderEntryService(new SingleEntryCatalogue(entryProduct), settings, store, new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), entryService, service);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                Field<TabControl>(window, "mainTabs").Items.OfType<TabItem>().Single(item => item.DataContext is OrderEntryShellViewModel).IsSelected = true;
+                var fulfilment = Field<ComboBox>(window, "orderFulfilmentBox");
+                var plannedDate = Field<DatePicker>(window, "orderPlannedDatePicker");
+                var telephone = Field<TextBox>(window, "orderTelephoneBox");
+                var address = Field<TextBox>(window, "orderDeliveryAddressBox");
+                var comment = Field<TextBox>(window, "orderCommentBox");
+                var total = Field<TextBox>(window, "orderTotalBox");
+
+                void AssertCaisse(string culture)
+                {
+                    window.UpdateLayout();
+                    Assert.IsTrue(fulfilment.ActualWidth > 0D && fulfilment.ActualWidth <= 150D, $"{culture}: fulfilment selector must retain its compact width.");
+                    Assert.IsTrue(plannedDate.ActualWidth > 0D && plannedDate.ActualWidth <= 145D, $"{culture}: date picker must retain its compact width.");
+                    Assert.IsTrue(telephone.ActualWidth > 0D && telephone.ActualWidth <= 170D, $"{culture}: telephone field must retain its compact width.");
+                    Assert.IsTrue(total.ActualWidth > 0D && total.ActualWidth <= 120D, $"{culture}: total field must retain its compact width.");
+                    Assert.IsGreaterThan(0D, address.ActualWidth, $"{culture}: long address must remain usable.");
+                    Assert.IsGreaterThan(0D, comment.ActualWidth, $"{culture}: long comment must remain usable.");
+                }
+
+                AssertCaisse("fr-FR-normal");
+                window.Width = 760;
+                window.Height = 520;
+                AssertCaisse("fr-FR-small");
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                AssertCaisse("zh-CN-small");
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                AssertCaisse("fr-FR-restored");
+
+                var lifecycle = shell.Lifecycle!;
+                lifecycle.SelectOperationalView("future");
+                Assert.IsTrue(lifecycle.IsOperationalViewActive);
+                lifecycle.SearchText = "old-filter";
+                Assert.IsFalse(lifecycle.IsOperationalViewActive, "Typing a search must leave the operational dashboard view.");
+                lifecycle.SearchText = string.Empty;
+                Assert.IsFalse(lifecycle.IsOperationalViewActive, "Clearing search must not resurrect the previous operational filter.");
+                lifecycle.SelectOperationalView("future");
+                lifecycle.BrowseDate = new DateTime(2026, 9, 2);
+                Assert.IsFalse(lifecycle.IsOperationalViewActive, "Explicit date browsing must leave the operational dashboard view.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Fix14DateOnlyPaymentEditCreatesNoPaymentAdjustmentOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var order = Snapshot(new DateOnly(2026, 8, 31));
+            var store = new LifecycleStore(order);
+            using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))), orderLifecycleService: service);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                lifecycle.BeginModification();
+                lifecycle.EffectivePaymentDate = new DateTime(2026, 8, 29);
+                lifecycle.SaveModificationAsync().GetAwaiter().GetResult();
+                Assert.IsEmpty(store.LastAdjustments, "Changing only the effective date must not create a PaymentAdjustment.");
             }
             finally { window.Close(); }
         });
@@ -1131,10 +1340,11 @@ public sealed class M05DesktopTests
     private sealed class LifecycleStore(OrderSnapshot initial) : IOrderStore, IOrderLifecycleStore
     {
         public OrderSnapshot Snapshot { get; private set; } = initial;
+        public IReadOnlyList<PaymentAdjustment> LastAdjustments { get; private set; } = [];
         public Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default) { Snapshot = snapshot; return Task.CompletedTask; }
         public Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default) => Task.FromResult<OrderSnapshot?>(Snapshot.Id == orderId ? Snapshot : null);
         public Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>([Row(Snapshot)]);
-        public Task SaveLifecycleAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken = default) { Snapshot = snapshot; return Task.CompletedTask; }
+        public Task SaveLifecycleAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken = default) { Snapshot = snapshot; LastAdjustments = adjustments; return Task.CompletedTask; }
         public Task<IReadOnlyList<OrderBrowserRow>> SearchAsync(string? query, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>([Row(Snapshot)]);
         public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) => Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0));
         private static OrderBrowserRow Row(OrderSnapshot value) => new(value.Id, value.PlannedFulfilmentDate, value.PlannedFulfilmentTime, value.Fulfilment, value.Status, value.TotalTtc, value.Telephone) { Reference = value.Reference, DeliveryAddress = value.DeliveryAddress, Comment = value.Comment };

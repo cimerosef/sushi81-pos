@@ -173,7 +173,9 @@ public partial class MainWindow : Window
             var product = await entry.GetActiveProductForEditAsync(productId);
             if (product is null) { MessageBox.Show(this, LocalizedText(this, "ProductInactive", "Le produit n’est plus actif."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Warning); return; }
             var dialog = new OptionSelectionDialog(this, product, line);
-            if (dialog.ShowDialog() == true) entry.UpdateConfiguredLine(line, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
+            var result = dialog.ShowDialog();
+            if (dialog.RemoveRequested) entry.RemoveLine(line);
+            else if (result == true) entry.UpdateConfiguredLine(line, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
         }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
     }
@@ -290,7 +292,13 @@ public partial class MainWindow : Window
         if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle, Entry: { } entry } || sender is not Button { Tag: OrderDetailLineViewModel line } || !lifecycle.IsEditing) return;
 
         var choice = new ExistingLineEditDialog(this, line, canReconfigure: true);
-        if (choice.ShowDialog() != true) return;
+        var choiceResult = choice.ShowDialog();
+        if (choice.RemoveRequested)
+        {
+            lifecycle.RemoveLine(line);
+            return;
+        }
+        if (choiceResult != true) return;
         if (choice.QuantityOnly)
         {
             lifecycle.UpdateLineQuantity(line, choice.Quantity);
@@ -308,7 +316,13 @@ public partial class MainWindow : Window
 
         var draft = line.ToCurrentDraft(product);
         var dialog = new OptionSelectionDialog(this, product, choice.Quantity, draft.SelectedOptionIds, draft.CustomAdjustments);
-        if (dialog.ShowDialog() == true)
+        var dialogResult = dialog.ShowDialog();
+        if (dialog.RemoveRequested)
+        {
+            lifecycle.RemoveLine(line);
+            return;
+        }
+        if (dialogResult == true)
             if (line.HasSameConfiguration(dialog.SelectedOptionIds, dialog.CustomAdjustments))
                 lifecycle.UpdateLineQuantity(line, dialog.Quantity);
             else
@@ -493,7 +507,7 @@ public partial class MainWindow : Window
         private readonly Dictionary<Guid, List<FrameworkElement>> controls = [];
         private readonly StackPanel customPanel = new();
         private readonly List<(TextBox Label, TextBox Amount, Button Remove)> customRows = [];
-        private readonly TextBox quantity;
+        private TextBox quantity = null!;
         private readonly IReadOnlyDictionary<string, string> localized;
         public OptionSelectionDialog(Window owner, OrderEntryProduct product, OrderEntryCartLineViewModel? existing)
             : this(owner, product, existing?.Quantity ?? 1, existing?.Draft.SelectedOptionIds ?? [], existing?.Draft.CustomAdjustments ?? []) { }
@@ -508,8 +522,7 @@ public partial class MainWindow : Window
             var cancel = new Button { Content = Label("Cancel", "Annuler"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) }; cancel.Click += (_, _) => DialogResult = false;
             var ok = new Button { Content = Label("Add", "Ajouter"), Padding = new Thickness(12, 5, 12, 5) }; ok.Click += (_, _) => Accept(); buttons.Children.Add(cancel); buttons.Children.Add(ok); DockPanel.SetDock(buttons, Dock.Bottom); root.Children.Add(buttons);
             var panel = new StackPanel(); panel.Children.Add(new TextBlock { Text = $"{product.Aggregate.Product.Code} — {product.Aggregate.Product.Name}", FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
-            quantity = AddText(panel, Label("Quantity", "Quantité"), quantityValue.ToString(CultureInfo.InvariantCulture));
-            NumericInputBehavior.SetSelectAllOnFocus(quantity, true);
+            AddQuantityEditor(panel, quantityValue);
             if (product.Aggregate.Product.OptionsEnabled)
                 foreach (var group in product.Aggregate.Groups.OrderBy(group => group.DisplayOrder)) AddGroup(panel, group, existingOptions);
             panel.Children.Add(new TextBlock { Text = Label("CustomAdjustments", "Ajustements personnalisés (par unité)"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
@@ -522,6 +535,40 @@ public partial class MainWindow : Window
         public IReadOnlyList<Guid> SelectedOptionIds { get; private set; } = [];
         public IReadOnlyList<OrderLineAdjustmentDraft> CustomAdjustments { get; private set; } = [];
         public int Quantity { get; private set; }
+        public bool RemoveRequested { get; private set; }
+
+        private void AddQuantityEditor(Panel panel, int quantityValue)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            row.Children.Add(new TextBlock { Text = Label("Quantity", "Quantité"), Width = 150, VerticalAlignment = VerticalAlignment.Center });
+            quantity = new TextBox { Width = 70, Text = quantityValue.ToString(CultureInfo.InvariantCulture) };
+            NumericInputBehavior.SetSelectAllOnFocus(quantity, true);
+            var decrease = new Button { Content = "−", Width = 28, Height = 26, Margin = new Thickness(6, 0, 2, 0) };
+            var increase = new Button { Content = "+", Width = 28, Height = 26 };
+            decrease.Click += (_, _) => AdjustQuantity(-1);
+            increase.Click += (_, _) => AdjustQuantity(1);
+            row.Children.Add(quantity);
+            row.Children.Add(decrease);
+            row.Children.Add(increase);
+            panel.Children.Add(row);
+        }
+
+        private void AdjustQuantity(int delta)
+        {
+            var current = int.TryParse(quantity.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0 ? parsed : 1;
+            var next = current + delta;
+            if (next > 0)
+            {
+                quantity.Text = next.ToString(CultureInfo.InvariantCulture);
+                return;
+            }
+
+            if (delta < 0 && current == 1)
+            {
+                RemoveRequested = true;
+                DialogResult = false;
+            }
+        }
 
         private void AddCustomRow(OrderLineAdjustmentDraft? current)
         {
@@ -545,11 +592,6 @@ public partial class MainWindow : Window
                     : new CheckBox { Content = $"{option.Name} ({option.PriceAdjustmentTtc.Euros:0.00} €)", IsChecked = existing.Contains(option.Id), Tag = option.Id };
                 list.Add(control); panel.Children.Add(control);
             }
-        }
-
-        private static TextBox AddText(Panel panel, string label, string value)
-        {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) }; row.Children.Add(new TextBlock { Text = label, Width = 150, VerticalAlignment = VerticalAlignment.Center }); var box = new TextBox { Width = 100, Text = value }; row.Children.Add(box); panel.Children.Add(row); return box;
         }
 
         private void Accept()
@@ -583,7 +625,7 @@ public partial class MainWindow : Window
 
     private sealed class ExistingLineEditDialog : Window
     {
-        private readonly TextBox quantity;
+        private TextBox quantity = null!;
         private readonly IReadOnlyDictionary<string, string> localized;
         private readonly bool canReconfigure;
 
@@ -609,14 +651,47 @@ public partial class MainWindow : Window
             DockPanel.SetDock(buttons, Dock.Bottom); root.Children.Add(buttons);
             var panel = new StackPanel();
             panel.Children.Add(new TextBlock { Text = line.ProductText, FontSize = 18, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
-            quantity = AddText(panel, Label("Quantity", "Quantité"), line.Quantity.ToString(CultureInfo.InvariantCulture));
-            NumericInputBehavior.SetSelectAllOnFocus(quantity, true);
+            AddQuantityEditor(panel, line.Quantity);
             root.Children.Add(panel);
             Content = root;
         }
 
         public bool QuantityOnly { get; private set; }
         public int Quantity { get; private set; }
+        public bool RemoveRequested { get; private set; }
+
+        private void AddQuantityEditor(Panel panel, int quantityValue)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
+            row.Children.Add(new TextBlock { Text = Label("Quantity", "Quantité"), Width = 150, VerticalAlignment = VerticalAlignment.Center });
+            quantity = new TextBox { Width = 70, Text = quantityValue.ToString(CultureInfo.InvariantCulture) };
+            NumericInputBehavior.SetSelectAllOnFocus(quantity, true);
+            var decrease = new Button { Content = "−", Width = 28, Height = 26, Margin = new Thickness(6, 0, 2, 0) };
+            var increase = new Button { Content = "+", Width = 28, Height = 26 };
+            decrease.Click += (_, _) => AdjustQuantity(-1);
+            increase.Click += (_, _) => AdjustQuantity(1);
+            row.Children.Add(quantity);
+            row.Children.Add(decrease);
+            row.Children.Add(increase);
+            panel.Children.Add(row);
+        }
+
+        private void AdjustQuantity(int delta)
+        {
+            var current = int.TryParse(quantity.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0 ? parsed : 1;
+            var next = current + delta;
+            if (next > 0)
+            {
+                quantity.Text = next.ToString(CultureInfo.InvariantCulture);
+                return;
+            }
+
+            if (delta < 0 && current == 1)
+            {
+                RemoveRequested = true;
+                DialogResult = false;
+            }
+        }
 
         private void Accept(bool quantityOnly)
         {
@@ -628,14 +703,6 @@ public partial class MainWindow : Window
             QuantityOnly = quantityOnly;
             Quantity = parsedQuantity;
             DialogResult = true;
-        }
-
-        private static TextBox AddText(Panel panel, string label, string value)
-        {
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 8) };
-            row.Children.Add(new TextBlock { Text = label, Width = 150, VerticalAlignment = VerticalAlignment.Center });
-            var box = new TextBox { Width = 100, Text = value };
-            row.Children.Add(box); panel.Children.Add(row); return box;
         }
 
         private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
