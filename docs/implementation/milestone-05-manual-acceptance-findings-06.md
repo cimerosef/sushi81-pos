@@ -5,7 +5,7 @@
 **Performed by:** project owner  
 **PR:** #10 — `M05: lifecycle payments search and operational dashboard`  
 **Production-code baseline under test:** `b51a4bbb02605ec7aea5a5eacb1160738a46b080`  
-**Overall result:** Passed for the tested cumulative-payment and lifecycle paths below. Backdated effective-payment attribution remains under manual verification. Additional operator-usability improvements for numeric entry and compact field sizing were requested and intentionally deferred until the current manual-acceptance round reaches a suitable consolidation point.
+**Overall result:** Passed for the tested cumulative-payment, lifecycle and backdated effective-payment attribution paths below. Additional operator-usability improvements for numeric entry and compact field sizing were requested and intentionally deferred until the current manual-acceptance round reaches a suitable consolidation point.
 
 ## Payment/lifecycle manual acceptance — passed
 
@@ -20,13 +20,17 @@ The project owner created fresh simple orders and manually verified the followin
 
 These observations manually support the frozen M05 rules for cumulative non-negative payments, signed downward corrections, explicit Close, no auto-close on exact payment, automatic Closed-to-Open transition when a successful saved correction breaks exact reconciliation, and equality-preserving Closed saves.
 
-## Backdated effective-payment-date observation — verification still in progress
+## Backdated effective-payment-date and received-summary attribution — passed
 
-During the first manual backdated-payment step, the project owner changed the payment effective date from `2026-09-06` to `2026-09-05` and saved. Immediately after the successful save, the visible `Date d’encaissement` control displayed `2026-09-06` again, which initially appeared to make backdating impossible.
+The project owner repeated the full five-step backdated-payment scenario and confirmed all results matched the expected M05 semantics:
 
-Code review shows that the selected effective date is passed into `OrderLifecycleService.SaveModificationAsync(...)` before save, while the post-save editor reload intentionally calls `LoadEditableFields(...)`, which resets the next-entry default `EffectivePaymentDate` to the current `BusinessDate`. Therefore the visible post-save reset alone is not evidence that the persisted PaymentAdjustment used the wrong effective date.
+1. An initial `+4.00` CB delta saved with effective date `2026-09-05` did not increase the `2026-09-06` received-total or received-CB dashboard values.
+2. Increasing cumulative CB from `4.00` to `7.00` with effective date `2026-09-06` increased the current-day received-total and received-CB summaries by exactly `+3.00`, not by the full cumulative `7.00`.
+3. Saving with unchanged cumulative payment and only changing the payment effective-date control produced no current-day summary movement, confirming that no zero-value business adjustment was introduced.
+4. Reducing cumulative CB from `7.00` to `5.00` with effective date `2026-09-06` reduced the current-day received-total and received-CB summaries by exactly `-2.00`.
+5. The post-save `Date d’encaissement` control returning to the current BusinessDate was confirmed to be the next-entry default reset rather than loss of the persisted backdated attribution.
 
-Manual verification must continue by checking the operational received-payment summary against the pre-test baseline: if the saved `+4.00` CB delta was attributed to `2026-09-05`, today's (`2026-09-06`) received/CB dashboard figures must remain unchanged. The later steps should then verify a current-day `+3.00` delta, zero-delta date-only save, and current-day `-2.00` correction.
+This manually closes the M05 effective-date attribution path and confirms that operational received summaries are driven by signed PaymentAdjustment deltas on their effective business date rather than by order creation date, planned fulfilment date, technical recorded timestamp, or repeated use of the final cumulative payment amount.
 
 ## Deferred numeric-entry and quantity-editing usability request
 
@@ -50,7 +54,10 @@ No production change is authorized by this findings record alone. These items ar
 - explicit Close at exact reconciliation: Passed;
 - Closed -> Open after incompatible saved payment correction: Passed;
 - equality-preserving Closed save remains Closed: Passed;
-- backdated effective-payment attribution: Pending manual dashboard verification; visible post-save date reset is currently understood as next-entry default reset, not yet a failure;
+- backdated effective-payment attribution: Passed;
+- current-day received summary uses only current-day signed delta: Passed;
+- zero-delta date-only save does not create business movement: Passed;
+- current-day negative payment correction reduces the signed received summary correctly: Passed;
 - numeric/select-all, quantity +/- and compact-width usability improvements: deferred follow-up, not an acceptance blocker for the already-passed behaviors above.
 
-M05 as a whole remains under manual acceptance. Backdated effective-payment attribution, cancellation/exclusion, reuse, future/due/overdue operational views, dashboard financial semantics and final FR/zh-CN end-to-end state preservation remain to be completed. PR #10 remains open/unmerged. M06 remains not authorized.
+M05 as a whole remains under manual acceptance. Cancellation/exclusion, reuse, future/due/overdue operational views, remaining dashboard semantics and final FR/zh-CN end-to-end state preservation remain to be completed. PR #10 remains open/unmerged. M06 remains not authorized.
