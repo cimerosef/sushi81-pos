@@ -167,7 +167,11 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         manualTotalStateText = string.IsNullOrWhiteSpace(manualTotalState) ? "Total manuel" : manualTotalState;
         newOrderLabel = string.IsNullOrWhiteSpace(newOrder) ? "Nouvelle commande" : newOrder;
         this.quantityLabel = string.IsNullOrWhiteSpace(quantityLabel) ? "Quantité" : quantityLabel;
-        if (Categories.Count > 0) Categories[0] = new CategorySummary(Guid.Empty, allCategoriesLabel);
+        if (Categories.Count > 0 && !string.Equals(Categories[0].Name, allCategoriesLabel, StringComparison.Ordinal))
+        {
+            Categories[0] = new CategorySummary(Guid.Empty, allCategoriesLabel);
+            OnPropertyChanged(nameof(SelectedCategoryId));
+        }
         if (PlannedHourChoices.Count > 0) PlannedHourChoices[0] = new TimeChoice(null, Localized("TimeUnset", "—"));
         if (PlannedMinuteChoices.Count > 0) PlannedMinuteChoices[0] = new TimeChoice(null, Localized("TimeUnset", "—"));
         if (FulfilmentChoices.Count == 3)
@@ -368,17 +372,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             var categories = await service.ListCategoriesAsync(request.Cancellation.Token);
             var products = await service.ListActiveProductsAsync(request.SearchText, request.CategoryId == Guid.Empty ? null : request.CategoryId, request.Cancellation.Token);
             if (!IsCurrent(request)) return;
-            Categories.Clear();
-            Categories.Add(new CategorySummary(Guid.Empty, AllCategoriesLabel));
-            foreach (var category in categories) Categories.Add(category);
-            if (selectedCategoryId != Guid.Empty && !categories.Any(category => category.Id == selectedCategoryId))
-            {
-                selectedCategoryId = Guid.Empty;
-                OnPropertyChanged(nameof(SelectedCategoryId));
-            }
-            Products.Clear();
-            foreach (var product in products) Products.Add(product);
-            if (SelectedProduct is not null) SelectedProduct = Products.FirstOrDefault(product => product.Id == SelectedProduct.Id);
+            ApplyCategories(categories);
+            ApplyProducts(products);
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
         catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; }
@@ -965,9 +960,48 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private readonly record struct PriceRequest(long Version, CancellationTokenSource Cancellation);
     private readonly record struct BrowserRefreshRequest(long Version, CancellationTokenSource Cancellation);
     private readonly record struct BrowserSelectionRequest(long Version, CancellationTokenSource Cancellation);
+    private void ApplyCategories(IReadOnlyList<CategorySummary> categories)
+    {
+        var desired = new CategorySummary[1 + categories.Count];
+        desired[0] = new CategorySummary(Guid.Empty, AllCategoriesLabel);
+        for (var index = 0; index < categories.Count; index++) desired[index + 1] = categories[index];
+
+        if (Categories.Count == desired.Length && Categories.SequenceEqual(desired)) return;
+
+        var previousSelectedCategoryId = selectedCategoryId;
+        Categories.Clear();
+        foreach (var category in desired) Categories.Add(category);
+
+        if (previousSelectedCategoryId != Guid.Empty && !categories.Any(category => category.Id == previousSelectedCategoryId))
+        {
+            selectedCategoryId = Guid.Empty;
+        }
+        else
+        {
+            selectedCategoryId = previousSelectedCategoryId;
+        }
+        OnPropertyChanged(nameof(SelectedCategoryId));
+    }
+
+    private void ApplyProducts(IReadOnlyList<ProductSummary> products)
+    {
+        Products.Clear();
+        foreach (var product in products) Products.Add(product);
+        if (SelectedProduct is not null) SelectedProduct = Products.FirstOrDefault(product => product.Id == SelectedProduct.Id);
+    }
+
     private async Task RefreshProductsAsync()
     {
-        try { await RefreshAsync(); } catch { }
+        var request = BeginRefresh(CancellationToken.None);
+        try
+        {
+            var products = await service.ListActiveProductsAsync(request.SearchText, request.CategoryId == Guid.Empty ? null : request.CategoryId, request.Cancellation.Token);
+            if (!IsCurrent(request)) return;
+            ApplyProducts(products);
+        }
+        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
+        catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; }
+        finally { EndRefresh(request); }
     }
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

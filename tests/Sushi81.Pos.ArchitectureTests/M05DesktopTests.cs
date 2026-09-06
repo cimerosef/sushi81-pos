@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -1018,6 +1019,136 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
+    public void Fix16PaymentEffectiveDateLayoutRemainsReadableAcrossWindowSizesAndLanguagesOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var order = Snapshot(new DateOnly(2026, 8, 31));
+            var store = new LifecycleStore(order);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), orderLifecycleService: service);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                var commandes = Field<TabControl>(window, "mainTabs").Items.OfType<TabItem>().Single(item => item.DataContext is OrderLifecycleShellViewModel);
+                commandes.IsSelected = true;
+                lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                lifecycle.BeginModification();
+
+                var panel = Field<Grid>(window, "lifecycleEffectivePaymentDatePanel");
+                var label = Field<TextBlock>(window, "lifecycleEffectivePaymentDateLabel");
+                var hint = Field<TextBlock>(window, "lifecycleEffectivePaymentDateHint");
+                var picker = Field<DatePicker>(window, "lifecycleEffectivePaymentDatePicker");
+
+                void AssertReadable(string culture, double expectedWidth, double expectedHeight)
+                {
+                    window.Width = expectedWidth;
+                    window.Height = expectedHeight;
+                    window.UpdateLayout();
+                    Assert.AreEqual(Visibility.Visible, panel.Visibility, $"{culture}: effective payment-date panel must be visible while editing.");
+                    Assert.IsGreaterThan(0D, label.ActualWidth, $"{culture}: label must have usable width.");
+                    Assert.IsGreaterThan(0D, hint.ActualWidth, $"{culture}: hint must have usable width.");
+                    Assert.IsGreaterThan(0D, label.ActualHeight, $"{culture}: label must have rendered height.");
+                    Assert.IsGreaterThan(0D, hint.ActualHeight, $"{culture}: hint must have rendered height.");
+                    Assert.AreEqual(TextWrapping.Wrap, label.TextWrapping, $"{culture}: label must wrap instead of clipping.");
+                    Assert.IsTrue(picker.ActualWidth > 0D && picker.ActualWidth <= 145.5D, $"{culture}: DatePicker must remain compact.");
+                    Assert.AreEqual(shell.Localized["OrderEffectiveDateEdit"], label.Text);
+                    Assert.AreEqual(shell.Localized["OrderEffectiveDateHint"], hint.Text);
+                }
+
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                AssertReadable("fr-FR normal", 980, 700);
+                AssertReadable("fr-FR small", 760, 520);
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                AssertReadable("zh-CN small", 760, 520);
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                AssertReadable("fr-FR after round trip", 760, 520);
+
+                lifecycle.AbandonModification();
+                window.UpdateLayout();
+                Assert.AreEqual(Visibility.Collapsed, panel.Visibility, "The effective payment-date block must be hidden outside edit mode.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Fix16CaisseCategorySelectionStaysStableWhileOnlyProductsRefreshOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var allId = Guid.Empty;
+            var lunchId = Guid.NewGuid();
+            var platesId = Guid.NewGuid();
+            var drinksId = Guid.NewGuid();
+            var emptyId = Guid.NewGuid();
+            var categories = new[]
+            {
+                new CategorySummary(lunchId, "Lunch", "L"),
+                new CategorySummary(platesId, "Plats", "P"),
+                new CategorySummary(drinksId, "Boissons", "R"),
+                new CategorySummary(emptyId, "Sans produits", "Z")
+            };
+            var products = new[]
+            {
+                FilterProduct(lunchId, "L-001", "Lunch maki"),
+                FilterProduct(platesId, "P-001", "Plat du jour"),
+                FilterProduct(drinksId, "R-001", "Eau")
+            };
+            var catalogue = new FilterableEntryCatalogue(categories, products);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var entryService = new OrderEntryService(catalogue, settings, new FallbackStore(Row(Guid.NewGuid(), "FIX16", new DateOnly(2026, 8, 31))), new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), entryService);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var entry = shell.Entry!;
+                var caisse = Field<TabControl>(window, "mainTabs").Items.OfType<TabItem>().Single(item => item.DataContext is OrderEntryShellViewModel);
+                caisse.IsSelected = true;
+                entry.RefreshAsync().GetAwaiter().GetResult();
+                window.UpdateLayout();
+                var categoriesList = Field<ListBox>(window, "orderCategoriesList");
+                var productsGrid = Field<DataGrid>(window, "orderProductsGrid");
+                var categoryCallCountAfterFullRefresh = catalogue.CategoryCallCount;
+
+                void AssertSelection(Guid categoryId, params Guid[] expectedProductIds)
+                {
+                    categoriesList.SelectedValue = categoryId;
+                    categoriesList.GetBindingExpression(Selector.SelectedValueProperty)?.UpdateSource();
+                    window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+                    window.UpdateLayout();
+
+                    Assert.AreEqual(categoryId, entry.SelectedCategoryId);
+                    Assert.AreEqual(categoryId, categoriesList.SelectedValue);
+                    Assert.HasCount(1, categoriesList.SelectedItems);
+                    var selectedContainer = categoriesList.ItemContainerGenerator.ContainerFromItem(categoriesList.SelectedItem) as ListBoxItem;
+                    Assert.IsNotNull(selectedContainer);
+                    Assert.IsTrue(selectedContainer!.IsSelected, $"Category {categoryId} must retain its selected-row visual.");
+                    Assert.AreEqual(1, VisualDescendants<ListBoxItem>(categoriesList).Count(item => item.IsSelected));
+                    CollectionAssert.AreEquivalent(expectedProductIds, productsGrid.Items.Cast<ProductSummary>().Select(product => product.Id).ToArray());
+                    Assert.AreEqual(categoryCallCountAfterFullRefresh, catalogue.CategoryCallCount, "Ordinary category filtering must not rebuild the category source.");
+                }
+
+                AssertSelection(lunchId, products[0].Id);
+                AssertSelection(platesId, products[1].Id);
+                AssertSelection(emptyId);
+                AssertSelection(drinksId, products[2].Id);
+                AssertSelection(allId, products.Select(product => product.Id).ToArray());
+
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                AssertSelection(allId, products.Select(product => product.Id).ToArray());
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                AssertSelection(allId, products.Select(product => product.Id).ToArray());
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
     public void Fix13NumericInputsAcceptBothSeparatorsRejectGroupingAndSelectAllOnFocusOnSta()
     {
         Assert.IsTrue(M03Presentation.TryParseDecimalInput("12,50", out var comma));
@@ -1474,6 +1605,8 @@ public sealed class M05DesktopTests
 
     private static ProductSummary PickerSimpleProduct() => new(Guid.NewGuid(), "TST001A", "Produit test simple", Guid.NewGuid(), "Tests", Money.FromCents(800), 10m, true, true, false);
 
+    private static ProductSummary FilterProduct(Guid categoryId, string code, string name) => new(Guid.NewGuid(), code, name, categoryId, "Synthetic", Money.FromCents(1000), 10m, true, true, false);
+
     private static Window CreateProductPicker(MainWindow owner, IReadOnlyList<ProductSummary> products)
     {
         var dialogType = typeof(MainWindow).GetNestedType("CatalogueProductPickerDialog", BindingFlags.NonPublic)!;
@@ -1566,6 +1699,27 @@ public sealed class M05DesktopTests
         public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([new(product.Aggregate.Product.CategoryId, product.CategoryName)]);
         public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([new(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name, product.Aggregate.Product.CategoryId, product.CategoryName, product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, true, false)]);
         public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(productId == product.Aggregate.Product.Id ? product : null);
+    }
+
+    private sealed class FilterableEntryCatalogue(IReadOnlyList<CategorySummary> categories, IReadOnlyList<ProductSummary> products) : IOrderEntryCatalogueQueries
+    {
+        public int CategoryCallCount { get; private set; }
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default)
+        {
+            CategoryCallCount++;
+            return Task.FromResult(categories);
+        }
+
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default)
+        {
+            IEnumerable<ProductSummary> result = products;
+            if (filterCategoryId is { } categoryId) result = result.Where(product => product.CategoryId == categoryId);
+            if (!string.IsNullOrWhiteSpace(search)) result = result.Where(product => product.Code.Contains(search, StringComparison.OrdinalIgnoreCase) || product.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+            return Task.FromResult<IReadOnlyList<ProductSummary>>(result.ToArray());
+        }
+
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(null);
     }
 
     private sealed class ReferenceOrderStore(string reference) : IOrderStore
