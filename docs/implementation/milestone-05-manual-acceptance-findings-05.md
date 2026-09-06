@@ -4,8 +4,8 @@
 **Date:** 2026-09-06  
 **Performed by:** project owner  
 **PR:** #10 — `M05: lifecycle payments search and operational dashboard`  
-**Production-code baseline under test:** `9d116227ccb9cf9ef1c6e14e20dfd70404d7580a`  
-**Overall result:** Passed for acceptance items 8–10. A separate operator-usability follow-up remains for adding quick filtering to the current-Catalogue product picker; this is not a failure of items 8–10.
+**Production-code baseline under test:** `b51a4bbb02605ec7aea5a5eacb1160738a46b080`  
+**Overall result:** Passed for acceptance items 8–10 and the FIX-12 current-Catalogue picker quick-filter follow-up.
 
 ## Acceptance item 8 — quantity-only historical snapshot
 
@@ -28,7 +28,18 @@ The picker remediation from FIX-11 was also manually accepted:
 - title-bar close retains cancel semantics;
 - the resulting compact picker is operationally acceptable.
 
-The project owner requested one further usability improvement for this picker: add a quick partial filter similar to the Caisse product search so an operator can reduce the list by typing a product-code fragment and, preferably, name text as well. This is a follow-up enhancement rather than an item-9 acceptance failure.
+## FIX-12 follow-up — current-Catalogue picker quick filter
+
+Passed manually.
+
+The project owner verified all four targeted quick-filter behaviors on the published FIX-12 build:
+
+- product-code fragment filtering works (for example `002` reduces the list to `TST002`);
+- product-name partial filtering works case-insensitively (for example `simple` / `SIMPLE`);
+- clearing the search restores the full supplied product list;
+- filtering does not silently auto-select or auto-add a product; explicit selection is still required before `Ajouter` can accept it.
+
+This usability follow-up is therefore closed.
 
 ## Acceptance item 10 — explicit current-Catalogue option reconfiguration
 
@@ -56,6 +67,7 @@ There is no evidence of silent option loss or option-ID regression from this acc
 - item 8: Passed;
 - item 9 business semantics: Passed;
 - item 9 FIX-11 picker layout/identification: Passed;
+- FIX-12 picker quick filter: Passed;
 - item 10 required-group validation: Passed as expected behavior;
 - item 10 successful explicit current-Catalogue reconfiguration: Passed, including expected total `26,01 €`.
 
