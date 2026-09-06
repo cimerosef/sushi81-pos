@@ -46,6 +46,6 @@ Automated evidence reviewed:
 
 ## Remaining acceptance
 
-No further code-review blocker is known at this point. Owner-side broad Windows/WPF fluidity acceptance remains the only release-blocking manual check from FIX-18/FIX-19. Republish the current branch; the only commit after the FIX-19 production head is this documentation-only review record. Operate the application broadly for several minutes. If any 3–5 second or 10+ second stall remains, enable the existing `SUSHI81_POS_PERF_TRACE=1` diagnostic mode and capture `%TEMP%\Sushi81-POS\perf-trace.log` before any further speculative remediation.
+No further code-review blocker is known at this point. Owner-side broad Windows/WPF fluidity acceptance remains the only release-blocking manual check from FIX-18/FIX-19. Republish the current branch; commits after the FIX-19 production head are documentation-only review records. Operate the application broadly for several minutes. If any 3–5 second or 10+ second stall remains, enable the existing `SUSHI81_POS_PERF_TRACE=1` diagnostic mode and capture `%TEMP%\Sushi81-POS\perf-trace.log` before any further speculative remediation.
 
 PR #10 remains open/unmerged. M06 remains unauthorized/not started.
