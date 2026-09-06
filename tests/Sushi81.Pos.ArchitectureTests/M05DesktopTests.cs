@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Sushi81.Pos.Application.Catalogue;
@@ -18,6 +19,136 @@ namespace Sushi81.Pos.ArchitectureTests;
 [TestClass]
 public sealed class M05DesktopTests
 {
+    private static readonly string[] PickerCultures = ["fr-FR", "zh-CN"];
+
+    [TestMethod]
+    public void CatalogueProductPickerShowsCodeAndNameWithOneLocalizedAddActionOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var product = PickerProduct();
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+            var owner = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            owner.Show();
+            try
+            {
+                foreach (var cultureName in PickerCultures)
+                {
+                    shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == cultureName)).GetAwaiter().GetResult();
+                    var picker = CreateProductPicker(owner, [product]);
+                    Exception? callbackFailure = null;
+                    picker.ContentRendered += (_, _) =>
+                    {
+                        try
+                        {
+                            var list = VisualDescendants<ListBox>(picker).Single();
+                            var buttons = VisualDescendants<Button>(picker).ToArray();
+                            Assert.HasCount(1, buttons);
+                            Assert.AreEqual(shell.Localized["Add"], buttons[0].Content?.ToString());
+                            Assert.IsFalse(buttons.Any(button => string.Equals(button.Content?.ToString(), shell.Localized["Cancel"], StringComparison.Ordinal)));
+                            Assert.IsGreaterThan(0D, list.ActualHeight, "The picker list must remain usable at its supported small size.");
+                            Assert.IsGreaterThan(0D, buttons[0].ActualWidth, "The picker Add action must remain visible at its supported small size.");
+                            var renderedText = string.Join(" | ", VisualDescendants<TextBlock>(picker).Select(text => text.Text));
+                            StringAssert.Contains(renderedText, product.Code);
+                            StringAssert.Contains(renderedText, product.Name);
+                            picker.Close();
+                        }
+                        catch (Exception exception)
+                        {
+                            callbackFailure = exception;
+                            picker.Close();
+                        }
+                    };
+
+                    var result = picker.ShowDialog();
+                    if (callbackFailure is not null) ExceptionDispatchInfo.Capture(callbackFailure).Throw();
+                    Assert.AreNotEqual(true, result, $"The {cultureName} picker layout probe must not add a product.");
+                }
+            }
+            finally { owner.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void CatalogueProductPickerDoubleClickAcceptsSelectedProductOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var product = PickerProduct();
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+            var owner = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            owner.Show();
+            try
+            {
+                var picker = CreateProductPicker(owner, [product]);
+                Exception? callbackFailure = null;
+                picker.ContentRendered += (_, _) =>
+                {
+                    try
+                    {
+                        var list = VisualDescendants<ListBox>(picker).Single();
+                        list.SelectedIndex = 0;
+                        list.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                        {
+                            RoutedEvent = Control.MouseDoubleClickEvent,
+                            Source = list
+                        });
+                    }
+                    catch (Exception exception) { callbackFailure = exception; picker.Close(); }
+                };
+
+                Assert.IsTrue(picker.ShowDialog());
+                if (callbackFailure is not null) ExceptionDispatchInfo.Capture(callbackFailure).Throw();
+                Assert.AreEqual(product.Id, PickerSelection(picker)?.Id);
+            }
+            finally { owner.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void CatalogueProductPickerRejectsEmptyAddAndTitleBarCloseWithoutAddingOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var product = PickerProduct();
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+            var owner = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            owner.Show();
+            try
+            {
+                var emptyAddPicker = CreateProductPicker(owner, [product]);
+                Exception? emptyAddFailure = null;
+                emptyAddPicker.ContentRendered += (_, _) =>
+                {
+                    try
+                    {
+                        var add = VisualDescendants<Button>(emptyAddPicker).Single();
+                        add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        Assert.IsTrue(emptyAddPicker.IsVisible, "Add without a selection must leave the picker open.");
+                        Assert.IsNull(PickerSelection(emptyAddPicker));
+                        emptyAddPicker.Close();
+                    }
+                    catch (Exception exception) { emptyAddFailure = exception; emptyAddPicker.Close(); }
+                };
+                Assert.AreNotEqual(true, emptyAddPicker.ShowDialog());
+                if (emptyAddFailure is not null) ExceptionDispatchInfo.Capture(emptyAddFailure).Throw();
+                Assert.IsNull(PickerSelection(emptyAddPicker));
+
+                var closePicker = CreateProductPicker(owner, [product]);
+                Exception? closeFailure = null;
+                closePicker.ContentRendered += (_, _) =>
+                {
+                    try { closePicker.Close(); }
+                    catch (Exception exception) { closeFailure = exception; closePicker.Close(); }
+                };
+                Assert.AreNotEqual(true, closePicker.ShowDialog(), "Title-bar close must retain cancel/no-add semantics.");
+                if (closeFailure is not null) ExceptionDispatchInfo.Capture(closeFailure).Throw();
+                Assert.IsNull(PickerSelection(closePicker));
+            }
+            finally { owner.Close(); }
+        });
+    }
+
     [TestMethod]
     public void CommandesEditingUsesHistoricalDatePaymentDateAndLivePaymentFeedbackOnSta()
     {
@@ -793,6 +924,17 @@ public sealed class M05DesktopTests
     { Reference = "20260830-001" };
 
     private static OrderBrowserRow Row(Guid id, string reference, DateOnly plannedDate) => new(id, plannedDate, new TimeOnly(11, 0), FulfilmentMode.Retrait, OrderStatus.Open, Money.FromCents(1000), "06 00 00 00 00") { Reference = reference };
+
+    private static ProductSummary PickerProduct() => new(Guid.NewGuid(), "TST002", "Produit test options", Guid.NewGuid(), "Tests", Money.FromCents(1000), 10m, true, true, false);
+
+    private static Window CreateProductPicker(MainWindow owner, IReadOnlyList<ProductSummary> products)
+    {
+        var dialogType = typeof(MainWindow).GetNestedType("CatalogueProductPickerDialog", BindingFlags.NonPublic)!;
+        var constructor = dialogType.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, [typeof(Window), typeof(IReadOnlyList<ProductSummary>)], null)!;
+        return (Window)constructor.Invoke([owner, products]);
+    }
+
+    private static ProductSummary? PickerSelection(Window picker) => (ProductSummary?)picker.GetType().GetProperty("SelectedProduct", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.GetValue(picker);
 
     private static T Field<T>(MainWindow window, string name) => (T)typeof(MainWindow).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
 

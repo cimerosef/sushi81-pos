@@ -626,13 +626,53 @@ public partial class MainWindow : Window
         private readonly ListBox products;
         public CatalogueProductPickerDialog(Window owner, IReadOnlyList<ProductSummary> values)
         {
-            Owner = owner; WindowStartupLocation = WindowStartupLocation.CenterOwner; Title = LocalizedText(owner, "Products", "Produits"); Width = 420; Height = 480;
+            Owner = owner;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            Title = LocalizedText(owner, "Products", "Produits");
+            Width = 420;
+            Height = 360;
+            MinWidth = 320;
+            MinHeight = 240;
+
             var root = new DockPanel { Margin = new Thickness(12) };
-            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-            var cancel = new Button { Content = LocalizedText(owner, "Cancel", "Annuler"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 8, 0) }; cancel.Click += (_, _) => { DialogResult = false; Close(); };
-            var list = new ListBox { ItemsSource = values, DisplayMemberPath = "Name" }; products = list; list.MouseDoubleClick += (_, _) => { if (list.SelectedItem is not null) { DialogResult = true; Close(); } }; root.Children.Add(list); Content = root;
-            var add = new Button { Content = LocalizedText(owner, "Add", "Ajouter"), Padding = new Thickness(10, 4, 10, 4) }; add.Click += (_, _) => { if (list.SelectedItem is not null) { DialogResult = true; Close(); } };
-            buttons.Children.Add(cancel); buttons.Children.Add(add); DockPanel.SetDock(buttons, Dock.Bottom); root.Children.Add(buttons);
+            var add = new Button
+            {
+                Content = LocalizedText(owner, "Add", "Ajouter"),
+                Padding = new Thickness(10, 4, 10, 4),
+                MinWidth = 84,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 10, 0, 0)
+            };
+            DockPanel.SetDock(add, Dock.Bottom);
+            root.Children.Add(add);
+
+            var list = new ListBox
+            {
+                ItemsSource = values,
+                MinHeight = 120,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch
+            };
+            var row = new FrameworkElementFactory(typeof(StackPanel));
+            row.SetValue(StackPanel.OrientationProperty, Orientation.Horizontal);
+
+            var code = new FrameworkElementFactory(typeof(TextBlock));
+            code.SetValue(TextBlock.FontWeightProperty, FontWeights.SemiBold);
+            code.SetValue(TextBlock.MarginProperty, new Thickness(0, 0, 6, 0));
+            code.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding(nameof(ProductSummary.Code)));
+            row.AppendChild(code);
+
+            var name = new FrameworkElementFactory(typeof(TextBlock));
+            name.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
+            name.SetBinding(TextBlock.TextProperty, new System.Windows.Data.Binding(nameof(ProductSummary.Name)));
+            row.AppendChild(name);
+
+            list.ItemTemplate = new DataTemplate { VisualTree = row };
+            products = list;
+            list.MouseDoubleClick += (_, _) => { if (list.SelectedItem is not null) { DialogResult = true; Close(); } };
+            add.Click += (_, _) => { if (list.SelectedItem is not null) { DialogResult = true; Close(); } };
+            root.Children.Add(list);
+            Content = root;
         }
         public ProductSummary? SelectedProduct => products.SelectedItem as ProductSummary;
     }
