@@ -63,7 +63,7 @@ FIX-16 implementation review: ordinary category filtering now refreshes Products
 
 ## FIX-16 evidence review
 
-ChatGPT reviewed exact PR head `00d365afdee4157067ba36755ea5096c0482bcac` and found no new blocker.
+ChatGPT reviewed exact production-code head `00d365afdee4157067ba36755ea5096c0482bcac` and found no new blocker.
 
 - Release build: 0 warnings / 0 errors.
 - Full Release suite: 338 passed / 0 failed / 0 skipped.
@@ -71,6 +71,8 @@ ChatGPT reviewed exact PR head `00d365afdee4157067ba36755ea5096c0482bcac` and fo
 - Focused FIX-16 STA/WPF evidence: 2/2 passed.
 - win-x64 self-contained evidence publish: passed.
 - no migration/schema changes; no M06 work; PR remains open/unmerged.
+
+ChatGPT then made a documentation-only follow-up commit `323b556c392bcdb58100a43328b2983d03a21d5f` to record this review state; it does not alter production code. CI for that documentation-only head may run independently and does not replace the exact FIX-16 production evidence above.
 
 ## Acceptance state
 
