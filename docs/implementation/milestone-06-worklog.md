@@ -244,7 +244,7 @@ Remediation-specific evidence includes:
 
 ## Automated verification
 
-Current local implementation verification on the remediation working head:
+Current local implementation verification on remediation code head `29b7cdc` (`M06: remediate shutdown and bootstrap safety`):
 
 - `dotnet --info`: Passed — SDK 10.0.400, Windows 10.0.26200 x64.
 - `dotnet restore Sushi81.Pos.sln --locked-mode`: Passed.
@@ -256,11 +256,9 @@ Current local implementation verification on the remediation working head:
 - Self-contained `win-x64` publish: Passed to ignored `artifacts/m06-remediation-03-publish`.
 - `git diff --check`: Passed.
 - Existing snapshot retention, scheduler, rollback and incomplete-unit tests: Passed within the infrastructure result above.
-- Exact-head GitHub Actions CI: Passed. GitHub Actions `Continuous integration` run #504
-  (`34045439728`) was triggered by `push` and checked raw head `1b8e2a8d15afe7983a6d85fbd95b5da5c98425c2`;
-  the corresponding `pull_request` run #505 (`34045442017`) also passed and checked the PR ref. Both
-  `build-and-test` jobs succeeded; GitHub recorded one existing Node.js 20 deprecation warning annotation and no test/build
-  failure.
+- Exact-head GitHub Actions CI: Passed. `Continuous integration` run `34047569001` was triggered by `push` and checked raw
+  head `29b7cdc`; the corresponding `pull_request` run `34047570434` also passed and checked PR #11. Both `build-and-test`
+  jobs succeeded in 2m30s; GitHub recorded one existing Node.js 20 deprecation warning annotation and no test/build failure.
 
 ## Windows/WPF project-owner acceptance
 
@@ -292,5 +290,5 @@ Final completion record must confirm:
 
 ## Completion state
 
-Third remediation implementation is complete locally and will be recorded at the pushed handoff-03 head; PR #11 must remain
-open/unmerged. Project-owner Windows/WPF acceptance is still pending and M07 is not authorized by M06 completion.
+Third remediation implementation is complete at code head `29b7cdc`; PR #11 must remain open/unmerged. Project-owner Windows/WPF
+acceptance is still pending and M07 is not authorized by M06 completion.
