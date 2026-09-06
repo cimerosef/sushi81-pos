@@ -1055,6 +1055,10 @@ public sealed class M05DesktopTests
                     Assert.IsGreaterThan(0D, hint.ActualHeight, $"{culture}: hint must have rendered height.");
                     Assert.AreEqual(TextWrapping.Wrap, label.TextWrapping, $"{culture}: label must wrap instead of clipping.");
                     Assert.IsTrue(picker.ActualWidth > 0D && picker.ActualWidth <= 145.5D, $"{culture}: DatePicker must remain compact.");
+                    var panelLeft = panel.TranslatePoint(new Point(0, 0), window).X;
+                    var pickerLeft = picker.TranslatePoint(new Point(0, 0), window).X;
+                    Assert.IsLessThanOrEqualTo(panelLeft + 250D, pickerLeft, $"{culture}: DatePicker must stay in the compact left-side edit cluster.");
+                    Assert.IsLessThanOrEqualTo(400D, panel.ActualWidth, $"{culture}: effective payment-date group must remain compact.");
                     Assert.AreEqual(shell.Localized["OrderEffectiveDateEdit"], label.Text);
                     Assert.AreEqual(shell.Localized["OrderEffectiveDateHint"], hint.Text);
                 }
@@ -1115,13 +1119,15 @@ public sealed class M05DesktopTests
                 var productsGrid = Field<DataGrid>(window, "orderProductsGrid");
                 var categoryCallCountAfterFullRefresh = catalogue.CategoryCallCount;
 
-                void AssertSelection(Guid categoryId, params Guid[] expectedProductIds)
+                void AssertSelection(Guid categoryId, bool expectProductRefresh, params Guid[] expectedProductIds)
                 {
+                    var productCallCountBefore = catalogue.ProductCallCount;
                     categoriesList.SelectedValue = categoryId;
                     categoriesList.GetBindingExpression(Selector.SelectedValueProperty)?.UpdateSource();
                     window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
                     window.UpdateLayout();
 
+                    Assert.AreEqual(expectProductRefresh ? productCallCountBefore + 1 : productCallCountBefore, catalogue.ProductCallCount);
                     Assert.AreEqual(categoryId, entry.SelectedCategoryId);
                     Assert.AreEqual(categoryId, categoriesList.SelectedValue);
                     Assert.HasCount(1, categoriesList.SelectedItems);
@@ -1133,19 +1139,56 @@ public sealed class M05DesktopTests
                     Assert.AreEqual(categoryCallCountAfterFullRefresh, catalogue.CategoryCallCount, "Ordinary category filtering must not rebuild the category source.");
                 }
 
-                AssertSelection(lunchId, products[0].Id);
-                AssertSelection(platesId, products[1].Id);
-                AssertSelection(emptyId);
-                AssertSelection(drinksId, products[2].Id);
-                AssertSelection(allId, products.Select(product => product.Id).ToArray());
+                AssertSelection(lunchId, true, products[0].Id);
+                AssertSelection(platesId, true, products[1].Id);
+                AssertSelection(emptyId, true);
+                AssertSelection(drinksId, true, products[2].Id);
+                AssertSelection(allId, true, products.Select(product => product.Id).ToArray());
+
+                var productCallCountBeforeUnrelatedInteraction = catalogue.ProductCallCount;
+                Field<TextBox>(window, "orderProductSearchBox").Focus();
+                productsGrid.SelectedItem = products[0];
+                Field<DatePicker>(window, "orderPlannedDatePicker").Focus();
+                window.UpdateLayout();
+                Assert.AreEqual(productCallCountBeforeUnrelatedInteraction, catalogue.ProductCallCount, "Unrelated focus and product-selection interactions must not refresh the catalogue.");
 
                 shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
-                AssertSelection(allId, products.Select(product => product.Id).ToArray());
+                AssertSelection(allId, false, products.Select(product => product.Id).ToArray());
                 shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
-                AssertSelection(allId, products.Select(product => product.Id).ToArray());
+                AssertSelection(allId, false, products.Select(product => product.Id).ToArray());
             }
             finally { window.Close(); }
         });
+    }
+
+    [TestMethod]
+    public async Task Fix17RapidEntryFilterChangesCancelStaleProductWorkWithoutCategoryQueries()
+    {
+        var categoryId = Guid.NewGuid();
+        var latest = FilterProduct(categoryId, "LATEST", "Latest result");
+        var catalogue = new DelayedEntryCatalogue();
+        var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+        using var service = new OrderEntryService(catalogue, settings, new FallbackStore(Row(Guid.NewGuid(), "FIX17", new DateOnly(2026, 8, 31))), new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+        using var entry = new OrderEntryShellViewModel(service);
+        var latestApplied = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        entry.Products.CollectionChanged += (_, _) =>
+        {
+            if (entry.Products.Any(product => product.Id == latest.Id)) latestApplied.TrySetResult(true);
+        };
+
+        entry.SelectedCategoryId = categoryId;
+        await catalogue.WaitForProductCallAsync(1).WaitAsync(TimeSpan.FromSeconds(3));
+        entry.SearchText = "latest";
+        await catalogue.WaitForProductCallAsync(2).WaitAsync(TimeSpan.FromSeconds(3));
+        await catalogue.FirstCallCancelled.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+        catalogue.CompleteProductCall(1, [latest]);
+        await latestApplied.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+        Assert.AreEqual(2, catalogue.ProductCallCount);
+        Assert.AreEqual(0, catalogue.CategoryCallCount);
+        Assert.AreEqual(latest.Id, entry.Products.Single().Id);
+        Assert.AreEqual("latest", entry.SearchText);
     }
 
     [TestMethod]
@@ -1704,6 +1747,7 @@ public sealed class M05DesktopTests
     private sealed class FilterableEntryCatalogue(IReadOnlyList<CategorySummary> categories, IReadOnlyList<ProductSummary> products) : IOrderEntryCatalogueQueries
     {
         public int CategoryCallCount { get; private set; }
+        public int ProductCallCount { get; private set; }
 
         public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default)
         {
@@ -1713,6 +1757,7 @@ public sealed class M05DesktopTests
 
         public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default)
         {
+            ProductCallCount++;
             IEnumerable<ProductSummary> result = products;
             if (filterCategoryId is { } categoryId) result = result.Where(product => product.CategoryId == categoryId);
             if (!string.IsNullOrWhiteSpace(search)) result = result.Where(product => product.Code.Contains(search, StringComparison.OrdinalIgnoreCase) || product.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
@@ -1720,6 +1765,60 @@ public sealed class M05DesktopTests
         }
 
         public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(null);
+    }
+
+    private sealed class DelayedEntryCatalogue : IOrderEntryCatalogueQueries
+    {
+        private readonly object gate = new();
+        private readonly List<TaskCompletionSource<IReadOnlyList<ProductSummary>>> pendingProductCalls = [];
+        private readonly List<TaskCompletionSource<bool>> productCallWaiters = [];
+
+        public int CategoryCallCount { get; private set; }
+        public int ProductCallCount { get { lock (gate) return pendingProductCalls.Count; } }
+        public TaskCompletionSource<bool> FirstCallCancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default)
+        {
+            CategoryCallCount++;
+            return Task.FromResult<IReadOnlyList<CategorySummary>>([]);
+        }
+
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default)
+        {
+            var result = new TaskCompletionSource<IReadOnlyList<ProductSummary>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            int callNumber;
+            lock (gate)
+            {
+                pendingProductCalls.Add(result);
+                callNumber = pendingProductCalls.Count;
+                foreach (var waiter in productCallWaiters.ToArray()) waiter.TrySetResult(true);
+                productCallWaiters.Clear();
+            }
+            cancellationToken.Register(() =>
+            {
+                if (callNumber == 1) FirstCallCancelled.TrySetResult(true);
+                result.TrySetCanceled(cancellationToken);
+            });
+            return result.Task;
+        }
+
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(null);
+
+        public Task WaitForProductCallAsync(int count)
+        {
+            lock (gate)
+            {
+                if (pendingProductCalls.Count >= count) return Task.CompletedTask;
+                var waiter = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                productCallWaiters.Add(waiter);
+                return waiter.Task;
+            }
+        }
+
+        public void CompleteProductCall(int zeroBasedIndex, IReadOnlyList<ProductSummary> products)
+        {
+            lock (gate) pendingProductCalls[zeroBasedIndex].TrySetResult(products);
+        }
     }
 
     private sealed class ReferenceOrderStore(string reference) : IOrderStore
