@@ -7,6 +7,7 @@
 **Authorization:** `milestone-06-authorization.md`  
 **Initial handoff:** `CODEX_HANDOFF_READY: M06-IMPLEMENT-01`  
 **Remediation handoff:** `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-02`
+**Third remediation handoff:** `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-03`
 **POST_TASK_POWER_ACTION:** `NONE`
 
 ## Preparation state
@@ -18,8 +19,9 @@ older acceptance/findings paragraphs retain their historical as-of wording and a
 
 M06 preparation review found no unresolved product/business/data-semantic decision. The frozen specification is sufficient for controlled implementation.
 
-The initial implementation was reviewed before owner manual acceptance. This remediation pass closes the review findings on the same
-PR/branch; project-owner Windows/WPF manual acceptance remains `Pending` and is not claimed here.
+The initial implementation and second remediation were reviewed before owner manual acceptance. This third controlled remediation pass
+closes the production-safety findings on the same PR/branch; project-owner Windows/WPF manual acceptance remains `Pending` and is not
+claimed here.
 
 ## Scope boundary
 
@@ -118,9 +120,9 @@ M06 implementation record:
 `JsonAuthorityStateStore` persists schema version `1` at `Config/authority-state.json`, a separate
 `Config/authority-bootstrap.marker`, and an independent `Data/authority-bootstrap.anchor`. All writes use create-new temporary
 files followed by atomic move/replace. The coordinator loads the document after successful SQLite migration and before business
-surfaces are created. The one-time missing-state/missing-marker path is eligible only when the migrated local M01-M05 SQLite
-database contains schema migration evidence through version 5. The independent data-directory anchor makes deletion of both
-configuration state files fail closed rather than re-running bootstrap.
+surfaces are created. Legacy M01-M05 evidence is captured before startup migration and passed into the coordinator; a freshly created
+migration history therefore cannot qualify a new database for legacy bootstrap. Once established, every authority-state load requires
+both the marker and independent data-directory anchor, so deletion of the anchor cannot silently restore writable authority.
 
 Once bootstrap has completed, missing state, missing marker, missing anchor, malformed JSON, unsupported schema, invalid enum or
 persistence failure resolves the single guard to `RecoveryRequired`; it never silently restores writable authority.
@@ -147,6 +149,12 @@ result; validation, authority rejection, rollback, persistence failure and true 
 nearby changes for three seconds, permits only one snapshot at a time, preserves a newer pending sequence if a change arrives
 during an active snapshot, and flushes during orderly shutdown. Snapshot creation, validation, promotion and retention failures
 preserve the committed live database and prior valid units; later commit or shutdown can retry.
+
+The production WPF close path no longer synchronously waits on `DisposeAsync`. `AsyncCloseCoordinator` cancels the first window
+close, awaits recovery scheduler disposal without blocking the Dispatcher, and requests the close again on the Dispatcher only after
+the flush has completed. The application disposes the notifier/logger from `Application.Exit` after that orderly flush. A bounded
+real-STA/WPF regression creates a pending committed sequence, initiates the actual window close path, and proves the sequence reaches
+the snapshot service before the window closes.
 
 Record:
 
@@ -178,10 +186,11 @@ Record:
 - confirmation no M07 target-selection/force-acquire UI was added.
 
 The real STA/WPF regression `M06DesktopTests.RealShellShowsStaleReadOnlySafetyBoundaryAcrossStatesAndSupportedSizesOnSta`
-renders the actual `MainWindow` at 760x520, 980x680 and 1400x900 for Authoritative, NonAuthoritativeReadOnly, Transitioning and
-RecoveryRequired states. It checks the persistent banner, localized FR → zh-CN → FR rerender, real mutation-control disablement,
-and an enabled consultation/search TextBox. The architecture count therefore increases through genuine WPF coverage rather than
-resource-string-only assertions.
+constructs the actual production-shaped Shell with the same explicit guard/notifier injected into Catalogue, Settings, Order Entry
+and Order Lifecycle services. It renders the actual `MainWindow` at 760x520, 980x680 and 1400x900 for Authoritative,
+NonAuthoritativeReadOnly, Transitioning and RecoveryRequired states. It checks the persistent banner, localized FR → zh-CN → FR
+rerender, representative mutation-control disablement, direct Application guard rejection and enabled consultation/search controls.
+The architecture count therefore increases through genuine WPF coverage rather than resource-string-only assertions.
 
 ## Required failure-injection evidence
 
@@ -223,11 +232,15 @@ Remediation-specific evidence includes:
 - `DependencyBoundaryTests.M06MutationServicesExposeMandatoryAuthorityAndRecoverySeams`;
 - `InfrastructureIntegrationTests.AuthorityBootstrapIsDurableAndMissingStateFailsClosed`,
   `MissingAuthorityStateWithoutLegacyEvidenceFailsClosedInsteadOfRebootstrapping`,
+  `EstablishedAuthorityWithoutIndependentAnchorFailsClosed`,
+  `FreshMigratedDatabaseDoesNotQualifyAsLegacyBootstrapEvidence`,
   `EstablishedAuthorityStatesRoundTripDurablyAcrossRestart`, and
   `DurableChangeNotifierReconcilesCorruptSequenceWithValidatedRecoveryMetadataAfterRestart`;
 - `M05EvidenceClosureIntegrationTests.RealApplicationSqliteMutationNotifierSchedulerAndRecoverySnapshotShareOneSeam`, which
   exercises real SQLite catalogue and order mutations through the real notifier, scheduler and validated recovery snapshot and
   proves blocked/no-op paths do not advance the recovery sequence.
+- `M06DesktopTests.RealStaWindowCloseFlushesPendingRecoveryBeforeCompleting`, which proves the production close-coordination
+  seam flushes the pending sequence on a real STA/WPF Dispatcher within a bounded timeout.
 
 ## Automated verification
 
@@ -236,11 +249,11 @@ Current local implementation verification on the remediation working head:
 - `dotnet --info`: Passed — SDK 10.0.400, Windows 10.0.26200 x64.
 - `dotnet restore Sushi81.Pos.sln --locked-mode`: Passed.
 - `dotnet build Sushi81.Pos.sln -c Release --no-restore`: Passed, 0 warnings / 0 errors.
-- Full Release tests: Passed — 358/358, 0 failures, 0 skips: Domain 33, Application 47, Infrastructure 60, Architecture 94,
+- Full Release tests: Passed — 361/361, 0 failures, 0 skips: Domain 33, Application 47, Infrastructure 62, Architecture 95,
   `tests/Sushi81.Pos.OneDriveFeasibility.Tests` 32 and `tools/Sushi81.Pos.OneDriveFeasibility.Tests` 92. The remediation adds
-  four Application cancellation regressions, four Infrastructure authority/sequence regressions plus one real SQLite recovery
-  integration, and one Architecture dependency regression plus one real STA/WPF regression.
-- Self-contained `win-x64` publish: Passed to ignored `artifacts/m06-remediation-publish`.
+  four Application cancellation regressions, six Infrastructure authority/sequence regressions plus one real SQLite recovery
+  integration, and one Architecture dependency regression plus two real STA/WPF regressions.
+- Self-contained `win-x64` publish: Passed to ignored `artifacts/m06-remediation-03-publish`.
 - `git diff --check`: Passed.
 - Existing snapshot retention, scheduler, rollback and incomplete-unit tests: Passed within the infrastructure result above.
 - Exact-head GitHub Actions CI: Passed. GitHub Actions `Continuous integration` run #504
@@ -279,5 +292,5 @@ Final completion record must confirm:
 
 ## Completion state
 
-Remediation implementation is complete at `1b8e2a8d15afe7983a6d85fbd95b5da5c98425c2`; PR #11 must remain open/unmerged.
-Project-owner Windows/WPF acceptance is still pending and M07 is not authorized by M06 completion.
+Third remediation implementation is complete locally and will be recorded at the pushed handoff-03 head; PR #11 must remain
+open/unmerged. Project-owner Windows/WPF acceptance is still pending and M07 is not authorized by M06 completion.

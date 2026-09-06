@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings and M04 Order Entry are Passed, with their final Windows/WPF acceptance recorded in the applicable evidence; M04 merged through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a`. M05 implementation and project-owner Windows/WPF acceptance are Passed; PR #10 is merged to `main` at `79499d7c6ed65a74f524097c1507ca648dc151c3`, with accepted production-code head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70` and final documentation head `217d187dd3ef5498c11f21bc516eccc6737fa952`. M06 is the current authorized implementation on PR #11 under `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-02`; the initial implementation has review-remediation work in progress and M07 and later milestones remain unauthorized.
+**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings and M04 Order Entry are Passed, with their final Windows/WPF acceptance recorded in the applicable evidence; M04 merged through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a`. M05 implementation and project-owner Windows/WPF acceptance are Passed; PR #10 is merged to `main` at `79499d7c6ed65a74f524097c1507ca648dc151c3`, with accepted production-code head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70` and final documentation head `217d187dd3ef5498c11f21bc516eccc6737fa952`. M06 is the current authorized implementation on PR #11 under `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-03`; the third controlled review-remediation pass is complete pending project-owner manual acceptance, and M07 and later milestones remain unauthorized.
 
 ## 1. Status vocabulary
 
@@ -25,7 +25,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy the fin
 | M03 — Catalogue and settings | Passed | Authorized by `CODEX_HANDOFF_READY: M03-IMPLEMENT-01`; migration 2, layered catalogue/settings services, localized WPF maintenance shell, automated evidence, and the complete operator Windows/WPF checklist are recorded on the applicable head. Cross-milestone regressions explicitly owned by M04 remain deferred. |
 | M04 — Order-entry vertical slice | Passed | Authorized by `CODEX_HANDOFF_READY: M04-IMPLEMENT-01`; accepted implementation head `76a41df917282763fc5957be7118bbffbeb21568` passed the automated M04 evidence and CI #272, and the project owner passed the final Windows/WPF manual acceptance on 2026-09-02. Merged to `main` through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a` on 2026-09-02. |
 | M05 — Lifecycle/payments/search/dashboard | Passed | Accepted production-code head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`; complete Release suite 340/340, Release build 0 warnings/0 errors, self-contained `win-x64` publish and exact-head CI run `34034418001` passed; project-owner Windows/WPF acceptance is recorded in `implementation/milestone-05-final-manual-acceptance.md`. PR #10 is merged to `main` through `79499d7c6ed65a74f524097c1507ca648dc151c3`. |
-| M06 — Local recovery/read-only enforcement | In progress | Authorized by `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-02` on PR #11 / `codex/m06-local-recovery-read-only`; review-remediation implementation and evidence are in progress. |
+| M06 — Local recovery/read-only enforcement | In progress | Authorized by `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-03` on PR #11 / `codex/m06-local-recovery-read-only`; third controlled review-remediation implementation and evidence are complete, with project-owner Windows/WPF acceptance still pending. |
 | M07 — Handoff and disaster recovery | Not started | Pending M06; must implement amended target-directed protocol |
 | M08 — Printing and reprinting | Not started | Pending M07 |
 | M09 — Hiboutik paste fallback | Not started | Pending M08 |
@@ -128,9 +128,9 @@ The owner milestone is responsible for closing the criterion. Earlier milestones
 |---|---:|---|---|
 | AC-STO-001 | M01 | Passed | `tests/Sushi81.Pos.Infrastructure.IntegrationTests/InfrastructureIntegrationTests.cs` covers local paths, SQLite PRAGMAs, migrations, transactional rollback and validated local recovery snapshots. |
 | AC-STO-002 through AC-STO-005 | M07 | Not started | Original M02 blocker evidence preserved; amended target-directed feasibility revalidation now authorized |
-| AC-STO-006 | M06 | In progress | M01 snapshot primitive is now wired through the M03–M05 Application mutation boundaries; M06 failure and retention evidence is being recorded on PR #11. |
+| AC-STO-006 | M06 | In progress | M01 snapshot primitive is wired through the M03–M05 Application mutation boundaries; M06 failure, retention and non-blocking WPF shutdown-flush evidence is recorded on PR #11, with owner acceptance pending. |
 | AC-STO-007 through AC-STO-009 | M07 | Not started | M02 revalidation prepares target-binding/transport/failure evidence |
-| AC-STO-010 | M06 | In progress | M06 durable authority state, centralized write blocking and localized read-only presentation are implemented in progress; M08 printing/M12 archive cross-checks remain deferred. |
+| AC-STO-010 | M06 | In progress | M06 durable authority state, independent bootstrap-anchor validation, centralized write blocking and localized read-only presentation are implemented; owner acceptance and M08 printing/M12 archive cross-checks remain deferred. |
 | AC-STO-011 through AC-STO-014 | M12 | Not started | — |
 
 ### Architecture and deployment

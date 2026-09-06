@@ -326,8 +326,9 @@ public sealed class InfrastructureIntegrationTests
             await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
         }
         var store = new JsonAuthorityStateStore(paths);
+        var legacyBootstrapEvidence = await store.HasLegacyBootstrapEvidenceAsync();
         var firstGuard = new WriteAuthorityGuard();
-        var first = await new AuthorityStateCoordinator(store, firstGuard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync();
+        var first = await new AuthorityStateCoordinator(store, firstGuard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
 
         Assert.AreEqual(WriteAuthorityState.Authoritative, first.State);
         Assert.AreEqual(WriteAuthorityState.Authoritative, firstGuard.State);
@@ -336,7 +337,7 @@ public sealed class InfrastructureIntegrationTests
 
         File.Delete(Path.Combine(paths.ConfigDirectory, "authority-state.json"));
         var secondGuard = new WriteAuthorityGuard();
-        var second = await new AuthorityStateCoordinator(store, secondGuard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync();
+        var second = await new AuthorityStateCoordinator(store, secondGuard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
 
         Assert.AreEqual(WriteAuthorityState.RecoveryRequired, second.State);
         Assert.AreEqual(WriteAuthorityState.RecoveryRequired, secondGuard.State);
@@ -348,11 +349,55 @@ public sealed class InfrastructureIntegrationTests
     {
         using var paths = new TestAppPaths();
         var guard = new WriteAuthorityGuard();
-        var result = await new AuthorityStateCoordinator(new JsonAuthorityStateStore(paths), guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync();
+        var result = await new AuthorityStateCoordinator(new JsonAuthorityStateStore(paths), guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(false);
 
         Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
         Assert.IsFalse(await new JsonAuthorityStateStore(paths).HasBootstrapMarkerAsync());
         Assert.IsFalse(await new JsonAuthorityStateStore(paths).HasBootstrapAnchorAsync());
+        Assert.Throws<WriteAuthorityException>(guard.RequireWriteAuthority);
+    }
+
+    [TestMethod]
+    public async Task EstablishedAuthorityWithoutIndependentAnchorFailsClosed()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await using (var legacyConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.LiveDatabasePath, Pooling = false }.ToString()))
+        {
+            await legacyConnection.OpenAsync();
+            await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
+        }
+
+        var store = new JsonAuthorityStateStore(paths);
+        var legacyBootstrapEvidence = await store.HasLegacyBootstrapEvidenceAsync();
+        await new AuthorityStateCoordinator(store, new WriteAuthorityGuard(), new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
+        File.Delete(Path.Combine(paths.DataDirectory, "authority-bootstrap.anchor"));
+
+        var guard = new WriteAuthorityGuard();
+        var result = await new AuthorityStateCoordinator(store, guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
+
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
+        Assert.IsNotNull(result.Error);
+        Assert.Throws<WriteAuthorityException>(guard.RequireWriteAuthority);
+    }
+
+    [TestMethod]
+    public async Task FreshMigratedDatabaseDoesNotQualifyAsLegacyBootstrapEvidence()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        var store = new JsonAuthorityStateStore(paths);
+        var evidenceBeforeMigrations = await store.HasLegacyBootstrapEvidenceAsync();
+
+        var clock = new FixedClock();
+        await new SqliteMigrationRunner(new SqliteConnectionFactory(paths), ProductionMigrations.All, clock).InitializeAsync();
+        Assert.IsTrue(await store.HasLegacyBootstrapEvidenceAsync(), "The migrated schema is not itself pre-existing legacy evidence.");
+
+        var guard = new WriteAuthorityGuard();
+        var result = await new AuthorityStateCoordinator(store, guard, clock, NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(evidenceBeforeMigrations);
+
+        Assert.IsFalse(evidenceBeforeMigrations);
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
         Assert.Throws<WriteAuthorityException>(guard.RequireWriteAuthority);
     }
 
@@ -368,12 +413,13 @@ public sealed class InfrastructureIntegrationTests
         }
 
         var store = new JsonAuthorityStateStore(paths);
-        await new AuthorityStateCoordinator(store, new WriteAuthorityGuard(), new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync();
+        var legacyBootstrapEvidence = await store.HasLegacyBootstrapEvidenceAsync();
+        await new AuthorityStateCoordinator(store, new WriteAuthorityGuard(), new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
         foreach (var state in new[] { WriteAuthorityState.Authoritative, WriteAuthorityState.NonAuthoritativeReadOnly, WriteAuthorityState.Transitioning, WriteAuthorityState.RecoveryRequired })
         {
             await store.SaveAsync(new AuthorityStateDocument(1, state, DateTimeOffset.UtcNow));
             var guard = new WriteAuthorityGuard();
-            var reloaded = await new AuthorityStateCoordinator(store, guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync();
+            var reloaded = await new AuthorityStateCoordinator(store, guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
             Assert.AreEqual(state, reloaded.State);
             Assert.AreEqual(state, guard.State);
         }
@@ -388,7 +434,7 @@ public sealed class InfrastructureIntegrationTests
         await File.WriteAllTextAsync(Path.Combine(paths.ConfigDirectory, "authority-bootstrap.marker"), "marker");
 
         var guard = new WriteAuthorityGuard();
-        var result = await new AuthorityStateCoordinator(new JsonAuthorityStateStore(paths), guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync();
+        var result = await new AuthorityStateCoordinator(new JsonAuthorityStateStore(paths), guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(false);
 
         Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
         Assert.IsNotNull(result.Error);

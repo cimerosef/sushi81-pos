@@ -31,6 +31,7 @@ public static partial class CompositionRoot
         var paths = new WindowsAppPaths();
         ISelectedCultureStore cultureStore = new InMemorySelectedCultureStore();
         var startupSucceeded = false;
+        ILogger? startupLogger = null;
         CatalogueService? catalogueService = null;
         BusinessSettingsService? settingsService = null;
         OrderEntryService? orderEntryService = null;
@@ -45,6 +46,7 @@ public static partial class CompositionRoot
             paths.EnsureInitialized();
             loggerProvider = new RollingFileLoggerProvider(paths, TimeProvider.System);
             var logger = loggerProvider.CreateLogger(typeof(CompositionRoot).FullName!);
+            startupLogger = logger;
             var configurationService = new JsonLocalConfigurationService(paths);
             var configuration = await configurationService.LoadAsync();
             _ = CultureInfo.GetCultureInfo(configuration.UiCulture);
@@ -53,14 +55,15 @@ public static partial class CompositionRoot
             var clock = new TimeProviderBusinessClock(TimeProvider.System, TimeZoneInfo.Local);
             var connectionFactory = new SqliteConnectionFactory(paths);
             var snapshotService = new SqliteLocalRecoverySnapshotService(paths, connectionFactory, clock);
+            var authorityStateStore = new JsonAuthorityStateStore(paths);
+            var legacyBootstrapEvidence = await authorityStateStore.HasLegacyBootstrapEvidenceAsync();
             var migrations = new SqliteMigrationRunner(
                 connectionFactory,
                 ProductionMigrations.All,
                 clock,
                 snapshotService);
             await migrations.InitializeAsync();
-            var authorityStateStore = new JsonAuthorityStateStore(paths);
-            authorityResolution = await new AuthorityStateCoordinator(authorityStateStore, authorityGuard, clock, logger).InitializeAsync();
+            authorityResolution = await new AuthorityStateCoordinator(authorityStateStore, authorityGuard, clock, logger).InitializeAsync(legacyBootstrapEvidence);
             recoveryScheduler = new DebouncedRecoveryScheduler(snapshotService, TimeProvider.System, logger);
             durableChangeNotifier = new DurableChangeNotifier(paths, clock, recoveryScheduler, logger);
             var transactionRunner = new SqliteTransactionRunner(connectionFactory);
@@ -89,13 +92,19 @@ public static partial class CompositionRoot
         var viewModel = new ShellViewModel(cultureStore, startupSucceeded, catalogueService, settingsService, orderEntryService, orderLifecycleService, authorityGuard, authorityResolution.State);
         var window = new MainWindow(viewModel);
         application.MainWindow = window;
+        if (recoveryScheduler is not null)
+        {
+            var closeCoordinator = new AsyncCloseCoordinator(
+                recoveryScheduler.DisposeAsync,
+                () => application.Dispatcher.BeginInvoke(new Action(application.Shutdown)),
+                exception =>
+                {
+                    if (startupLogger is not null) LogFoundationShutdownFailed(startupLogger, exception);
+                });
+            window.Closing += (_, closing) => _ = closeCoordinator.HandleClosingAsync(closing);
+        }
         application.Exit += (_, _) =>
         {
-            if (recoveryScheduler is not null)
-            {
-                try { recoveryScheduler.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
-                catch { /* shutdown must not prevent the application from exiting */ }
-            }
             durableChangeNotifier?.Dispose();
             loggerProvider?.Dispose();
         };
@@ -107,5 +116,8 @@ public static partial class CompositionRoot
 
     [LoggerMessage(EventId = 1101, Level = LogLevel.Error, Message = "Foundation startup failed.")]
     private static partial void LogFoundationStartupFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 1102, Level = LogLevel.Error, Message = "Recovery flush failed during orderly application shutdown.")]
+    private static partial void LogFoundationShutdownFailed(ILogger logger, Exception exception);
 
 }

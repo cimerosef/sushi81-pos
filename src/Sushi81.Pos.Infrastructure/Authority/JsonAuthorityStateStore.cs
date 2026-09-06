@@ -78,6 +78,11 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths) : IAuthorityStateSt
         }
     }
 
+    /// <summary>
+    /// Captures evidence before startup migrations run. A caller must retain the result and
+    /// pass it to <see cref="AuthorityStateCoordinator.InitializeAsync(bool, CancellationToken)"/>;
+    /// checking the migrated schema afterward would make a fresh database look like an M01-M05 installation.
+    /// </summary>
     public async Task<bool> HasLegacyBootstrapEvidenceAsync(CancellationToken cancellationToken = default)
     {
         paths.EnsureInitialized();

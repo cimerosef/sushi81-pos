@@ -21,7 +21,12 @@ public sealed partial class AuthorityStateCoordinator(
 {
     private const int CurrentSchemaVersion = 1;
 
-    public async Task<AuthorityResolution> InitializeAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Resolves authority after migration using evidence captured before migration. This keeps a
+    /// newly created database from qualifying for the one-time legacy bootstrap merely because
+    /// startup just created its migration history.
+    /// </summary>
+    public async Task<AuthorityResolution> InitializeAsync(bool legacyBootstrapEvidence, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -30,6 +35,8 @@ public sealed partial class AuthorityStateCoordinator(
             {
                 if (!await store.HasBootstrapMarkerAsync(cancellationToken))
                     return FailClosed(new InvalidDataException("The durable authority state exists without its bootstrap marker."));
+                if (!await store.HasBootstrapAnchorAsync(cancellationToken))
+                    return FailClosed(new InvalidDataException("The durable authority state exists without its independent bootstrap anchor."));
                 guard.SetState(document.State);
                 return new(document.State, null);
             }
@@ -40,7 +47,7 @@ public sealed partial class AuthorityStateCoordinator(
             if (await store.HasBootstrapAnchorAsync(cancellationToken))
                 return FailClosed(new InvalidDataException("The durable authority state is missing after established M06 bootstrap."));
 
-            if (!await store.HasLegacyBootstrapEvidenceAsync(cancellationToken))
+            if (!legacyBootstrapEvidence)
                 return FailClosed(new InvalidDataException("No supported M01-M05 local data evidence permits the one-time authority bootstrap."));
 
             // M06 permits the one-time local single-device bootstrap after the supported M01-M05

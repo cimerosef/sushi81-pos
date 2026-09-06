@@ -16,7 +16,10 @@ public interface IAuthorityStateStore
 
     Task WriteBootstrapMarkerAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Independent evidence that M01-M05 local data exists for the one-time M06 bootstrap.</summary>
+    /// <summary>
+    /// Independent evidence captured before startup migrations that M01-M05 local data already
+    /// existed for the one-time M06 bootstrap. The result must not be recomputed after migration.
+    /// </summary>
     Task<bool> HasLegacyBootstrapEvidenceAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
 
     /// <summary>Independent durable evidence that M06 bootstrap has already completed.</summary>
