@@ -646,12 +646,38 @@ public partial class MainWindow : Window
             DockPanel.SetDock(add, Dock.Bottom);
             root.Children.Add(add);
 
+            var source = values.ToList();
+            var view = new System.Windows.Data.ListCollectionView(source);
             var list = new ListBox
             {
-                ItemsSource = values,
+                ItemsSource = view,
                 MinHeight = 120,
                 VerticalAlignment = VerticalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Stretch
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                IsSynchronizedWithCurrentItem = false,
+                SelectedIndex = -1
+            };
+            list.Loaded += (_, _) => list.SelectedIndex = -1;
+            var search = new TextBox
+            {
+                MinHeight = 26,
+                Margin = new Thickness(0, 0, 0, 10),
+                ToolTip = LocalizedText(owner, "Search", "Search")
+            };
+            search.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, LocalizedText(owner, "Search", "Search"));
+            view.Filter = item =>
+            {
+                if (item is not ProductSummary product) return false;
+                var query = search.Text.Trim();
+                return query.Length == 0
+                    || product.Code.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || product.Name.Contains(query, StringComparison.OrdinalIgnoreCase);
+            };
+            search.TextChanged += (_, _) =>
+            {
+                var selected = list.SelectedItem;
+                view.Refresh();
+                if (selected is null || !view.Contains(selected)) list.SelectedIndex = -1;
             };
             var row = new FrameworkElementFactory(typeof(StackPanel));
             row.SetValue(StackPanel.OrientationProperty, Orientation.Horizontal);
@@ -671,6 +697,8 @@ public partial class MainWindow : Window
             products = list;
             list.MouseDoubleClick += (_, _) => { if (list.SelectedItem is not null) { DialogResult = true; Close(); } };
             add.Click += (_, _) => { if (list.SelectedItem is not null) { DialogResult = true; Close(); } };
+            DockPanel.SetDock(search, Dock.Top);
+            root.Children.Add(search);
             root.Children.Add(list);
             Content = root;
         }

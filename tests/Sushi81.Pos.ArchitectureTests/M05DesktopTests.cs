@@ -150,6 +150,81 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
+    public void CatalogueProductPickerFiltersCodeAndNameWithoutHiddenSelectionOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var optionsProduct = PickerProduct();
+            var simpleProduct = PickerSimpleProduct();
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+            var owner = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            owner.Show();
+            try
+            {
+                var picker = CreateProductPicker(owner, [optionsProduct, simpleProduct]);
+                Exception? callbackFailure = null;
+                picker.ContentRendered += (_, _) =>
+                {
+                    try
+                    {
+                        var list = VisualDescendants<ListBox>(picker).Single();
+                        var search = VisualDescendants<TextBox>(picker).Single();
+                        Assert.HasCount(2, list.Items);
+                        Assert.IsNull(list.SelectedItem);
+
+                        search.Text = "002";
+                        Assert.HasCount(1, list.Items);
+                        Assert.AreEqual(optionsProduct.Id, ((ProductSummary)list.Items[0]).Id);
+
+                        search.Text = "SIMPLE";
+                        Assert.HasCount(1, list.Items);
+                        Assert.AreEqual(simpleProduct.Id, ((ProductSummary)list.Items[0]).Id);
+
+                        search.Text = string.Empty;
+                        Assert.HasCount(2, list.Items);
+                        list.SelectedIndex = 0;
+                        search.Text = "simple";
+                        Assert.IsNull(list.SelectedItem, "Filtering out the selected item must clear the selection.");
+
+                        list.SelectedIndex = 0;
+                        var add = VisualDescendants<Button>(picker).Single();
+                        add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    }
+                    catch (Exception exception) { callbackFailure = exception; picker.Close(); }
+                };
+
+                Assert.IsTrue(picker.ShowDialog());
+                if (callbackFailure is not null) ExceptionDispatchInfo.Capture(callbackFailure).Throw();
+                Assert.AreEqual(simpleProduct.Id, PickerSelection(picker)?.Id);
+
+                var doubleClickPicker = CreateProductPicker(owner, [optionsProduct, simpleProduct]);
+                Exception? doubleClickFailure = null;
+                doubleClickPicker.ContentRendered += (_, _) =>
+                {
+                    try
+                    {
+                        var list = VisualDescendants<ListBox>(doubleClickPicker).Single();
+                        var search = VisualDescendants<TextBox>(doubleClickPicker).Single();
+                        search.Text = "002";
+                        list.SelectedIndex = 0;
+                        list.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                        {
+                            RoutedEvent = Control.MouseDoubleClickEvent,
+                            Source = list
+                        });
+                    }
+                    catch (Exception exception) { doubleClickFailure = exception; doubleClickPicker.Close(); }
+                };
+
+                Assert.IsTrue(doubleClickPicker.ShowDialog());
+                if (doubleClickFailure is not null) ExceptionDispatchInfo.Capture(doubleClickFailure).Throw();
+                Assert.AreEqual(optionsProduct.Id, PickerSelection(doubleClickPicker)?.Id);
+            }
+            finally { owner.Close(); }
+        });
+    }
+
+    [TestMethod]
     public void CommandesEditingUsesHistoricalDatePaymentDateAndLivePaymentFeedbackOnSta()
     {
         RunOnSta(() =>
@@ -926,6 +1001,8 @@ public sealed class M05DesktopTests
     private static OrderBrowserRow Row(Guid id, string reference, DateOnly plannedDate) => new(id, plannedDate, new TimeOnly(11, 0), FulfilmentMode.Retrait, OrderStatus.Open, Money.FromCents(1000), "06 00 00 00 00") { Reference = reference };
 
     private static ProductSummary PickerProduct() => new(Guid.NewGuid(), "TST002", "Produit test options", Guid.NewGuid(), "Tests", Money.FromCents(1000), 10m, true, true, false);
+
+    private static ProductSummary PickerSimpleProduct() => new(Guid.NewGuid(), "TST001A", "Produit test simple", Guid.NewGuid(), "Tests", Money.FromCents(800), 10m, true, true, false);
 
     private static Window CreateProductPicker(MainWindow owner, IReadOnlyList<ProductSummary> products)
     {
