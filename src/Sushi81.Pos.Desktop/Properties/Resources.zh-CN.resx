@@ -177,6 +177,9 @@
   <data name="OrderNewFromDetails" xml:space="preserve"><value>使用这些联系信息新建订单</value></data>
   <data name="OrderClose" xml:space="preserve"><value>关闭订单</value></data>
   <data name="OrderEffectiveDate" xml:space="preserve"><value>收款日期</value></data>
+  <data name="OrderEffectiveDateEdit" xml:space="preserve"><value>实际收款日期</value></data>
+  <data name="OrderEffectiveDateHint" xml:space="preserve"><value>仅在保存本次修改时使用。</value></data>
+  <data name="OrderBrowseByDate" xml:space="preserve"><value>按日期查看</value></data>
   <data name="OrderSave" xml:space="preserve"><value>保存修改</value></data>
   <data name="OrderReadOnly" xml:space="preserve"><value>已保存状态</value></data>
   <data name="OrderEdit" xml:space="preserve"><value>正在修改</value></data>

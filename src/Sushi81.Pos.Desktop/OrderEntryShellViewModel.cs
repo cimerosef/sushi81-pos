@@ -494,14 +494,19 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     public void ChangeQuantity(OrderEntryCartLineViewModel line, int quantity)
     {
-        if (IsCommitted || quantity <= 0) return;
+        if (IsCommitted) return;
+        if (quantity <= 0)
+        {
+            if (quantity == 0) RemoveLine(line);
+            return;
+        }
         line.Replace(line.Draft with { Quantity = quantity });
         _ = RepriceAsync(clearManualOverride: true);
     }
 
     public void SetManualTotal(string text)
     {
-        if (!decimal.TryParse(text, NumberStyles.Number, CultureInfo.CurrentCulture, out var euros))
+        if (!M03Presentation.TryParseDecimalInput(text, out var euros))
         {
             manualTotalOverride = null;
             TotalText = (pricing?.TotalTtc ?? Money.Zero).Euros.ToString("0.00", CultureInfo.CurrentCulture);

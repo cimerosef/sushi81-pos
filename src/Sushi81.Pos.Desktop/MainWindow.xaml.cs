@@ -181,7 +181,7 @@ public partial class MainWindow : Window
     private void OnDecreaseOrderQuantity(object sender, RoutedEventArgs e)
     {
         if (DataContext is ShellViewModel { Entry: { } entry } && (sender as Button)?.Tag is OrderEntryCartLineViewModel line)
-            if (line.Quantity > 1) entry.ChangeQuantity(line, line.Quantity - 1);
+            entry.ChangeQuantity(line, line.Quantity - 1);
     }
 
     private void OnIncreaseOrderQuantity(object sender, RoutedEventArgs e)
@@ -240,12 +240,16 @@ public partial class MainWindow : Window
         if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) await lifecycle.RefreshDashboardAsync();
     }
 
-    private async void OnDashboardEntry(object sender, RoutedEventArgs e)
+    private void OnDashboardEntry(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle }) return;
         lifecycle.SelectOperationalView((sender as Button)?.Tag?.ToString());
         mainTabs.SelectedItem = mainTabs.Items.OfType<TabItem>().FirstOrDefault(item => item.DataContext is OrderLifecycleShellViewModel);
-        await lifecycle.RefreshAsync();
+    }
+
+    private void OnBrowseByDate(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle }) lifecycle.ReturnToDateBrowse();
     }
 
     private async void OnCommandesSearchChanged(object sender, TextChangedEventArgs e)
@@ -314,6 +318,19 @@ public partial class MainWindow : Window
     private void OnRemoveLifecycleLine(object sender, RoutedEventArgs e)
     {
         if (DataContext is ShellViewModel { Lifecycle: { } lifecycle } && sender is Button { Tag: OrderDetailLineViewModel line }) lifecycle.RemoveLine(line);
+    }
+
+    private void OnDecreaseLifecycleQuantity(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle } || sender is not Button { Tag: OrderDetailLineViewModel line } || !lifecycle.IsEditing) return;
+        if (line.Quantity <= 1) lifecycle.RemoveLine(line);
+        else lifecycle.UpdateLineQuantity(line, line.Quantity - 1);
+    }
+
+    private void OnIncreaseLifecycleQuantity(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle } && sender is Button { Tag: OrderDetailLineViewModel line } && lifecycle.IsEditing)
+            lifecycle.UpdateLineQuantity(line, line.Quantity + 1);
     }
 
     private async void OnCloseOrder(object sender, RoutedEventArgs e)
@@ -492,6 +509,7 @@ public partial class MainWindow : Window
             var ok = new Button { Content = Label("Add", "Ajouter"), Padding = new Thickness(12, 5, 12, 5) }; ok.Click += (_, _) => Accept(); buttons.Children.Add(cancel); buttons.Children.Add(ok); DockPanel.SetDock(buttons, Dock.Bottom); root.Children.Add(buttons);
             var panel = new StackPanel(); panel.Children.Add(new TextBlock { Text = $"{product.Aggregate.Product.Code} — {product.Aggregate.Product.Name}", FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) });
             quantity = AddText(panel, Label("Quantity", "Quantité"), quantityValue.ToString(CultureInfo.InvariantCulture));
+            NumericInputBehavior.SetSelectAllOnFocus(quantity, true);
             if (product.Aggregate.Product.OptionsEnabled)
                 foreach (var group in product.Aggregate.Groups.OrderBy(group => group.DisplayOrder)) AddGroup(panel, group, existingOptions);
             panel.Children.Add(new TextBlock { Text = Label("CustomAdjustments", "Ajustements personnalisés (par unité)"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
@@ -510,6 +528,7 @@ public partial class MainWindow : Window
             var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
             var label = new TextBox { Width = 210, ToolTip = Label("AdjustmentLabel", "Libellé"), Text = current?.Label ?? string.Empty };
             var amount = new TextBox { Width = 90, Margin = new Thickness(6, 0, 0, 0), ToolTip = Label("AdjustmentAmount", "Montant TTC"), Text = current is null ? string.Empty : current.AmountTtcPerUnit.Euros.ToString("0.00", CultureInfo.InvariantCulture) };
+            NumericInputBehavior.SetSelectAllOnFocus(amount, true);
             var remove = new Button { Content = "×", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(5, 2, 5, 2) };
             var tuple = (label, amount, remove); remove.Click += (_, _) => { customPanel.Children.Remove(row); customRows.Remove(tuple); }; row.Children.Add(label); row.Children.Add(amount); row.Children.Add(remove); customPanel.Children.Add(row); customRows.Add(tuple);
         }
@@ -553,7 +572,7 @@ public partial class MainWindow : Window
             {
                 var label = row.Label.Text.Trim();
                 if (label.Length == 0 && string.IsNullOrWhiteSpace(row.Amount.Text)) continue;
-                if (label.Length == 0 || !decimal.TryParse(row.Amount.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var amount)) { MessageBox.Show(this, Label("InvalidAdjustment", "Chaque ajustement doit avoir un libellé et un montant valides.")); return; }
+                if (label.Length == 0 || !M03Presentation.TryParseDecimalInput(row.Amount.Text, out var amount)) { MessageBox.Show(this, Label("InvalidAdjustment", "Chaque ajustement doit avoir un libellé et un montant valides.")); return; }
                 custom.Add(new(null, null, label, Money.FromEuros(amount), OrderAdjustmentKind.CustomAdjustment, custom.Count));
             }
             SelectedOptionIds = selected; CustomAdjustments = custom; Quantity = parsedQuantity; DialogResult = true;
@@ -591,6 +610,7 @@ public partial class MainWindow : Window
             var panel = new StackPanel();
             panel.Children.Add(new TextBlock { Text = line.ProductText, FontSize = 18, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) });
             quantity = AddText(panel, Label("Quantity", "Quantité"), line.Quantity.ToString(CultureInfo.InvariantCulture));
+            NumericInputBehavior.SetSelectAllOnFocus(quantity, true);
             root.Children.Add(panel);
             Content = root;
         }
@@ -802,7 +822,7 @@ public partial class MainWindow : Window
             validation = new TextBlock { Foreground = System.Windows.Media.Brushes.Firebrick, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) }; panel.Children.Add(validation);
             code = AddText(panel, LocalizedText(owner, "Code", "Code"), existing?.Code ?? string.Empty); productName = AddText(panel, LocalizedText(owner, "Name", "Name"), existing?.Name ?? string.Empty);
             panel.Children.Add(new TextBlock { Text = LocalizedText(owner, "Category", "Category"), Margin = new Thickness(0, 8, 0, 2) }); category = new ComboBox { ItemsSource = categories, DisplayMemberPath = "Name", SelectedValuePath = "Id" }; category.SelectedValue = existing?.CategoryId ?? (categories.Count > 0 ? categories[0].Id : Guid.Empty); panel.Children.Add(category);
-            price = AddText(panel, LocalizedText(owner, "PriceTtc", "TTC price"), existing?.PriceTtc.Euros.ToString("0.00", CultureInfo.InvariantCulture) ?? "0.00"); vat = AddText(panel, LocalizedText(owner, "Vat", "VAT %"), existing?.VatRate.ToString(CultureInfo.InvariantCulture) ?? "10");
+            price = AddText(panel, LocalizedText(owner, "PriceTtc", "TTC price"), existing?.PriceTtc.Euros.ToString("0.00", CultureInfo.InvariantCulture) ?? "0.00"); vat = AddText(panel, LocalizedText(owner, "Vat", "VAT %"), existing?.VatRate.ToString(CultureInfo.InvariantCulture) ?? "10"); NumericInputBehavior.SetSelectAllOnFocus(price, true); NumericInputBehavior.SetSelectAllOnFocus(vat, true);
             active = AddCheck(panel, LocalizedText(owner, "Active", "Active"), existing?.IsActive ?? true); discount = AddCheck(panel, LocalizedText(owner, "DiscountEligible", "Retrait discount eligible"), existing?.DiscountEligible ?? true); options = AddCheck(panel, LocalizedText(owner, "OptionsEnabled", "Options enabled"), existing?.OptionsEnabled ?? false);
             panel.Children.Add(new TextBlock { Text = LocalizedText(owner, "OptionGroups", "Option groups"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 4) });
             var addGroup = new Button { Content = "+ " + LocalizedText(owner, "OptionGroups", "Group"), Padding = new Thickness(8, 3, 8, 3), HorizontalAlignment = HorizontalAlignment.Left }; addGroup.Click += (_, _) => { dirty = true; AddGroup(null); }; panel.Children.Add(addGroup);
@@ -863,7 +883,7 @@ public partial class MainWindow : Window
                 name = AddText(Root, owner.Label("Name", "Name"), draft?.Name ?? string.Empty); name.TextChanged += (_, _) => owner.dirty = true;
                 var modeRow = new Grid { Margin = new Thickness(0, 5, 0, 0) }; modeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); modeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) }); modeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); var modeLabel = new TextBlock { Text = owner.Label("SelectionMode", "Mode"), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap }; Grid.SetColumn(modeLabel, 0); modeRow.Children.Add(modeLabel); mode = new ComboBox { MinWidth = 150, HorizontalAlignment = HorizontalAlignment.Left, ItemsSource = new[] { new ModeItem(DomainSelectionMode.Single, owner.Label("Single", "Single")), new ModeItem(DomainSelectionMode.Multi, owner.Label("Multi", "Multi")) }, DisplayMemberPath = "Label", SelectedValuePath = "Mode" }; mode.SelectedValue = draft?.SelectionMode ?? DomainSelectionMode.Single; mode.SelectionChanged += (_, _) => { owner.dirty = true; UpdateLimits(); }; Grid.SetColumn(mode, 2); modeRow.Children.Add(mode); Root.Children.Add(modeRow);
                 required = new CheckBox { Content = owner.Label("Required", "Required"), IsChecked = draft?.IsRequired ?? false, Margin = new Thickness(0, 5, 0, 0) }; required.Checked += (_, _) => owner.dirty = true; required.Unchecked += (_, _) => owner.dirty = true; Root.Children.Add(required);
-                var limits = new WrapPanel { Orientation = Orientation.Horizontal }; limits.Children.Add(new TextBlock { Text = owner.Label("Minimum", "Min"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 3, 4, 3) }); min = new TextBox { Width = 55, Text = draft?.MinSelections?.ToString(CultureInfo.InvariantCulture) ?? "0", Margin = new Thickness(0, 3, 8, 3) }; limits.Children.Add(min); limits.Children.Add(new TextBlock { Text = owner.Label("Maximum", "Max"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 3, 4, 3) }); max = new TextBox { Width = 55, Text = draft?.MaxSelections?.ToString(CultureInfo.InvariantCulture) ?? "1", Margin = new Thickness(0, 3, 0, 3) }; limits.Children.Add(max); Root.Children.Add(limits);
+                var limits = new WrapPanel { Orientation = Orientation.Horizontal }; limits.Children.Add(new TextBlock { Text = owner.Label("Minimum", "Min"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 3, 4, 3) }); min = new TextBox { Width = 55, Text = draft?.MinSelections?.ToString(CultureInfo.InvariantCulture) ?? "0", Margin = new Thickness(0, 3, 8, 3) }; NumericInputBehavior.SetSelectAllOnFocus(min, true); limits.Children.Add(min); limits.Children.Add(new TextBlock { Text = owner.Label("Maximum", "Max"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 3, 4, 3) }); max = new TextBox { Width = 55, Text = draft?.MaxSelections?.ToString(CultureInfo.InvariantCulture) ?? "1", Margin = new Thickness(0, 3, 0, 3) }; NumericInputBehavior.SetSelectAllOnFocus(max, true); limits.Children.Add(max); Root.Children.Add(limits);
                 var groupButtons = new WrapPanel { Orientation = Orientation.Horizontal }; var add = new Button { Content = "+ " + owner.Label("Options", "Option"), Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(0, 2, 6, 2) }; add.Click += (_, _) => { owner.dirty = true; AddOption(null); }; var remove = new Button { Content = owner.Label("DeletePermanently", "Delete"), Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(0, 2, 6, 2) }; remove.Click += (_, _) => owner.RemoveGroup(this); var up = new Button { Content = owner.Label("MoveUp", "Up"), Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(0, 2, 6, 2) }; up.Click += (_, _) => owner.MoveGroup(this, -1); var down = new Button { Content = owner.Label("MoveDown", "Down"), Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(0, 2, 6, 2) }; down.Click += (_, _) => owner.MoveGroup(this, 1); groupButtons.Children.Add(add); groupButtons.Children.Add(remove); groupButtons.Children.Add(up); groupButtons.Children.Add(down); Root.Children.Add(groupButtons);
                 optionsPanel = new StackPanel { Margin = new Thickness(12, 0, 0, 0) }; Root.Children.Add(optionsPanel); foreach (var option in draft?.Options ?? []) AddOption(option); UpdateLimits(); min.TextChanged += (_, _) => owner.dirty = true; max.TextChanged += (_, _) => owner.dirty = true;
             }
@@ -893,7 +913,7 @@ public partial class MainWindow : Window
             {
                 id = draft?.Id ?? Guid.Empty; Root = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
                 var namePanel = new StackPanel(); namePanel.Children.Add(new TextBlock { Text = owner.Label("OptionName", "Option name") }); name = new TextBox { Width = 130, Text = draft?.Name ?? string.Empty }; namePanel.Children.Add(name);
-                var adjustmentPanel = new StackPanel { Margin = new Thickness(5, 0, 5, 0) }; adjustmentPanel.Children.Add(new TextBlock { Text = owner.Label("AdjustmentTtc", "TTC adjustment") }); adjustment = new TextBox { Width = 80, Text = draft?.PriceAdjustmentTtc.Euros.ToString("0.00", CultureInfo.InvariantCulture) ?? "0.00" }; adjustmentPanel.Children.Add(adjustment);
+                var adjustmentPanel = new StackPanel { Margin = new Thickness(5, 0, 5, 0) }; adjustmentPanel.Children.Add(new TextBlock { Text = owner.Label("AdjustmentTtc", "TTC adjustment") }); adjustment = new TextBox { Width = 80, Text = draft?.PriceAdjustmentTtc.Euros.ToString("0.00", CultureInfo.InvariantCulture) ?? "0.00" }; NumericInputBehavior.SetSelectAllOnFocus(adjustment, true); adjustmentPanel.Children.Add(adjustment);
                 active = new CheckBox { Content = owner.Label("OptionActive", "Active option"), IsChecked = draft?.IsActive ?? true, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 5, 3) }; name.TextChanged += (_, _) => owner.dirty = true; adjustment.TextChanged += (_, _) => owner.dirty = true; active.Checked += (_, _) => owner.dirty = true; active.Unchecked += (_, _) => owner.dirty = true;
                 var delete = new Button { Content = "×", Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(5, 15, 0, 0) }; delete.Click += (_, _) => remove(); var up = new Button { Content = owner.Label("MoveUp", "↑"), Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(5, 15, 0, 0) }; up.Click += (_, _) => move(-1); var down = new Button { Content = owner.Label("MoveDown", "↓"), Padding = new Thickness(4, 0, 4, 0), Margin = new Thickness(5, 15, 0, 0) }; down.Click += (_, _) => move(1); Root.Children.Add(namePanel); Root.Children.Add(adjustmentPanel); Root.Children.Add(active); Root.Children.Add(up); Root.Children.Add(down); Root.Children.Add(delete);
             }

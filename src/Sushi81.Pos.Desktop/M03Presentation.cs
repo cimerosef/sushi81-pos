@@ -99,7 +99,7 @@ public static class M03Presentation
 
     public static bool TryParseMoney(string? text, string field, out Money value, out ValidationIssue? issue)
     {
-        if (!decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var euros))
+        if (!TryParseDecimalInput(text, out var euros))
         {
             value = Money.Zero;
             issue = new ValidationIssue(field, "Enter a valid monetary amount.", ValidationCodes.InvalidNumber);
@@ -122,7 +122,7 @@ public static class M03Presentation
 
     public static bool TryParseDecimal(string? text, string field, out decimal value, out ValidationIssue? issue)
     {
-        if (!decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value))
+        if (!TryParseDecimalInput(text, out value))
         {
             issue = new ValidationIssue(field, "Enter a valid number.", ValidationCodes.InvalidNumber);
             return false;
@@ -130,6 +130,19 @@ public static class M03Presentation
 
         issue = null;
         return true;
+    }
+
+    /// <summary>Accepts comma or dot as the decimal separator and rejects grouping.</summary>
+    public static bool TryParseDecimalInput(string? text, out decimal value)
+    {
+        value = 0m;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var normalized = text.Trim();
+        var hasComma = normalized.Contains(',');
+        var hasDot = normalized.Contains('.');
+        if (hasComma && hasDot) return false;
+        if (hasComma) normalized = normalized.Replace(',', '.');
+        return decimal.TryParse(normalized, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out value);
     }
 
     public static bool TryParseInteger(string? text, string field, out int value, out ValidationIssue? issue)

@@ -767,11 +767,15 @@ public sealed class M05DesktopTests
                     var buttons = containers.Select(container => VisualDescendants<Button>(container).ToArray()).ToArray();
                     var leftPanels = containers.Select(container => VisualDescendants<StackPanel>(container).First()).ToArray();
                     Assert.IsTrue(quantities.All(row => row.Length == 0), $"{size}: selected-order rows must not contain an inline quantity TextBox.");
-                    Assert.IsTrue(buttons.All(row => row.Length == 2), $"{size}: each selected-order row must contain exactly edit and delete buttons.");
-                    var editLefts = buttons.Select(row => LeftEdge(row[0], window)).ToArray();
-                    var deleteLefts = buttons.Select(row => LeftEdge(row[1], window)).ToArray();
-                    var deleteRights = buttons.Select(row => RightEdge(row[1], window)).ToArray();
+                    Assert.IsTrue(buttons.All(row => row.Length == 4), $"{size}: each selected-order row must contain quantity decrement, quantity increment, edit and delete buttons.");
+                    var decreaseLefts = buttons.Select(row => LeftEdge(row[0], window)).ToArray();
+                    var increaseLefts = buttons.Select(row => LeftEdge(row[1], window)).ToArray();
+                    var editLefts = buttons.Select(row => LeftEdge(row[2], window)).ToArray();
+                    var deleteLefts = buttons.Select(row => LeftEdge(row[3], window)).ToArray();
+                    var deleteRights = buttons.Select(row => RightEdge(row[3], window)).ToArray();
                     var detailRight = RightEdge(detail, window);
+                    Assert.IsLessThanOrEqualTo(1D, decreaseLefts.Max() - decreaseLefts.Min(), $"{size}: decrease buttons must align vertically.");
+                    Assert.IsLessThanOrEqualTo(1D, increaseLefts.Max() - increaseLefts.Min(), $"{size}: increase buttons must align vertically.");
                     Assert.IsLessThanOrEqualTo(1D, editLefts.Max() - editLefts.Min(), $"{size}: edit buttons must align vertically.");
                     Assert.IsLessThanOrEqualTo(1D, deleteLefts.Max() - deleteLefts.Min(), $"{size}: delete buttons must align vertically.");
                     Assert.IsLessThanOrEqualTo(1D, deleteRights.Max() - deleteRights.Min(), $"{size}: actions must share the same right edge.");
@@ -961,6 +965,98 @@ public sealed class M05DesktopTests
                 Assert.IsTrue(lifecycle.CanSave);
                 lifecycle.AbandonModification();
                 Assert.IsFalse(lifecycle.CanClose);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Fix13OperationalViewCanReturnToDateBrowseAndPaymentDateIsEditOnlyOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var order = Snapshot(new DateOnly(2026, 8, 31));
+            var store = new LifecycleStore(order);
+            using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))), orderLifecycleService: service);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                var commandes = Field<TabControl>(window, "mainTabs").Items.OfType<TabItem>().Single(item => item.DataContext is OrderLifecycleShellViewModel);
+                commandes.IsSelected = true;
+                var effectiveDate = Field<DatePicker>(window, "lifecycleEffectivePaymentDatePicker");
+                Assert.AreEqual(Visibility.Collapsed, effectiveDate.Visibility);
+
+                lifecycle.SelectOperationalView("future");
+                Assert.IsTrue(lifecycle.IsOperationalViewActive);
+                lifecycle.ReturnToDateBrowse();
+                Assert.IsFalse(lifecycle.IsOperationalViewActive);
+                Assert.AreEqual(new DateOnly(2026, 9, 1), DateOnly.FromDateTime(lifecycle.BrowseDate!.Value));
+
+                lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                lifecycle.BeginModification();
+                window.UpdateLayout();
+                Assert.AreEqual(Visibility.Visible, effectiveDate.Visibility);
+                Assert.AreEqual(new DateOnly(2026, 8, 31), DateOnly.FromDateTime(lifecycle.EffectivePaymentDate!.Value));
+                Assert.IsTrue(VisualDescendants<TextBlock>(window).Any(text => text.Text == shell.Localized["OrderEffectiveDateEdit"]));
+                lifecycle.AbandonModification();
+                Assert.AreEqual(Visibility.Collapsed, effectiveDate.Visibility);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Fix13NumericInputsAcceptBothSeparatorsRejectGroupingAndSelectAllOnFocusOnSta()
+    {
+        Assert.IsTrue(M03Presentation.TryParseDecimalInput("12,50", out var comma));
+        Assert.AreEqual(12.50m, comma);
+        Assert.IsTrue(M03Presentation.TryParseDecimalInput("12.50", out var dot));
+        Assert.AreEqual(12.50m, dot);
+        Assert.IsFalse(M03Presentation.TryParseDecimalInput("1,234.50", out _));
+
+        RunOnSta(() =>
+        {
+            var box = new TextBox { Text = "12.50" };
+            NumericInputBehavior.SetSelectAllOnFocus(box, true);
+            var window = new Window { Content = box, ShowInTaskbar = false, Width = 160, Height = 80 };
+            window.Show();
+            try
+            {
+                box.Focus();
+                window.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() => { }));
+                Assert.AreEqual("12.50", box.SelectedText);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Fix13QuantityZeroRemovesCaisseLineAndDashboardStylesAreExplicitOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(new Product(Guid.NewGuid(), "Q", "Quantité", categoryId, Money.FromCents(1000), 10m, true, true, false, default, default), [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Tests");
+            using var service = new OrderEntryService(new SingleEntryCatalogue(product), new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow)), new FallbackStore(Row(Guid.NewGuid(), "Q-1", new DateOnly(2026, 8, 31))), new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var entry = new OrderEntryShellViewModel(service);
+            entry.AddConfiguredLine(product, [], [], 1);
+            entry.ChangeQuantity(entry.Cart.Single(), 0);
+            Assert.IsEmpty(entry.Cart);
+
+            var order = Snapshot(new DateOnly(2026, 8, 31));
+            using var lifecycleService = new OrderLifecycleService(new LifecycleStore(order), new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))), orderLifecycleService: lifecycleService);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                Assert.AreEqual(Brushes.DarkRed, Field<TextBlock>(window, "dashboardFutureCountText").Foreground);
+                Assert.AreEqual(Brushes.DarkBlue, Field<TextBlock>(window, "dashboardReceivedCardText").Foreground);
+                Assert.AreEqual(Brushes.DarkGreen, Field<TextBlock>(window, "dashboardReceivedCashText").Foreground);
+                Assert.AreEqual(FontWeights.Bold, Field<TextBlock>(window, "dashboardTurnoverText").FontWeight);
             }
             finally { window.Close(); }
         });

@@ -142,8 +142,37 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     public ObservableCollection<FulfilmentChoice> FulfilmentChoices { get; }
     public ObservableCollection<TimeChoice> PlannedHourChoices { get; }
     public ObservableCollection<TimeChoice> PlannedMinuteChoices { get; }
-    public string SearchText { get => searchText; set { if (searchText == value) return; searchText = value; OnPropertyChanged(); } }
-    public DateTime? BrowseDate { get => browseDate; set { var next = (value ?? service.BusinessDate.ToDateTime(TimeOnly.MinValue)).Date; if (browseDate?.Date == next) return; browseDate = next; OnPropertyChanged(); _ = RefreshAsync(); } }
+    public string SearchText
+    {
+        get => searchText;
+        set
+        {
+            value ??= string.Empty;
+            if (searchText == value) return;
+            searchText = value;
+            if (operationalView is not null)
+            {
+                operationalView = null;
+                OnPropertyChanged(nameof(IsOperationalViewActive));
+            }
+            OnPropertyChanged();
+        }
+    }
+    public DateTime? BrowseDate
+    {
+        get => browseDate;
+        set
+        {
+            var next = (value ?? service.BusinessDate.ToDateTime(TimeOnly.MinValue)).Date;
+            var dateChanged = browseDate?.Date != next;
+            var operationalViewCleared = operationalView is not null;
+            browseDate = next;
+            operationalView = null;
+            if (dateChanged) OnPropertyChanged();
+            if (operationalViewCleared) OnPropertyChanged(nameof(IsOperationalViewActive));
+            if (dateChanged || operationalViewCleared) _ = RefreshAsync();
+        }
+    }
     public OrderManagementRowViewModel? SelectedRow { get => selectedRow; set { if (ReferenceEquals(selectedRow, value)) return; selectedRow = value; OnPropertyChanged(); if (value is not null) _ = SelectAsync(value); } }
     public OrderSnapshot? SelectedOrder { get => selectedOrder; private set { selectedOrder = value; OnPropertyChanged(); RaiseDetailProperties(); } }
     public bool IsEditing { get => isEditing; private set { if (isEditing == value) return; isEditing = value; OnPropertyChanged(); RaiseCommandProperties(); } }
@@ -199,6 +228,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         }
     }
     public bool HasSelectedOrder => SelectedOrder is not null;
+    public bool IsOperationalViewActive => operationalView is not null;
     public DateOnly BusinessDate => service.BusinessDate;
     public string ReferenceText => SelectedOrder?.Reference ?? string.Empty;
     public string StatusText => SelectedOrder is null ? string.Empty : LocalizeStatus(SelectedOrder.Status);
@@ -309,13 +339,29 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     {
         SearchText = string.Empty;
         operationalView = view switch { "future" => OperationalOrderView.Future, "due" => OperationalOrderView.DueToday, "overdue" => OperationalOrderView.OverdueUnsettled, _ => null };
-        BrowseDate = view switch
+        var nextBrowseDate = view switch
         {
             "future" => service.BusinessDate.AddDays(1).ToDateTime(TimeOnly.MinValue),
             "due" => service.BusinessDate.ToDateTime(TimeOnly.MinValue),
             "overdue" => service.BusinessDate.AddDays(-1).ToDateTime(TimeOnly.MinValue),
             _ => service.BusinessDate.ToDateTime(TimeOnly.MinValue)
         };
+        browseDate = nextBrowseDate.Date;
+        OnPropertyChanged(nameof(BrowseDate));
+        OnPropertyChanged(nameof(IsOperationalViewActive));
+        _ = RefreshAsync();
+    }
+
+    public void ReturnToDateBrowse()
+    {
+        if (operationalView is null)
+        {
+            _ = RefreshAsync();
+            return;
+        }
+        operationalView = null;
+        OnPropertyChanged(nameof(IsOperationalViewActive));
+        _ = RefreshAsync();
     }
 
     public async Task SelectAsync(OrderManagementRowViewModel row, CancellationToken cancellationToken = default)
@@ -446,8 +492,8 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private static bool IsApprovedPlannedTime(TimeOnly time) =>
         time.Hour is 11 or 12 or 13 or 14 or 18 or 19 or 20 or 21 or 22 &&
         time.Minute % 5 == 0 && time.Ticks % TimeSpan.TicksPerMinute == 0;
-    private static bool TryParse(string value, out Money money) { if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.CurrentCulture, out var parsed)) { money = Money.FromEuros(parsed); return true; } money = Money.Zero; return false; }
-    private void RaiseDetailProperties() { OnPropertyChanged(nameof(HasSelectedOrder)); OnPropertyChanged(nameof(MinimumEditPlannedDate)); foreach (var name in new[] { nameof(ReferenceText), nameof(StatusText), nameof(FulfilmentText), nameof(AdvanceText), nameof(ManualTotalText), nameof(PickupDiscountText), nameof(TaxSummaryText), nameof(PlannedDateText), nameof(PlannedTimeText), nameof(TotalText), nameof(PaidText), nameof(DifferenceText), nameof(TelephoneText), nameof(AddressText), nameof(CommentText), nameof(EditPickupDiscountRequested), nameof(IsEditPickupDiscountEnabled) }) OnPropertyChanged(name); RaiseEditPaymentProperties(); RaiseCommandProperties(); }
+    private static bool TryParse(string value, out Money money) { if (M03Presentation.TryParseDecimalInput(value, out var parsed)) { money = Money.FromEuros(parsed); return true; } money = Money.Zero; return false; }
+    private void RaiseDetailProperties() { OnPropertyChanged(nameof(HasSelectedOrder)); OnPropertyChanged(nameof(IsOperationalViewActive)); OnPropertyChanged(nameof(MinimumEditPlannedDate)); foreach (var name in new[] { nameof(ReferenceText), nameof(StatusText), nameof(FulfilmentText), nameof(AdvanceText), nameof(ManualTotalText), nameof(PickupDiscountText), nameof(TaxSummaryText), nameof(PlannedDateText), nameof(PlannedTimeText), nameof(TotalText), nameof(PaidText), nameof(DifferenceText), nameof(TelephoneText), nameof(AddressText), nameof(CommentText), nameof(EditPickupDiscountRequested), nameof(IsEditPickupDiscountEnabled) }) OnPropertyChanged(name); RaiseEditPaymentProperties(); RaiseCommandProperties(); }
     private void RaiseCommandProperties() { foreach (var name in new[] { nameof(CanModify), nameof(CanSave), nameof(CanAbandon), nameof(CanClose), nameof(CanCancel), nameof(CanReuseCustomer), nameof(CanAddCurrentLine), nameof(IsEditPickupDiscountEnabled), nameof(EditCloseEligibilityText) }) OnPropertyChanged(name); }
     private void RaiseEditPaymentProperties() { foreach (var name in new[] { nameof(EditPaidText), nameof(EditDifferenceText), nameof(EditCloseEligibilityText) }) OnPropertyChanged(name); }
     private static bool ItemsEquivalent(IReadOnlyList<OrderItemSnapshot> left, OrderItemSnapshot[] right) =>
