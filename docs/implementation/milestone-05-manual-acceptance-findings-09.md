@@ -5,7 +5,7 @@
 **Performed by:** project owner  
 **PR:** #10 — `M05: lifecycle payments search and operational dashboard`  
 **Production-code baseline under test:** `0a0fb4caeb4b958adc26f770fa2e034b84e0c8ff`  
-**Overall result:** FIX-13 through FIX-15 targeted UX regression passed manually except for two residual presentation defects: French payment-effective-date text clipping and Caisse category-selection visual/focus instability.
+**Overall result:** FIX-13 through FIX-15 targeted UX regression passed manually except for two residual presentation defects: French payment-effective-date text clipping and Caisse category-selection visual/focus instability. FIX-16 at `00d365afdee4157067ba36755ea5096c0482bcac` has passed ChatGPT code/evidence review and is pending only the project owner's final two-item Windows/WPF confirmation.
 
 ## Passed manual regression
 
@@ -36,16 +36,18 @@ Required correction:
 - do not make the DatePicker itself unnecessarily wide;
 - prefer a row-local layout adjustment rather than globally widening unrelated short-label rows if that gives the cleanest result.
 
+FIX-16 implementation review: the effective-payment-date row now spans both detail columns, keeps the date picker at 145 px, and gives the label/hint the remaining width with wrapping. The focused STA/WPF test covers fr-FR normal, fr-FR 760x520, zh-CN 760x520, and FR after a language round trip. Manual recheck remains pending.
+
 ## Residual defect 2 — Caisse category selection loses normal selected/focus appearance
 
 The Caisse product category navigation list (`Tous`, category short-code letters such as `L`, `P`, `R`) intermittently loses the normal selected-item highlight after selecting some categories. The owner observed a red/dotted focus rectangle around the list while the expected selected row highlight disappears. The expected behavior is the stable selected-row appearance shown when another category remains normally selected.
 
-Code inspection of the exact tested head identifies a likely cause worth testing directly:
+Code inspection of the exact tested head identified the presentation-state cause:
 
 - `SelectedCategoryId` triggers `RefreshProductsAsync()`;
-- `RefreshProductsAsync()` delegates to the full `RefreshAsync()`;
-- `RefreshAsync()` clears and rebuilds the entire `Categories` collection before repopulating Products;
-- rebuilding the category collection on every category filter click recreates ListBox item containers and can disturb selection/focus visual state even though only the product result set needs refreshing.
+- before FIX-16, `RefreshProductsAsync()` delegated to the full `RefreshAsync()`;
+- the full refresh cleared and rebuilt the entire `Categories` collection before repopulating Products;
+- rebuilding the category collection on every category filter click recreated ListBox item containers and disturbed selection/focus visual state even though only the product result set needed refreshing.
 
 Required behavior:
 
@@ -57,8 +59,21 @@ Required behavior:
 - language refresh may rebuild localized category labels if genuinely needed, but ordinary category-filter selection should not unnecessarily rebuild the category collection;
 - do not change Catalogue/business semantics.
 
+FIX-16 implementation review: ordinary category filtering now refreshes Products only; full refresh updates Categories only when the desired category source actually differs. The focused STA/WPF test switches multiple categories including an empty category and `Tous`, verifies exactly one selected ListBox item remains selected, verifies the product results, and verifies category-source calls do not increase during ordinary filtering; it also round-trips zh-CN -> fr-FR. Manual recheck remains pending.
+
+## FIX-16 evidence review
+
+ChatGPT reviewed exact PR head `00d365afdee4157067ba36755ea5096c0482bcac` and found no new blocker.
+
+- Release build: 0 warnings / 0 errors.
+- Full Release suite: 338 passed / 0 failed / 0 skipped.
+- CI #416: success on the exact PR merge ref containing FIX-16; suite breakdown was Domain 33, Application 39, Infrastructure integration 52, Architecture 90, OneDrive feasibility 32, OneDrive tools 92.
+- Focused FIX-16 STA/WPF evidence: 2/2 passed.
+- win-x64 self-contained evidence publish: passed.
+- no migration/schema changes; no M06 work; PR remains open/unmerged.
+
 ## Acceptance state
 
-All targeted FIX-13 through FIX-15 manual regression items are Passed except the two presentation defects above. They are narrow final-M05 polish/blockers before final documentation/status closure and merge consideration.
+All prior FIX-13 through FIX-15 manual regression items are Passed. FIX-16 has passed code/evidence review; only the two narrow project-owner visual confirmations remain before final M05 documentation/status closure and merge consideration.
 
 PR #10 remains open/unmerged. M06 remains unauthorized/not started.
