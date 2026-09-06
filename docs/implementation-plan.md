@@ -128,11 +128,21 @@ Implement cumulative CB/Espèce editing backed by signed dated adjustments, effe
 
 Primary acceptance ownership: `AC-LIFE-003` through `AC-LIFE-014` and the live-search portion of `AC-LIFE-015`.
 
+M05 is Passed and merged through PR #10 at merge commit `79499d7c6ed65a74f524097c1507ca648dc151c3`. Accepted production-code head: `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`; final documentation/status head: `217d187dd3ef5498c11f21bc516eccc6737fa952`.
+
 ### M06 — Local recovery and authoritative/read-only enforcement
 
 Connect the M01 recovery and authority primitives to every implemented durable business mutation. Complete recovery scheduling/debounce/flush, five-version retention, persistent non-authoritative/stale/pending-transfer presentation and centralized blocking of every authoritative write.
 
 Primary acceptance ownership: `AC-STO-006`, `AC-STO-010`; partial completion of `AC-PROD-002`.
+
+Approved detailed contract: `implementation/milestone-06-local-recovery-read-only-enforcement.md`.
+
+Durable authorization: `implementation/milestone-06-authorization.md`.
+
+Prepared evidence records: `implementation/milestone-06-worklog.md` and `implementation/milestone-06-final-manual-acceptance.md`.
+
+M06 deliberately stops before real pairing, target-directed remote handoff, target acquisition, recovery-only cloud checkpoints and Disaster Recovery, which remain M07.
 
 ### M07 — Pairing, target-directed formal handoff and disaster recovery
 
@@ -214,4 +224,8 @@ M03 is `Passed`. PR #5 was explicitly approved and merged to `main` at `57f89cac
 
 M04 — First complete order-entry vertical slice — is Passed and merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a`, with its final Windows/WPF acceptance recorded in the M04 evidence.
 
-M05 — Lifecycle, payments, search and operational dashboard — is the current authorized implementation milestone on `codex/m05-lifecycle-payments-search-dashboard`, durable mailbox PR #10, under `implementation/milestone-05-lifecycle-payments-search-dashboard.md`. Its single-use authorization is `CODEX_HANDOFF_READY: M05-IMPLEMENT-01` while issue #4 is OPEN. M06 and later milestones are not authorized by M05 implementation or completion.
+M05 — Lifecycle, payments, search and operational dashboard — is Passed and merged through PR #10 at merge commit `79499d7c6ed65a74f524097c1507ca648dc151c3`. Accepted production-code head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`, full Release tests 340/340, Release build 0 warnings/0 errors, self-contained `win-x64` publish, exact-head CI success and project-owner Windows/WPF acceptance are recorded in the M05 evidence. M05 is no longer open work.
+
+M06 — Local recovery and authoritative/read-only enforcement — is the current explicitly authorized controlled implementation milestone on branch `codex/m06-local-recovery-read-only`. Its authoritative task definition is `implementation/milestone-06-local-recovery-read-only-enforcement.md`; durable owner authorization is `implementation/milestone-06-authorization.md`; implementation evidence belongs in `implementation/milestone-06-worklog.md`; and the final owner Windows/WPF checklist is `implementation/milestone-06-final-manual-acceptance.md`.
+
+M06 implementation is activated only through the dedicated M06 PR mailbox, the single-use `CODEX_HANDOFF_READY: M06-IMPLEMENT-01` record and GitHub issue #4 being OPEN after the mailbox pointer is valid. M07 and later milestones are not authorized by M06 implementation or completion.
