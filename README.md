@@ -11,11 +11,13 @@ The approved V1 product, business, architecture, data, storage, paste-import, pr
 Formal freeze record: `docs/v1-specification-freeze.md`  
 Implementation acceptance contract: `docs/acceptance-criteria.md`
 
-M01, M02, M03 and M04 are Passed and merged. M04 merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a` after complete Windows/WPF manual acceptance.
+M01 through M05 are Passed and merged. M04 merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a` after complete Windows/WPF manual acceptance.
 
-M05 — Lifecycle, payments, search and operational dashboard — is Passed for implementation and project-owner Windows/WPF acceptance on PR #10 / branch `codex/m05-lifecycle-payments-search-dashboard`; the PR remains open/unmerged pending explicit merge approval. Its authoritative contract, authorization and final acceptance record are under `docs/implementation/`. Codex execution remains controlled by GitHub issue #4. M06 and later milestones are not authorized by M05 completion.
+M05 — Lifecycle, payments, search and operational dashboard — Passed implementation and project-owner Windows/WPF acceptance and was merged through PR #10 to `main` at merge commit `79499d7c6ed65a74f524097c1507ca648dc151c3`. Accepted M05 production-code head: `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`; final M05 documentation head: `217d187dd3ef5498c11f21bc516eccc6737fa952`. M05 is no longer open work.
 
-Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. Historical OneDrive feasibility evidence is retained and is not the normal authority gate.
+M06 — Local recovery and authoritative/read-only enforcement — is the current controlled implementation milestone on branch `codex/m06-local-recovery-read-only`. Its authoritative contract, authorization, worklog and prepared project-owner manual-acceptance checklist are under `docs/implementation/`. Codex execution remains controlled by GitHub issue #4 and does not authorize M07 or later milestones.
+
+Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. Historical OneDrive feasibility evidence is retained and is not the normal authority gate. Real pairing/handoff/target acquisition/disaster recovery remain M07 rather than M06.
 
 ## Working model
 
