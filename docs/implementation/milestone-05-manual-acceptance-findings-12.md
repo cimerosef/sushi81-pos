@@ -32,8 +32,20 @@ Required correction is deliberately narrow:
 3. extend actual STA/WPF evidence so label + panel/picker/hint are visible while editing and both label + panel are collapsed after Abandon/save exit;
 4. do not change FIX-18 performance/layout-event remediation, category behavior, business semantics, migration, or M06 scope.
 
-## Responsiveness acceptance still pending
+## FIX-19 review closure
 
-After this visibility correction, the owner should republish once and perform the broad several-minute fluidity test. If any 3–5 second / 10+ second stall remains, enable the existing performance trace before further speculative code changes.
+FIX-19 `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70` closes the above visibility blocker with the smallest approved production change: the standalone payment-date label now uses the same `IsEditing` BooleanToVisibility binding as the editor panel. Actual STA/WPF assertions now cover label visibility in edit mode and collapse after Abandon. The FIX-18 responsiveness remediation and FIX-16 category-selection behavior are unchanged.
+
+Automated evidence reviewed:
+
+- focused FIX-18/FIX-19 regression set: 4/4 passed;
+- complete Release suite: 340/340 passed;
+- Release build: 0 warnings / 0 errors;
+- self-contained win-x64 publish: passed, 414 files;
+- GitHub Actions run `34034418001`: success on exact pushed head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`.
+
+## Remaining acceptance
+
+No further code-review blocker is known at this point. Owner-side broad Windows/WPF fluidity acceptance remains the only release-blocking manual check from FIX-18/FIX-19. Republish the exact FIX-19 head and operate the application broadly for several minutes. If any 3–5 second or 10+ second stall remains, enable the existing `SUSHI81_POS_PERF_TRACE=1` diagnostic mode and capture `%TEMP%\Sushi81-POS\perf-trace.log` before any further speculative remediation.
 
 PR #10 remains open/unmerged. M06 remains unauthorized/not started.
