@@ -2,60 +2,44 @@
 
 **Milestone:** M05 — Lifecycle, payments, search and operational dashboard  
 **Date:** 2026-09-06  
-**Performed by:** project owner  
+**Performed by:** project owner / ChatGPT review  
 **PR:** #10 — `M05: lifecycle payments search and operational dashboard`  
-**Production-code baseline under test:** `00d365afdee4157067ba36755ea5096c0482bcac`  
-**Overall result:** The Caisse category-selection defect is fixed. The French payment-effective-date text is readable, but the new row layout places the DatePicker at the far-right edge instead of near the related label/controls. The owner also reports a severe responsiveness regression in the FIX-16 build: ordinary clicks throughout the application now frequently feel blocked/stalled compared with the smooth pre-FIX-16 build.
+**Production-code baseline under test/review:** FIX-18 `e38a688e6314d82c042595537441195e1a3d23d3`  
+**Overall result:** FIX-18 correctly removes the continuous `commandesGrid.LayoutUpdated` width-feedback path, adds opt-in diagnostic tracing, restores the DatePicker to the normal right edit column, and preserves the already-passed Caisse category-selection behavior. GitHub CI and the full automated suite are green. However, code review found one concrete presentation regression that must be fixed before owner republish: the payment-date label is now outside the edit-only panel and lacks an `IsEditing` visibility binding, so `Date d'encaissement` remains visible even when the order is not in modification mode.
 
-## Passed — Caisse category-selection stability
+## Passed in FIX-18 code/evidence review
 
-The project owner republished the FIX-16 production build and manually verified the Caisse category navigation behavior. The previously observed selected-row/focus instability is resolved: category selection remains visually stable and product filtering behaves correctly.
+- The global `commandesGrid.LayoutUpdated += OnCommandesGridLayoutUpdated` subscription/handler is removed.
+- Commandes long-text column sizing now runs only from bounded `Loaded` / `SizeChanged` paths.
+- STA/WPF evidence counts hidden Catalogue / OrderEntry / Lifecycle / dashboard / settings calls during repeated top-level navigation and ordinary focus/selection and finds no semantically-unnecessary refreshes.
+- The opt-in `SUSHI81_POS_PERF_TRACE=1` diagnostic mode is disabled by default and logs only technical timing/refresh/layout markers to `%TEMP%\Sushi81-POS\perf-trace.log`.
+- French wording is shortened to `Date d'encaissement`; the hint is `Date utilisée pour cette modification.`; the 145px DatePicker is restored to the normal right edit column.
+- Caisse category selection/filter stability from FIX-16 remains covered and must not regress.
+- Release build is 0 warnings / 0 errors; complete test matrix is 340/340; CI run `34033234605` succeeded on exact head `e38a688e6314d82c042595537441195e1a3d23d3`.
 
-This requirement must remain preserved by any subsequent remediation.
+## Remaining review blocker — payment-date label visible outside modification
 
-## Residual presentation defect — payment-effective-date control placement
+Current FIX-18 XAML separates the label from the edit-only panel:
 
-FIX-16 made the French label/help text readable, but the implementation spans the row across the full Commandes detail width and uses a star-sized text column plus an Auto DatePicker column. At normal wide-window size this pushes the DatePicker to the extreme right edge of the detail area.
+- `lifecycleEffectivePaymentDateLabel` is a standalone `TextBlock` in `Grid.Row="12"` / left label column;
+- `lifecycleEffectivePaymentDatePanel` in the right edit column has `Visibility={Binding IsEditing, ...}`;
+- the standalone label itself has no visibility binding.
 
-That is not acceptable operator ergonomics. The payment-effective-date control is an input used while modifying an order and must remain visually/physically close to its label and the other edit controls.
+Therefore outside modification mode the DatePicker/hint collapse but the `Date d'encaissement` label remains visible by itself. That violates the already-approved M05 payment effective-date UX: outside modification mode this current-save attribution field must not be presented as an order-level payment-date fact.
 
-Required presentation behavior:
+The existing STA test only asserts that `lifecycleEffectivePaymentDatePanel` collapses after `AbandonModification`; it does not assert the label collapses, which is why the regression escaped the 340/340 suite.
 
-- French label/help text must remain fully readable;
-- zh-CN must remain readable;
-- the DatePicker must remain compact;
-- the DatePicker must be left-aligned within the normal edit-control cluster, not parked at the far-right edge of the window/detail area;
-- a preferred layout is a compact local group: label and DatePicker adjacent on the first line, with the explanatory hint below them (or an equivalently compact arrangement);
-- at supported small-window size, wrapping is allowed but the input must remain easy to reach and visually associated with the label;
-- no unrelated Commandes rows should be widened just to solve this one row.
+Required minimal correction:
 
-## Blocker — FIX-16 responsiveness regression
+1. bind `lifecycleEffectivePaymentDateLabel.Visibility` to the same `IsEditing` + BooleanToVisibility behavior as the panel (or use an equivalent parent container that hides label + editor together while keeping the ordinary two-column alignment);
+2. preserve the exact final layout decision: label in left column, 145px DatePicker in right column, short hint under the DatePicker, FR `Date d'encaissement`, current zh-CN wording;
+3. extend the actual STA/WPF test so both label and panel/picker/hint are visible in edit mode and both label and edit panel are collapsed after Abandon/save exit;
+4. do not touch the FIX-18 layout/performance remediation, category filtering, business semantics, schema, or M06 scope.
 
-After republishing the FIX-16 production build, the project owner reports a clear regression in application responsiveness: ordinary clicks now frequently cause noticeable stalls/lag, and the application feels substantially less fluid than the immediately preceding build.
+## Responsiveness status
 
-This regression was not present before FIX-16 and is a release blocker even though functional tests are green.
-
-The production-code delta introduced by FIX-16 is narrow and therefore must be isolated carefully rather than guessed at:
-
-- `src/Sushi81.Pos.Desktop/MainWindow.xaml` changed the payment-effective-date layout;
-- `src/Sushi81.Pos.Desktop/OrderEntryShellViewModel.cs` changed category/product refresh behavior to preserve category selection;
-- the parent production baseline before FIX-16 is `aaf710c98c5a77d0addb43eb48a0faace9ce5f97` (the FIX-16 commit parent); current later branch commits are documentation-only after the FIX-16 production commit.
-
-Required diagnosis/remediation:
-
-1. compare the responsive pre-FIX-16 production baseline with the FIX-16 production delta and identify the actual cause(s) of the UI stall;
-2. do not assume the category-refresh change is the cause merely because it is the larger code change; also test whether the new WPF row layout causes pathological measure/arrange or invalidation behavior;
-3. verify that ordinary category selection performs only the intended product refresh, does not recursively/redundantly trigger refreshes, and does not rebuild Categories;
-4. verify that unrelated clicks (tab changes, selecting an order, entering modification, selecting a product, focusing numeric/date controls) do not trigger unnecessary catalogue/database refresh work;
-5. keep I/O and expensive work off the WPF UI thread wherever applicable;
-6. preserve the now-passed category selected-row behavior;
-7. add deterministic regression evidence that guards against repeated refresh/event loops and covers the relevant STA/WPF interaction path;
-8. if practical in the available environment, record comparative interaction/refresh timing or call-count evidence between the pre-FIX-16 shape and the corrected implementation. Do not fabricate performance numbers.
-
-The owner should not be asked to accept a build that merely passes unit/STA tests while the visible UI remains sluggish.
+FIX-18 is **not** yet declared owner-manual PASS for application-wide fluidity. The agent could not reproduce the owner-visible 3–5 second / occasional 10+ second stalls, so the owner must still perform broad interaction testing on the corrected production build. If stalls remain, the opt-in trace path must be used before another speculative performance change.
 
 ## Scope guard
 
-This is final M05 remediation only. No schema/migration changes, no business-rule changes, no M06 work, and no merge of PR #10 without explicit project-owner approval.
-
-PR #10 remains open/unmerged. M06 remains unauthorized/not started.
+This is final M05 remediation only. PR #10 remains open/unmerged. M06 remains unauthorized/not started. No merge without explicit project-owner approval.
