@@ -989,7 +989,9 @@ public sealed class M05DesktopTests
                 var commandes = Field<TabControl>(window, "mainTabs").Items.OfType<TabItem>().Single(item => item.DataContext is OrderLifecycleShellViewModel);
                 commandes.IsSelected = true;
                 var effectiveDate = Field<DatePicker>(window, "lifecycleEffectivePaymentDatePicker");
+                var effectiveDateLabel = Field<TextBlock>(window, "lifecycleEffectivePaymentDateLabel");
                 Assert.AreEqual(Visibility.Collapsed, effectiveDate.Visibility);
+                Assert.AreEqual(Visibility.Collapsed, effectiveDateLabel.Visibility);
 
                 lifecycle.SelectOperationalView("future");
                 Assert.IsTrue(lifecycle.IsOperationalViewActive);
@@ -1001,6 +1003,7 @@ public sealed class M05DesktopTests
                 lifecycle.BeginModification();
                 window.UpdateLayout();
                 Assert.AreEqual(Visibility.Visible, effectiveDate.Visibility);
+                Assert.AreEqual(Visibility.Visible, effectiveDateLabel.Visibility);
                 Assert.AreEqual(new DateOnly(2026, 8, 31), DateOnly.FromDateTime(lifecycle.EffectivePaymentDate!.Value));
                 Assert.IsTrue(VisualDescendants<TextBlock>(window).Any(text => text.Text == shell.Localized["OrderEffectiveDateEdit"]));
                 Assert.IsTrue(VisualDescendants<TextBlock>(window).Any(text => text.Text == shell.Localized["OrderEffectiveDateHint"] && text.Visibility == Visibility.Visible));
@@ -1013,6 +1016,7 @@ public sealed class M05DesktopTests
                 Assert.IsTrue(VisualDescendants<TextBlock>(window).Any(text => text.Text == shell.Localized["OrderEffectiveDateEdit"] && text.Visibility == Visibility.Visible));
                 lifecycle.AbandonModification();
                 Assert.AreEqual(Visibility.Collapsed, effectiveDate.Visibility);
+                Assert.AreEqual(Visibility.Collapsed, effectiveDateLabel.Visibility);
             }
             finally { window.Close(); }
         });
@@ -1049,6 +1053,9 @@ public sealed class M05DesktopTests
                     window.Height = expectedHeight;
                     window.UpdateLayout();
                     Assert.AreEqual(Visibility.Visible, panel.Visibility, $"{culture}: effective payment-date panel must be visible while editing.");
+                    Assert.AreEqual(Visibility.Visible, label.Visibility, $"{culture}: effective payment-date label must be visible while editing.");
+                    Assert.AreEqual(Visibility.Visible, picker.Visibility, $"{culture}: DatePicker must be visible while editing.");
+                    Assert.AreEqual(Visibility.Visible, hint.Visibility, $"{culture}: hint must be visible while editing.");
                     Assert.IsGreaterThan(0D, label.ActualWidth, $"{culture}: label must have usable width.");
                     Assert.IsGreaterThan(0D, hint.ActualWidth, $"{culture}: hint must have usable width.");
                     Assert.IsGreaterThan(0D, label.ActualHeight, $"{culture}: label must have rendered height.");
@@ -1079,6 +1086,7 @@ public sealed class M05DesktopTests
                 lifecycle.AbandonModification();
                 window.UpdateLayout();
                 Assert.AreEqual(Visibility.Collapsed, panel.Visibility, "The effective payment-date block must be hidden outside edit mode.");
+                Assert.AreEqual(Visibility.Collapsed, label.Visibility, "The effective payment-date label must be hidden outside edit mode.");
             }
             finally { window.Close(); }
         });
