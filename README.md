@@ -13,7 +13,7 @@ Implementation acceptance contract: `docs/acceptance-criteria.md`
 
 M01, M02, M03 and M04 are Passed and merged. M04 merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a` after complete Windows/WPF manual acceptance.
 
-M05 — Lifecycle, payments, search and operational dashboard — is the current controlled implementation milestone. Its dedicated branch is `codex/m05-lifecycle-payments-search-dashboard`, its durable mailbox is PR #10, and its authoritative contract/authorization are under `docs/implementation/`. Codex execution remains controlled by GitHub issue #4. M06 and later milestones are not authorized by M05 preparation or completion.
+M05 — Lifecycle, payments, search and operational dashboard — is Passed for implementation and project-owner Windows/WPF acceptance on PR #10 / branch `codex/m05-lifecycle-payments-search-dashboard`; the PR remains open/unmerged pending explicit merge approval. Its authoritative contract, authorization and final acceptance record are under `docs/implementation/`. Codex execution remains controlled by GitHub issue #4. M06 and later milestones are not authorized by M05 completion.
 
 Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. Historical OneDrive feasibility evidence is retained and is not the normal authority gate.
 

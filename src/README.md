@@ -2,7 +2,7 @@
 
 Production source code lives under this directory.
 
-**Current status:** M01–M04 are implemented and merged to `main`; M02 transport harness work remains isolated under `tools/`. M05 — Lifecycle, payments, search and operational dashboard — is the current authorized implementation milestone on `codex/m05-lifecycle-payments-search-dashboard` under `../docs/implementation/milestone-05-lifecycle-payments-search-dashboard.md`.
+**Current status:** M01–M04 are implemented and merged to `main`; M02 transport harness work remains isolated under `tools/`. M05 — Lifecycle, payments, search and operational dashboard — is implemented and has Passed project-owner Windows/WPF acceptance on `codex/m05-lifecycle-payments-search-dashboard`; PR #10 remains open/unmerged pending explicit merge approval. Its contract and final acceptance record are under `../docs/implementation/`.
 
 The source tree is ready for explicit Codex implementation milestones against:
 

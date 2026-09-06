@@ -4,9 +4,9 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M04 Passed/merged; M05 is the current controlled implementation milestone under PR #10.**
+**Phase 6 implementation active: M01–M04 Passed/merged; M05 implementation and project-owner Windows/WPF acceptance are Passed under PR #10, which remains open/unmerged pending explicit merge approval.**
 
-M04 merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a` after complete Windows/WPF manual acceptance. M05 preparation is approved under the dedicated branch `codex/m05-lifecycle-payments-search-dashboard`; M06+ remains unauthorized.
+M04 merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a` after complete Windows/WPF manual acceptance. M05 implementation and project-owner Windows/WPF acceptance are Passed under the dedicated branch `codex/m05-lifecycle-payments-search-dashboard`; PR #10 remains open/unmerged pending explicit merge approval and M06+ remains unauthorized.
 
 The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`.
 
@@ -54,6 +54,7 @@ A separate `sync-and-backup.md` is not part of V1 because live storage, local re
 - `implementation/milestone-04-order-entry.md`, authorization/worklog/final manual acceptance — M04 historical implementation records; Passed/merged through PR #6.
 - `implementation/milestone-05-lifecycle-payments-search-dashboard.md` — current approved M05 implementation contract.
 - `implementation/milestone-05-authorization.md` — durable project-owner authorization for controlled M05 execution.
+- `implementation/milestone-05-final-manual-acceptance.md` — final project-owner Windows/WPF acceptance record for M05.
 
 Normal target-directed handoff uses the configured dedicated private GitHub repository (`sushi81-pos-handoff` conceptually), one long-lived Release and immutable snapshot/grant assets. OneDrive references remain only for approved recovery/archive or historical M02 evidence.
 

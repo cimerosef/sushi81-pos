@@ -38,12 +38,13 @@ Historical M04 records remain under this directory, including:
 
 ## Current M05 contract
 
-M05 — Lifecycle, payments, search and operational dashboard — is the current controlled implementation milestone under PR #10 / branch `codex/m05-lifecycle-payments-search-dashboard`.
+M05 — Lifecycle, payments, search and operational dashboard — is the completed controlled implementation milestone under PR #10 / branch `codex/m05-lifecycle-payments-search-dashboard`; implementation and project-owner Windows/WPF acceptance are Passed, while merge remains pending explicit owner approval.
 
 Authoritative M05 preparation:
 
 - `milestone-05-lifecycle-payments-search-dashboard.md` — detailed implementation contract;
 - `milestone-05-authorization.md` — durable project-owner authorization;
+- `milestone-05-final-manual-acceptance.md` — final project-owner Windows/WPF acceptance record;
 - `../decisions/m05-lifecycle-payment-modification-clarifications.md` — approved D1/D2/D3 decision record.
 
 M05 inherits every cross-cutting governance file listed above. Its implementation PR must remain open/unmerged until explicit project-owner merge approval. M05 completion does not authorize M06.
