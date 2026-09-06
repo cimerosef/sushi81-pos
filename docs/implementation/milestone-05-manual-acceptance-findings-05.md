@@ -4,8 +4,8 @@
 **Date:** 2026-09-06  
 **Performed by:** project owner  
 **PR:** #10 — `M05: lifecycle payments search and operational dashboard`  
-**Production-code baseline under test:** `6694d1660074cb9443295c1f5e537fc8ca192b4a`  
-**Overall result:** Partial — snapshot quantity semantics and current-Catalogue add semantics passed; the add-current-product picker exposed an operator-UI defect. Explicit option reconfiguration still needs its successful-path completion after the owner intentionally created a required-group validation failure.
+**Production-code baseline under test:** `9d116227ccb9cf9ef1c6e14e20dfd70404d7580a`  
+**Overall result:** Passed for acceptance items 8–10. A separate operator-usability follow-up remains for adding quick filtering to the current-Catalogue product picker; this is not a failure of items 8–10.
 
 ## Acceptance item 8 — quantity-only historical snapshot
 
@@ -15,52 +15,48 @@ After changing the current Catalogue price, modifying only the quantity of an ex
 
 ## Acceptance item 9 — add a new current-Catalogue line
 
-Business behavior passed manually: the newly added line used current Catalogue data as required.
+Passed manually.
 
-However the `CatalogueProductPickerDialog` exposed an operator-UI defect:
+The newly added line used current Catalogue data as required.
 
-- the list shows only product `Name`, omitting the operator-facing product `Code`;
-- the current DockPanel child order / LastChildFill behavior stretches the action area into two oversized vertical `Annuler` / `Ajouter` controls;
-- `Annuler` has no distinct business behavior from closing the picker window with the title-bar close button;
-- the picker should be compact, readable and consistent with the rest of the application.
+The picker remediation from FIX-11 was also manually accepted:
 
-For operator identification the picker must show at minimum `Product.Code + Product.Name`. If the existing category short-code information is made available to the picker, it may also display the category short code (e.g. `P`) as a compact prefix; there is no second independent product-code field in the approved V1 model.
+- each row shows `Product.Code + Product.Name`;
+- the malformed oversized vertical `Annuler` / `Ajouter` action area is gone;
+- the redundant `Annuler` button is removed;
+- one normal-sized `Ajouter` action remains;
+- title-bar close retains cancel semantics;
+- the resulting compact picker is operationally acceptable.
 
-Preferred simple interaction:
-
-- compact product list occupying the dialog body;
-- one normal-sized `Ajouter` button at bottom-right;
-- double-click remains a valid accept action;
-- title-bar close cancels; a redundant `Annuler` button is not required;
-- FR/zh-CN and supported small-window rendering must remain usable.
+The project owner requested one further usability improvement for this picker: add a quick partial filter similar to the Caisse product search so an operator can reduce the list by typing a product-code fragment and, preferably, name text as well. This is a follow-up enhancement rather than an item-9 acceptance failure.
 
 ## Acceptance item 10 — explicit current-Catalogue option reconfiguration
 
-Not yet fully completed, but the previously reported “lost historical preselection” defect was a false finding and is withdrawn.
+Passed manually.
 
-Observed historical order line `TST002` previously contained:
+Historical order line `TST002` previously contained:
 
 - `Sans accompagnement (-1,00 €)`;
 - `Sauce premium (+1,00 €)`.
 
 The current Catalogue was edited so that `Sauce premium` became `+1,50 €`.
 
-In the explicit reconfiguration dialog, the project owner **intentionally unchecked** `Sans accompagnement (-1,00 €)`. Therefore the subsequent localized validation:
+The project owner first intentionally unchecked `Sans accompagnement (-1,00 €)`, producing the localized required-group validation:
 
 `La sélection du groupe « Suppléments » est invalide.`
 
-is expected behavior, because the current `Suppléments` group is required multi-select `1-2` and the owner deliberately left that required group with zero selected choices.
+That validation was confirmed as expected behavior, not a preselection defect.
 
-There is no evidence from this observation of a preselection defect, silent option loss, or option-ID regression. Do not change option-preselection semantics on the basis of this test.
+The project owner then completed a valid explicit reconfiguration on the existing order and saved it. The persisted/currently displayed line used the current Catalogue option value `Sauce premium (+1,50 €)`, and the authoritative order total recalculated to `26,01 €`, exactly matching the expected current-Catalogue reconfiguration result.
 
-The remaining manual step for item 10 is simply to complete a **valid explicit reconfiguration** using the current Catalogue configuration (including the changed `Sauce premium +1,50 €`), save the order, and verify that the resulting saved line/total uses current Catalogue option values while unrelated historical snapshot behavior remains protected.
+There is no evidence of silent option loss or option-ID regression from this acceptance batch.
 
 ## Acceptance state
 
 - item 8: Passed;
 - item 9 business semantics: Passed;
-- item 9 picker UI: Failed / remediation required;
+- item 9 FIX-11 picker layout/identification: Passed;
 - item 10 required-group validation: Passed as expected behavior;
-- item 10 successful explicit-reconfiguration path: Pending manual completion after picker UI remediation.
+- item 10 successful explicit current-Catalogue reconfiguration: Passed, including expected total `26,01 €`.
 
-Do not mark M05 Passed. PR #10 remains open/unmerged. M06 remains not authorized.
+M05 as a whole remains under manual acceptance because later payment/lifecycle/dashboard items are still pending. PR #10 remains open/unmerged. M06 remains not authorized.
