@@ -42,10 +42,10 @@ Automated evidence reviewed:
 - complete Release suite: 340/340 passed;
 - Release build: 0 warnings / 0 errors;
 - self-contained win-x64 publish: passed, 414 files;
-- GitHub Actions run `34034418001`: success on exact pushed head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`.
+- GitHub Actions run `34034418001`: success on exact pushed production head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`.
 
 ## Remaining acceptance
 
-No further code-review blocker is known at this point. Owner-side broad Windows/WPF fluidity acceptance remains the only release-blocking manual check from FIX-18/FIX-19. Republish the exact FIX-19 head and operate the application broadly for several minutes. If any 3–5 second or 10+ second stall remains, enable the existing `SUSHI81_POS_PERF_TRACE=1` diagnostic mode and capture `%TEMP%\Sushi81-POS\perf-trace.log` before any further speculative remediation.
+No further code-review blocker is known at this point. Owner-side broad Windows/WPF fluidity acceptance remains the only release-blocking manual check from FIX-18/FIX-19. Republish the current branch; the only commit after the FIX-19 production head is this documentation-only review record. Operate the application broadly for several minutes. If any 3–5 second or 10+ second stall remains, enable the existing `SUSHI81_POS_PERF_TRACE=1` diagnostic mode and capture `%TEMP%\Sushi81-POS\perf-trace.log` before any further speculative remediation.
 
 PR #10 remains open/unmerged. M06 remains unauthorized/not started.
