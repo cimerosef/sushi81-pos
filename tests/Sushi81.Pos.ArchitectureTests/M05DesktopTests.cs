@@ -1002,6 +1002,14 @@ public sealed class M05DesktopTests
                 Assert.AreEqual(Visibility.Visible, effectiveDate.Visibility);
                 Assert.AreEqual(new DateOnly(2026, 8, 31), DateOnly.FromDateTime(lifecycle.EffectivePaymentDate!.Value));
                 Assert.IsTrue(VisualDescendants<TextBlock>(window).Any(text => text.Text == shell.Localized["OrderEffectiveDateEdit"]));
+                Assert.IsTrue(VisualDescendants<TextBlock>(window).Any(text => text.Text == shell.Localized["OrderEffectiveDateHint"] && text.Visibility == Visibility.Visible));
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                window.UpdateLayout();
+                Assert.IsTrue(VisualDescendants<TextBlock>(window).Any(text => text.Text == shell.Localized["OrderEffectiveDateEdit"] && text.Visibility == Visibility.Visible));
+                Assert.IsTrue(VisualDescendants<TextBlock>(window).Any(text => text.Text == shell.Localized["OrderEffectiveDateHint"] && text.Visibility == Visibility.Visible));
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                window.UpdateLayout();
+                Assert.IsTrue(VisualDescendants<TextBlock>(window).Any(text => text.Text == shell.Localized["OrderEffectiveDateEdit"] && text.Visibility == Visibility.Visible));
                 lifecycle.AbandonModification();
                 Assert.AreEqual(Visibility.Collapsed, effectiveDate.Visibility);
             }
@@ -1151,6 +1159,54 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
+    public void Fix15PendingNewQuantityRemovalLeavesCartEmptyAndNextAddUsableOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(Guid.NewGuid(), "PENDING", "Produit en attente", Guid.NewGuid(), Money.FromCents(1000), 10m, true, true, true, default, default),
+                [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Tests");
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var entryService = new OrderEntryService(new SingleEntryCatalogue(product), settings, new FallbackStore(Row(Guid.NewGuid(), "PENDING-ROW", new DateOnly(2026, 8, 31))), new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), entryService);
+            var owner = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            owner.Show();
+            try
+            {
+                var entry = shell.Entry!;
+                var summary = new ProductSummary(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name, product.Aggregate.Product.CategoryId, product.CategoryName, product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, true, true);
+                entry.SelectedProduct = summary;
+                entry.AddSelectedProductAsync().GetAwaiter().GetResult();
+                Assert.IsNotNull(entry.PendingProduct);
+                Assert.IsEmpty(entry.Cart);
+
+                var dialogType = typeof(MainWindow).GetNestedType("OptionSelectionDialog", BindingFlags.NonPublic)!;
+                var constructor = dialogType.GetConstructor(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null,
+                    [typeof(Window), typeof(OrderEntryProduct), typeof(OrderEntryCartLineViewModel)], null)!;
+                var dialog = (Window)constructor.Invoke([owner, product, null]);
+                Exception? callbackFailure = null;
+                dialog.ContentRendered += (_, _) =>
+                {
+                    try { VisualDescendants<Button>(dialog).Single(button => Equals(button.Content, "−")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); }
+                    catch (Exception exception) { callbackFailure = exception; dialog.Close(); }
+                };
+                Assert.IsFalse(dialog.ShowDialog(), "Pending-new 1 -> 0 must cancel the add dialog.");
+                if (callbackFailure is not null) ExceptionDispatchInfo.Capture(callbackFailure).Throw();
+                Assert.IsEmpty(entry.Cart, "Cancelling a pending-new quantity at zero must not add a line.");
+                Assert.IsTrue(entry.Cart.All(line => line.Quantity > 0), "A pending-new zero quantity must never enter the cart.");
+
+                entry.SelectedProduct = summary;
+                entry.AddSelectedProductAsync().GetAwaiter().GetResult();
+                Assert.IsNotNull(entry.PendingProduct, "The next normal product-add attempt must remain usable.");
+                entry.AddConfiguredLine(entry.PendingProduct!, [], [], 1);
+                Assert.HasCount(1, entry.Cart);
+                Assert.AreEqual(1, entry.Cart.Single().Quantity);
+            }
+            finally { owner.Close(); }
+        });
+    }
+
+    [TestMethod]
     public void Fix14ExistingLineRemovalRestoresOnAbandonAndPersistsOnSaveOnSta()
     {
         RunOnSta(() =>
@@ -1248,6 +1304,115 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
+    public void Fix15OperationalExitLoadsDateRowsAndLocalizedBrowseButtonWorksOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var order = Snapshot(new DateOnly(2026, 8, 31));
+            var ordinaryOperationalDate = new OrderBrowserRow(Guid.NewGuid(), new DateOnly(2026, 9, 1), new TimeOnly(11, 0), FulfilmentMode.Retrait, OrderStatus.Open, Money.FromCents(1100), "06 00 00 00 01") { Reference = "DATE-OPERATIONAL" };
+            var ordinaryManualDate = new OrderBrowserRow(Guid.NewGuid(), new DateOnly(2026, 9, 2), new TimeOnly(11, 0), FulfilmentMode.Retrait, OrderStatus.Open, Money.FromCents(1200), "06 00 00 00 02") { Reference = "DATE-MANUAL" };
+            var operationalFuture = new OrderBrowserRow(Guid.NewGuid(), new DateOnly(2026, 9, 1), new TimeOnly(11, 0), FulfilmentMode.Retrait, OrderStatus.Open, Money.FromCents(1300), "06 00 00 00 03") { Reference = "OP-FUTURE" };
+            var searchRow = new OrderBrowserRow(Guid.NewGuid(), new DateOnly(2026, 8, 30), new TimeOnly(11, 0), FulfilmentMode.Retrait, OrderStatus.Open, Money.FromCents(1400), "06 00 00 00 04") { Reference = "SEARCH-RESULT" };
+            var store = new NavigationLifecycleStore(order, [ordinaryOperationalDate, ordinaryManualDate], [operationalFuture], [searchRow]);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), orderLifecycleService: service);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                var commandes = Field<TabControl>(window, "mainTabs").Items.OfType<TabItem>().Single(item => item.DataContext is OrderLifecycleShellViewModel);
+                commandes.IsSelected = true;
+
+                lifecycle.SelectOperationalView("future");
+                lifecycle.RefreshAsync().GetAwaiter().GetResult();
+                Assert.AreEqual("OP-FUTURE", lifecycle.Orders.Single().ReferenceText);
+
+                lifecycle.BrowseDate = new DateTime(2026, 9, 2);
+                lifecycle.RefreshAsync().GetAwaiter().GetResult();
+                Assert.IsFalse(lifecycle.IsOperationalViewActive);
+                Assert.AreEqual("DATE-MANUAL", lifecycle.Orders.Single().ReferenceText, "Manual date browsing must load ordinary planned-date rows.");
+
+                lifecycle.SelectOperationalView("future");
+                lifecycle.RefreshAsync().GetAwaiter().GetResult();
+                lifecycle.SearchText = "needle";
+                lifecycle.RefreshAsync().GetAwaiter().GetResult();
+                Assert.AreEqual("SEARCH-RESULT", lifecycle.Orders.Single().ReferenceText);
+                lifecycle.SearchText = string.Empty;
+                lifecycle.RefreshAsync().GetAwaiter().GetResult();
+                Assert.IsFalse(lifecycle.IsOperationalViewActive, "Clearing search must leave operational mode.");
+                Assert.AreEqual("DATE-OPERATIONAL", lifecycle.Orders.Single().ReferenceText, "Clearing search must not resurrect the prior operational result set.");
+
+                foreach (var cultureName in PickerCultures)
+                {
+                    shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == cultureName)).GetAwaiter().GetResult();
+                    lifecycle.SelectOperationalView("future");
+                    lifecycle.RefreshAsync().GetAwaiter().GetResult();
+                    var browse = Field<Button>(window, "commandesBrowseByDateButton");
+                    Assert.AreEqual(shell.Localized["OrderBrowseByDate"], browse.Content?.ToString(), $"{cultureName}: browse button must be localized.");
+                    browse.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    lifecycle.RefreshAsync().GetAwaiter().GetResult();
+                    Assert.IsFalse(lifecycle.IsOperationalViewActive, $"{cultureName}: localized browse button must clear operational mode.");
+                    Assert.AreEqual("DATE-OPERATIONAL", lifecycle.Orders.Single().ReferenceText, $"{cultureName}: localized browse button must restore ordinary date rows.");
+                }
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Fix15CommandesCompactEditControlsRemainVisibleAcrossSizesAndLanguagesOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var order = Snapshot(new DateOnly(2026, 8, 31)) with { DeliveryAddress = new string('a', 160), Comment = new string('c', 160) };
+            var store = new LifecycleStore(order);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), orderLifecycleService: service);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                var commandes = Field<TabControl>(window, "mainTabs").Items.OfType<TabItem>().Single(item => item.DataContext is OrderLifecycleShellViewModel);
+                commandes.IsSelected = true;
+                lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                lifecycle.BeginModification();
+
+                var total = Field<TextBox>(window, "lifecycleEditTotalBox");
+                var card = Field<TextBox>(window, "lifecycleEditCardBox");
+                var cash = Field<TextBox>(window, "lifecycleEditCashBox");
+                var effectiveDate = Field<DatePicker>(window, "lifecycleEffectivePaymentDatePicker");
+                var address = Field<TextBox>(window, "lifecycleEditAddressBox");
+                var comment = Field<TextBox>(window, "lifecycleEditCommentBox");
+
+                void AssertCompact(string culture)
+                {
+                    window.UpdateLayout();
+                    Assert.IsTrue(total.ActualWidth > 0D && total.ActualWidth <= 120D, $"{culture}: Total TTC must remain compact and visible.");
+                    Assert.IsTrue(card.ActualWidth > 0D && card.ActualWidth <= 120D, $"{culture}: CB must remain compact and visible.");
+                    Assert.IsTrue(cash.ActualWidth > 0D && cash.ActualWidth <= 120D, $"{culture}: Espèce must remain compact and visible.");
+                    Assert.IsTrue(effectiveDate.ActualWidth > 0D && effectiveDate.ActualWidth <= 145D, $"{culture}: effective payment date must remain compact and visible.");
+                    Assert.IsGreaterThan(0D, address.ActualWidth, $"{culture}: long Commandes address must remain usable.");
+                    Assert.IsGreaterThan(0D, comment.ActualWidth, $"{culture}: long Commandes comment must remain usable.");
+                }
+
+                AssertCompact("fr-FR-normal");
+                window.Width = 760;
+                window.Height = 520;
+                AssertCompact("fr-FR-small");
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                AssertCompact("zh-CN-small");
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                AssertCompact("fr-FR-restored");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
     public void Fix14DateOnlyPaymentEditCreatesNoPaymentAdjustmentOnSta()
     {
         RunOnSta(() =>
@@ -1335,6 +1500,21 @@ public sealed class M05DesktopTests
         var thread = new Thread(() => { try { action(); } catch (Exception exception) { failure = exception; } });
         thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
         if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private sealed class NavigationLifecycleStore(
+        OrderSnapshot initial,
+        IReadOnlyList<OrderBrowserRow> ordinaryRows,
+        IReadOnlyList<OrderBrowserRow> operationalRows,
+        IReadOnlyList<OrderBrowserRow> searchRows) : IOrderStore, IOrderLifecycleStore
+    {
+        public OrderSnapshot Snapshot { get; private set; } = initial;
+        public Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default) { Snapshot = snapshot; return Task.CompletedTask; }
+        public Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default) => Task.FromResult<OrderSnapshot?>(Snapshot.Id == orderId ? Snapshot : null);
+        public Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>(ordinaryRows.Where(row => row.PlannedFulfilmentDate == plannedDate).ToArray());
+        public Task SaveLifecycleAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken = default) { Snapshot = snapshot; return Task.CompletedTask; }
+        public Task<IReadOnlyList<OrderBrowserRow>> SearchAsync(string? query, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>(query is null ? operationalRows : searchRows);
+        public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) => Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0));
     }
 
     private sealed class LifecycleStore(OrderSnapshot initial) : IOrderStore, IOrderLifecycleStore
