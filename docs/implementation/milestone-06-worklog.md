@@ -256,22 +256,24 @@ Remediation-specific evidence includes:
 
 ## Automated verification
 
-Current local implementation verification for remediation-04 is recorded on the final evidence head after the verification
-commands below. The remediation-03 values above remain historical evidence for that handoff.
+Current local implementation verification for remediation-04 is recorded on evidence head `a9c0a7a`
+(`M06: block authority restoration after live database loss`). The remediation-03 values above remain historical evidence for that
+handoff.
 
 - `dotnet --info`: Passed — SDK 10.0.400, Windows 10.0.26200 x64.
-- `dotnet restore Sushi81.Pos.sln --locked-mode`: Passed.
+- `dotnet restore Sushi81.Pos.sln --locked-mode -r win-x64`: Passed.
 - `dotnet build Sushi81.Pos.sln -c Release --no-restore`: Passed, 0 warnings / 0 errors.
-- Full Release tests: Passed — 361/361, 0 failures, 0 skips: Domain 33, Application 47, Infrastructure 62, Architecture 95,
-  `tests/Sushi81.Pos.OneDriveFeasibility.Tests` 32 and `tools/Sushi81.Pos.OneDriveFeasibility.Tests` 92. The remediation adds
-  four Application cancellation regressions, six Infrastructure authority/sequence regressions plus one real SQLite recovery
-  integration, and one Architecture dependency regression plus two real STA/WPF regressions.
-- Self-contained `win-x64` publish: Passed to ignored `artifacts/m06-remediation-03-publish`.
+- Full Release tests: Passed — 363/363, 0 failures, 0 skips: Domain 33, Application 47, Infrastructure 64, Architecture 95,
+  `tests/Sushi81.Pos.OneDriveFeasibility.Tests` 32 and `tools/Sushi81.Pos.OneDriveFeasibility.Tests` 92. Remediation-04 adds
+  two Infrastructure startup-continuity regressions; all prior M06 application, infrastructure, dependency and STA/WPF evidence
+  remains passing.
+- Self-contained `win-x64` publish: Passed to ignored `artifacts/m06-remediation-04-publish`.
 - `git diff --check`: Passed.
 - Existing snapshot retention, scheduler, rollback and incomplete-unit tests: Passed within the infrastructure result above.
-- Exact-head GitHub Actions CI: Passed. `Continuous integration` run `34047569001` was triggered by `push` and checked raw
-  head `29b7cdc`; the corresponding `pull_request` run `34047570434` also passed and checked PR #11. Both `build-and-test`
-  jobs succeeded in 2m30s; GitHub recorded one existing Node.js 20 deprecation warning annotation and no test/build failure.
+- Exact-head GitHub Actions CI: Passed. `Continuous integration` push run **#512** (`34048813258`) checked raw head
+  `a9c0a7a52d530f3517e37a4020d2755ee4783f24`; pull-request run **#513** (`34048815532`) checked PR #11 and the same head.
+  Both `build-and-test` jobs succeeded; GitHub recorded one existing Node.js 20 deprecation warning annotation and no
+  test/build failure.
 
 ## Windows/WPF project-owner acceptance
 
@@ -309,7 +311,7 @@ authority document/marker/anchor survive while the supported pre-existing `Data/
 missing, and startup fails closed before the migration runner can create a replacement. The accepted one-time M01-M05 bootstrap path
 continues to use genuinely pre-existing schema evidence.
 
-The final evidence head, Release counts, publish result, exact-head CI run IDs and ref semantics are recorded in the matching
+The final evidence head `a9c0a7a`, Release counts, publish result, exact-head CI run IDs and ref semantics are recorded in the matching
 `CODEX_DONE: M06-REVIEW-REMEDIATION-04` PR comment. Project-owner Windows/WPF acceptance remains `Pending`; PR #11 remains
 open/unmerged and M07 remains unauthorized.
 
