@@ -304,6 +304,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
+        PerformanceTrace.Log("lifecycle.refresh.start");
         CancellationTokenSource? previous;
         long version;
         lock (refreshLock)
@@ -327,12 +328,15 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
         catch (Exception exception) { ValidationMessage = exception.Message; }
+        finally { PerformanceTrace.Log("lifecycle.refresh.end"); }
     }
 
     public async Task RefreshDashboardAsync(CancellationToken cancellationToken = default)
     {
+        PerformanceTrace.Log("lifecycle.dashboard.start");
         summary = await service.GetOperationalSummaryAsync(service.BusinessDate, cancellationToken);
         foreach (var name in new[] { nameof(DashboardTurnoverText), nameof(DashboardReceivedText), nameof(DashboardReceivedCardText), nameof(DashboardReceivedCashText), nameof(FutureOrderCount), nameof(DueTodayAdvanceOrderCount), nameof(OverdueUnsettledOrderCount) }) OnPropertyChanged(name);
+        PerformanceTrace.Log("lifecycle.dashboard.end");
     }
 
     public void SelectOperationalView(string? view)
@@ -366,11 +370,13 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
 
     public async Task SelectAsync(OrderManagementRowViewModel row, CancellationToken cancellationToken = default)
     {
+        PerformanceTrace.Log("lifecycle.detail.start");
         var order = await service.GetOrderAsync(row.Id, cancellationToken);
         SelectedOrder = order;
         if (order is not null && !IsEditing) { LoadEditableFields(order); LoadDetailLines(order); }
         else if (order is null) DetailLines.Clear();
         ValidationMessage = order is null ? Text("OrderNotFound", "Commande introuvable.") : string.Empty;
+        PerformanceTrace.Log("lifecycle.detail.end");
     }
 
     public void BeginModification()

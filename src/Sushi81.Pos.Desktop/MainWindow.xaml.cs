@@ -15,6 +15,9 @@ public partial class MainWindow : Window
 {
     private bool loaded;
     private bool orderProductAddInProgress;
+    private int commandesGridResizeInvocationCount;
+    private int commandesGridWidthMutationCount;
+    private IDisposable? performanceTraceProbe;
     private readonly CatalogueHeaderSet catalogueHeaders = new();
 
     public MainWindow(ShellViewModel viewModel)
@@ -22,26 +25,36 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = viewModel;
         if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
-        commandesGrid.LayoutUpdated += OnCommandesGridLayoutUpdated;
         ApplyCatalogueHeaders();
-        Closed += (_, _) => (DataContext as ShellViewModel)?.Dispose();
+        Closed += OnClosed;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         if (loaded || DataContext is not ShellViewModel viewModel || viewModel.Admin is null && viewModel.Entry is null) return;
         loaded = true;
+        performanceTraceProbe = PerformanceTrace.StartDispatcherGapProbe(Dispatcher);
+        PerformanceTrace.Log("window.loaded");
         try
         {
-            if (viewModel.Admin is { } admin) { await admin.RefreshAsync(); await admin.LoadSettingsAsync(); }
+            if (viewModel.Admin is { } admin) { PerformanceTrace.Log("m03.refresh.start"); await admin.RefreshAsync(); PerformanceTrace.Log("m03.refresh.end"); PerformanceTrace.Log("m03.settings.start"); await admin.LoadSettingsAsync(); PerformanceTrace.Log("m03.settings.end"); }
             if (viewModel.Entry is { } entry)
             {
+                PerformanceTrace.Log("entry.refresh.start");
                 await entry.RefreshAsync();
+                PerformanceTrace.Log("entry.refresh.end");
             }
-            if (viewModel.Lifecycle is { } lifecycle) { await lifecycle.RefreshAsync(); await lifecycle.RefreshDashboardAsync(); }
+            if (viewModel.Lifecycle is { } lifecycle) { PerformanceTrace.Log("lifecycle.refresh.start"); await lifecycle.RefreshAsync(); PerformanceTrace.Log("lifecycle.refresh.end"); PerformanceTrace.Log("lifecycle.dashboard.start"); await lifecycle.RefreshDashboardAsync(); PerformanceTrace.Log("lifecycle.dashboard.end"); }
         }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
         ApplyCatalogueHeaders();
+    }
+
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        performanceTraceProbe?.Dispose();
+        PerformanceTrace.Log("window.closed");
+        (DataContext as ShellViewModel)?.Dispose();
     }
 
     private async void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -82,25 +95,43 @@ public partial class MainWindow : Window
 
     private void OnCommandesGridSizeChanged(object sender, SizeChangedEventArgs e)
     {
+        PerformanceTrace.Log("commandes.grid.size-changed");
+        if (sender is DataGrid grid) ResizeCommandesColumns(grid);
+    }
+
+    private void OnCommandesGridLoaded(object sender, RoutedEventArgs e)
+    {
+        PerformanceTrace.Log("commandes.grid.loaded");
         if (sender is DataGrid grid) ResizeCommandesColumns(grid);
     }
 
     private void OnMainWindowSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (sender is not Window || commandesGrid.ActualWidth <= 0) return;
+        PerformanceTrace.Log("window.size-changed");
         var widthDelta = e.NewSize.Width - e.PreviousSize.Width;
         var estimatedGridWidth = commandesGrid.ActualWidth + widthDelta;
         var targetGridWidth = estimatedGridWidth <= ActualWidth ? estimatedGridWidth : commandesGrid.ActualWidth;
         ResizeCommandesColumns(commandesGrid, targetGridWidth);
     }
 
-    private void OnCommandesGridLayoutUpdated(object? sender, EventArgs e)
+    private void OnMainTabsSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (sender is DataGrid grid) ResizeCommandesColumns(grid);
+        if (sender is not TabControl || mainTabs.SelectedItem is not TabItem selected) return;
+        var key = mainTabs.Items.IndexOf(selected) switch
+        {
+            0 => "catalogue",
+            1 => "settings",
+            2 => "commandes",
+            3 => "caisse",
+            _ => "settings"
+        };
+        PerformanceTrace.Log($"tab.selected.{key}");
     }
 
-    private static void ResizeCommandesColumns(DataGrid grid, double? targetWidth = null)
+    private void ResizeCommandesColumns(DataGrid grid, double? targetWidth = null)
     {
+        commandesGridResizeInvocationCount++;
         if (grid.Columns.Count < 9) return;
         var fixedWidth = grid.Columns.Take(7).Sum(column => column.ActualWidth);
         var availableForLongText = (targetWidth ?? grid.ActualWidth) - 2 - fixedWidth;
@@ -109,7 +140,11 @@ public partial class MainWindow : Window
         for (var index = 7; index <= 8; index++)
         {
             if (Math.Abs(grid.Columns[index].ActualWidth - longTextWidth) > 0.5)
+            {
                 grid.Columns[index].Width = new DataGridLength(longTextWidth, DataGridLengthUnitType.Pixel);
+                commandesGridWidthMutationCount++;
+                PerformanceTrace.Log("commandes.grid.width-mutated");
+            }
         }
     }
 

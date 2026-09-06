@@ -1058,12 +1058,17 @@ public sealed class M05DesktopTests
                     var panelLeft = panel.TranslatePoint(new Point(0, 0), window).X;
                     var pickerLeft = picker.TranslatePoint(new Point(0, 0), window).X;
                     Assert.IsLessThanOrEqualTo(panelLeft + 250D, pickerLeft, $"{culture}: DatePicker must stay in the compact left-side edit cluster.");
-                    Assert.IsLessThanOrEqualTo(400D, panel.ActualWidth, $"{culture}: effective payment-date group must remain compact.");
+                    Assert.AreEqual(0, Grid.GetColumn(label), $"{culture}: payment-date label must remain in the normal left label column.");
+                    Assert.AreEqual(1, Grid.GetColumn(panel), $"{culture}: payment-date editor must remain in the normal right edit column.");
+                    Assert.AreEqual(1, Grid.GetColumnSpan(panel), $"{culture}: payment-date editor must not span both detail columns.");
+                    Assert.IsLessThanOrEqualTo(220D, panel.ActualWidth, $"{culture}: payment-date editor cluster must remain compact.");
                     Assert.AreEqual(shell.Localized["OrderEffectiveDateEdit"], label.Text);
                     Assert.AreEqual(shell.Localized["OrderEffectiveDateHint"], hint.Text);
                 }
 
                 shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                Assert.AreEqual("Date d'encaissement", shell.Localized["OrderEffectiveDateEdit"]);
+                Assert.AreEqual("Date utilisée pour cette modification.", shell.Localized["OrderEffectiveDateHint"]);
                 AssertReadable("fr-FR normal", 980, 700);
                 AssertReadable("fr-FR small", 760, 520);
                 shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
@@ -1074,6 +1079,64 @@ public sealed class M05DesktopTests
                 lifecycle.AbandonModification();
                 window.UpdateLayout();
                 Assert.AreEqual(Visibility.Collapsed, panel.Visibility, "The effective payment-date block must be hidden outside edit mode.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void Fix18TopLevelNavigationAndOrdinaryFocusDoNotTriggerHiddenRefreshesOrLayoutWidthLoopsOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var order = Snapshot(new DateOnly(2026, 8, 31));
+            var product = FilterProduct(Guid.NewGuid(), "NAV-001", "Navigation test");
+            var adminStore = new CountingCatalogueStore();
+            var entryCatalogue = new CountingEntryCatalogue(product);
+            var lifecycleStore = new CountingLifecycleStore(order);
+            var settingsStore = new CountingSettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var lifecycleService = new OrderLifecycleService(lifecycleStore, new DeterministicIds(), new FixedClock());
+            using var entryService = new OrderEntryService(entryCatalogue, settingsStore, lifecycleStore, new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                new CatalogueService(adminStore),
+                new BusinessSettingsService(settingsStore),
+                entryService,
+                lifecycleService);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var mainTabs = Field<TabControl>(window, "mainTabs");
+                var catalogue = mainTabs.Items.OfType<TabItem>().Single(item => Equals(item.Header, shell.Localized["Catalogue"]));
+                var commandes = mainTabs.Items.OfType<TabItem>().Single(item => item.DataContext is OrderLifecycleShellViewModel);
+                var caisse = mainTabs.Items.OfType<TabItem>().Single(item => item.DataContext is OrderEntryShellViewModel);
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+                window.UpdateLayout();
+
+                var baseline = RefreshCounts.Capture(adminStore, entryCatalogue, lifecycleStore, settingsStore);
+                var resizeInvocations = Field<int>(window, "commandesGridResizeInvocationCount");
+                var widthMutations = Field<int>(window, "commandesGridWidthMutationCount");
+
+                for (var repeat = 0; repeat < 3; repeat++)
+                {
+                    catalogue.IsSelected = true;
+                    commandes.IsSelected = true;
+                    caisse.IsSelected = true;
+                    mainTabs.SelectedItem = catalogue;
+                    window.UpdateLayout();
+                }
+
+                Field<TextBox>(window, "orderProductSearchBox").Focus();
+                Field<DataGrid>(window, "orderProductsGrid").SelectedIndex = -1;
+                Field<TextBox>(window, "commandesSearchBox").Focus();
+                Field<DatePicker>(window, "orderPlannedDatePicker").Focus();
+                window.UpdateLayout();
+                window.UpdateLayout();
+
+                Assert.AreEqual(baseline, RefreshCounts.Capture(adminStore, entryCatalogue, lifecycleStore, settingsStore), "Top-level navigation and ordinary focus/selection must not start hidden service refreshes.");
+                Assert.AreEqual(resizeInvocations, Field<int>(window, "commandesGridResizeInvocationCount"), "Stable layout must not invoke continuous Commandes sizing.");
+                Assert.AreEqual(widthMutations, Field<int>(window, "commandesGridWidthMutationCount"), "Stable layout must not mutate Commandes widths repeatedly.");
             }
             finally { window.Close(); }
         });
@@ -1819,6 +1882,132 @@ public sealed class M05DesktopTests
         {
             lock (gate) pendingProductCalls[zeroBasedIndex].TrySetResult(products);
         }
+    }
+
+    private readonly record struct RefreshCounts(
+        int AdminCategoryCalls,
+        int AdminProductCalls,
+        int EntryCategoryCalls,
+        int EntryProductCalls,
+        int LifecycleDateCalls,
+        int LifecycleSearchCalls,
+        int LifecycleDetailCalls,
+        int LifecycleDashboardCalls,
+        int SettingsGetCalls)
+    {
+        public static RefreshCounts Capture(CountingCatalogueStore admin, CountingEntryCatalogue entry, CountingLifecycleStore lifecycle, CountingSettingsStore settings) => new(
+            admin.CategoryCallCount,
+            admin.ProductCallCount,
+            entry.CategoryCallCount,
+            entry.ProductCallCount,
+            lifecycle.DateCallCount,
+            lifecycle.SearchCallCount,
+            lifecycle.DetailCallCount,
+            lifecycle.DashboardCallCount,
+            settings.GetCallCount);
+    }
+
+    private sealed class CountingCatalogueStore : ICatalogueStore
+    {
+        public int CategoryCallCount { get; private set; }
+        public int ProductCallCount { get; private set; }
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default)
+        {
+            CategoryCallCount++;
+            return Task.FromResult<IReadOnlyList<CategorySummary>>([]);
+        }
+
+        public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default)
+        {
+            ProductCallCount++;
+            return Task.FromResult<IReadOnlyList<ProductSummary>>([]);
+        }
+
+        public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(null);
+        public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(Guid.NewGuid(), name)));
+        public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(categoryId, name)));
+        public Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(Guid.NewGuid(), name, shortCode)));
+        public Task<OperationResult<CategorySummary>> RenameCategoryWithCodeAsync(Guid categoryId, string name, string? shortCode, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(categoryId, name, shortCode)));
+        public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<Guid>.Success(draft.Id == Guid.Empty ? Guid.NewGuid() : draft.Id));
+        public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+        public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<BulkProductActiveStateResult>.Success(new(request.Items.Count, 0)));
+        public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+    }
+
+    private sealed class CountingEntryCatalogue(ProductSummary product) : IOrderEntryCatalogueQueries
+    {
+        public int CategoryCallCount { get; private set; }
+        public int ProductCallCount { get; private set; }
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default)
+        {
+            CategoryCallCount++;
+            return Task.FromResult<IReadOnlyList<CategorySummary>>([new(product.CategoryId, product.CategoryName)]);
+        }
+
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default)
+        {
+            ProductCallCount++;
+            return Task.FromResult<IReadOnlyList<ProductSummary>>([product]);
+        }
+
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(null);
+    }
+
+    private sealed class CountingLifecycleStore(OrderSnapshot initial) : IOrderStore, IOrderLifecycleStore
+    {
+        public int DateCallCount { get; private set; }
+        public int SearchCallCount { get; private set; }
+        public int DetailCallCount { get; private set; }
+        public int DashboardCallCount { get; private set; }
+
+        public Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default)
+        {
+            DetailCallCount++;
+            return Task.FromResult<OrderSnapshot?>(initial.Id == orderId ? initial : null);
+        }
+
+        public Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default)
+        {
+            DateCallCount++;
+            return Task.FromResult<IReadOnlyList<OrderBrowserRow>>([Row(initial)]);
+        }
+
+        public Task SaveLifecycleAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<OrderBrowserRow>> SearchAsync(string? query, CancellationToken cancellationToken = default)
+        {
+            SearchCallCount++;
+            return Task.FromResult<IReadOnlyList<OrderBrowserRow>>([Row(initial)]);
+        }
+
+        public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default)
+        {
+            DashboardCallCount++;
+            return Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0));
+        }
+
+        private static OrderBrowserRow Row(OrderSnapshot value) => new(value.Id, value.PlannedFulfilmentDate, value.PlannedFulfilmentTime, value.Fulfilment, value.Status, value.TotalTtc, value.Telephone)
+        {
+            Reference = value.Reference,
+            DeliveryAddress = value.DeliveryAddress,
+            Comment = value.Comment
+        };
+    }
+
+    private sealed class CountingSettingsStore(BusinessSettings current) : IBusinessSettingsStore
+    {
+        public int GetCallCount { get; private set; }
+        public Task<BusinessSettings> GetAsync(CancellationToken cancellationToken = default)
+        {
+            GetCallCount++;
+            return Task.FromResult(current);
+        }
+
+        public Task<OperationResult> UpdateAsync(BusinessSettings settings, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
     }
 
     private sealed class ReferenceOrderStore(string reference) : IOrderStore

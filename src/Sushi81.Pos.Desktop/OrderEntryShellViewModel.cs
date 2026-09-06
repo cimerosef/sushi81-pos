@@ -366,6 +366,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
+        PerformanceTrace.Log("entry.refresh.start");
         var request = BeginRefresh(cancellationToken);
         try
         {
@@ -377,11 +378,12 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
         catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; }
-        finally { EndRefresh(request); }
+        finally { EndRefresh(request); PerformanceTrace.Log("entry.refresh.end"); }
     }
 
     public async Task RefreshOrderBrowserAsync(Guid? preferredOrderId = null, CancellationToken cancellationToken = default)
     {
+        PerformanceTrace.Log("entry.browser-refresh.start");
         var request = BeginBrowserRefresh(cancellationToken);
         CancelBrowserSelection();
         var previousId = preferredOrderId ?? SelectedBrowserOrder?.Id;
@@ -413,11 +415,12 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
         catch (Exception exception) when (IsCurrentBrowserRefresh(request)) { ValidationMessage = exception.Message; }
-        finally { EndBrowserRefresh(request); }
+        finally { EndBrowserRefresh(request); PerformanceTrace.Log("entry.browser-refresh.end"); }
     }
 
     public async Task SelectBrowserOrderAsync(OrderBrowserRowViewModel? row, CancellationToken cancellationToken = default)
     {
+        PerformanceTrace.Log("entry.browser-selection.start");
         SelectedBrowserOrder = row;
         if (row is null)
         {
@@ -440,7 +443,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             ReloadedOrder = null;
             ValidationMessage = exception.Message;
         }
-        finally { EndBrowserSelection(request); }
+        finally { EndBrowserSelection(request); PerformanceTrace.Log("entry.browser-selection.end"); }
     }
 
     public async Task AddSelectedProductAsync(CancellationToken cancellationToken = default)
@@ -992,6 +995,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     private async Task RefreshProductsAsync()
     {
+        PerformanceTrace.Log("entry.products-refresh.start");
         var request = BeginRefresh(CancellationToken.None);
         try
         {
@@ -1001,7 +1005,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
         catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; }
-        finally { EndRefresh(request); }
+        finally { EndRefresh(request); PerformanceTrace.Log("entry.products-refresh.end"); }
     }
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

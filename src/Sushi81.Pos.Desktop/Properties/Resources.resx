@@ -177,8 +177,8 @@ Changements effectifs : {2}</value></data>
   <data name="OrderNewFromDetails" xml:space="preserve"><value>Nouvelle commande avec ces coordonnées</value></data>
   <data name="OrderClose" xml:space="preserve"><value>Clôturer</value></data>
   <data name="OrderEffectiveDate" xml:space="preserve"><value>Date d’encaissement</value></data>
-  <data name="OrderEffectiveDateEdit" xml:space="preserve"><value>Date d’encaissement effective</value></data>
-  <data name="OrderEffectiveDateHint" xml:space="preserve"><value>Utilisée uniquement lors de l’enregistrement de cette modification.</value></data>
+  <data name="OrderEffectiveDateEdit" xml:space="preserve"><value>Date d'encaissement</value></data>
+  <data name="OrderEffectiveDateHint" xml:space="preserve"><value>Date utilisée pour cette modification.</value></data>
   <data name="OrderBrowseByDate" xml:space="preserve"><value>Vue par date</value></data>
   <data name="OrderSave" xml:space="preserve"><value>Enregistrer la modification</value></data>
   <data name="OrderReadOnly" xml:space="preserve"><value>État enregistré</value></data>
