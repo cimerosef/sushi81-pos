@@ -194,6 +194,24 @@ public sealed class CatalogueApplicationTests
     }
 
     [TestMethod]
+    public async Task CatalogueCommitNotifiesWithNonCancellableTokenAfterCallerCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var store = new FakeCatalogueStore { AfterCreateProduct = cancellation.Cancel };
+        var notifier = new RecordingNotifier();
+        var service = new CatalogueService(store, new TestWriteAuthorityGuard(WriteAuthorityState.Authoritative), notifier);
+
+        var result = await service.CreateProductAsync(
+            new ProductDraft(Guid.Empty, "P-CANCEL", "Product", Guid.NewGuid(), Money.Zero, 10m, true, true, false, []),
+            cancellation.Token);
+
+        Assert.IsTrue(result.Succeeded, result.ErrorMessage);
+        Assert.IsTrue(cancellation.IsCancellationRequested);
+        Assert.AreEqual(1, notifier.Calls);
+        Assert.IsFalse(notifier.LastToken.IsCancellationRequested);
+    }
+
+    [TestMethod]
     public async Task SettingsBusinessNoOpDoesNotWriteOrNotify()
     {
         var store = new FakeSettingsStore();
@@ -206,6 +224,23 @@ public sealed class CatalogueApplicationTests
         Assert.IsTrue(result.Succeeded, result.ErrorMessage);
         Assert.AreEqual(1, store.UpdateCalls);
         Assert.AreEqual(0, notifier.Calls);
+    }
+
+    [TestMethod]
+    public async Task SettingsCommitNotifiesWithNonCancellableTokenAfterCallerCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var store = new FakeSettingsStore { AfterUpdate = cancellation.Cancel };
+        var notifier = new RecordingNotifier();
+        var service = new BusinessSettingsService(store, new TestWriteAuthorityGuard(WriteAuthorityState.Authoritative), notifier);
+
+        var result = await service.UpdateAsync(
+            BusinessSettings.Defaults(Now) with { PickupDiscountRate = 0.125m }, cancellation.Token);
+
+        Assert.IsTrue(result.Succeeded, result.ErrorMessage);
+        Assert.IsTrue(cancellation.IsCancellationRequested);
+        Assert.AreEqual(1, notifier.Calls);
+        Assert.IsFalse(notifier.LastToken.IsCancellationRequested);
     }
 
     private sealed class FakeCatalogueStore : ICatalogueStore
@@ -221,6 +256,7 @@ public sealed class CatalogueApplicationTests
         public Guid LastUpdateId { get; private set; }
         public ProductDraft LastDraft { get; private set; } = null!;
         public Guid CreatedProductId { get; init; } = Guid.NewGuid();
+        public Action? AfterCreateProduct { get; init; }
         public string LastCategoryName { get; private set; } = string.Empty;
         public string? LastShortCode { get; private set; }
 
@@ -231,7 +267,7 @@ public sealed class CatalogueApplicationTests
         public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult<CategorySummary>.Success(new(categoryId, name)));
         public Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default) { CreateCategoryWithCodeCalls++; LastCategoryName = name; LastShortCode = shortCode; return Task.FromResult(OperationResult<CategorySummary>.Success(new(Guid.NewGuid(), name, shortCode))); }
         public Task<OperationResult<CategorySummary>> RenameCategoryWithCodeAsync(Guid categoryId, string name, string? shortCode, CancellationToken cancellationToken = default) { RenameCategoryWithCodeCalls++; LastCategoryName = name; LastShortCode = shortCode; return Task.FromResult(OperationResult<CategorySummary>.Success(new(categoryId, name, shortCode))); }
-        public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) { CreateProductCalls++; LastDraft = draft; return Task.FromResult(OperationResult<Guid>.Success(CreatedProductId)); }
+        public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) { CreateProductCalls++; LastDraft = draft; AfterCreateProduct?.Invoke(); return Task.FromResult(OperationResult<Guid>.Success(CreatedProductId)); }
         public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) { UpdateProductCalls++; LastUpdateId = productId; LastDraft = draft; return Task.FromResult(OperationResult.Success()); }
         public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) { SetActiveCalls++; return Task.FromResult(OperationResult.Success()); }
         public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default) { BulkCalls++; return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Success(new(request.Items.Count, request.Items.Count(item => item.ExpectedIsActive != request.TargetIsActive)))); }
@@ -241,18 +277,21 @@ public sealed class CatalogueApplicationTests
     private sealed class FakeSettingsStore : IBusinessSettingsStore
     {
         public int UpdateCalls { get; private set; }
+        public Action? AfterUpdate { get; init; }
         public BusinessSettings LastSettings { get; private set; } = default!;
         public Task<BusinessSettings> GetAsync(CancellationToken cancellationToken = default) => Task.FromResult(BusinessSettings.Defaults(Now));
-        public Task<OperationResult> UpdateAsync(BusinessSettings settings, CancellationToken cancellationToken = default) { UpdateCalls++; LastSettings = settings; return Task.FromResult(OperationResult.Success()); }
+        public Task<OperationResult> UpdateAsync(BusinessSettings settings, CancellationToken cancellationToken = default) { UpdateCalls++; LastSettings = settings; AfterUpdate?.Invoke(); return Task.FromResult(OperationResult.Success()); }
     }
 
     private sealed class RecordingNotifier : IDurableChangeNotifier
     {
         public int Calls { get; private set; }
+        public CancellationToken LastToken { get; private set; }
         public bool ThrowOnNotify { get; init; }
         public Task NotifyCommittedAsync(CancellationToken cancellationToken = default)
         {
             Calls++;
+            LastToken = cancellationToken;
             if (ThrowOnNotify) throw new IOException("synthetic recovery failure");
             return Task.CompletedTask;
         }

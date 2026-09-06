@@ -37,11 +37,19 @@ public sealed partial class AuthorityStateCoordinator(
             if (await store.HasBootstrapMarkerAsync(cancellationToken))
                 return FailClosed(new InvalidDataException("The durable authority state is missing after local bootstrap."));
 
+            if (await store.HasBootstrapAnchorAsync(cancellationToken))
+                return FailClosed(new InvalidDataException("The durable authority state is missing after established M06 bootstrap."));
+
+            if (!await store.HasLegacyBootstrapEvidenceAsync(cancellationToken))
+                return FailClosed(new InvalidDataException("No supported M01-M05 local data evidence permits the one-time authority bootstrap."));
+
             // M06 permits the one-time local single-device bootstrap after the supported M01-M05
-            // schema has been migrated. The marker makes deletion of the state file fail closed later.
+            // schema has been migrated. The marker and independent data-directory anchor make
+            // deletion of the state files fail closed later.
             var bootstrap = new AuthorityStateDocument(CurrentSchemaVersion, WriteAuthorityState.Authoritative, clock.UtcNow);
             await store.SaveAsync(bootstrap, cancellationToken);
             await store.WriteBootstrapMarkerAsync(cancellationToken);
+            await store.WriteBootstrapAnchorAsync(cancellationToken);
             guard.SetState(WriteAuthorityState.Authoritative);
             return new(WriteAuthorityState.Authoritative, null);
         }

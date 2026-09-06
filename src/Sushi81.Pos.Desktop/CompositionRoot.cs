@@ -71,7 +71,7 @@ public static partial class CompositionRoot
             settingsService = new BusinessSettingsService(settingsStore, authorityGuard, durableChangeNotifier);
             var orderStore = new SqliteOrderStore(connectionFactory, transactionRunner, null, idGenerator, clock);
             var orderCatalogueQueries = new OrderEntryCatalogueService(catalogueStore);
-            orderLifecycleService = new OrderLifecycleService(orderStore, idGenerator, clock, orderCatalogueQueries, settingsStore, authorityGuard, durableChangeNotifier);
+            orderLifecycleService = new OrderLifecycleService(orderStore, idGenerator, clock, authorityGuard, durableChangeNotifier, orderCatalogueQueries, settingsStore);
             orderEntryService = new OrderEntryService(
                 orderCatalogueQueries, settingsStore, orderStore, new NoOpOrderPrintDispatcher(), idGenerator, clock, authorityGuard, durableChangeNotifier);
             LogFoundationStartupSucceeded(logger);

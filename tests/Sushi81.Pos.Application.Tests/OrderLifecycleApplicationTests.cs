@@ -1,5 +1,6 @@
 using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Authority;
+using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.OrderEntry;
@@ -71,6 +72,28 @@ public sealed class OrderLifecycleApplicationTests
         Assert.IsFalse(result.Succeeded);
         Assert.AreEqual(ValidationCodes.AuthorityBlocked, result.Issues.Single().StableCode);
         Assert.AreEqual(0, store.SaveCalls);
+    }
+
+    [TestMethod]
+    public async Task LifecycleCommitNotifiesWithNonCancellableTokenAfterCallerCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var current = Snapshot(BusinessDate, total: 1000);
+        var store = new LifecycleStore(current) { AfterSave = cancellation.Cancel };
+        var notifier = new RecordingNotifier();
+        using var service = new OrderLifecycleService(
+            store,
+            new DeterministicIds(),
+            new FixedClock(),
+            new TestWriteAuthorityGuard(WriteAuthorityState.Authoritative),
+            notifier);
+
+        var result = await service.SaveModificationAsync(current with { Comment = "committed change" }, cancellationToken: cancellation.Token);
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.IsTrue(cancellation.IsCancellationRequested);
+        Assert.AreEqual(1, notifier.Calls);
+        Assert.IsFalse(notifier.LastToken.IsCancellationRequested);
     }
 
     [TestMethod]
@@ -199,10 +222,11 @@ public sealed class OrderLifecycleApplicationTests
         public OrderSnapshot Snapshot { get; private set; } = initial;
         public List<PaymentAdjustment> Adjustments { get; } = [];
         public int SaveCalls { get; private set; }
-        public Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default) { Snapshot = snapshot; SaveCalls++; return Task.CompletedTask; }
+        public Action? AfterSave { get; init; }
+        public Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default) { Snapshot = snapshot; SaveCalls++; AfterSave?.Invoke(); return Task.CompletedTask; }
         public Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default) => Task.FromResult<OrderSnapshot?>(Snapshot.Id == orderId ? Snapshot : null);
         public Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>([]);
-        public Task SaveLifecycleAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken = default) { Snapshot = snapshot; Adjustments.AddRange(adjustments); SaveCalls++; return Task.CompletedTask; }
+        public Task SaveLifecycleAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken = default) { Snapshot = snapshot; Adjustments.AddRange(adjustments); SaveCalls++; AfterSave?.Invoke(); return Task.CompletedTask; }
         public Task<IReadOnlyList<OrderBrowserRow>> SearchAsync(string? query, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>([]);
         public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) => Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0));
     }
@@ -241,6 +265,18 @@ public sealed class OrderLifecycleApplicationTests
         public void RequireWriteAuthority()
         {
             if (State != WriteAuthorityState.Authoritative) throw new WriteAuthorityException(State);
+        }
+    }
+
+    private sealed class RecordingNotifier : IDurableChangeNotifier
+    {
+        public int Calls { get; private set; }
+        public CancellationToken LastToken { get; private set; }
+        public Task NotifyCommittedAsync(CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            LastToken = cancellationToken;
+            return Task.CompletedTask;
         }
     }
 }

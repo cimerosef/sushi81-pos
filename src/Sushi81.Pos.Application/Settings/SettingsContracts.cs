@@ -1,5 +1,6 @@
 using Sushi81.Pos.Domain;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.Foundation;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Recovery;
 
@@ -14,15 +15,19 @@ public interface IBusinessSettingsStore
 public sealed class BusinessSettingsService
 {
     private readonly IBusinessSettingsStore store;
-    private readonly IWriteAuthorityGuard? authorityGuard;
+    private readonly IWriteAuthorityGuard authorityGuard;
     private readonly IDurableChangeNotifier notifier;
 
-    public BusinessSettingsService(IBusinessSettingsStore store, IWriteAuthorityGuard? authorityGuard = null, IDurableChangeNotifier? notifier = null)
+    public BusinessSettingsService(IBusinessSettingsStore store, IWriteAuthorityGuard authorityGuard, IDurableChangeNotifier notifier)
     {
         this.store = store ?? throw new ArgumentNullException(nameof(store));
-        this.authorityGuard = authorityGuard;
-        this.notifier = notifier ?? new NoOpDurableChangeNotifier();
+        this.authorityGuard = authorityGuard ?? throw new ArgumentNullException(nameof(authorityGuard));
+        this.notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
     }
+
+    // Test assemblies use the explicit test-only wiring supplied by the application project.
+    internal BusinessSettingsService(IBusinessSettingsStore store)
+        : this(store, TestOnlyAuthoritativeGuard.Instance, TestOnlyDurableChangeNotifier.Instance) { }
 
     public Task<BusinessSettings> GetAsync(CancellationToken cancellationToken = default) => store.GetAsync(cancellationToken);
 
@@ -33,7 +38,7 @@ public sealed class BusinessSettingsService
 
         try
         {
-            authorityGuard?.RequireWriteAuthority();
+            authorityGuard.RequireWriteAuthority();
             var current = await store.GetAsync(cancellationToken);
             var hasEffectiveChange = current.PickupDiscountRate != settings.PickupDiscountRate
                 || current.PickupDiscountMinTotalTtc != settings.PickupDiscountMinTotalTtc
@@ -43,7 +48,7 @@ public sealed class BusinessSettingsService
             var result = await store.UpdateAsync(settings, cancellationToken);
             if (result.Succeeded && hasEffectiveChange)
             {
-                try { await notifier.NotifyCommittedAsync(cancellationToken); }
+                try { await notifier.NotifyCommittedAsync(CancellationToken.None); }
                 catch { /* committed business data remains authoritative */ }
             }
             return result;

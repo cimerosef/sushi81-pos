@@ -40,7 +40,7 @@ public sealed partial class DurableChangeNotifier : IDurableChangeNotifier, IDis
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 // The business transaction has already committed. Keep an in-memory monotonic sequence and
-                // continue scheduling; a future startup will fail closed if its durable marker is unusable.
+                // continue scheduling. On restart, validated recovery metadata reconciles the sequence.
                 sequence = next;
                 LogSequencePersistenceFailure(logger, exception);
             }
@@ -62,18 +62,34 @@ public sealed partial class DurableChangeNotifier : IDurableChangeNotifier, IDis
 
     private long LoadSequence()
     {
+        var persisted = 0L;
         try
         {
             paths.EnsureInitialized();
             var path = Path.Combine(paths.ConfigDirectory, SequenceFileName);
-            if (!File.Exists(path)) return 0;
-            var value = JsonSerializer.Deserialize<SequenceDocument>(File.ReadAllText(path));
-            return value is { Sequence: >= 0 } ? value.Sequence : 0;
+            if (File.Exists(path))
+            {
+                var value = JsonSerializer.Deserialize<SequenceDocument>(File.ReadAllText(path));
+                persisted = value is { Sequence: >= 0 } ? value.Sequence : 0;
+            }
         }
         catch (Exception exception)
         {
             LogSequenceLoadFailure(logger, exception);
-            return 0;
+        }
+
+        try
+        {
+            var highestValidatedRecoverySequence = SqliteLocalRecoverySnapshotService
+                .GetHighestValidatedSequenceAsync(paths)
+                .GetAwaiter()
+                .GetResult();
+            return Math.Max(persisted, highestValidatedRecoverySequence);
+        }
+        catch (Exception exception)
+        {
+            LogRecoverySequenceReconciliationFailure(logger, exception);
+            return persisted;
         }
     }
 
@@ -111,4 +127,7 @@ public sealed partial class DurableChangeNotifier : IDurableChangeNotifier, IDis
 
     [LoggerMessage(EventId = 1212, Level = LogLevel.Error, Message = "Recovery sequence could not be loaded; starting from zero for this process.")]
     private static partial void LogSequenceLoadFailure(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 1213, Level = LogLevel.Error, Message = "Validated local recovery sequence could not be reconciled at startup.")]
+    private static partial void LogRecoverySequenceReconciliationFailure(ILogger logger, Exception exception);
 }

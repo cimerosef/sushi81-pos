@@ -6,6 +6,7 @@
 **Contract:** `milestone-06-local-recovery-read-only-enforcement.md`  
 **Authorization:** `milestone-06-authorization.md`  
 **Initial handoff:** `CODEX_HANDOFF_READY: M06-IMPLEMENT-01`  
+**Remediation handoff:** `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-02`
 **POST_TASK_POWER_ACTION:** `NONE`
 
 ## Preparation state
@@ -16,6 +17,9 @@ The M05 merge occurred after the final status documents were written. Current-st
 older acceptance/findings paragraphs retain their historical as-of wording and are not rewritten as evidence.
 
 M06 preparation review found no unresolved product/business/data-semantic decision. The frozen specification is sufficient for controlled implementation.
+
+The initial implementation was reviewed before owner manual acceptance. This remediation pass closes the review findings on the same
+PR/branch; project-owner Windows/WPF manual acceptance remains `Pending` and is not claimed here.
 
 ## Scope boundary
 
@@ -56,6 +60,15 @@ successful store result. Notification exceptions cannot roll back or report a co
 | Product activation and filtered bulk state | `CatalogueService.SetProductActiveAsync` / `BulkSetProductsActiveAsync` | Zero-effective single/bulk changes do not notify. |
 | Option group/option aggregate changes | Product create/update aggregate transaction | Same guard, transaction and notifier seam; no independent M05 writer exists. |
 | Business settings | `BusinessSettingsService.UpdateAsync` | Persistence-only `UpdatedAt` difference is ignored for recovery; the existing settings-save transaction is preserved, but a true no-op is not notified. |
+
+All four production mutation services now have public constructors requiring both `IWriteAuthorityGuard` and
+`IDurableChangeNotifier`; no production constructor supplies a silent nullable guard or no-op notifier. The internal compatibility
+constructors are explicitly test-only and are covered by the public-constructor dependency regression.
+
+After a store reports a successful durable commit, every current M03-M05 service invokes the notifier with
+`CancellationToken.None`. Caller/UI cancellation still applies before and during the business transaction, but cannot suppress
+the committed-change sequence allocation or scheduler notification. Deterministic regressions cover Catalogue, settings, new-order,
+and lifecycle commits cancelled immediately after the store commit; each notifier receives exactly one non-cancelled post-commit call.
 
 Future M10 import and M12 archive writers must use this same seam. The preparation list below is retained as historical scope
 reference; the audited current paths above are authoritative for this implementation.
@@ -102,12 +115,15 @@ Record:
 
 M06 implementation record:
 
-`JsonAuthorityStateStore` persists schema version `1` at `Config/authority-state.json` and a separate
-`Config/authority-bootstrap.marker`. Both use create-new temporary files followed by atomic move/replace. The coordinator loads
-the document after successful SQLite migration and before business surfaces are created. On the one-time missing-state /
-missing-marker path, the migrated local M01-M05 installation is bootstrapped as `Authoritative`, then both durable records are
-written. Once the marker exists, missing state, missing marker, malformed JSON, unsupported schema, invalid enum or persistence
-failure resolves the single guard to `RecoveryRequired`; it never silently restores writable authority.
+`JsonAuthorityStateStore` persists schema version `1` at `Config/authority-state.json`, a separate
+`Config/authority-bootstrap.marker`, and an independent `Data/authority-bootstrap.anchor`. All writes use create-new temporary
+files followed by atomic move/replace. The coordinator loads the document after successful SQLite migration and before business
+surfaces are created. The one-time missing-state/missing-marker path is eligible only when the migrated local M01-M05 SQLite
+database contains schema migration evidence through version 5. The independent data-directory anchor makes deletion of both
+configuration state files fail closed rather than re-running bootstrap.
+
+Once bootstrap has completed, missing state, missing marker, missing anchor, malformed JSON, unsupported schema, invalid enum or
+persistence failure resolves the single guard to `RecoveryRequired`; it never silently restores writable authority.
 
 `Authoritative`, `NonAuthoritativeReadOnly`, `Transitioning` and `RecoveryRequired` reconstruct directly on restart. All except
 `Authoritative` fail `RequireWriteAuthority()`. No M07 pairing, generation, target or force-acquire metadata/UI was added.
@@ -125,11 +141,12 @@ Record:
 ## Recovery mutation/scheduler design
 
 `IDurableChangeNotifier` is the common post-commit seam. `DurableChangeNotifier` persists a monotonic sequence under
-`Config/recovery-sequence.json`, then calls the existing `DebouncedRecoveryScheduler`. Application services call it only after a
-successful durable store result; validation, authority rejection, rollback, persistence failure and true no-op paths do not call
-it. The scheduler coalesces nearby changes for three seconds, permits only one snapshot at a time, preserves a newer pending
-sequence if a change arrives during an active snapshot, and flushes during orderly shutdown. Snapshot creation, validation,
-promotion and retention failures preserve the committed live database and prior valid units; later commit or shutdown can retry.
+`Config/recovery-sequence.json`, reconciles startup state with the highest independently validated local Recovery metadata
+sequence, then calls the existing `DebouncedRecoveryScheduler`. Application services call it only after a successful durable store
+result; validation, authority rejection, rollback, persistence failure and true no-op paths do not call it. The scheduler coalesces
+nearby changes for three seconds, permits only one snapshot at a time, preserves a newer pending sequence if a change arrives
+during an active snapshot, and flushes during orderly shutdown. Snapshot creation, validation, promotion and retention failures
+preserve the committed live database and prior valid units; later commit or shutdown can retry.
 
 Record:
 
@@ -144,7 +161,8 @@ Record:
 ## WPF/read-only design
 
 `ShellViewModel` exposes the resolved authority state and a persistent top-level localized banner. FR and zh-CN resources cover
-ordinary read-only, transitioning and recovery-required messages, with stale/read-only wording and no fabricated freshness.
+ordinary read-only, transitioning and recovery-required messages; each states that the local displayed copy may be stale where
+M06 cannot prove freshness and no timestamp/version is fabricated.
 Catalogue/settings mutation controls use `CanWrite`; order confirmation and lifecycle mutation properties are also guarded, while
 order search/date browse/detail, dashboard and catalogue queries remain available. The central Application guard remains the
 safety boundary if a stale command is invoked. No M07 target-selection, retarget or force-acquire UI was added.
@@ -159,6 +177,12 @@ Record:
 - stale-data wording and available freshness/version information;
 - confirmation no M07 target-selection/force-acquire UI was added.
 
+The real STA/WPF regression `M06DesktopTests.RealShellShowsStaleReadOnlySafetyBoundaryAcrossStatesAndSupportedSizesOnSta`
+renders the actual `MainWindow` at 760x520, 980x680 and 1400x900 for Authoritative, NonAuthoritativeReadOnly, Transitioning and
+RecoveryRequired states. It checks the persistent banner, localized FR → zh-CN → FR rerender, real mutation-control disablement,
+and an enabled consultation/search TextBox. The architecture count therefore increases through genuine WPF coverage rather than
+resource-string-only assertions.
+
 ## Required failure-injection evidence
 
 Implemented/passing locally: transaction rollback and authority rejection do not notify; snapshot failure does not claim a new
@@ -166,7 +190,8 @@ snapshot; validated latest-five retention and failed sixth preservation; incompl
 active-snapshot commit preservation; shutdown flush; post-commit notifier failure preserves the business success; malformed/future
 authority state fails closed; direct Application catalogue/lifecycle bypass attempts are blocked; read-only query paths remain
 separate from mutation guards. The existing M01 checksum, integrity, promotion, cleanup and metadata-validation tests remain in
-the Infrastructure suite. Full final-head evidence and STA/WPF owner checks are still pending.
+the Infrastructure suite. The final remediation-head Release suite below records the complete automated result; project-owner
+STA/WPF acceptance remains a separate pending manual gate.
 
 Record exact test names/results for:
 
@@ -189,18 +214,36 @@ Record exact test names/results for:
 - read-only query/view/dashboard usability;
 - FR/zh-CN transition preserves authority and business state.
 
+Remediation-specific evidence includes:
+
+- `CatalogueApplicationTests.CatalogueCommitNotifiesWithNonCancellableTokenAfterCallerCancellation`;
+- `CatalogueApplicationTests.SettingsCommitNotifiesWithNonCancellableTokenAfterCallerCancellation`;
+- `OrderEntryApplicationTests.OrderCommitNotifiesWithNonCancellableTokenAfterCallerCancellation`;
+- `OrderLifecycleApplicationTests.LifecycleCommitNotifiesWithNonCancellableTokenAfterCallerCancellation`;
+- `DependencyBoundaryTests.M06MutationServicesExposeMandatoryAuthorityAndRecoverySeams`;
+- `InfrastructureIntegrationTests.AuthorityBootstrapIsDurableAndMissingStateFailsClosed`,
+  `MissingAuthorityStateWithoutLegacyEvidenceFailsClosedInsteadOfRebootstrapping`,
+  `EstablishedAuthorityStatesRoundTripDurablyAcrossRestart`, and
+  `DurableChangeNotifierReconcilesCorruptSequenceWithValidatedRecoveryMetadataAfterRestart`;
+- `M05EvidenceClosureIntegrationTests.RealApplicationSqliteMutationNotifierSchedulerAndRecoverySnapshotShareOneSeam`, which
+  exercises real SQLite catalogue and order mutations through the real notifier, scheduler and validated recovery snapshot and
+  proves blocked/no-op paths do not advance the recovery sequence.
+
 ## Automated verification
 
-Current local implementation verification on the current working head:
+Current local implementation verification on the remediation working head:
 
 - `dotnet --info`: Passed — SDK 10.0.400, Windows 10.0.26200 x64.
 - `dotnet restore Sushi81.Pos.sln --locked-mode`: Passed.
 - `dotnet build Sushi81.Pos.sln -c Release --no-restore`: Passed, 0 warnings / 0 errors.
-- Full Release tests: Passed, 348/348, 0 failed / 0 skipped (Domain 33; Application 43; Infrastructure 56; Architecture/WPF 92; OneDrive feasibility 32; OneDrive feasibility tools 92).
+- Full Release tests: Passed — 358/358, 0 failures, 0 skips: Domain 33, Application 47, Infrastructure 60, Architecture 94,
+  `tests/Sushi81.Pos.OneDriveFeasibility.Tests` 32 and `tools/Sushi81.Pos.OneDriveFeasibility.Tests` 92. The remediation adds
+  four Application cancellation regressions, four Infrastructure authority/sequence regressions plus one real SQLite recovery
+  integration, and one Architecture dependency regression plus one real STA/WPF regression.
 - Self-contained `win-x64` publish: Passed to ignored `artifacts/m06-publish`.
 - `git diff --check`: Passed.
 - Existing snapshot retention, scheduler, rollback and incomplete-unit tests: Passed within the infrastructure result above.
-- Exact-head GitHub Actions CI: Pending push and remote run.
+- Exact-head GitHub Actions CI: Pending push and remote run; the worklog will identify whether GitHub checked the raw head or PR merge ref.
 
 ## Windows/WPF project-owner acceptance
 

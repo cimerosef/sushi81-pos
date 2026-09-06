@@ -7,9 +7,9 @@
   <data name="ShellTitle" xml:space="preserve"><value>Sushi81 POS</value></data>
   <data name="FoundationReady" xml:space="preserve"><value>Fondation prête.</value></data>
   <data name="StartupFailure" xml:space="preserve"><value>Le démarrage a échoué. Consultez les diagnostics.</value></data>
-  <data name="AuthorityReadOnly" xml:space="preserve"><value>Mode lecture seule : cette instance n’est pas l’autorité locale. Les recherches et consultations restent disponibles.</value></data>
-  <data name="AuthorityTransitioning" xml:space="preserve"><value>Transition d’autorité en cours : les écritures sont temporairement bloquées.</value></data>
-  <data name="AuthorityRecoveryRequired" xml:space="preserve"><value>Récupération locale requise : les écritures sont bloquées jusqu’à validation de l’état local.</value></data>
+  <data name="AuthorityReadOnly" xml:space="preserve"><value>Mode lecture seule : cette instance n’est pas l’autorité locale. Les données affichées localement peuvent être obsolètes. Les recherches et consultations restent disponibles.</value></data>
+  <data name="AuthorityTransitioning" xml:space="preserve"><value>Transition d’autorité en cours : les écritures sont bloquées et les données locales peuvent être obsolètes.</value></data>
+  <data name="AuthorityRecoveryRequired" xml:space="preserve"><value>Récupération locale requise : les écritures sont bloquées et les données locales peuvent être obsolètes.</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>Langue</value></data>
   <data name="LanguageSaveFailure" xml:space="preserve"><value>Impossible d’enregistrer la préférence de langue. Réessayez.</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>Français</value></data>

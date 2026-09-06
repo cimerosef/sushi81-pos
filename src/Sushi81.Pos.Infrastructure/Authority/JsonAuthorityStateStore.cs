@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Paths;
 
@@ -10,6 +11,7 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths) : IAuthorityStateSt
     private const int CurrentSchemaVersion = 1;
     private const string StateFileName = "authority-state.json";
     private const string BootstrapMarkerFileName = "authority-bootstrap.marker";
+    private const string BootstrapAnchorFileName = "authority-bootstrap.anchor";
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -66,6 +68,60 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths) : IAuthorityStateSt
             await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, useAsync: true))
             {
                 await stream.WriteAsync("Sushi81 POS local authority bootstrap completed\n"u8.ToArray(), cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+            }
+            File.Move(temporaryPath, path, overwrite: false);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
+    }
+
+    public async Task<bool> HasLegacyBootstrapEvidenceAsync(CancellationToken cancellationToken = default)
+    {
+        paths.EnsureInitialized();
+        if (!File.Exists(paths.LiveDatabasePath)) return false;
+
+        try
+        {
+            await using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = paths.LiveDatabasePath,
+                Mode = SqliteOpenMode.ReadOnly,
+                Cache = SqliteCacheMode.Private,
+                Pooling = false
+            }.ToString());
+            await connection.OpenAsync(cancellationToken);
+            await using var command = connection.CreateCommand();
+            command.CommandText = "SELECT COALESCE(MAX(version), 0) FROM schema_migrations;";
+            var value = await command.ExecuteScalarAsync(cancellationToken);
+            return Convert.ToInt32(value, System.Globalization.CultureInfo.InvariantCulture) >= 5;
+        }
+        catch (SqliteException)
+        {
+            return false;
+        }
+    }
+
+    public Task<bool> HasBootstrapAnchorAsync(CancellationToken cancellationToken = default)
+    {
+        paths.EnsureInitialized();
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(File.Exists(Path.Combine(paths.DataDirectory, BootstrapAnchorFileName)));
+    }
+
+    public async Task WriteBootstrapAnchorAsync(CancellationToken cancellationToken = default)
+    {
+        paths.EnsureInitialized();
+        var path = Path.Combine(paths.DataDirectory, BootstrapAnchorFileName);
+        if (File.Exists(path)) return;
+        var temporaryPath = Path.Combine(paths.DataDirectory, $".{BootstrapAnchorFileName}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, useAsync: true))
+            {
+                await stream.WriteAsync("Sushi81 POS M06 bootstrap completed\n"u8.ToArray(), cancellationToken);
                 await stream.FlushAsync(cancellationToken);
             }
             File.Move(temporaryPath, path, overwrite: false);

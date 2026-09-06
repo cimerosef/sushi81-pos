@@ -1,4 +1,5 @@
 using Sushi81.Pos.Domain;
+using Sushi81.Pos.Application.Foundation;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Recovery;
 
@@ -178,18 +179,23 @@ public interface ICatalogueStore : ICatalogueQueries
 public sealed class CatalogueService
 {
     private readonly ICatalogueStore store;
-    private readonly IWriteAuthorityGuard? authorityGuard;
+    private readonly IWriteAuthorityGuard authorityGuard;
     private readonly IDurableChangeNotifier notifier;
 
     public CatalogueService(
         ICatalogueStore store,
-        IWriteAuthorityGuard? authorityGuard = null,
-        IDurableChangeNotifier? notifier = null)
+        IWriteAuthorityGuard authorityGuard,
+        IDurableChangeNotifier notifier)
     {
         this.store = store ?? throw new ArgumentNullException(nameof(store));
-        this.authorityGuard = authorityGuard;
-        this.notifier = notifier ?? new NoOpDurableChangeNotifier();
+        this.authorityGuard = authorityGuard ?? throw new ArgumentNullException(nameof(authorityGuard));
+        this.notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
     }
+
+    // Test assemblies use the explicit test-only wiring supplied by the application project.
+    // Production composition has no constructor that can omit the M06 write/recovery seam.
+    internal CatalogueService(ICatalogueStore store)
+        : this(store, TestOnlyAuthoritativeGuard.Instance, TestOnlyDurableChangeNotifier.Instance) { }
 
     public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => store.ListCategoriesAsync(cancellationToken);
     public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default) => store.ListProductsAsync(search, categoryId, active, cancellationToken);
@@ -252,7 +258,7 @@ public sealed class CatalogueService
     {
         try
         {
-            authorityGuard?.RequireWriteAuthority();
+            authorityGuard.RequireWriteAuthority();
             var result = await operation();
             if (result.Succeeded) await NotifySafelyAsync();
             return result;
@@ -267,7 +273,7 @@ public sealed class CatalogueService
     {
         try
         {
-            authorityGuard?.RequireWriteAuthority();
+            authorityGuard.RequireWriteAuthority();
             var result = await operation();
             if (result.Succeeded) await NotifySafelyAsync();
             return result;
@@ -282,7 +288,7 @@ public sealed class CatalogueService
     {
         try
         {
-            authorityGuard?.RequireWriteAuthority();
+            authorityGuard.RequireWriteAuthority();
             var result = await store.BulkSetProductsActiveAsync(request, cancellationToken);
             if (result.Succeeded && result.Value?.ChangedCount > 0) await NotifySafelyAsync();
             return result;
@@ -295,7 +301,7 @@ public sealed class CatalogueService
 
     private async Task NotifySafelyAsync()
     {
-        try { await notifier.NotifyCommittedAsync(); }
+        try { await notifier.NotifyCommittedAsync(CancellationToken.None); }
         catch { /* The business transaction is already durable; recovery failure is logged by its infrastructure seam. */ }
     }
 

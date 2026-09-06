@@ -319,6 +319,12 @@ public sealed class InfrastructureIntegrationTests
     public async Task AuthorityBootstrapIsDurableAndMissingStateFailsClosed()
     {
         using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await using (var legacyConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.LiveDatabasePath, Pooling = false }.ToString()))
+        {
+            await legacyConnection.OpenAsync();
+            await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
+        }
         var store = new JsonAuthorityStateStore(paths);
         var firstGuard = new WriteAuthorityGuard();
         var first = await new AuthorityStateCoordinator(store, firstGuard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync();
@@ -326,6 +332,7 @@ public sealed class InfrastructureIntegrationTests
         Assert.AreEqual(WriteAuthorityState.Authoritative, first.State);
         Assert.AreEqual(WriteAuthorityState.Authoritative, firstGuard.State);
         Assert.IsTrue(await store.HasBootstrapMarkerAsync());
+        Assert.IsTrue(await store.HasBootstrapAnchorAsync());
 
         File.Delete(Path.Combine(paths.ConfigDirectory, "authority-state.json"));
         var secondGuard = new WriteAuthorityGuard();
@@ -334,6 +341,42 @@ public sealed class InfrastructureIntegrationTests
         Assert.AreEqual(WriteAuthorityState.RecoveryRequired, second.State);
         Assert.AreEqual(WriteAuthorityState.RecoveryRequired, secondGuard.State);
         Assert.Throws<WriteAuthorityException>(secondGuard.RequireWriteAuthority);
+    }
+
+    [TestMethod]
+    public async Task MissingAuthorityStateWithoutLegacyEvidenceFailsClosedInsteadOfRebootstrapping()
+    {
+        using var paths = new TestAppPaths();
+        var guard = new WriteAuthorityGuard();
+        var result = await new AuthorityStateCoordinator(new JsonAuthorityStateStore(paths), guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync();
+
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
+        Assert.IsFalse(await new JsonAuthorityStateStore(paths).HasBootstrapMarkerAsync());
+        Assert.IsFalse(await new JsonAuthorityStateStore(paths).HasBootstrapAnchorAsync());
+        Assert.Throws<WriteAuthorityException>(guard.RequireWriteAuthority);
+    }
+
+    [TestMethod]
+    public async Task EstablishedAuthorityStatesRoundTripDurablyAcrossRestart()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await using (var legacyConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.LiveDatabasePath, Pooling = false }.ToString()))
+        {
+            await legacyConnection.OpenAsync();
+            await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
+        }
+
+        var store = new JsonAuthorityStateStore(paths);
+        await new AuthorityStateCoordinator(store, new WriteAuthorityGuard(), new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync();
+        foreach (var state in new[] { WriteAuthorityState.Authoritative, WriteAuthorityState.NonAuthoritativeReadOnly, WriteAuthorityState.Transitioning, WriteAuthorityState.RecoveryRequired })
+        {
+            await store.SaveAsync(new AuthorityStateDocument(1, state, DateTimeOffset.UtcNow));
+            var guard = new WriteAuthorityGuard();
+            var reloaded = await new AuthorityStateCoordinator(store, guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync();
+            Assert.AreEqual(state, reloaded.State);
+            Assert.AreEqual(state, guard.State);
+        }
     }
 
     [TestMethod]
@@ -367,6 +410,25 @@ public sealed class InfrastructureIntegrationTests
         Assert.HasCount(1, snapshots.Changes);
         Assert.AreEqual(2L, snapshots.Changes[0].Sequence);
         StringAssert.Contains(await File.ReadAllTextAsync(Path.Combine(paths.ConfigDirectory, "recovery-sequence.json")), "2");
+    }
+
+    [TestMethod]
+    public async Task DurableChangeNotifierReconcilesCorruptSequenceWithValidatedRecoveryMetadataAfterRestart()
+    {
+        using var paths = new TestAppPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var snapshots = new SqliteLocalRecoverySnapshotService(paths, factory, clock);
+        await snapshots.CreateAsync(new DurableChange(7, clock.UtcNow));
+        await File.WriteAllTextAsync(Path.Combine(paths.ConfigDirectory, "recovery-sequence.json"), "{ not-json");
+
+        var recording = new RecordingSnapshotService();
+        await using var scheduler = new DebouncedRecoveryScheduler(recording, TimeProvider.System, NullLogger<DebouncedRecoveryScheduler>.Instance);
+        using var notifier = new DurableChangeNotifier(paths, clock, scheduler, NullLogger<DurableChangeNotifier>.Instance);
+        await notifier.NotifyCommittedAsync();
+
+        StringAssert.Contains(await File.ReadAllTextAsync(Path.Combine(paths.ConfigDirectory, "recovery-sequence.json")), "8");
     }
 
     [TestMethod]

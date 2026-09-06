@@ -1,4 +1,5 @@
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.Foundation;
 using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Recovery;
@@ -46,21 +47,42 @@ public sealed class OrderLifecycleService(
     IOrderStore orders,
     IIdGenerator idGenerator,
     IBusinessClock clock,
+    IWriteAuthorityGuard authorityGuard,
+    IDurableChangeNotifier notifier,
     IOrderEntryCatalogueQueries? catalogue = null,
-    IBusinessSettingsStore? settings = null,
-    IWriteAuthorityGuard? authorityGuard = null,
-    IDurableChangeNotifier? notifier = null) : IDisposable
+    IBusinessSettingsStore? settings = null) : IDisposable
 {
     private readonly IOrderStore orders = orders ?? throw new ArgumentNullException(nameof(orders));
     private readonly IIdGenerator idGenerator = idGenerator ?? throw new ArgumentNullException(nameof(idGenerator));
     private readonly IBusinessClock clock = clock ?? throw new ArgumentNullException(nameof(clock));
     private readonly IOrderEntryCatalogueQueries? catalogue = catalogue;
     private readonly IBusinessSettingsStore? settings = settings;
-    private readonly IWriteAuthorityGuard? authorityGuard = authorityGuard;
-    private readonly IDurableChangeNotifier notifier = notifier ?? new NoOpDurableChangeNotifier();
+    private readonly IWriteAuthorityGuard authorityGuard = authorityGuard ?? throw new ArgumentNullException(nameof(authorityGuard));
+    private readonly IDurableChangeNotifier notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
     private readonly SemaphoreSlim mutationGate = new(1, 1);
     private int activeCalls;
     private bool disposed;
+
+    // Test assemblies use explicit internal test-only wiring. Production composition must provide
+    // both the authority guard and the durable-change notifier.
+    internal OrderLifecycleService(
+        IOrderStore orders,
+        IIdGenerator idGenerator,
+        IBusinessClock clock,
+        IOrderEntryCatalogueQueries? catalogue = null,
+        IBusinessSettingsStore? settings = null)
+        : this(orders, idGenerator, clock, TestOnlyAuthoritativeGuard.Instance,
+            TestOnlyDurableChangeNotifier.Instance, catalogue, settings) { }
+
+    internal OrderLifecycleService(
+        IOrderStore orders,
+        IIdGenerator idGenerator,
+        IBusinessClock clock,
+        IWriteAuthorityGuard authorityGuard,
+        IOrderEntryCatalogueQueries? catalogue = null,
+        IBusinessSettingsStore? settings = null)
+        : this(orders, idGenerator, clock, authorityGuard,
+            TestOnlyDurableChangeNotifier.Instance, catalogue, settings) { }
 
     public DateOnly BusinessDate => clock.BusinessDate;
 
@@ -161,7 +183,7 @@ public sealed class OrderLifecycleService(
 
             var validation = ValidatePayment(proposed);
             if (validation is not null) return OrderLifecycleResult.Failure(validation);
-            authorityGuard?.RequireWriteAuthority();
+            authorityGuard.RequireWriteAuthority();
             var scheduleValidation = ValidateSchedule(current, proposed);
             if (scheduleValidation is not null) return OrderLifecycleResult.Failure(scheduleValidation);
 
@@ -282,12 +304,12 @@ public sealed class OrderLifecycleService(
 
     private async Task SaveAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken)
     {
-        authorityGuard?.RequireWriteAuthority();
+        authorityGuard.RequireWriteAuthority();
         if (orders is IOrderLifecycleStore lifecycleStore)
             await lifecycleStore.SaveLifecycleAsync(snapshot, adjustments, cancellationToken);
         else
             await orders.SaveAsync(snapshot, cancellationToken);
-        try { await notifier.NotifyCommittedAsync(cancellationToken); }
+        try { await notifier.NotifyCommittedAsync(CancellationToken.None); }
         catch { /* The durable business commit remains; snapshot failure is non-rollback. */ }
     }
 
