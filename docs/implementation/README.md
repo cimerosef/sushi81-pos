@@ -63,14 +63,39 @@ Historical M06 records remain under this directory:
 - `milestone-06-local-recovery-read-only-enforcement.md` — detailed historical implementation contract;
 - `milestone-06-authorization.md` — historical durable project-owner authorization;
 - `milestone-06-worklog.md` — historical implementation/evidence record;
-- `milestone-06-final-manual-acceptance.md` — Passed project-owner Windows/WPF acceptance record.
+- `milestone-06-final-manual-acceptance.md` — Passed project-owner Windows/WPF acceptance record;
+- `archive/implementation-status-through-m06-2026-09-07.md` — byte-for-byte archived living-status snapshot through the M06→M07 transition.
 
 M06 is no longer active work. Its completion does not authorize M07.
 
-## Next milestone
+## M07 preparation — material decisions approved, implementation not authorized
 
-M07 — Pairing, target-directed formal handoff and disaster recovery — is the next planned milestone but is not yet implementation-authorized. No M07 implementation branch, PR, durable authorization or active handoff exists; Codex execution gate issue #4 is CLOSED. Any pre-authorization M07 design-review material under this directory is non-executable until the project owner explicitly approves the M07 implementation and the normal closed-gate preparation sequence is completed.
+M07 — Pairing, target-directed formal handoff and disaster recovery — is the next milestone and is currently in **Preparation**.
 
-M07 inherits every cross-cutting governance file listed above. It owns the production connection of the M02 target-directed GitHub transport/revalidation semantics to the M06 production authority/read-only/recovery seams, while preserving the single Application-layer write guard as the business-write safety boundary.
+The project owner approved the material self-join/DR/recovery-source semantics on 2026-09-07. The controlling Approved records are:
+
+- `../decisions/m07-self-join-disaster-recovery.md` — self-join without old-source approval, self-join ≠ authority, operationally fenced DR and freshest validated safe recovery candidate;
+- `../acceptance-criteria-amendment-m07-self-join-disaster-recovery.md` — corresponding acceptance clarifications.
+
+Prepared M07 implementation artifacts are:
+
+- `milestone-07-pairing-handoff-disaster-recovery.md` — detailed implementation contract, explicitly **NOT YET AUTHORIZED**;
+- `milestone-07-worklog.md` — prepared execution/evidence log, no implementation entries yet;
+- `milestone-07-final-manual-acceptance.md` — prepared project-owner Windows/WPF checklist, not executed;
+- `milestone-07-preauthorization-design-review.md` — historical pre-authorization analysis. Its former proposal requiring authoritative-device approval for new pairing is superseded by the Approved 2026-09-07 decision and must not guide implementation.
+
+Current governance remains:
+
+- no M07 durable implementation authorization;
+- no M07 implementation branch;
+- no M07 implementation PR;
+- no executable `CODEX_HANDOFF_READY`;
+- GitHub issue #4 execution gate CLOSED;
+- Codex must not start M07;
+- M08 must not start.
+
+M07 owns the production connection of the M02 target-directed GitHub transport/revalidation semantics to the M06 production authority/read-only/recovery seams, while preserving the single Application-layer write guard as the business-write safety boundary.
+
+When the project owner later explicitly authorizes M07 implementation, governance must first create the durable M07 authorization and then complete the normal dedicated-branch/PR/mailbox/handoff prerequisites before issue #4 may be opened and Codex may execute.
 
 Future milestone contracts M07–M13 must include a short **Parallel execution plan** section that identifies likely independent workstreams and the dependency seams that must be stabilized before concurrent delegation, and must treat `interactive-quality-gate.md` as inherited whenever the milestone includes user-visible UI/workflow behavior.
