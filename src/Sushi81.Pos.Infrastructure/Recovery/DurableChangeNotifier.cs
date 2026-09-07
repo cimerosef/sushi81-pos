@@ -14,20 +14,27 @@ public sealed partial class DurableChangeNotifier : IDurableChangeNotifier, IDis
     private readonly IBusinessClock clock;
     private readonly IRecoveryScheduler scheduler;
     private readonly ILogger logger;
+    private readonly IBusinessRevisionReader? revisionReader;
     private readonly SemaphoreSlim gate = new(1, 1);
     private long sequence;
 
-    private DurableChangeNotifier(IAppPaths paths, IBusinessClock clock, IRecoveryScheduler scheduler, ILogger logger)
+    private DurableChangeNotifier(IAppPaths paths, IBusinessClock clock, IRecoveryScheduler scheduler, ILogger logger, IBusinessRevisionReader? revisionReader)
     {
         this.paths = paths;
         this.clock = clock;
         this.scheduler = scheduler;
         this.logger = logger;
+        this.revisionReader = revisionReader;
     }
 
-    public static async Task<DurableChangeNotifier> CreateAsync(IAppPaths paths, IBusinessClock clock, IRecoveryScheduler scheduler, ILogger logger)
+    public static async Task<DurableChangeNotifier> CreateAsync(
+        IAppPaths paths,
+        IBusinessClock clock,
+        IRecoveryScheduler scheduler,
+        ILogger logger,
+        IBusinessRevisionReader? revisionReader = null)
     {
-        var notifier = new DurableChangeNotifier(paths, clock, scheduler, logger);
+        var notifier = new DurableChangeNotifier(paths, clock, scheduler, logger, revisionReader);
         notifier.sequence = await notifier.LoadSequenceAsync();
         return notifier;
     }
@@ -53,7 +60,10 @@ public sealed partial class DurableChangeNotifier : IDurableChangeNotifier, IDis
 
             try
             {
-                scheduler.NotifyCommitted(new DurableChange(sequence, clock.UtcNow));
+                var revision = revisionReader is null
+                    ? sequence
+                    : await revisionReader.ReadAsync(cancellationToken);
+                scheduler.NotifyCommitted(new DurableChange(revision, clock.UtcNow));
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {

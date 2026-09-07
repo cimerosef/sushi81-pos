@@ -58,6 +58,7 @@ public static partial class CompositionRoot
             var clock = new TimeProviderBusinessClock(TimeProvider.System, TimeZoneInfo.Local);
             var connectionFactory = new SqliteConnectionFactory(paths);
             var snapshotService = new SqliteLocalRecoverySnapshotService(paths, connectionFactory, clock);
+            var businessRevisionReader = new SqliteBusinessRevisionStore(paths, connectionFactory);
             var authorityStateStore = new JsonAuthorityStateStore(paths);
             var authorityStartupEvidence = await AuthorityStartupPreflight.CaptureAsync(paths, authorityStateStore);
             var legacyBootstrapEvidence = await authorityStateStore.HasLegacyBootstrapEvidenceAsync();
@@ -70,7 +71,7 @@ public static partial class CompositionRoot
             authorityResolution = await new AuthorityStateCoordinator(authorityStateStore, authorityGuard, clock, logger)
                 .InitializeAsync(legacyBootstrapEvidence, authorityStartupEvidence.HasPreExistingLiveDatabase);
             recoveryScheduler = new DebouncedRecoveryScheduler(snapshotService, TimeProvider.System, logger);
-            durableChangeNotifier = await DurableChangeNotifier.CreateAsync(paths, clock, recoveryScheduler, logger);
+            durableChangeNotifier = await DurableChangeNotifier.CreateAsync(paths, clock, recoveryScheduler, logger, businessRevisionReader);
             var transactionRunner = new SqliteTransactionRunner(connectionFactory);
             var idGenerator = new GuidV7IdGenerator(TimeProvider.System);
             var catalogueStore = new SqliteCatalogueStore(connectionFactory, transactionRunner, idGenerator, clock);
