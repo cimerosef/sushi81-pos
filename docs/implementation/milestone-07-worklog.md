@@ -70,11 +70,11 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 
 ### M07-WP2 — self-join/System metadata/read-only initialization
 
-**Status:** Bounded seam complete — authority/startup integration pending
+**Status:** Integrated read-only production path — seed hydration intentionally deferred
 **Commit(s):** `1414f8d`
 **Tests/evidence:** `PairingSystemMetadataTests`: 4/4 Passed; current full Release suite: 389/389 Passed. OneDrive `System` lineage/device artifacts use non-overwriting same-identity retry; optional seed metadata is size/SHA-256 and SQLite integrity/schema validated.
 **N-device evidence:** Concurrent same-device retry is idempotent; independent devices register without overwriting; contradictory identity/lineage/generation fails closed; missing/corrupt seed remains read-only. The lane intentionally does not create lineage, persist local device identity or change the canonical authority document.
-**Next:** Integrate local immutable identity/current-generation membership into the canonical state and read-only setup flow.
+**Next:** Preserve the restart/evidence fence while completing the separately authorized WP7 proof.
 
 ### M07-WP3 — production GitHub configuration/credential/transport
 
@@ -86,19 +86,19 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 
 ### M07-WP4 — normal source close/handoff
 
-**Status:** Passed — bounded source state-machine slice
+**Status:** Passed — bounded source state-machine plus exact pending-resume seam
 **Commit(s):** `e15aa3e` — source normal handoff ordering; `61e72ac` — immutable relinquished-at evidence in grant
 **Tests/evidence:** `NormalHandoffTests`: 3/3 Passed; source validates exact current-generation target, enters Transitioning before remote work, persists `TransferPreparing`, creates/validates the SQLite snapshot, persists `RelinquishedPendingGrant` before constructing the target grant, and persists `ReleasedNonAuthoritative` only after the strict grant receipt. Full Release suite at the WP4 boundary: 392/392 Passed.
 **Irreversible-point/restart evidence:** Pre-relinquishment failure returns to Authoritative while consuming the allocated handoff version; post-relinquishment grant failure remains pending/read-only; exact persisted transfer identity and receipts support retry without writable rollback. Cleanup is best-effort and never rolls back relinquishment.
-**Next:** Verify data-first target acquisition without allowing a receipt or local membership to grant authority.
+**Next:** Preserve irreversible relinquishment while completing the separately authorized WP7 proof.
 
 ### M07-WP5 — target acquisition
 
-**Status:** Passed — bounded data-first acquisition slice
+**Status:** Passed — data-first acquisition with current-generation round-trip re-entry
 **Commit(s):** `b55cf66`
 **Tests/evidence:** `TargetAcquisitionTests`: 3/3 Passed; exact target/current-generation/lineage/version checks, strict grant/snapshot receipt validation, durable `TargetAcquisitionPending`, atomic SQLite install/reopen validation, and authority-last commit are covered. Non-target grants remain read-only; install failure leaves the transfer pending and guard fail-closed.
 **Wrong-target/crash/idempotency evidence:** The pending retry path revalidates the same transfer identity and grant receipt; the installer stages by exact size/SHA-256 and validates SQLite integrity/schema before replacing `Data/live.db`. Broad restart/failure-boundary coverage remains part of the final M07 matrix.
-**Next:** Add independent changed-only OneDrive DR checkpoint publication and the canonical durable business-data revision seam.
+**Next:** Preserve acquisition startup evidence and stale-generation fencing while completing the separately authorized WP7 proof.
 
 ### M07-WP6 — OneDrive recovery checkpoints
 
@@ -127,8 +127,8 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 
 ### M07-WP9 — WPF/localization/observability/integration
 
-**Status:** In progress — review-cycle-2 desktop remediation implemented; owner acceptance remains pending and WP7 remains the hard prerequisite
-**Commit(s):** `f780762` — single desktop close arbiter, target-late close flow, read-only acquisition/connection actions and STA/integration evidence
+**Status:** In progress — review-cycle-3 desktop remediation implemented; owner acceptance remains pending and WP7 remains the hard prerequisite
+**Commit(s):** `f780762` — cycle-2 desktop close arbiter and read-only actions; `1c05e12` — cycle-3 pending-transfer resume/status, authority-derived close/setup visibility and immediate write-control refresh
 **STA/WPF evidence:** 103/103 Architecture/WPF tests passed, including Cancel, Retain, target-directed transfer ordering, transfer failure, repeated-close reentrancy, non-authoritative close, flush failure, and visible read-only M07 action/status controls.
 **FR/zh-CN evidence:** Localized authority close/target-selection, transferred-authority acquisition/status, connection-test/status and safe 401/403/404/credential states are present and exercised through the STA shell language round-trip.
 **Responsiveness/redaction evidence:** Closing remains asynchronous and dispatcher-responsive; Retain/Cancel do not enumerate targets. Connection tests are non-mutating and expose only safe categorized status, never credential or transport detail.
@@ -136,12 +136,12 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 
 ### M07-WP10 — automated/CI closure before owner acceptance
 
-**Status:** In progress — cycle-2 production-code evidence complete; WP7 and owner acceptance remain pending
-**Accepted production-code head candidate:** `17fb2c1aa0a553da638e58549e5294851fc6e0b7`
-**Release tests:** `425/425` Passed, `0` skipped
+**Status:** In progress — cycle-3 production-code evidence complete; exact-head CI, WP7 and owner acceptance remain pending
+**Accepted production-code head candidate:** `1c05e12` — local candidate pending push/CI
+**Release tests:** `401/401` Passed locally, `0` skipped
 **Release build warnings/errors:** `0/0`
 **Self-contained win-x64 publish:** Not run; not required by this remediation handoff
-**Exact-head CI run:** `34161273997` — `success` for implementation head `17fb2c1aa0a553da638e58549e5294851fc6e0b7`
+**Exact-head CI run:** Pending push/CI for `1c05e12`
 **Known carry-over:** WP7 real disposable private-repository proof remains a hard prerequisite; WP8 and M08 remain not started.
 
 ## 4. Review/remediation log
@@ -162,6 +162,18 @@ Append each ChatGPT review/remediation cycle with exact head SHA, findings, seve
 **Findings:** `G` critical close orchestration had separate `MainWindow` and `CompositionRoot` Closing handlers; `H` target acquisition had no production user/startup action or status; `I` the composed GitHub connection tester was not visible; `J` the desktop evidence seam did not cover the required M07 interaction matrix; `K` the worklog and WP9 truth were stale.
 **Disposition:** `f780762` installs one MainWindow-owned close arbiter with deterministic Cancel/Retain/transfer/failure/reentrancy behavior and one orderly recovery flush; target enumeration is deferred until Transfer is explicitly selected. Read-only M07 UI now exposes target acquisition and non-mutating GitHub connection testing with FR/zh-CN safe status classification. STA/WPF tests cover close paths, visible operator actions/status and language round-trip; infrastructure tests cover credential/401/403/404 classification without exposing transport details. The implementation preserves M06 fail-closed/write-guard behavior and does not implement WP8 or M08.
 **CI/tests:** Full Release suite `425/425` Passed with `0` skipped; `dotnet build Sushi81.Pos.sln --configuration Release --no-restore` passed with `0` warnings / `0` errors. Exact-head CI for pushed implementation head `17fb2c1aa0a553da638e58549e5294851fc6e0b7` is run `34161273997` — `success`; subsequent worklog commits are documentation-only. WP7 real private-repository proof was not run; WP8 and M08 remain not started. Project-owner manual acceptance remains pending; it is not the only unresolved M07 prerequisite because WP7 is still hard-blocked.
+
+### Review cycle 3
+
+**Head reviewed:** `02b6e0330b16802b7efa16b91d1b5c62cdcdbb07` — review `5135255189`, findings `L` through `P`.
+**Remediation commit:** `1c05e12`.
+**L — restart-safe self-join evidence / startup fence:** Fresh self-join now durably establishes and validates the existing independent marker/anchor evidence, retries the same local identity after a membership/evidence failure, preserves arbitrary established `RecoveryRequired`, and rejects acquisition when the current guard/startup evidence is not compatible with the canonical phase. Corrupt/deleted evidence remains fail-closed. Exact safe unbound M06 read-only migration can join without promotion.
+**M — released-source re-entry:** `ReleasedNonAuthoritative` is now an eligible current-generation target phase; the deterministic A→B→A integration test proves strict newer-version acquisition, lineage/target binding and old-version replay rejection.
+**N — production pending-transfer resume:** `NormalHandoffService.ResumePendingTransferAsync()` accepts no target and resumes only the durable transfer identity. Desktop operational affordances use the detailed phase, show a localized pending status/action, hide target acquisition on the source, and refresh child write-control bindings after authority changes/failures.
+**O — local-first/setup semantics:** Unavailable shared System metadata is logged/deferred without revoking a valid local authority; readable contradictory metadata still fails closed. Authoritative close detection no longer depends on `NormalHandoff` availability when the M07 runtime is composed, and the non-mutating GitHub connection test is visible on the authoritative setup surface.
+**P — seed readiness truth:** Self-join no longer claims a validated seed's business revision or hydrated read-only phase without installing/revalidating its SQLite payload; production self-join remains `PairedUninitializedReadOnly` until explicit hydration exists.
+**Tests/evidence:** Full local Release suite `401/401` Passed, `0` skipped; Architecture/WPF `103/103`; Infrastructure integration `126/126`; Release build `0` warnings / `0` errors. WP7 real disposable private-repository proof was not run under this handoff; WP8 and M08 remain not started; merge remains unauthorized.
+**Disposition:** Remediated locally; push and exact-head CI verification remain pending before review disposition can be updated.
 
 ## 5. Project-owner manual acceptance
 
