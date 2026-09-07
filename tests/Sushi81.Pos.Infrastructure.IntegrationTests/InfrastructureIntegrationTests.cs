@@ -317,6 +317,20 @@ public sealed class InfrastructureIntegrationTests
     }
 
     [TestMethod]
+    public async Task AuthorityStateChangeWaitsForInFlightWriteScopeToFinish()
+    {
+        using var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+        var scope = await guard.EnterWriteScopeAsync();
+        var stateChange = Task.Run(() => guard.SetState(WriteAuthorityState.Transitioning));
+        var completed = await Task.WhenAny(stateChange, Task.Delay(TimeSpan.FromSeconds(1)));
+
+        Assert.AreNotSame(stateChange, completed, "A transition must not pass an in-flight business write scope.");
+        await scope.DisposeAsync();
+        await stateChange;
+        Assert.AreEqual(WriteAuthorityState.Transitioning, guard.State);
+    }
+
+    [TestMethod]
     public async Task AuthorityBootstrapIsDurableAndMissingStateFailsClosed()
     {
         using var paths = new TestAppPaths();

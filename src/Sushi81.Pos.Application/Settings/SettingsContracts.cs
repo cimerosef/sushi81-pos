@@ -38,7 +38,7 @@ public sealed class BusinessSettingsService
 
         try
         {
-            authorityGuard.RequireWriteAuthority();
+            await using var authorityScope = await authorityGuard.EnterWriteScopeAsync(cancellationToken);
             var current = await store.GetAsync(cancellationToken);
             var hasEffectiveChange = current.PickupDiscountRate != settings.PickupDiscountRate
                 || current.PickupDiscountMinTotalTtc != settings.PickupDiscountMinTotalTtc

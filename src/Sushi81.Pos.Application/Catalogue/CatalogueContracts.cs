@@ -258,7 +258,7 @@ public sealed class CatalogueService
     {
         try
         {
-            authorityGuard.RequireWriteAuthority();
+            await using var authorityScope = await authorityGuard.EnterWriteScopeAsync();
             var result = await operation();
             if (result.Succeeded) await NotifySafelyAsync();
             return result;
@@ -273,7 +273,7 @@ public sealed class CatalogueService
     {
         try
         {
-            authorityGuard.RequireWriteAuthority();
+            await using var authorityScope = await authorityGuard.EnterWriteScopeAsync();
             var result = await operation();
             if (result.Succeeded) await NotifySafelyAsync();
             return result;
@@ -288,7 +288,7 @@ public sealed class CatalogueService
     {
         try
         {
-            authorityGuard.RequireWriteAuthority();
+            await using var authorityScope = await authorityGuard.EnterWriteScopeAsync(cancellationToken);
             var result = await store.BulkSetProductsActiveAsync(request, cancellationToken);
             if (result.Succeeded && result.Value?.ChangedCount > 0) await NotifySafelyAsync();
             return result;

@@ -174,6 +174,7 @@ public sealed class OrderLifecycleService(
 
         try
         {
+            await using var authorityScope = await authorityGuard.EnterWriteScopeAsync(cancellationToken);
             var current = await orders.GetByIdAsync(proposed.Id, cancellationToken);
             if (current is null) return OrderLifecycleResult.Failure(new ValidationIssue("order", "The order was not found.", ValidationCodes.NotFound));
             if (current.Status == OrderStatus.Cancelled)
@@ -183,7 +184,6 @@ public sealed class OrderLifecycleService(
 
             var validation = ValidatePayment(proposed);
             if (validation is not null) return OrderLifecycleResult.Failure(validation);
-            authorityGuard.RequireWriteAuthority();
             var scheduleValidation = ValidateSchedule(current, proposed);
             if (scheduleValidation is not null) return OrderLifecycleResult.Failure(scheduleValidation);
 
@@ -262,6 +262,7 @@ public sealed class OrderLifecycleService(
             return OrderLifecycleResult.Failure(new ValidationIssue("order", "An order operation is already in progress.", ValidationCodes.Busy));
         try
         {
+            await using var authorityScope = await authorityGuard.EnterWriteScopeAsync(cancellationToken);
             var current = await orders.GetByIdAsync(orderId, cancellationToken);
             if (current is null) return OrderLifecycleResult.Failure(new ValidationIssue("order", "The order was not found.", ValidationCodes.NotFound));
             if (current.Status == OrderStatus.Cancelled) return OrderLifecycleResult.Failure(new ValidationIssue("order", "A cancelled order cannot be closed.", ValidationCodes.Conflict));
@@ -286,6 +287,7 @@ public sealed class OrderLifecycleService(
             return OrderLifecycleResult.Failure(new ValidationIssue("order", "An order operation is already in progress.", ValidationCodes.Busy));
         try
         {
+            await using var authorityScope = await authorityGuard.EnterWriteScopeAsync(cancellationToken);
             var current = await orders.GetByIdAsync(orderId, cancellationToken);
             if (current is null) return OrderLifecycleResult.Failure(new ValidationIssue("order", "The order was not found.", ValidationCodes.NotFound));
             if (current.Status == OrderStatus.Cancelled) return new(true, current, []);
@@ -304,7 +306,6 @@ public sealed class OrderLifecycleService(
 
     private async Task SaveAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken)
     {
-        authorityGuard.RequireWriteAuthority();
         if (orders is IOrderLifecycleStore lifecycleStore)
             await lifecycleStore.SaveLifecycleAsync(snapshot, adjustments, cancellationToken);
         else
