@@ -3,6 +3,7 @@ using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Configuration;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Recovery;
@@ -49,6 +50,42 @@ public sealed class M06StartupTests
                 CollectionAssert.Contains(VisibleButtonLabels(window), shell.Localized["M07Setup"]);
                 CollectionAssert.DoesNotContain(VisibleButtonLabels(window), shell.Localized["JoinExistingLineage"]);
                 Assert.AreEqual("配置 Sushi81 系统", shell.Localized["M07Setup"]);
+                window.Close();
+            }
+            finally
+            {
+                if (Directory.Exists(paths.RootDirectory)) Directory.Delete(paths.RootDirectory, recursive: true);
+            }
+        });
+    }
+
+    [TestMethod]
+    public void UnsafeAuthorityPhaseHidesTechnicalSetupInFrenchAndChinese()
+    {
+        RunOnSta(() =>
+        {
+            var paths = new TestPaths();
+            try
+            {
+                var configurationService = new JsonLocalConfigurationService(paths);
+                var configuration = configurationService.LoadAsync().GetAwaiter().GetResult();
+                using var shell = new ShellViewModel(
+                    new InMemorySelectedCultureStore(),
+                    startupSucceeded: false,
+                    configuration: configuration,
+                    m07Setup: new M07ConfigurationSetupService(configurationService),
+                    authorityPhase: AuthorityPhase.TransferPreparing);
+                var window = new MainWindow(shell) { Width = 760, Height = 520, ShowInTaskbar = false };
+                window.Show();
+                window.UpdateLayout();
+
+                Assert.IsFalse(shell.CanConfigureM07);
+                CollectionAssert.DoesNotContain(VisibleButtonLabels(window), shell.Localized["M07Setup"]);
+
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                window.UpdateLayout();
+                Assert.IsFalse(shell.CanConfigureM07);
+                CollectionAssert.DoesNotContain(VisibleButtonLabels(window), shell.Localized["M07Setup"]);
                 window.Close();
             }
             finally

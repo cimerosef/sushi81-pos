@@ -64,6 +64,9 @@
   <data name="M07SetupRootUnavailable" xml:space="preserve"><value>Le dossier OneDrive partagé n’existe pas ou n’est pas accessible.</value></data>
   <data name="M07SetupLineageUnavailable" xml:space="preserve"><value>Les métadonnées de lignée Sushi81 sont absentes ou momentanément indisponibles.</value></data>
   <data name="M07SetupLineageInvalid" xml:space="preserve"><value>Les métadonnées de lignée Sushi81 sont invalides, contradictoires ou incompatibles.</value></data>
+  <data name="M07SetupLineageRequired" xml:space="preserve"><value>Un appareil non autoritaire doit rejoindre une lignée Sushi81 existante.</value></data>
+  <data name="M07SetupPhaseLocked" xml:space="preserve"><value>La configuration technique est verrouillée pendant la phase d’autorité actuelle.</value></data>
+  <data name="M07SetupAuthorityStateUnavailable" xml:space="preserve"><value>L’état d’autorité actuel ne peut pas être vérifié ; la configuration technique reste verrouillée.</value></data>
   <data name="M07SetupPersistenceFailed" xml:space="preserve"><value>La configuration technique n’a pas pu être enregistrée. La configuration précédente reste active.</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>Langue</value></data>
   <data name="LanguageSaveFailure" xml:space="preserve"><value>Impossible d’enregistrer la préférence de langue. Réessayez.</value></data>

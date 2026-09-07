@@ -78,8 +78,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private string? _m07OperationStatusKey;
     private LocalConfiguration _configuration;
     private readonly M07ConfigurationSetupService? _m07Setup;
+    private AuthorityPhase? _authorityPhase;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
         _configuration = configuration ?? new LocalConfiguration();
@@ -88,6 +89,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         StartupSucceeded = startupSucceeded;
         AuthorityState = authorityGuard?.State ?? authorityState;
         M07Runtime = m07Runtime;
+        _authorityPhase = authorityPhase;
         Languages = new ObservableCollection<LanguageOption>();
         RefreshResources();
         _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
@@ -130,7 +132,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public bool CanTestGitHubConnection => M07Runtime is not null && !_m07OperationInProgress;
 
-    public bool CanConfigureM07 => _m07Setup is not null && !_m07OperationInProgress;
+    public bool CanConfigureM07 => _m07Setup is not null
+        && !_m07OperationInProgress
+        && !IsConfigurationLocked(CurrentAuthorityPhase);
 
     public M03ShellViewModel? Admin { get; }
 
@@ -271,7 +275,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("M07SetupSave").Append("M07SetupRestartRequired")
              .Append("M07SetupRootRequired").Append("M07SetupRootAbsolute")
              .Append("M07SetupRootUnavailable").Append("M07SetupLineageUnavailable")
-             .Append("M07SetupLineageInvalid").Append("M07SetupPersistenceFailed").ToArray();
+             .Append("M07SetupLineageInvalid").Append("M07SetupLineageRequired")
+             .Append("M07SetupPhaseLocked").Append("M07SetupAuthorityStateUnavailable")
+             .Append("M07SetupPersistenceFailed").ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));
@@ -314,6 +320,17 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         if (_m07OperationInProgress)
             return M07ConfigurationSetupResult.Failure(_configuration, M07ConfigurationSetupFailureKind.PersistenceFailed, "Another M07 operation is already in progress.");
 
+        if (!CanConfigureM07)
+        {
+            var blocked = M07ConfigurationSetupResult.Failure(
+                _configuration,
+                M07ConfigurationSetupFailureKind.AuthorityPhaseUnsafe,
+                "Technical configuration is unavailable during the current authority phase.");
+            SetM07Operation("M07SetupPhaseLocked");
+            RefreshResources();
+            return blocked;
+        }
+
         _m07OperationInProgress = true;
         OnPropertyChanged(nameof(CanConfigureM07));
         try
@@ -335,6 +352,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
                     M07ConfigurationSetupFailureKind.RootUnavailable => "M07SetupRootUnavailable",
                     M07ConfigurationSetupFailureKind.LineageUnavailable => "M07SetupLineageUnavailable",
                     M07ConfigurationSetupFailureKind.LineageInvalid => "M07SetupLineageInvalid",
+                    M07ConfigurationSetupFailureKind.LineageRequired => "M07SetupLineageRequired",
+                    M07ConfigurationSetupFailureKind.AuthorityPhaseUnsafe => "M07SetupPhaseLocked",
+                    M07ConfigurationSetupFailureKind.AuthorityStateUnavailable => "M07SetupAuthorityStateUnavailable",
                     M07ConfigurationSetupFailureKind.PersistenceFailed => "M07SetupPersistenceFailed",
                     _ => "M07SetupPersistenceFailed"
                 });
@@ -423,6 +443,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         if (M07Runtime is null) return;
         await M07Runtime.RefreshAuthorityStateAsync(cancellationToken);
         AuthorityState = M07Runtime.AuthorityGuard.State;
+        _authorityPhase = M07Runtime.CurrentPhase;
         RefreshChildAuthorityCommands();
         RefreshResources();
     }
@@ -485,6 +506,16 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         Entry?.RefreshAuthorityState();
         Lifecycle?.RefreshAuthorityState();
     }
+
+    private AuthorityPhase? CurrentAuthorityPhase => M07Runtime?.CurrentPhase ?? _authorityPhase;
+
+    private static bool IsConfigurationLocked(AuthorityPhase? phase) => phase is
+        AuthorityPhase.TransferPreparing
+        or AuthorityPhase.RelinquishedPendingGrant
+        or AuthorityPhase.TargetAcquisitionPending
+        or AuthorityPhase.DisasterRecoveryPending
+        or AuthorityPhase.RecoveryRequired
+        or AuthorityPhase.StaleGeneration;
 
     private string Read(string key) => ResourceManager.GetString(key, _culture) ?? throw new InvalidOperationException($"Missing required localization resource '{key}'.");
 

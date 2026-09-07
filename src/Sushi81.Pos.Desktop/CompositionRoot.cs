@@ -53,6 +53,8 @@ public static partial class CompositionRoot
         JsonLocalConfigurationService? configurationService = null;
         LocalConfiguration configuration = new();
         M07ConfigurationSetupService? m07Setup = null;
+        JsonAuthorityStateStore? authorityStateStore = null;
+        AuthorityPhase? authorityPhase = null;
 
         try
         {
@@ -62,7 +64,8 @@ public static partial class CompositionRoot
             startupLogger = logger;
             configurationService = new JsonLocalConfigurationService(paths);
             configuration = await configurationService.LoadAsync();
-            m07Setup = new M07ConfigurationSetupService(configurationService);
+            authorityStateStore = new JsonAuthorityStateStore(paths);
+            m07Setup = new M07ConfigurationSetupService(configurationService, authorityStateStore);
             _ = CultureInfo.GetCultureInfo(configuration.UiCulture);
             cultureStore = new ConfigurationSelectedCultureStore(configuration, configurationService);
 
@@ -70,7 +73,6 @@ public static partial class CompositionRoot
             var connectionFactory = new SqliteConnectionFactory(paths);
             var snapshotService = new SqliteLocalRecoverySnapshotService(paths, connectionFactory, clock);
             var businessRevisionReader = new SqliteBusinessRevisionStore(paths, connectionFactory);
-            var authorityStateStore = new JsonAuthorityStateStore(paths);
             JsonSystemMetadataStore? systemMetadata = null;
             if (!string.IsNullOrWhiteSpace(configuration.OneDriveRoot) && Path.IsPathFullyQualified(configuration.OneDriveRoot))
                 systemMetadata = new JsonSystemMetadataStore(configuration.OneDriveRoot!, TimeProvider.System);
@@ -84,6 +86,7 @@ public static partial class CompositionRoot
             await migrations.InitializeAsync();
             authorityResolution = await new AuthorityStateCoordinator(authorityStateStore, authorityGuard, clock, logger, systemMetadata)
                 .InitializeAsync(legacyBootstrapEvidence, authorityStartupEvidence.HasPreExistingLiveDatabase);
+            authorityPhase = (await authorityStateStore.LoadAsync())?.Protocol?.Phase;
             var localRecoveryScheduler = new DebouncedRecoveryScheduler(snapshotService, TimeProvider.System, logger);
             recoveryScheduler = localRecoveryScheduler;
             recoverySchedulerDisposable = localRecoveryScheduler;
@@ -173,7 +176,8 @@ public static partial class CompositionRoot
             authorityResolution.State,
             m07Runtime,
             configuration,
-            m07Setup);
+            m07Setup,
+            authorityPhase);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,

@@ -1,5 +1,7 @@
 using Sushi81.Pos.Application.Foundation.Configuration;
+using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Pairing.SystemMetadata;
+using Sushi81.Pos.Infrastructure.Authority;
 using Sushi81.Pos.Infrastructure.Pairing.SystemMetadata;
 
 namespace Sushi81.Pos.Infrastructure.Configuration;
@@ -12,6 +14,9 @@ public enum M07ConfigurationSetupFailureKind
     RootUnavailable,
     LineageUnavailable,
     LineageInvalid,
+    LineageRequired,
+    AuthorityPhaseUnsafe,
+    AuthorityStateUnavailable,
     PersistenceFailed
 }
 
@@ -41,7 +46,9 @@ public sealed record M07ConfigurationSetupResult(
         string diagnostic) => new(false, current, failureKind, diagnostic, null);
 }
 
-public sealed class M07ConfigurationSetupService(ILocalConfigurationService configurationService)
+public sealed class M07ConfigurationSetupService(
+    ILocalConfigurationService configurationService,
+    IAuthorityStateStore? authorityStateStore = null)
 {
     public async Task<M07ConfigurationSetupResult> ValidateAndPersistAsync(
         LocalConfiguration current,
@@ -50,6 +57,41 @@ public sealed class M07ConfigurationSetupService(ILocalConfigurationService conf
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(input);
+
+        AuthorityProtocolState? authority = null;
+        if (authorityStateStore is not null)
+        {
+            try
+            {
+                var document = await authorityStateStore.LoadAsync(cancellationToken);
+                authority = document?.Protocol;
+                if (authority is not null)
+                    authority.Validate();
+
+                var phase = authority?.Phase ?? document?.EffectiveState switch
+                {
+                    WriteAuthorityState.Authoritative => AuthorityPhase.Authoritative,
+                    WriteAuthorityState.NonAuthoritativeReadOnly => AuthorityPhase.NonAuthoritativeReadOnly,
+                    WriteAuthorityState.Transitioning => AuthorityPhase.RecoveryRequired,
+                    WriteAuthorityState.RecoveryRequired => AuthorityPhase.RecoveryRequired,
+                    _ => null
+                };
+                if (IsConfigurationLocked(phase))
+                {
+                    return M07ConfigurationSetupResult.Failure(
+                        current,
+                        M07ConfigurationSetupFailureKind.AuthorityPhaseUnsafe,
+                        "Technical configuration is unavailable during the current authority phase.");
+                }
+            }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                return M07ConfigurationSetupResult.Failure(
+                    current,
+                    M07ConfigurationSetupFailureKind.AuthorityStateUnavailable,
+                    "The current authority state could not be validated; technical configuration remains locked.");
+            }
+        }
 
         var rootText = input.OneDriveRoot?.Trim();
         if (string.IsNullOrWhiteSpace(rootText))
@@ -92,25 +134,16 @@ public sealed class M07ConfigurationSetupService(ILocalConfigurationService conf
                 "The Sushi81 shared root does not exist or is not accessible.");
         }
 
-        SystemLineageMetadata lineage;
+        SystemLineageMetadata? lineage = null;
+        var lineagePath = Path.Combine(
+            normalizedRoot,
+            SystemMetadataContract.SystemDirectoryName,
+            SystemMetadataContract.LineageDirectoryName,
+            SystemMetadataContract.LineageFileName);
+        bool lineageIsMissing;
         try
         {
-            var metadataStore = new JsonSystemMetadataStore(normalizedRoot, TimeProvider.System);
-            lineage = await metadataStore.ReadLineageAsync(cancellationToken);
-        }
-        catch (SystemMetadataUnavailableException exception)
-        {
-            return M07ConfigurationSetupResult.Failure(
-                current,
-                M07ConfigurationSetupFailureKind.LineageUnavailable,
-                exception.Message);
-        }
-        catch (InvalidDataException exception)
-        {
-            return M07ConfigurationSetupResult.Failure(
-                current,
-                M07ConfigurationSetupFailureKind.LineageInvalid,
-                exception.Message);
+            lineageIsMissing = !File.Exists(lineagePath) && IsMissingLineageTree(normalizedRoot);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -118,6 +151,61 @@ public sealed class M07ConfigurationSetupService(ILocalConfigurationService conf
                 current,
                 M07ConfigurationSetupFailureKind.LineageUnavailable,
                 "The shared lineage metadata is not currently readable.");
+        }
+
+        if (lineageIsMissing)
+        {
+            if (authority?.Phase is AuthorityPhase.Authoritative or AuthorityPhase.ClosedRetainedAuthority
+                && authority.LineageId is not null
+                && authority.Generation >= 1)
+            {
+                // The first authoritative setup may bind an empty root. The existing
+                // startup coordinator publishes this exact lineage after restart.
+            }
+            else
+            {
+                return M07ConfigurationSetupResult.Failure(
+                    current,
+                    M07ConfigurationSetupFailureKind.LineageRequired,
+                    "An existing shared lineage is required for this device.");
+            }
+        }
+        else
+        {
+            try
+            {
+                var metadataStore = new JsonSystemMetadataStore(normalizedRoot, TimeProvider.System);
+                lineage = await metadataStore.ReadLineageAsync(cancellationToken);
+                if (authority?.LineageId is { } localLineage
+                    && (lineage.LineageId != localLineage || lineage.CurrentGeneration != authority.Generation))
+                {
+                    return M07ConfigurationSetupResult.Failure(
+                        current,
+                        M07ConfigurationSetupFailureKind.LineageInvalid,
+                        "The selected shared lineage does not match the local authority state.");
+                }
+            }
+            catch (SystemMetadataUnavailableException exception)
+            {
+                return M07ConfigurationSetupResult.Failure(
+                    current,
+                    M07ConfigurationSetupFailureKind.LineageUnavailable,
+                    exception.Message);
+            }
+            catch (InvalidDataException exception)
+            {
+                return M07ConfigurationSetupResult.Failure(
+                    current,
+                    M07ConfigurationSetupFailureKind.LineageInvalid,
+                    exception.Message);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                return M07ConfigurationSetupResult.Failure(
+                    current,
+                    M07ConfigurationSetupFailureKind.LineageUnavailable,
+                    "The shared lineage metadata is not currently readable.");
+            }
         }
 
         var updated = current with
@@ -143,6 +231,34 @@ public sealed class M07ConfigurationSetupService(ILocalConfigurationService conf
         }
 
         return new M07ConfigurationSetupResult(true, updated, M07ConfigurationSetupFailureKind.None, null, lineage);
+    }
+
+    private static bool IsConfigurationLocked(AuthorityPhase? phase) => phase is
+        AuthorityPhase.TransferPreparing
+        or AuthorityPhase.RelinquishedPendingGrant
+        or AuthorityPhase.TargetAcquisitionPending
+        or AuthorityPhase.DisasterRecoveryPending
+        or AuthorityPhase.RecoveryRequired
+        or AuthorityPhase.StaleGeneration;
+
+    private static bool IsMissingLineageTree(string root)
+    {
+        try
+        {
+            var lineageDirectory = Path.Combine(
+                root,
+                SystemMetadataContract.SystemDirectoryName,
+                SystemMetadataContract.LineageDirectoryName);
+            var entries = Directory.EnumerateFileSystemEntries(lineageDirectory).ToArray();
+            return !entries.Any(entry => string.Equals(
+                Path.GetFileName(entry),
+                SystemMetadataContract.LineageFileName,
+                StringComparison.OrdinalIgnoreCase));
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return true;
+        }
     }
 
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
