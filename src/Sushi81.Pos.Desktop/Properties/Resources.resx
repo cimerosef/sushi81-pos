@@ -10,6 +10,19 @@
   <data name="AuthorityReadOnly" xml:space="preserve"><value>Mode lecture seule : cette instance n’est pas l’autorité locale. Les données affichées localement peuvent être obsolètes. Les recherches et consultations restent disponibles.</value></data>
   <data name="AuthorityTransitioning" xml:space="preserve"><value>Transition d’autorité en cours : les écritures sont bloquées et les données locales peuvent être obsolètes.</value></data>
   <data name="AuthorityRecoveryRequired" xml:space="preserve"><value>Récupération locale requise : les écritures sont bloquées et les données locales peuvent être obsolètes.</value></data>
+  <data name="AuthorityCloseTitle" xml:space="preserve"><value>Fermer Sushi81 POS</value></data>
+  <data name="AuthorityClosePrompt" xml:space="preserve"><value>Cette machine est l’autorité courante. Choisissez l’action de fermeture.</value></data>
+  <data name="AuthorityTargetLabel" xml:space="preserve"><value>Cible du transfert</value></data>
+  <data name="AuthorityCloseRetain" xml:space="preserve"><value>Fermer et conserver l’autorité</value></data>
+  <data name="AuthorityTransferClose" xml:space="preserve"><value>Transférer l’autorité et fermer</value></data>
+  <data name="AuthorityCloseCancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="AuthorityTargetRequired" xml:space="preserve"><value>Choisissez une machine cible.</value></data>
+  <data name="AuthorityTransferFailed" xml:space="preserve"><value>Le transfert d’autorité a échoué.</value></data>
+  <data name="JoinExistingLineage" xml:space="preserve"><value>Rejoindre le système existant</value></data>
+  <data name="JoinDisplayName" xml:space="preserve"><value>Nom de cette machine</value></data>
+  <data name="JoinPrompt" xml:space="preserve"><value>Rejoignez le système Sushi81 configuré en mode lecture seule. Cette action ne donne pas l’autorité d’écriture.</value></data>
+  <data name="JoinConfirm" xml:space="preserve"><value>Rejoindre en lecture seule</value></data>
+  <data name="JoinSucceeded" xml:space="preserve"><value>Cette machine est maintenant appairée en lecture seule.</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>Langue</value></data>
   <data name="LanguageSaveFailure" xml:space="preserve"><value>Impossible d’enregistrer la préférence de langue. Réessayez.</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>Français</value></data>

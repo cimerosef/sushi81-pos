@@ -156,6 +156,11 @@ public sealed record ReadOnlySeedPublicationResult(ReadOnlySeedMetadata Metadata
 /// </summary>
 public interface ISystemMetadataStore
 {
+    Task<SystemLineageMetadata> EnsureCurrentLineageAsync(
+        Guid lineageId,
+        long generation,
+        CancellationToken cancellationToken = default);
+
     Task<SystemLineageMetadata> ReadLineageAsync(CancellationToken cancellationToken = default);
 
     Task<DeviceSelfJoinResult> JoinCurrentGenerationAsync(

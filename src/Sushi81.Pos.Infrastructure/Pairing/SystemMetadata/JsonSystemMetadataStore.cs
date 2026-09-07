@@ -37,6 +37,35 @@ public sealed class JsonSystemMetadataStore : ISystemMetadataStore
 
     public string SystemDirectoryPath => Path.Combine(oneDriveRoot, SystemMetadataContract.SystemDirectoryName);
 
+    public async Task<SystemLineageMetadata> EnsureCurrentLineageAsync(
+        Guid lineageId,
+        long generation,
+        CancellationToken cancellationToken = default)
+    {
+        if (lineageId == Guid.Empty) throw new ArgumentException("A lineage ID is required.", nameof(lineageId));
+        ArgumentOutOfRangeException.ThrowIfLessThan(generation, 1);
+
+        var expected = new SystemLineageMetadata(
+            SystemMetadataContract.SchemaVersion,
+            SystemMetadataContract.ProtocolVersion,
+            lineageId,
+            generation,
+            clock.GetUtcNow());
+        expected.Validate();
+        var path = Path.Combine(
+            SystemDirectoryPath,
+            SystemMetadataContract.LineageDirectoryName,
+            SystemMetadataContract.LineageFileName);
+        var result = await WriteOrReuseJsonAsync(
+            path,
+            expected,
+            static (existing, requested) => existing.LineageId == requested.LineageId
+                && existing.CurrentGeneration == requested.CurrentGeneration,
+            cancellationToken);
+        result.Value.Validate();
+        return result.Value;
+    }
+
     public async Task<SystemLineageMetadata> ReadLineageAsync(CancellationToken cancellationToken = default)
     {
         var path = Path.Combine(

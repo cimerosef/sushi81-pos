@@ -56,6 +56,40 @@ public sealed class TargetAcquisitionTests
     }
 
     [TestMethod]
+    public async Task HistoricalGrantForSameDeviceIsIgnoredWhenCurrentGenerationGrantIsValid()
+    {
+        using var fixture = new AcquisitionFixture();
+        var historical = await fixture.CreateGrantAsync(
+            fixture.DeviceId,
+            generation: 1,
+            handoffVersion: 1,
+            grantAssetId: 10,
+            snapshotAssetId: 20);
+        var current = await fixture.CreateGrantAsync(
+            fixture.DeviceId,
+            generation: 2,
+            handoffVersion: 1,
+            grantAssetId: 11,
+            snapshotAssetId: 21);
+        var store = fixture.CreateStateStore();
+        await store.SaveAsync(fixture.PairedDocument(generation: 2));
+        var installer = new RecordingInstaller(fixture, store);
+        await using var service = new TargetAcquisitionService(
+            store,
+            fixture.Guard,
+            fixture.SystemStore,
+            new AcquisitionTransport(fixture, historical, current),
+            installer,
+            fixture.Clock);
+
+        var result = await service.AcquireAsync();
+
+        Assert.IsTrue(result.Succeeded, result.Error?.ToString());
+        Assert.AreEqual(current.Grant.TransferId, result.TransferId);
+        Assert.AreEqual(WriteAuthorityState.Authoritative, fixture.Guard.State);
+    }
+
+    [TestMethod]
     public async Task InstallFailureLeavesPendingStateReadOnly()
     {
         using var fixture = new AcquisitionFixture();
@@ -94,25 +128,31 @@ public sealed class TargetAcquisitionTests
 
         public JsonAuthorityStateStore CreateStateStore() => new(new TestPaths(Root));
 
-        public AuthorityStateDocument PairedDocument() => new(
+        public AuthorityStateDocument PairedDocument(long generation = 1) => new(
             2,
             WriteAuthorityState.NonAuthoritativeReadOnly,
             Clock.UtcNow)
         {
-            Protocol = new AuthorityProtocolState(1, DeviceId, "Target", LineageId, 1, 0, 0, AuthorityPhase.PairedUninitializedReadOnly)
+            Protocol = new AuthorityProtocolState(1, DeviceId, "Target", LineageId, generation, 0, 0, AuthorityPhase.PairedUninitializedReadOnly)
         };
 
-        public async Task<GrantFixture> CreateGrantAsync(Guid targetDeviceId)
+        public async Task<GrantFixture> CreateGrantAsync(
+            Guid targetDeviceId,
+            long generation = 1,
+            long handoffVersion = 1,
+            long grantAssetId = 10,
+            long snapshotAssetId = 20)
         {
-            await WriteJsonAsync(Path.Combine(Root, "System", "Lineage", "lineage.json"), new SystemLineageMetadata(1, "M07", LineageId, 1, Clock.UtcNow));
-            await WriteJsonAsync(Path.Combine(Root, "System", "Devices", "1", $"{DeviceId:N}.device.json"), new DeviceRegistrationArtifact(1, "M07", "device-membership", DeviceId, "Target", LineageId, 1, Clock.UtcNow));
+            await WriteJsonAsync(Path.Combine(Root, "System", "Lineage", "lineage.json"), new SystemLineageMetadata(1, "M07", LineageId, generation, Clock.UtcNow));
+            await WriteJsonAsync(Path.Combine(Root, "System", "Devices", generation.ToString(System.Globalization.CultureInfo.InvariantCulture), $"{DeviceId:N}.device.json"), new DeviceRegistrationArtifact(1, "M07", "device-membership", DeviceId, "Target", LineageId, generation, Clock.UtcNow));
             var snapshotBytes = new byte[] { 9, 8, 7, 6, 5 };
             var snapshotHash = Convert.ToHexString(SHA256.HashData(snapshotBytes));
-            var snapshot = new RemoteAssetEvidence(1, 20, "20260907120000.snapshot.db", snapshotBytes.Length, snapshotHash);
-            var grant = new NormalHandoffGrant("M07", Guid.NewGuid(), LineageId, 1, 1, SourceDeviceId, targetDeviceId, 4, snapshot, Clock.UtcNow.AddMinutes(-1), Clock.UtcNow);
+            var snapshotName = GitHubHandoffAssetNames.CreateSnapshotName(Clock.UtcNow.AddMinutes(generation - 1));
+            var snapshot = new RemoteAssetEvidence(1, snapshotAssetId, snapshotName, snapshotBytes.Length, snapshotHash);
+            var grant = new NormalHandoffGrant("M07", Guid.NewGuid(), LineageId, generation, handoffVersion, SourceDeviceId, targetDeviceId, 4 + generation, snapshot, Clock.UtcNow.AddMinutes(-1), Clock.UtcNow);
             var grantBytes = JsonSerializer.SerializeToUtf8Bytes(grant, JsonOptions);
             var grantHash = Convert.ToHexString(SHA256.HashData(grantBytes));
-            return new GrantFixture(grant, grantBytes, snapshotBytes, grantHash, snapshotHash);
+            return new GrantFixture(grant, grantBytes, snapshotBytes, grantHash, snapshotHash, grantAssetId, snapshotAssetId);
         }
 
         private static async Task WriteJsonAsync<T>(string path, T value)
@@ -128,9 +168,16 @@ public sealed class TargetAcquisitionTests
         }
     }
 
-    private sealed record GrantFixture(NormalHandoffGrant Grant, byte[] GrantBytes, byte[] SnapshotBytes, string GrantHash, string SnapshotHash);
+    private sealed record GrantFixture(
+        NormalHandoffGrant Grant,
+        byte[] GrantBytes,
+        byte[] SnapshotBytes,
+        string GrantHash,
+        string SnapshotHash,
+        long GrantAssetId,
+        long SnapshotAssetId);
 
-    private sealed class AcquisitionTransport(AcquisitionFixture fixture, GrantFixture grant) : IGitHubHandoffTransport
+    private sealed class AcquisitionTransport(AcquisitionFixture fixture, params GrantFixture[] grants) : IGitHubHandoffTransport
     {
         private readonly GitHubReleaseContainer release = new(1, "sushi81-handoff-v1", "https://uploads.example/releases/1/assets{?name}", false, false);
 
@@ -140,19 +187,30 @@ public sealed class TargetAcquisitionTests
 
         public Task<IReadOnlyList<GitHubRemoteAsset>> ListAssetsAsync(GitHubReleaseContainer release, CancellationToken cancellationToken = default)
         {
-            var grantAsset = new GitHubRemoteAsset(10, "20260907120000.grant.json", grant.GrantBytes.Length, "uploaded", "sha256:" + grant.GrantHash.ToLowerInvariant(), fixture.Clock.UtcNow);
-            return Task.FromResult<IReadOnlyList<GitHubRemoteAsset>>([grantAsset]);
+            var grantAssets = grants.Select(grant => new GitHubRemoteAsset(
+                grant.GrantAssetId,
+                GitHubHandoffAssetNames.CreateGrantName(grant.Grant.SnapshotReceipt.Name),
+                grant.GrantBytes.Length,
+                "uploaded",
+                "sha256:" + grant.GrantHash.ToLowerInvariant(),
+                fixture.Clock.UtcNow)).ToArray();
+            return Task.FromResult<IReadOnlyList<GitHubRemoteAsset>>(grantAssets);
         }
 
         public Task<GitHubRemoteAsset> GetAssetAsync(long assetId, CancellationToken cancellationToken = default)
         {
-            if (assetId == 20)
-                return Task.FromResult(new GitHubRemoteAsset(20, grant.Grant.SnapshotReceipt.Name, grant.SnapshotBytes.Length, "uploaded", "sha256:" + grant.SnapshotHash.ToLowerInvariant(), fixture.Clock.UtcNow));
-            return Task.FromResult(new GitHubRemoteAsset(10, "20260907120000.grant.json", grant.GrantBytes.Length, "uploaded", "sha256:" + grant.GrantHash.ToLowerInvariant(), fixture.Clock.UtcNow));
+            var grant = grants.Single(candidate => candidate.GrantAssetId == assetId || candidate.SnapshotAssetId == assetId);
+            if (assetId == grant.SnapshotAssetId)
+                return Task.FromResult(new GitHubRemoteAsset(grant.SnapshotAssetId, grant.Grant.SnapshotReceipt.Name, grant.SnapshotBytes.Length, "uploaded", "sha256:" + grant.SnapshotHash.ToLowerInvariant(), fixture.Clock.UtcNow));
+            return Task.FromResult(new GitHubRemoteAsset(grant.GrantAssetId, GitHubHandoffAssetNames.CreateGrantName(grant.Grant.SnapshotReceipt.Name), grant.GrantBytes.Length, "uploaded", "sha256:" + grant.GrantHash.ToLowerInvariant(), fixture.Clock.UtcNow));
         }
 
         public Task<Stream> DownloadAssetAsync(long assetId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<Stream>(new MemoryStream(assetId == 20 ? grant.SnapshotBytes : grant.GrantBytes, writable: false));
+            Task.FromResult<Stream>(new MemoryStream(
+                grants.Single(candidate => candidate.GrantAssetId == assetId || candidate.SnapshotAssetId == assetId) is var grant
+                    ? assetId == grant.SnapshotAssetId ? grant.SnapshotBytes : grant.GrantBytes
+                    : Array.Empty<byte>(),
+                writable: false));
 
         public Task DeleteAssetAsync(long assetId, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }

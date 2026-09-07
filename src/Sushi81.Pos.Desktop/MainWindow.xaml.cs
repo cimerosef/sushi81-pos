@@ -4,6 +4,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Sushi81.Pos.Application.Foundation.Authority;
+using Sushi81.Pos.Application.Pairing.SystemMetadata;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Domain;
@@ -18,6 +20,8 @@ public partial class MainWindow : Window
     private int commandesGridResizeInvocationCount;
     private int commandesGridWidthMutationCount;
     private IDisposable? performanceTraceProbe;
+    private bool allowM07Close;
+    private int closeDecisionInProgress;
     private readonly CatalogueHeaderSet catalogueHeaders = new();
 
     public MainWindow(ShellViewModel viewModel)
@@ -26,7 +30,57 @@ public partial class MainWindow : Window
         DataContext = viewModel;
         if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
         ApplyCatalogueHeaders();
+        Closing += OnMainWindowClosing;
         Closed += OnClosed;
+    }
+
+    private async void OnMainWindowClosing(object? sender, CancelEventArgs e)
+    {
+        if (allowM07Close
+            || DataContext is not ShellViewModel { M07Runtime: { NormalHandoff: not null } runtime } viewModel
+            || runtime.AuthorityGuard.State != WriteAuthorityState.Authoritative)
+            return;
+
+        e.Cancel = true;
+        if (Interlocked.Exchange(ref closeDecisionInProgress, 1) != 0) return;
+        try
+        {
+            var targets = await runtime.GetEligibleTransferTargetsAsync();
+            var choiceDialog = new AuthorityCloseChoiceDialog(this, viewModel.Localized, targets);
+            var choice = choiceDialog.ShowDialog() == true
+                ? AuthorityCloseChoiceDialog.LastChoice
+                : new AuthorityCloseChoice(AuthorityCloseIntent.Cancel, null);
+            if (choice.Intent == AuthorityCloseIntent.Cancel) return;
+
+            if (choice.Intent == AuthorityCloseIntent.Transfer)
+            {
+                if (choice.TargetDeviceId is not { } targetDeviceId)
+                {
+                    MessageBox.Show(this, LocalizedText(this, "AuthorityTargetRequired", "Choose a target device."), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var result = await runtime.NormalHandoff!.TransferAndCloseAsync(targetDeviceId);
+                if (!result.Succeeded)
+                {
+                    MessageBox.Show(this, result.Error?.Message ?? LocalizedText(this, "AuthorityTransferFailed", "Authority transfer failed."), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+            }
+
+            // Retain is the safe default and never contacts the network. Transfer only reaches
+            // this point after the source is durably ReleasedNonAuthoritative.
+            allowM07Close = true;
+            Close();
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            Volatile.Write(ref closeDecisionInProgress, 0);
+        }
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -62,6 +116,23 @@ public partial class MainWindow : Window
         if (DataContext is not ShellViewModel viewModel || e.AddedItems.OfType<LanguageOption>().SingleOrDefault() is not { } language) return;
         try { await viewModel.ChangeLanguageAsync(language); ApplyCatalogueHeaders(); }
         catch { MessageBox.Show(this, viewModel.LanguageSaveFailure, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private async void OnJoinExistingLineage(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanJoinExistingLineage: true } viewModel) return;
+        var dialog = new DeviceJoinDialog(this, viewModel.Localized);
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            await viewModel.JoinExistingLineageAsync(dialog.DisplayName);
+            MessageBox.Show(this, LocalizedText(this, "JoinSucceeded", "This computer is paired read-only."), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void ApplyCatalogueHeaders()
@@ -1029,5 +1100,123 @@ public partial class MainWindow : Window
 
         private sealed record ModeItem(DomainSelectionMode Mode, string Label);
         private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private enum AuthorityCloseIntent { Retain, Transfer, Cancel }
+
+    private readonly record struct AuthorityCloseChoice(AuthorityCloseIntent Intent, Guid? TargetDeviceId);
+
+    private sealed class AuthorityCloseChoiceDialog : Window
+    {
+        public static AuthorityCloseChoice LastChoice { get; private set; }
+        private readonly ComboBox targetSelector;
+        private readonly Button transfer;
+
+        public AuthorityCloseChoiceDialog(
+            Window owner,
+            IReadOnlyDictionary<string, string> labels,
+            IReadOnlyList<DeviceRegistrationArtifact> targets)
+        {
+            Owner = owner;
+            Title = Read(labels, "AuthorityCloseTitle", "Close Sushi81 POS");
+            Width = 560;
+            Height = 270;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            ResizeMode = ResizeMode.NoResize;
+            LastChoice = new AuthorityCloseChoice(AuthorityCloseIntent.Cancel, null);
+
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "AuthorityClosePrompt", "This computer is the current authority. Choose how to close."),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+            targetSelector = new ComboBox
+            {
+                ItemsSource = targets.Select(target => new TargetChoice(target.DeviceId, $"{target.DisplayName} ({target.DeviceId.ToString("N")[..8]})")).ToArray(),
+                DisplayMemberPath = nameof(TargetChoice.Label),
+                SelectedValuePath = nameof(TargetChoice.DeviceId),
+                IsEnabled = targets.Count > 0,
+                Margin = new Thickness(0, 4, 0, 14),
+                MinWidth = 360
+            };
+            targetSelector.SelectedIndex = targets.Count > 0 ? 0 : -1;
+            root.Children.Add(new TextBlock { Text = Read(labels, "AuthorityTargetLabel", "Transfer target"), FontWeight = FontWeights.SemiBold });
+            root.Children.Add(targetSelector);
+            var buttons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+            var retain = new Button { Content = Read(labels, "AuthorityCloseRetain", "Close and retain authority"), Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(0, 0, 8, 0) };
+            retain.Click += (_, _) => Complete(new AuthorityCloseChoice(AuthorityCloseIntent.Retain, null));
+            transfer = new Button { Content = Read(labels, "AuthorityTransferClose", "Transfer authority and close"), Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(0, 0, 8, 0), IsEnabled = targets.Count > 0 };
+            transfer.Click += (_, _) => Complete(new AuthorityCloseChoice(
+                AuthorityCloseIntent.Transfer,
+                targetSelector.SelectedValue is Guid selected ? selected : null));
+            var cancel = new Button { Content = Read(labels, "AuthorityCloseCancel", "Cancel"), Padding = new Thickness(10, 5, 10, 5) };
+            cancel.Click += (_, _) => Complete(new AuthorityCloseChoice(AuthorityCloseIntent.Cancel, null));
+            buttons.Children.Add(retain); buttons.Children.Add(transfer); buttons.Children.Add(cancel); root.Children.Add(buttons);
+            Content = root;
+        }
+
+        private void Complete(AuthorityCloseChoice choice)
+        {
+            LastChoice = choice;
+            DialogResult = true;
+            Close();
+        }
+
+        private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
+
+        private sealed record TargetChoice(Guid DeviceId, string Label);
+    }
+
+    private sealed class DeviceJoinDialog : Window
+    {
+        private readonly TextBox displayNameBox;
+
+        public DeviceJoinDialog(Window owner, IReadOnlyDictionary<string, string> labels)
+        {
+            Owner = owner;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            SizeToContent = SizeToContent.WidthAndHeight;
+            MinWidth = 420;
+            Title = LocalizedText(owner, "JoinExistingLineage", "Join existing Sushi81 system");
+
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "JoinPrompt", "Join the configured Sushi81 system as a read-only device."),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "JoinDisplayName", "Device name"),
+                FontWeight = FontWeights.SemiBold
+            });
+            displayNameBox = new TextBox { MinWidth = 340, Margin = new Thickness(0, 5, 0, 14) };
+            root.Children.Add(displayNameBox);
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var confirm = new Button { Content = Read(labels, "JoinConfirm", "Join read-only"), Padding = new Thickness(10, 4, 10, 4), IsDefault = true };
+            confirm.Click += (_, _) =>
+            {
+                if (string.IsNullOrWhiteSpace(displayNameBox.Text))
+                {
+                    displayNameBox.Focus();
+                    return;
+                }
+
+                DialogResult = true;
+            };
+            var cancel = new Button { Content = Read(labels, "AuthorityCloseCancel", "Cancel"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+            buttons.Children.Add(confirm);
+            buttons.Children.Add(cancel);
+            root.Children.Add(buttons);
+            Content = root;
+        }
+
+        public string DisplayName => displayNameBox.Text.Trim();
+
+        private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
     }
 }

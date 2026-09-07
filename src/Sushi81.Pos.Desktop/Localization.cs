@@ -8,6 +8,7 @@ using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Application.OrderEntry;
+using Sushi81.Pos.Application.Pairing.SystemMetadata;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -65,12 +66,13 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private LanguageOption _selectedLanguage;
     private bool _isLanguageChangeInProgress;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
         _culture = Normalize(_cultureStore.Load());
         StartupSucceeded = startupSucceeded;
         AuthorityState = authorityGuard?.State ?? authorityState;
+        M07Runtime = m07Runtime;
         Languages = new ObservableCollection<LanguageOption>();
         RefreshResources();
         _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
@@ -89,11 +91,16 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public bool StartupSucceeded { get; }
 
-    public WriteAuthorityState AuthorityState { get; }
+    public WriteAuthorityState AuthorityState { get; private set; }
+
+    public M07RuntimeServices? M07Runtime { get; }
 
     public bool CanWrite => StartupSucceeded && AuthorityState == WriteAuthorityState.Authoritative;
 
     public bool IsAuthorityWarningVisible => !CanWrite;
+
+    public bool CanJoinExistingLineage => M07Runtime is not null
+        && AuthorityState is WriteAuthorityState.Uninitialized or WriteAuthorityState.RecoveryRequired;
 
     public M03ShellViewModel? Admin { get; }
 
@@ -203,16 +210,35 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         Languages.Add(new LanguageOption("fr-FR", Read("FrenchLanguage")));
         Languages.Add(new LanguageOption("zh-CN", Read("ChineseLanguage")));
         var keys = new[] { "ShellTitle", "Catalogue", "Settings", "Caisse", "Commandes", "Products", "Search", "OrderSearch", "Category", "All", "Active", "Inactive", "NewProduct", "Edit", "Save", "Cancel", "Add", "Confirm", "ReloadOrder", "Activate", "Deactivate", "BulkActivate", "BulkDeactivate", "BulkConfirm", "BulkNoChange", "BulkSuccess", "DeletePermanently", "ManageCategories", "CategoryShortCode", "CategoryShortCodeTooltip", "Code", "Name", "PriceTtc", "Vat", "DiscountEligible", "OptionsEnabled", "OptionGroups", "Options", "SelectionMode", "Required", "Optional", "Single", "Multi", "Minimum", "Maximum", "AdjustmentTtc", "MoveUp", "MoveDown", "PickupDiscount", "PickupMinimum", "DeliveryMinimum", "DeliveryFee", "DeliveryFeeEnabled", "Fulfilment", "FulfilmentUnselected", "Retrait", "Livraison", "PlannedDate", "PlannedTime", "TimeHour", "TimeMinute", "TimeUnset", "Telephone", "DeliveryAddress", "Comment", "PickupDiscountRequest", "Cart", "TotalTtc", "Quantity", "CustomAdjustments", "AddAdjustment", "AdjustmentLabel", "AdjustmentAmount", "NewOrder", "ManualTotalActive", "ReloadOrderTooltip", "ReloadedOrder", "OrderBrowser", "BrowseDate", "Browse", "OrderBrowserTime", "OrderBrowserMode", "OrderBrowserStatus", "OrderBrowserTotal", "OrderBrowserTelephone", "OrderBrowserEmptyTelephone", "OrderId", "OrderStatus", "OrderStatusOpen", "OrderStatusClosed", "OrderStatusCancelled", "OrderLines", "Unit", "PickupDiscountApplied", "TaxSnapshot", "InvalidOrderId", "OrderNotFound", "OrderSaved", "OrderSavedOutputFailed", "ProductInactive", "InvalidPlannedTime", "InvalidManualTotal", "ValidationFulfilmentRequired", "ValidationPlannedDateRequired", "ValidationPlannedDatePast", "ValidationPlannedTimeRequired", "ValidationPlannedTimeInvalid", "ValidationCartRequired", "ValidationDeliveryMinimum", "ValidationPickupDiscount", "InvalidQuantity", "InvalidOptions", "InvalidAdjustment", "EmptyCatalogue", "DeleteConfirm", "M03StartupFailure", "DeliveryFeeVatFixed", "CreateCategory", "CreateCategoryFirst", "RenameCategory", "Close", "EnterValidValues", "Saved", "ValidationGeneric", "ValidationAuthorityBlocked", "ValidationRequired", "ValidationCategoryDuplicate", "ValidationCategoryShortCodeDuplicate", "ValidationCategoryShortCodeTooLong", "ValidationCategoryMissing", "ValidationProductMissing", "ValidationProductDuplicateCode", "ValidationPriceNegative", "ValidationVatRange", "ValidationRequiredChoices", "ValidationSettingsRange", "ValidationInvalidNumber", "ValidationBusy", "ValidationGroupStructure", "ValidationOptionStructure", "ValidationConflict", "ValidationField", "CategoryEdit", "CategoryCreateSave", "CategoryRenameSave", "CategoryEditCancel", "DirtyEditorClose", "Discard", "KeepEditing", "OptionName", "OptionActive", "OrderReference", "OrderCard", "OrderCash", "OrderPaid", "OrderDifference", "OrderSearchLive", "OrderModify", "OrderAbandon", "OrderCancel", "OrderNewFromDetails", "OrderClose", "OrderEffectiveDate", "OrderEffectiveDateEdit", "OrderEffectiveDateHint", "OrderBrowseByDate", "OrderSave", "OrderReadOnly", "OrderEdit", "OrderAdvance", "OrderSearchHint", "OrderNoSelection", "DashboardTurnover", "DashboardReceived", "DashboardReceivedCard", "DashboardReceivedCash", "DashboardFuture", "DashboardDueToday", "DashboardOverdue", "DashboardRefresh", "AuthorityReadOnly", "AuthorityTransitioning", "AuthorityRecoveryRequired" };
-        keys = keys.Append("ValidationPaymentNegative").Append("OrderCloseEligible").ToArray();
+        keys = keys.Append("ValidationPaymentNegative").Append("OrderCloseEligible")
+            .Append("AuthorityCloseTitle").Append("AuthorityClosePrompt").Append("AuthorityTargetLabel")
+            .Append("AuthorityCloseRetain").Append("AuthorityTransferClose").Append("AuthorityCloseCancel")
+            .Append("AuthorityTargetRequired").Append("AuthorityTransferFailed")
+            .Append("JoinExistingLineage").Append("JoinDisplayName").Append("JoinPrompt")
+            .Append("JoinConfirm").Append("JoinSucceeded").ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));
         OnPropertyChanged(nameof(AuthorityStatus));
         OnPropertyChanged(nameof(CanWrite));
         OnPropertyChanged(nameof(IsAuthorityWarningVisible));
+        OnPropertyChanged(nameof(CanJoinExistingLineage));
         OnPropertyChanged(nameof(LanguageLabel));
         OnPropertyChanged(nameof(LanguageSaveFailure));
         OnPropertyChanged(nameof(Localized));
+    }
+
+    public async Task<DeviceSelfJoinResult> JoinExistingLineageAsync(
+        string displayName,
+        CancellationToken cancellationToken = default)
+    {
+        if (M07Runtime is null)
+            throw new InvalidOperationException("M07 pairing services are not configured.");
+
+        var result = await M07Runtime.SelfJoin.JoinAsync(displayName, cancellationToken);
+        AuthorityState = M07Runtime.AuthorityGuard.State;
+        RefreshResources();
+        return result;
     }
 
     private string Read(string key) => ResourceManager.GetString(key, _culture) ?? throw new InvalidOperationException($"Missing required localization resource '{key}'.");

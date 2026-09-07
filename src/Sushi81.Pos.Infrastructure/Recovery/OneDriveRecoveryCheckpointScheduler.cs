@@ -18,6 +18,7 @@ public sealed class OneDriveRecoveryCheckpointScheduler : IRecoveryCheckpointSch
     private readonly string watermarkPath;
     private readonly SemaphoreSlim publishGate = new(1, 1);
     private readonly object stateLock = new();
+    private Timer? dueTimer;
     private DurableChange? pending;
     private RecoveryCheckpointWatermark? completed;
     private bool disposed;
@@ -45,6 +46,11 @@ public sealed class OneDriveRecoveryCheckpointScheduler : IRecoveryCheckpointSch
                 return;
             if (pending is null || change.Sequence > pending.Sequence)
                 pending = change;
+            dueTimer ??= new Timer(static state =>
+            {
+                var scheduler = (OneDriveRecoveryCheckpointScheduler)state!;
+                _ = scheduler.RunDuePublicationAsync();
+            }, this, NormalInterval, Timeout.InfiniteTimeSpan);
         }
     }
 
@@ -105,9 +111,39 @@ public sealed class OneDriveRecoveryCheckpointScheduler : IRecoveryCheckpointSch
         if (!disposed)
         {
             disposed = true;
+            dueTimer?.Dispose();
+            dueTimer = null;
             publishGate.Dispose();
         }
         return ValueTask.CompletedTask;
+    }
+
+    private async Task RunDuePublicationAsync()
+    {
+        lock (stateLock)
+        {
+            dueTimer?.Dispose();
+            dueTimer = null;
+        }
+
+        try
+        {
+            await TryPublishDueAsync(force: false);
+        }
+        finally
+        {
+            lock (stateLock)
+            {
+                if (!disposed && pending is not null && (completed is null || pending.Sequence > completed.BusinessRevision))
+                {
+                    dueTimer ??= new Timer(static state =>
+                    {
+                        var scheduler = (OneDriveRecoveryCheckpointScheduler)state!;
+                        _ = scheduler.RunDuePublicationAsync();
+                    }, this, NormalInterval, Timeout.InfiniteTimeSpan);
+                }
+            }
+        }
     }
 
     private static RecoveryCheckpointWatermark? LoadWatermark(string path)

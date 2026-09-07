@@ -131,6 +131,21 @@ public sealed class RecoveryCheckpointTests
         Assert.AreEqual(WriteAuthorityState.Authoritative, fixture.Guard.State);
     }
 
+    [TestMethod]
+    public async Task CompositeSchedulerKeepsLocalRecoveryAndCloudRevisionSpinesIndependent()
+    {
+        var local = new RecordingRecoveryScheduler();
+        var cloud = new RecordingCloudScheduler();
+        await using var scheduler = new CompositeRecoveryScheduler(local, cloud);
+        var change = new DurableChange(42, new DateTimeOffset(2026, 9, 7, 12, 0, 0, TimeSpan.Zero));
+
+        scheduler.NotifyCommitted(change);
+        await scheduler.FlushAsync();
+
+        CollectionAssert.AreEqual(new long[] { 42 }, local.Changes.Select(item => item.Sequence).ToArray());
+        CollectionAssert.AreEqual(new long[] { 42 }, cloud.Published.ToArray());
+    }
+
     private static long ReadBusinessRevision(string directory)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "metadata.json")));
@@ -206,6 +221,31 @@ public sealed class RecoveryCheckpointTests
             Published.Add(businessRevision);
             var metadata = new RecoveryCheckpointMetadata(1, "M07", Guid.NewGuid(), Guid.NewGuid(), 1, Guid.NewGuid(), businessRevision, 0, clock.UtcNow, "checkpoint.db", 1, new string('A', 64));
             return Task.FromResult(new RecoveryCheckpointPublicationResult(metadata, "checkpoint.db", "metadata.json", true));
+        }
+    }
+
+    private sealed class RecordingRecoveryScheduler : IRecoveryScheduler
+    {
+        public List<DurableChange> Changes { get; } = [];
+
+        public void NotifyCommitted(DurableChange change) => Changes.Add(change);
+
+        public Task FlushAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class RecordingCloudScheduler : IRecoveryCheckpointScheduler
+    {
+        public List<long> Published { get; } = [];
+        private DurableChange? pending;
+
+        public void NotifyCommitted(DurableChange change) => pending = change;
+
+        public Task<bool> TryPublishDueAsync(bool force, CancellationToken cancellationToken = default)
+        {
+            if (pending is null) return Task.FromResult(false);
+            Published.Add(pending.Sequence);
+            pending = null;
+            return Task.FromResult(true);
         }
     }
 

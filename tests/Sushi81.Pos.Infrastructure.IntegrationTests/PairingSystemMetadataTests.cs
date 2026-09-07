@@ -4,7 +4,10 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sushi81.Pos.Application.Foundation.Authority;
+using Sushi81.Pos.Application.Foundation.Paths;
+using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Pairing.SystemMetadata;
+using Sushi81.Pos.Infrastructure.Authority;
 using Sushi81.Pos.Infrastructure.Pairing.SystemMetadata;
 
 namespace Sushi81.Pos.Infrastructure.IntegrationTests;
@@ -37,6 +40,40 @@ public sealed class PairingSystemMetadataTests
         var artifactJson = await File.ReadAllTextAsync(fixture.DeviceArtifactPath(lineage.CurrentGeneration, deviceId));
         Assert.IsFalse(artifactJson.Contains("authority", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(artifactJson.Contains("grant", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public async Task ProductionSelfJoinPersistsCanonicalReadOnlyStateWithoutManualTransition()
+    {
+        using var fixture = new SystemMetadataFixture();
+        var lineage = fixture.CreateLineage();
+        await fixture.WriteLineageAsync(lineage);
+
+        using var guard = new WriteAuthorityGuard(WriteAuthorityState.Uninitialized);
+        var authorityStore = new JsonAuthorityStateStore(new TestPaths(fixture.Root));
+        var service = new SelfJoinService(
+            authorityStore,
+            guard,
+            fixture.CreateStore(),
+            new FixedBusinessClock(fixture.Now));
+
+        var result = await service.JoinAsync("Replacement PC");
+        var document = await authorityStore.LoadAsync();
+
+        Assert.AreEqual(PairingReadiness.PairedUninitializedReadOnly, result.Readiness);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, result.WriteAuthorityState);
+        Assert.IsNotNull(document);
+        Assert.AreEqual(AuthorityPhase.PairedUninitializedReadOnly, document!.Protocol!.Phase);
+        Assert.AreEqual(lineage.LineageId, document.Protocol.LineageId);
+        Assert.AreEqual(lineage.CurrentGeneration, document.Protocol.Generation);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, guard.State);
+        Assert.AreNotEqual(WriteAuthorityState.Authoritative, guard.State);
+
+        var devices = await fixture.CreateStore().ListCurrentGenerationDevicesAsync(
+            lineage.LineageId,
+            lineage.CurrentGeneration);
+        Assert.HasCount(1, devices);
+        Assert.AreEqual(result.Registration.DeviceId, devices[0].DeviceId);
     }
 
     [TestMethod]
@@ -238,5 +275,26 @@ public sealed class PairingSystemMetadataTests
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed class FixedBusinessClock(DateTimeOffset now) : IBusinessClock
+    {
+        public DateTimeOffset UtcNow { get; } = now;
+        public DateOnly BusinessDate => DateOnly.FromDateTime(UtcNow.DateTime);
+        public TimeZoneInfo BusinessTimeZone => TimeZoneInfo.Utc;
+    }
+
+    private sealed class TestPaths(string root) : IAppPaths
+    {
+        public string RootDirectory { get; } = root;
+        public string DataDirectory { get; } = Path.Combine(root, "Data");
+        public string RecoveryDirectory { get; } = Path.Combine(root, "Recovery");
+        public string CacheDirectory { get; } = Path.Combine(root, "Cache");
+        public string LogsDirectory { get; } = Path.Combine(root, "Logs");
+        public string ConfigDirectory { get; } = Path.Combine(root, "Config");
+        public string TempDirectory { get; } = Path.Combine(root, "Temp");
+        public string LiveDatabasePath { get; } = Path.Combine(root, "Data", "live.db");
+
+        public void EnsureInitialized() => Directory.CreateDirectory(ConfigDirectory);
     }
 }

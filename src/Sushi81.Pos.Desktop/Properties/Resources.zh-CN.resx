@@ -10,6 +10,19 @@
   <data name="AuthorityReadOnly" xml:space="preserve"><value>只读模式：此实例不是本地权威实例。本地显示的数据可能已过时。仍可搜索和查看数据。</value></data>
   <data name="AuthorityTransitioning" xml:space="preserve"><value>权威状态切换中：禁止写入，本地数据可能已过时。</value></data>
   <data name="AuthorityRecoveryRequired" xml:space="preserve"><value>需要本地恢复：禁止写入，本地数据可能已过时。</value></data>
+  <data name="AuthorityCloseTitle" xml:space="preserve"><value>关闭 Sushi81 POS</value></data>
+  <data name="AuthorityClosePrompt" xml:space="preserve"><value>此电脑是当前权威设备。请选择关闭操作。</value></data>
+  <data name="AuthorityTargetLabel" xml:space="preserve"><value>转移目标</value></data>
+  <data name="AuthorityCloseRetain" xml:space="preserve"><value>关闭并保留权威</value></data>
+  <data name="AuthorityTransferClose" xml:space="preserve"><value>转移权威并关闭</value></data>
+  <data name="AuthorityCloseCancel" xml:space="preserve"><value>取消</value></data>
+  <data name="AuthorityTargetRequired" xml:space="preserve"><value>请选择目标设备。</value></data>
+  <data name="AuthorityTransferFailed" xml:space="preserve"><value>权威转移失败。</value></data>
+  <data name="JoinExistingLineage" xml:space="preserve"><value>加入现有系统</value></data>
+  <data name="JoinDisplayName" xml:space="preserve"><value>此设备名称</value></data>
+  <data name="JoinPrompt" xml:space="preserve"><value>以只读模式加入已配置的 Sushi81 系统。此操作不会授予写入权威。</value></data>
+  <data name="JoinConfirm" xml:space="preserve"><value>以只读方式加入</value></data>
+  <data name="JoinSucceeded" xml:space="preserve"><value>此设备现已以只读方式配对。</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>语言</value></data>
   <data name="LanguageSaveFailure" xml:space="preserve"><value>无法保存语言偏好设置。请重试。</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>法语</value></data>

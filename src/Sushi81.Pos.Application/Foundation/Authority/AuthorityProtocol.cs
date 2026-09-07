@@ -39,7 +39,8 @@ public sealed record TransferEvidence(
     Guid SourceDeviceId, Guid TargetDeviceId, long BusinessRevision,
     string SnapshotName, string SnapshotPath, long SnapshotSize, string SnapshotSha256,
     RemoteAssetEvidence? SnapshotReceipt = null, RemoteAssetEvidence? GrantReceipt = null,
-    DateTimeOffset? RelinquishedAtUtc = null, bool SnapshotReady = true)
+    DateTimeOffset? RelinquishedAtUtc = null, bool SnapshotReady = true,
+    DateTimeOffset? GrantCreatedAtUtc = null)
 {
     public static TransferEvidence Pending(
         Guid transferId,
@@ -152,7 +153,7 @@ public static class AuthorityProtocolValidationExtensions
             if (!string.IsNullOrEmpty(transfer.SnapshotName) || !string.IsNullOrEmpty(transfer.SnapshotPath)
                 || transfer.SnapshotSize != 0 || !string.IsNullOrEmpty(transfer.SnapshotSha256)
                 || transfer.SnapshotReceipt is not null || transfer.GrantReceipt is not null
-                || transfer.RelinquishedAtUtc is not null)
+                || transfer.RelinquishedAtUtc is not null || transfer.GrantCreatedAtUtc is not null)
                 throw new InvalidDataException("A pending transfer cannot carry partial snapshot or grant evidence.");
             return;
         }

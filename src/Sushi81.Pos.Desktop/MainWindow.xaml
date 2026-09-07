@@ -16,7 +16,10 @@
     <StackPanel Grid.Row="1" Margin="0,0,0,8">
       <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
       <Border Background="#FFFFE0" BorderBrush="#FFD08A" BorderThickness="1" Padding="8" Margin="0,6,0,0" Visibility="{Binding IsAuthorityWarningVisible, Converter={StaticResource BoolToVisibility}}">
-        <TextBlock Text="{Binding AuthorityStatus}" TextWrapping="Wrap" Foreground="#7A4300" />
+        <StackPanel>
+          <TextBlock Text="{Binding AuthorityStatus}" TextWrapping="Wrap" Foreground="#7A4300" />
+          <Button Content="{Binding DataContext.Localized[JoinExistingLineage], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanJoinExistingLineage}" Visibility="{Binding CanJoinExistingLineage, Converter={StaticResource BoolToVisibility}}" Click="OnJoinExistingLineage" HorizontalAlignment="Left" Padding="10,4" Margin="0,6,0,0" />
+        </StackPanel>
       </Border>
     </StackPanel>
     <TabControl x:Name="mainTabs" Grid.Row="2" DataContext="{Binding Admin}" SelectionChanged="OnMainTabsSelectionChanged" IsEnabled="{Binding IsM03Available, RelativeSource={RelativeSource AncestorType=Window}}" Visibility="{Binding IsM03Available, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">

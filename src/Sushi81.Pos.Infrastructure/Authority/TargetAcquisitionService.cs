@@ -104,7 +104,8 @@ public sealed class TargetAcquisitionService(
             grant.Grant.SnapshotReceipt,
             grant.Receipt,
             grant.Grant.RelinquishedAtUtc,
-            SnapshotReady: true);
+            SnapshotReady: true,
+            GrantCreatedAtUtc: grant.Grant.CreatedAtUtc);
         var pending = local with
         {
             Revision = checked(local.Revision + 1),
@@ -151,8 +152,11 @@ public sealed class TargetAcquisitionService(
             if (!asset.IsComplete || !GitHubHandoffAssetNames.IsGrantName(asset.Name)) continue;
             var discovered = await ReadGrantAsync(release, asset, cancellationToken);
             if (discovered.Grant.TargetDeviceId != local.DeviceId) continue;
+            // Historical grants can legitimately target this surviving device ID. They are
+            // evidence of an older protocol generation, not a discovery failure; only the
+            // current lineage/generation is eligible for acquisition.
             if (discovered.Grant.LineageId != local.LineageId || discovered.Grant.Generation != local.Generation)
-                throw new InvalidDataException("A target-bound grant belongs to a different lineage or generation.");
+                continue;
             if (discovered.Grant.HandoffVersion <= local.HandoffVersion) continue;
             candidates.Add(discovered);
         }

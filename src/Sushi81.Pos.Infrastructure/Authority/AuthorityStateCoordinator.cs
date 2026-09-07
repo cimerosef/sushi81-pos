@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Time;
+using Sushi81.Pos.Application.Pairing.SystemMetadata;
 
 namespace Sushi81.Pos.Infrastructure.Authority;
 
@@ -17,7 +18,8 @@ public sealed partial class AuthorityStateCoordinator(
     IAuthorityStateStore store,
     WriteAuthorityGuard guard,
     IBusinessClock clock,
-    ILogger logger)
+    ILogger logger,
+    ISystemMetadataStore? systemMetadata = null)
 {
     private const int CanonicalSchemaVersion = 2;
 
@@ -77,6 +79,8 @@ public sealed partial class AuthorityStateCoordinator(
                     document = new AuthorityStateDocument(CanonicalSchemaVersion, protocol.WriteState, clock.UtcNow) { Protocol = protocol };
                     await store.SaveAsync(document, cancellationToken);
                 }
+                if (document.Protocol is { Phase: AuthorityPhase.Authoritative or AuthorityPhase.ClosedRetainedAuthority } existingProtocol)
+                    await EnsureAuthoritativeMembershipAsync(existingProtocol, cancellationToken);
                 guard.SetState(document.EffectiveState);
                 return new(document.EffectiveState, null);
             }
@@ -110,6 +114,7 @@ public sealed partial class AuthorityStateCoordinator(
             await store.SaveAsync(bootstrap, cancellationToken);
             await store.WriteBootstrapMarkerAsync(cancellationToken);
             await store.WriteBootstrapAnchorAsync(cancellationToken);
+            await EnsureAuthoritativeMembershipAsync(bootstrapProtocol, cancellationToken);
             guard.SetState(WriteAuthorityState.Authoritative);
             return new(WriteAuthorityState.Authoritative, null);
         }
@@ -118,6 +123,20 @@ public sealed partial class AuthorityStateCoordinator(
         {
             return FailClosed(exception);
         }
+    }
+
+    private async Task EnsureAuthoritativeMembershipAsync(
+        AuthorityProtocolState protocol,
+        CancellationToken cancellationToken)
+    {
+        if (systemMetadata is null || protocol.LineageId is not { } lineageId || protocol.Generation < 1)
+            return;
+
+        // System metadata is a non-authority membership publication. A contradiction is
+        // surfaced to startup as RecoveryRequired; it can never rewrite another lineage or
+        // promote a joining device.
+        await systemMetadata.EnsureCurrentLineageAsync(lineageId, protocol.Generation, cancellationToken);
+        await systemMetadata.JoinCurrentGenerationAsync(protocol.DeviceId, protocol.DisplayName, cancellationToken);
     }
 
     private AuthorityResolution FailClosed(Exception exception)

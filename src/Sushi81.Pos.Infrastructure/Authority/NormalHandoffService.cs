@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Globalization;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.GitHubTransport;
 using Sushi81.Pos.Application.Foundation.Recovery;
@@ -167,9 +168,11 @@ public sealed class NormalHandoffService(
                     || transfer.SnapshotSize != snapshot.Size
                     || !string.Equals(transfer.SnapshotSha256, snapshot.Sha256, StringComparison.OrdinalIgnoreCase))
                 {
+                    var releaseForAllocation = await transport.EnsureContainerAsync(createIfMissing: true, cancellationToken);
+                    var allocatedName = await AllocateSnapshotNameAsync(releaseForAllocation, snapshot.Name, cancellationToken);
                     transfer = transfer with
                     {
-                        SnapshotName = snapshot.Name,
+                        SnapshotName = allocatedName,
                         SnapshotPath = snapshot.Path,
                         SnapshotSize = snapshot.Size,
                         SnapshotSha256 = snapshot.Sha256,
@@ -183,7 +186,15 @@ public sealed class NormalHandoffService(
                 var snapshotReceipt = await UploadOrReuseAsync(
                     release, transfer.SnapshotName, transfer.SnapshotPath, transfer.SnapshotSize,
                     transfer.SnapshotSha256, cancellationToken);
-                transfer = transfer with { SnapshotReceipt = snapshotReceipt, RelinquishedAtUtc = clock.UtcNow };
+                var relinquishedAtUtc = clock.UtcNow;
+                transfer = transfer with
+                {
+                    SnapshotReceipt = snapshotReceipt,
+                    RelinquishedAtUtc = relinquishedAtUtc,
+                    // This timestamp is part of the durable transfer before the first grant
+                    // upload. Retries must reconstruct byte-identical grant JSON.
+                    GrantCreatedAtUtc = relinquishedAtUtc
+                };
                 var relinquishedState = current with
                 {
                     Revision = checked(current.Revision + 1),
@@ -197,11 +208,20 @@ public sealed class NormalHandoffService(
 
             if (current.Phase == AuthorityPhase.RelinquishedPendingGrant)
             {
+                if (transfer.GrantCreatedAtUtc is null)
+                {
+                    // Upgrade an older pending document without inventing a new wall-clock
+                    // value. If its remote grant was already created with unknown bytes, the
+                    // strict receipt/hash check below fails closed rather than rolling back.
+                    transfer = transfer with { GrantCreatedAtUtc = transfer.RelinquishedAtUtc };
+                    current = current with { Revision = checked(current.Revision + 1), Transfer = transfer };
+                    await PersistAsync(current, cancellationToken);
+                }
                 var release = await transport.EnsureContainerAsync(createIfMissing: true, cancellationToken);
                 var grant = new NormalHandoffGrant(
                     "M07", transfer.TransferId, transfer.LineageId, transfer.Generation, transfer.Version,
                     transfer.SourceDeviceId, transfer.TargetDeviceId, transfer.BusinessRevision,
-                    transfer.SnapshotReceipt!, transfer.RelinquishedAtUtc!.Value, clock.UtcNow);
+                    transfer.SnapshotReceipt!, transfer.RelinquishedAtUtc!.Value, transfer.GrantCreatedAtUtc!.Value);
                 grant.Validate();
                 var grantBytes = JsonSerializer.SerializeToUtf8Bytes(grant, GrantJsonOptions);
                 var grantHash = Convert.ToHexString(SHA256.HashData(grantBytes));
@@ -219,7 +239,7 @@ public sealed class NormalHandoffService(
                 await PersistAsync(current, cancellationToken);
             }
 
-            await CleanupNewestThreeAsync(cancellationToken);
+            await CleanupNewestThreeAsync(transfer.LineageId, cancellationToken);
             return NormalHandoffResult.Success(transfer.TransferId);
         }
         catch (OperationCanceledException)
@@ -262,6 +282,40 @@ public sealed class NormalHandoffService(
             : throw new InvalidDataException("A handoff asset path is missing.");
         var receipt = await transport.UploadAssetAsync(release, name, content, size, sha256, cancellationToken);
         return ConvertReceipt(release.Id, receipt, name, size, sha256);
+    }
+
+    private async Task<string> AllocateSnapshotNameAsync(
+        GitHubReleaseContainer release,
+        string requestedName,
+        CancellationToken cancellationToken)
+    {
+        if (!GitHubHandoffAssetNames.IsSnapshotName(requestedName))
+            throw new InvalidDataException("The snapshot factory returned an invalid immutable filename.");
+
+        if (!DateTimeOffset.TryParseExact(
+            requestedName[..14],
+            "yyyyMMddHHmmss",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var candidate))
+            throw new InvalidDataException("The snapshot filename timestamp is invalid.");
+
+        var assets = await transport.ListAssetsAsync(release, cancellationToken);
+        var occupied = assets
+            .Where(asset => GitHubHandoffAssetNames.IsSnapshotName(asset.Name) || GitHubHandoffAssetNames.IsGrantName(asset.Name))
+            .Select(asset => asset.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        for (var offset = 0; offset < 1_000_000; offset++)
+        {
+            var snapshotName = GitHubHandoffAssetNames.CreateSnapshotName(candidate);
+            var grantName = GitHubHandoffAssetNames.CreateGrantName(snapshotName);
+            if (!occupied.Contains(snapshotName) && !occupied.Contains(grantName))
+                return snapshotName;
+            candidate = candidate.AddSeconds(1);
+        }
+
+        throw new InvalidDataException("No collision-free snapshot/grant filename could be allocated.");
     }
 
     private async Task<RemoteAssetEvidence> UploadOrReuseAsync(
@@ -335,7 +389,7 @@ public sealed class NormalHandoffService(
         await PersistAsync(aborted, CancellationToken.None);
     }
 
-    private async Task CleanupNewestThreeAsync(CancellationToken cancellationToken)
+    private async Task CleanupNewestThreeAsync(Guid currentLineageId, CancellationToken cancellationToken)
     {
         // Retention is deliberately best-effort and exact-ID based. It never changes local
         // authority, and incomplete/starter assets are left untouched for diagnostics/retry.
@@ -343,17 +397,58 @@ public sealed class NormalHandoffService(
         {
             var release = await transport.EnsureContainerAsync(createIfMissing: false, cancellationToken);
             var assets = await transport.ListAssetsAsync(release, cancellationToken);
-            var completeUnits = assets
-                .Where(asset => asset.IsComplete && (GitHubHandoffAssetNames.IsSnapshotName(asset.Name) || GitHubHandoffAssetNames.IsGrantName(asset.Name)))
-                .GroupBy(asset => asset.Name[..14], StringComparer.Ordinal)
-                .Where(group => group.Any(asset => GitHubHandoffAssetNames.IsSnapshotName(asset.Name))
-                    && group.Any(asset => GitHubHandoffAssetNames.IsGrantName(asset.Name)))
-                .OrderByDescending(group => group.Key, StringComparer.Ordinal)
-                .Skip(3)
-                .SelectMany(group => group)
+            var snapshots = assets
+                .Where(asset => asset.IsComplete && GitHubHandoffAssetNames.IsSnapshotName(asset.Name))
+                .GroupBy(asset => asset.Name, StringComparer.Ordinal)
+                .Where(group => group.Count() == 1)
+                .Select(group => group.Single())
                 .ToArray();
-            foreach (var asset in completeUnits)
-                await transport.DeleteAssetAsync(asset.Id, cancellationToken);
+            var grantsByName = assets
+                .Where(asset => asset.IsComplete && GitHubHandoffAssetNames.IsGrantName(asset.Name))
+                .GroupBy(asset => asset.Name, StringComparer.Ordinal)
+                .Where(group => group.Count() == 1)
+                .ToDictionary(group => group.Key, group => group.Single(), StringComparer.Ordinal);
+
+            var units = new List<RetentionUnit>();
+            foreach (var snapshot in snapshots)
+            {
+                var grantName = GitHubHandoffAssetNames.CreateGrantName(snapshot.Name);
+                if (!grantsByName.TryGetValue(grantName, out var grantAsset)) continue;
+                try
+                {
+                    var grant = await ReadGrantAsync(release, grantAsset, cancellationToken);
+                    var snapshotDigest = GitHubSha256.TryNormalizeServerDigest(snapshot.Digest, out var normalized)
+                        ? normalized[7..]
+                        : string.Empty;
+                    if (grant.LineageId != currentLineageId
+                        || grant.SnapshotReceipt.ReleaseId != release.Id
+                        || !string.Equals(grant.SnapshotReceipt.Name, snapshot.Name, StringComparison.Ordinal)
+                        || grant.SnapshotReceipt.Size != snapshot.Size
+                        || !string.Equals(grant.SnapshotReceipt.Sha256, snapshotDigest, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    units.Add(new RetentionUnit(snapshot, grantAsset, grant));
+                }
+                catch (InvalidDataException)
+                {
+                    // Invalid, incomplete or contradictory units remain diagnostics and
+                    // are never counted for destructive retention.
+                }
+            }
+
+            var unambiguous = units
+                .GroupBy(unit => (unit.Grant.Generation, unit.Grant.HandoffVersion))
+                .Where(group => group.Count() == 1)
+                .Select(group => group.Single())
+                .OrderByDescending(unit => unit.Grant.Generation)
+                .ThenByDescending(unit => unit.Grant.HandoffVersion)
+                .ThenByDescending(unit => unit.Grant.TransferId)
+                .Skip(3)
+                .ToArray();
+            foreach (var unit in unambiguous)
+            {
+                await transport.DeleteAssetAsync(unit.Snapshot.Id, cancellationToken);
+                await transport.DeleteAssetAsync(unit.GrantAsset.Id, cancellationToken);
+            }
         }
         catch (OperationCanceledException) { throw; }
         catch
@@ -361,4 +456,30 @@ public sealed class NormalHandoffService(
             // Cleanup failure is explicitly retryable and must not roll back a released source.
         }
     }
+
+    private async Task<NormalHandoffGrant> ReadGrantAsync(
+        GitHubReleaseContainer release,
+        GitHubRemoteAsset remote,
+        CancellationToken cancellationToken)
+    {
+        if (!remote.IsComplete || !GitHubHandoffAssetNames.IsGrantName(remote.Name))
+            throw new InvalidDataException("The remote grant is not a complete supported asset.");
+        await using var stream = await transport.DownloadAssetAsync(remote.Id, cancellationToken);
+        using var memory = new MemoryStream();
+        await stream.CopyToAsync(memory, cancellationToken);
+        var bytes = memory.ToArray();
+        var digest = Convert.ToHexString(SHA256.HashData(bytes));
+        if (bytes.LongLength != remote.Size
+            || !GitHubSha256.TryNormalizeServerDigest(remote.Digest, out var serverDigest)
+            || !string.Equals(digest, serverDigest[7..], StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("The remote grant bytes do not match its uploaded receipt.");
+        var grant = JsonSerializer.Deserialize<NormalHandoffGrant>(bytes, GrantJsonOptions)
+            ?? throw new InvalidDataException("The remote grant is empty.");
+        grant.Validate();
+        if (grant.SnapshotReceipt.ReleaseId != release.Id)
+            throw new InvalidDataException("The remote grant references another release.");
+        return grant;
+    }
+
+    private sealed record RetentionUnit(GitHubRemoteAsset Snapshot, GitHubRemoteAsset GrantAsset, NormalHandoffGrant Grant);
 }
