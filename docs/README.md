@@ -4,13 +4,15 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M05 Passed/merged; M06 — Local recovery and authoritative/read-only enforcement — is the current controlled implementation milestone.**
+**Phase 6 implementation active: M01–M06 Passed/merged; M07 — Pairing, target-directed formal handoff and disaster recovery — is the next planned milestone and is not yet implementation-authorized.**
 
 M04 merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a` after complete Windows/WPF manual acceptance.
 
 M05 — Lifecycle, payments, search and operational dashboard — Passed implementation and project-owner Windows/WPF acceptance and was merged through PR #10 to `main` at merge commit `79499d7c6ed65a74f524097c1507ca648dc151c3`. Accepted production-code head: `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`; final docs head: `217d187dd3ef5498c11f21bc516eccc6737fa952`. M05 is no longer open work.
 
-M06 is prepared on branch `codex/m06-local-recovery-read-only` under the detailed contract, durable authorization, worklog and prepared project-owner manual-acceptance checklist in `implementation/`. Codex may execute only the current M06 handoff while issue #4 is OPEN; M07+ remain unauthorized.
+M06 — Local recovery and authoritative/read-only enforcement — Passed implementation and project-owner Windows/WPF acceptance and was merged through PR #11 to `main` at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e`. Accepted M06 production repair head: `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`; final M06 documentation/PR head: `86326d81551aa4cb5cdcbc6826b8c740317b34c4`; Release tests: 364/364 Passed.
+
+M07 has no active implementation PR, branch, authorization or handoff. Codex execution gate issue #4 is CLOSED. M08 and later milestones are not started.
 
 The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`.
 
@@ -57,12 +59,13 @@ A separate `sync-and-backup.md` is not part of V1 because live storage, local re
 - `implementation/milestone-03-catalogue-settings.md` and related extension/worklog — M03 historical implementation records; Passed/merged through PR #5.
 - `implementation/milestone-04-order-entry.md`, authorization/worklog/final manual acceptance — M04 historical implementation records; Passed/merged through PR #6.
 - `implementation/milestone-05-lifecycle-payments-search-dashboard.md`, authorization/worklog/final manual acceptance — M05 historical implementation/evidence records; Passed/merged through PR #10.
-- `implementation/milestone-06-local-recovery-read-only-enforcement.md` — current approved M06 implementation contract.
-- `implementation/milestone-06-authorization.md` — durable project-owner authorization for controlled M06 execution.
-- `implementation/milestone-06-worklog.md` — current M06 execution/evidence record.
-- `implementation/milestone-06-final-manual-acceptance.md` — prepared project-owner Windows/WPF acceptance checklist; not Passed until actually executed.
+- `implementation/milestone-06-local-recovery-read-only-enforcement.md` — historical approved M06 implementation contract; Passed/merged through PR #11.
+- `implementation/milestone-06-authorization.md` — historical durable M06 authorization.
+- `implementation/milestone-06-worklog.md` — historical M06 execution/evidence record.
+- `implementation/milestone-06-final-manual-acceptance.md` — Passed project-owner Windows/WPF acceptance record.
+- M07 preparation/design records are not yet an implementation authorization; no M07 implementation contract/handoff is active until the project owner explicitly approves M07 implementation and the closed-gate preparation sequence is completed.
 
-Normal target-directed handoff uses the configured dedicated private GitHub repository (`sushi81-pos-handoff` conceptually), one long-lived Release and immutable snapshot/grant assets. OneDrive references remain only for approved recovery/archive or historical M02 evidence. Real pairing/handoff/target acquisition/disaster recovery remain M07.
+Normal target-directed handoff uses the configured dedicated private GitHub repository (`sushi81-pos-handoff` conceptually), one long-lived Release and immutable snapshot/grant assets. OneDrive references remain only for approved recovery/archive or historical M02 evidence. Real pairing/handoff/target acquisition/disaster recovery belong to M07.
 
 Phase 6 approval does not authorize all milestones at once. Codex must implement only the milestone/task explicitly assigned in the current durable handoff.
 
