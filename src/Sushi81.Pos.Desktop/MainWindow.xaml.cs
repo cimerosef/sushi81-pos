@@ -1,14 +1,18 @@
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Microsoft.Win32;
+using Sushi81.Pos.Application.Foundation.Configuration;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Pairing.SystemMetadata;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Domain;
+using Sushi81.Pos.Infrastructure.Configuration;
 using DomainSelectionMode = Sushi81.Pos.Domain.SelectionMode;
 
 namespace Sushi81.Pos.Desktop;
@@ -199,6 +203,32 @@ public partial class MainWindow : Window
         {
             await viewModel.TestGitHubConnectionAsync();
             MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnConfigureM07(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanConfigureM07: true } viewModel) return;
+
+        var dialog = new M07SetupDialog(this, viewModel.Localized, viewModel.Configuration);
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            var result = await viewModel.ConfigureM07Async(dialog.Input);
+            if (result is { Succeeded: true })
+            {
+                MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else if (result is not null)
+            {
+                MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
         catch (OperationCanceledException) { }
         catch
@@ -1314,6 +1344,97 @@ public partial class MainWindow : Window
         }
 
         public string DisplayName => displayNameBox.Text.Trim();
+
+        private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private sealed class M07SetupDialog : Window
+    {
+        private readonly TextBox oneDriveRootBox;
+        private readonly TextBox githubOwnerBox;
+        private readonly TextBox githubRepositoryBox;
+        private readonly TextBox githubReleaseTagBox;
+        private readonly TextBox githubReleaseNameBox;
+        private readonly TextBox githubCredentialTargetBox;
+        private readonly IReadOnlyDictionary<string, string> labels;
+
+        public M07SetupDialog(Window owner, IReadOnlyDictionary<string, string> labels, LocalConfiguration configuration)
+        {
+            Owner = owner;
+            this.labels = labels;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            SizeToContent = SizeToContent.WidthAndHeight;
+            MinWidth = 620;
+            MaxWidth = 760;
+            Title = Read(labels, "M07SetupTitle", "M07 technical setup");
+
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "M07SetupPrompt", "Select the existing shared root and non-secret transport settings."),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 14)
+            });
+
+            root.Children.Add(new TextBlock { Text = Read(labels, "M07SetupOneDriveRoot", "Sushi81 shared OneDrive root"), FontWeight = FontWeights.SemiBold });
+            var rootPanel = new DockPanel { Margin = new Thickness(0, 4, 0, 10) };
+            var browse = new Button { Content = Read(labels, "M07SetupBrowse", "Browse…"), Padding = new Thickness(10, 4, 10, 4) };
+            DockPanel.SetDock(browse, Dock.Right);
+            browse.Click += (_, _) => BrowseForRoot();
+            oneDriveRootBox = new TextBox { MinWidth = 480, Text = configuration.OneDriveRoot ?? string.Empty, Margin = new Thickness(0, 0, 8, 0) };
+            rootPanel.Children.Add(browse);
+            rootPanel.Children.Add(oneDriveRootBox);
+            root.Children.Add(rootPanel);
+
+            githubOwnerBox = AddField(root, "M07SetupGitHubOwner", configuration.GitHubOwner);
+            githubRepositoryBox = AddField(root, "M07SetupGitHubRepository", configuration.GitHubRepository);
+            githubReleaseTagBox = AddField(root, "M07SetupGitHubReleaseTag", configuration.GitHubReleaseTag);
+            githubReleaseNameBox = AddField(root, "M07SetupGitHubReleaseName", configuration.GitHubReleaseName);
+            githubCredentialTargetBox = AddField(root, "M07SetupGitHubCredentialTarget", configuration.GitHubCredentialTarget);
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "M07SetupGitHubHelp", "Enter only the protected credential target name. Never enter a PAT."),
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.72,
+                Margin = new Thickness(0, -2, 0, 14)
+            });
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var save = new Button { Content = Read(labels, "M07SetupSave", "Validate and require restart"), Padding = new Thickness(10, 4, 10, 4), IsDefault = true };
+            save.Click += (_, _) => DialogResult = true;
+            var cancel = new Button { Content = Read(labels, "AuthorityCloseCancel", "Cancel"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+            buttons.Children.Add(save);
+            buttons.Children.Add(cancel);
+            root.Children.Add(buttons);
+            Content = root;
+        }
+
+        public M07ConfigurationSetupInput Input => new(
+            oneDriveRootBox.Text,
+            githubOwnerBox.Text,
+            githubRepositoryBox.Text,
+            githubReleaseTagBox.Text,
+            githubReleaseNameBox.Text,
+            githubCredentialTargetBox.Text);
+
+        private TextBox AddField(Panel parent, string labelKey, string? value)
+        {
+            parent.Children.Add(new TextBlock { Text = Read(labels, labelKey, labelKey), FontWeight = FontWeights.SemiBold });
+            var box = new TextBox { Text = value ?? string.Empty, Margin = new Thickness(0, 4, 0, 10), MinWidth = 480 };
+            parent.Children.Add(box);
+            return box;
+        }
+
+        private void BrowseForRoot()
+        {
+            var picker = new OpenFolderDialog
+            {
+                Multiselect = false,
+                FolderName = Directory.Exists(oneDriveRootBox.Text) ? oneDriveRootBox.Text : string.Empty
+            };
+            if (picker.ShowDialog() == true)
+                oneDriveRootBox.Text = picker.FolderName;
+        }
 
         private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
     }

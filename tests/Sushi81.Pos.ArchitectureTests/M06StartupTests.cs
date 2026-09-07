@@ -1,9 +1,13 @@
 using System.IO;
 using System.Runtime.ExceptionServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using Sushi81.Pos.Application.Foundation.Configuration;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Desktop;
+using Sushi81.Pos.Infrastructure.Configuration;
 using Sushi81.Pos.Infrastructure.Migrations;
 using Sushi81.Pos.Infrastructure.Recovery;
 using Sushi81.Pos.Infrastructure.Sqlite;
@@ -12,8 +16,48 @@ using Sushi81.Pos.Infrastructure.Time;
 namespace Sushi81.Pos.ArchitectureTests;
 
 [TestClass]
+[DoNotParallelize]
 public sealed class M06StartupTests
 {
+    [TestMethod]
+    public void AFreshDefaultShellShowsLocalizedTechnicalSetupAndKeepsSelfJoinUnavailable()
+    {
+        RunOnSta(() =>
+        {
+            var paths = new TestPaths();
+            try
+            {
+                var configurationService = new JsonLocalConfigurationService(paths);
+                var configuration = configurationService.LoadAsync().GetAwaiter().GetResult();
+                using var shell = new ShellViewModel(
+                    new InMemorySelectedCultureStore(),
+                    startupSucceeded: false,
+                    configuration: configuration,
+                    m07Setup: new M07ConfigurationSetupService(configurationService));
+                var window = new MainWindow(shell) { Width = 760, Height = 520, ShowInTaskbar = false };
+                window.Show();
+                window.UpdateLayout();
+
+                var frenchButtons = VisibleButtonLabels(window);
+                CollectionAssert.Contains(frenchButtons, shell.Localized["M07Setup"]);
+                CollectionAssert.DoesNotContain(frenchButtons, shell.Localized["JoinExistingLineage"]);
+                Assert.IsTrue(shell.CanConfigureM07);
+                Assert.IsFalse(shell.CanJoinExistingLineage);
+
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                window.UpdateLayout();
+                CollectionAssert.Contains(VisibleButtonLabels(window), shell.Localized["M07Setup"]);
+                CollectionAssert.DoesNotContain(VisibleButtonLabels(window), shell.Localized["JoinExistingLineage"]);
+                Assert.AreEqual("配置 Sushi81 系统", shell.Localized["M07Setup"]);
+                window.Close();
+            }
+            finally
+            {
+                if (Directory.Exists(paths.RootDirectory)) Directory.Delete(paths.RootDirectory, recursive: true);
+            }
+        });
+    }
+
     [TestMethod]
     public async Task ProductionStartupWithExistingRecoveryShowsMainWindowAndClosesOnSta()
     {
@@ -61,6 +105,39 @@ public sealed class M06StartupTests
         Assert.IsTrue(canWrite, "A supported existing installation must bootstrap normally.");
         Assert.AreEqual(41L, await SqliteLocalRecoverySnapshotService.GetHighestValidatedSequenceAsync(paths));
         Directory.Delete(paths.RootDirectory, recursive: true);
+    }
+
+    private static string[] VisibleButtonLabels(Window window) =>
+        VisualDescendants<Button>(window)
+            .Where(button => button.Visibility == Visibility.Visible)
+            .Select(button => button.Content as string)
+            .Where(content => content is not null)
+            .Cast<string>()
+            .ToArray();
+
+    private static IEnumerable<T> VisualDescendants<T>(DependencyObject root) where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < count; index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is T match) yield return match;
+            foreach (var descendant in VisualDescendants<T>(child)) yield return descendant;
+        }
+    }
+
+    private static void RunOnSta(Action action)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try { action(); }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
     private sealed class TestPaths : IAppPaths

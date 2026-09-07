@@ -46,6 +46,25 @@
   <data name="AuthorityTargetPrompt" xml:space="preserve"><value>请选择将接收权威的当前代际确切设备。</value></data>
   <data name="AuthorityTargetConfirm" xml:space="preserve"><value>转移到此设备</value></data>
   <data name="AuthorityTransferUnavailable" xml:space="preserve"><value>定向转移不可用。</value></data>
+  <data name="M07Setup" xml:space="preserve"><value>配置 Sushi81 系统</value></data>
+  <data name="M07SetupTitle" xml:space="preserve"><value>M07 技术配置</value></data>
+  <data name="M07SetupPrompt" xml:space="preserve"><value>选择现有的 Sushi81 OneDrive 共享文件夹，以及需要的非敏感 GitHub 转移设置。此配置不会创建权威或配对状态。保存后需要重启。</value></data>
+  <data name="M07SetupOneDriveRoot" xml:space="preserve"><value>Sushi81 OneDrive 共享文件夹</value></data>
+  <data name="M07SetupBrowse" xml:space="preserve"><value>浏览…</value></data>
+  <data name="M07SetupGitHubOwner" xml:space="preserve"><value>GitHub 所有者</value></data>
+  <data name="M07SetupGitHubRepository" xml:space="preserve"><value>GitHub 转移仓库</value></data>
+  <data name="M07SetupGitHubReleaseTag" xml:space="preserve"><value>GitHub release 标签</value></data>
+  <data name="M07SetupGitHubReleaseName" xml:space="preserve"><value>GitHub release 名称</value></data>
+  <data name="M07SetupGitHubCredentialTarget" xml:space="preserve"><value>受保护 GitHub 凭据目标名称</value></data>
+  <data name="M07SetupGitHubHelp" xml:space="preserve"><value>这里只填写 Credential Manager 目标名称。绝不要在这里填写 PAT。</value></data>
+  <data name="M07SetupSave" xml:space="preserve"><value>验证并要求重启</value></data>
+  <data name="M07SetupRestartRequired" xml:space="preserve"><value>配置已保存。请重启 Sushi81 POS，以组合 M07 服务并启用配对。</value></data>
+  <data name="M07SetupRootRequired" xml:space="preserve"><value>必须填写 OneDrive 共享文件夹。</value></data>
+  <data name="M07SetupRootAbsolute" xml:space="preserve"><value>OneDrive 共享文件夹必须使用绝对路径。</value></data>
+  <data name="M07SetupRootUnavailable" xml:space="preserve"><value>OneDrive 共享文件夹不存在或当前不可访问。</value></data>
+  <data name="M07SetupLineageUnavailable" xml:space="preserve"><value>Sushi81 lineage 元数据缺失或暂时不可用。</value></data>
+  <data name="M07SetupLineageInvalid" xml:space="preserve"><value>Sushi81 lineage 元数据无效、矛盾或不受支持。</value></data>
+  <data name="M07SetupPersistenceFailed" xml:space="preserve"><value>技术配置无法保存。之前的配置仍然有效。</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>语言</value></data>
   <data name="LanguageSaveFailure" xml:space="preserve"><value>无法保存语言偏好设置。请重试。</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>法语</value></data>

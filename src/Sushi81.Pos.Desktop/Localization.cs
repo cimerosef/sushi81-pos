@@ -11,6 +11,7 @@ using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Application.Pairing.SystemMetadata;
 using Sushi81.Pos.Infrastructure.GitHubTransport;
 using Sushi81.Pos.Infrastructure.Authority;
+using Sushi81.Pos.Infrastructure.Configuration;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -56,6 +57,12 @@ public sealed class ConfigurationSelectedCultureStore : ISelectedCultureStore
         await _configurationService.SaveAsync(updatedConfiguration, cancellationToken);
         _configuration = updatedConfiguration;
     }
+
+    public void ReplaceConfiguration(LocalConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        _configuration = configuration;
+    }
 }
 
 public sealed record LanguageOption(string CultureName, string DisplayName);
@@ -69,10 +76,14 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private bool _isLanguageChangeInProgress;
     private bool _m07OperationInProgress;
     private string? _m07OperationStatusKey;
+    private LocalConfiguration _configuration;
+    private readonly M07ConfigurationSetupService? _m07Setup;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
+        _configuration = configuration ?? new LocalConfiguration();
+        _m07Setup = m07Setup;
         _culture = Normalize(_cultureStore.Load());
         StartupSucceeded = startupSucceeded;
         AuthorityState = authorityGuard?.State ?? authorityState;
@@ -99,6 +110,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public M07RuntimeServices? M07Runtime { get; }
 
+    public LocalConfiguration Configuration => _configuration;
+
     public bool CanWrite => StartupSucceeded && AuthorityState == WriteAuthorityState.Authoritative;
 
     public bool IsAuthorityWarningVisible => !CanWrite;
@@ -116,6 +129,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         && !_m07OperationInProgress;
 
     public bool CanTestGitHubConnection => M07Runtime is not null && !_m07OperationInProgress;
+
+    public bool CanConfigureM07 => _m07Setup is not null && !_m07OperationInProgress;
 
     public M03ShellViewModel? Admin { get; }
 
@@ -245,9 +260,18 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             .Append("M07ConnectionTest").Append("M07ConnectionChecking").Append("M07ConnectionSuccess")
             .Append("M07ConnectionNotConfigured").Append("M07ConnectionCredentialMissing")
             .Append("M07ConnectionUnauthorized").Append("M07ConnectionForbidden")
-            .Append("M07ConnectionNotFound").Append("M07ConnectionFailed")
-            .Append("AuthorityTargetTitle").Append("AuthorityTargetPrompt").Append("AuthorityTargetConfirm")
-            .Append("AuthorityTransferUnavailable").ToArray();
+             .Append("M07ConnectionNotFound").Append("M07ConnectionFailed")
+             .Append("AuthorityTargetTitle").Append("AuthorityTargetPrompt").Append("AuthorityTargetConfirm")
+             .Append("AuthorityTransferUnavailable")
+             .Append("M07Setup").Append("M07SetupTitle").Append("M07SetupPrompt")
+             .Append("M07SetupOneDriveRoot").Append("M07SetupBrowse")
+             .Append("M07SetupGitHubOwner").Append("M07SetupGitHubRepository")
+             .Append("M07SetupGitHubReleaseTag").Append("M07SetupGitHubReleaseName")
+             .Append("M07SetupGitHubCredentialTarget").Append("M07SetupGitHubHelp")
+             .Append("M07SetupSave").Append("M07SetupRestartRequired")
+             .Append("M07SetupRootRequired").Append("M07SetupRootAbsolute")
+             .Append("M07SetupRootUnavailable").Append("M07SetupLineageUnavailable")
+             .Append("M07SetupLineageInvalid").Append("M07SetupPersistenceFailed").ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));
@@ -258,6 +282,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
         OnPropertyChanged(nameof(CanResumePendingTransfer));
         OnPropertyChanged(nameof(CanTestGitHubConnection));
+        OnPropertyChanged(nameof(CanConfigureM07));
         OnPropertyChanged(nameof(M07OperationStatus));
         OnPropertyChanged(nameof(LanguageLabel));
         OnPropertyChanged(nameof(LanguageSaveFailure));
@@ -279,6 +304,55 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         return result;
     }
 
+    public async Task<M07ConfigurationSetupResult?> ConfigureM07Async(
+        M07ConfigurationSetupInput input,
+        CancellationToken cancellationToken = default)
+    {
+        if (_m07Setup is null)
+            return null;
+
+        if (_m07OperationInProgress)
+            return M07ConfigurationSetupResult.Failure(_configuration, M07ConfigurationSetupFailureKind.PersistenceFailed, "Another M07 operation is already in progress.");
+
+        _m07OperationInProgress = true;
+        OnPropertyChanged(nameof(CanConfigureM07));
+        try
+        {
+            var result = await _m07Setup.ValidateAndPersistAsync(_configuration, input, cancellationToken);
+            if (result.Succeeded)
+            {
+                _configuration = result.Configuration;
+                if (_cultureStore is ConfigurationSelectedCultureStore configurationStore)
+                    configurationStore.ReplaceConfiguration(result.Configuration);
+                SetM07Operation("M07SetupRestartRequired");
+            }
+            else
+            {
+                SetM07Operation(result.FailureKind switch
+                {
+                    M07ConfigurationSetupFailureKind.RootRequired => "M07SetupRootRequired",
+                    M07ConfigurationSetupFailureKind.RootNotAbsolute => "M07SetupRootAbsolute",
+                    M07ConfigurationSetupFailureKind.RootUnavailable => "M07SetupRootUnavailable",
+                    M07ConfigurationSetupFailureKind.LineageUnavailable => "M07SetupLineageUnavailable",
+                    M07ConfigurationSetupFailureKind.LineageInvalid => "M07SetupLineageInvalid",
+                    M07ConfigurationSetupFailureKind.PersistenceFailed => "M07SetupPersistenceFailed",
+                    _ => "M07SetupPersistenceFailed"
+                });
+            }
+
+            RefreshResources();
+            return result;
+        }
+        finally
+        {
+            _m07OperationInProgress = false;
+            OnPropertyChanged(nameof(CanConfigureM07));
+            OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
+            OnPropertyChanged(nameof(CanResumePendingTransfer));
+            OnPropertyChanged(nameof(CanTestGitHubConnection));
+        }
+    }
+
     public async Task<TargetAcquisitionResult?> AcquireTransferredAuthorityAsync(CancellationToken cancellationToken = default)
     {
         if (M07Runtime is null)
@@ -288,6 +362,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         _m07OperationInProgress = true;
         OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
         OnPropertyChanged(nameof(CanTestGitHubConnection));
+        OnPropertyChanged(nameof(CanConfigureM07));
         try
         {
             if (M07Runtime.TargetAcquisition is not { } acquisition)
@@ -310,6 +385,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
             OnPropertyChanged(nameof(CanResumePendingTransfer));
             OnPropertyChanged(nameof(CanTestGitHubConnection));
+            OnPropertyChanged(nameof(CanConfigureM07));
         }
     }
 
@@ -392,6 +468,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             _m07OperationInProgress = false;
             OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
             OnPropertyChanged(nameof(CanTestGitHubConnection));
+            OnPropertyChanged(nameof(CanConfigureM07));
         }
     }
 

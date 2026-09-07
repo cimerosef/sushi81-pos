@@ -16,6 +16,7 @@ using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Application.Foundation.Authority;
+using Sushi81.Pos.Application.Foundation.Configuration;
 using Sushi81.Pos.Application.Foundation.Recovery;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
@@ -49,6 +50,9 @@ public static partial class CompositionRoot
         IAsyncDisposable? recoverySchedulerDisposable = null;
         DurableChangeNotifier? durableChangeNotifier = null;
         M07RuntimeServices? m07Runtime = null;
+        JsonLocalConfigurationService? configurationService = null;
+        LocalConfiguration configuration = new();
+        M07ConfigurationSetupService? m07Setup = null;
 
         try
         {
@@ -56,8 +60,9 @@ public static partial class CompositionRoot
             loggerProvider = new RollingFileLoggerProvider(paths, TimeProvider.System);
             var logger = loggerProvider.CreateLogger(typeof(CompositionRoot).FullName!);
             startupLogger = logger;
-            var configurationService = new JsonLocalConfigurationService(paths);
-            var configuration = await configurationService.LoadAsync();
+            configurationService = new JsonLocalConfigurationService(paths);
+            configuration = await configurationService.LoadAsync();
+            m07Setup = new M07ConfigurationSetupService(configurationService);
             _ = CultureInfo.GetCultureInfo(configuration.UiCulture);
             cultureStore = new ConfigurationSelectedCultureStore(configuration, configurationService);
 
@@ -157,7 +162,18 @@ public static partial class CompositionRoot
             }
         }
 
-        var viewModel = new ShellViewModel(cultureStore, startupSucceeded, catalogueService, settingsService, orderEntryService, orderLifecycleService, authorityGuard, authorityResolution.State, m07Runtime);
+        var viewModel = new ShellViewModel(
+            cultureStore,
+            startupSucceeded,
+            catalogueService,
+            settingsService,
+            orderEntryService,
+            orderLifecycleService,
+            authorityGuard,
+            authorityResolution.State,
+            m07Runtime,
+            configuration,
+            m07Setup);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,

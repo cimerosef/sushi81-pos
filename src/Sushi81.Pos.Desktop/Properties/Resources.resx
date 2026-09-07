@@ -46,6 +46,25 @@
   <data name="AuthorityTargetPrompt" xml:space="preserve"><value>Choisissez l’appareil exact de la génération courante qui recevra l’autorité.</value></data>
   <data name="AuthorityTargetConfirm" xml:space="preserve"><value>Transférer vers cet appareil</value></data>
   <data name="AuthorityTransferUnavailable" xml:space="preserve"><value>Le transfert ciblé n’est pas disponible.</value></data>
+  <data name="M07Setup" xml:space="preserve"><value>Configurer le système Sushi81</value></data>
+  <data name="M07SetupTitle" xml:space="preserve"><value>Configuration technique M07</value></data>
+  <data name="M07SetupPrompt" xml:space="preserve"><value>Sélectionnez le dossier OneDrive partagé existant et, si nécessaire, les paramètres non secrets du transport GitHub. Cette configuration ne crée ni autorité ni appairage. Un redémarrage sera requis.</value></data>
+  <data name="M07SetupOneDriveRoot" xml:space="preserve"><value>Dossier OneDrive partagé Sushi81</value></data>
+  <data name="M07SetupBrowse" xml:space="preserve"><value>Parcourir…</value></data>
+  <data name="M07SetupGitHubOwner" xml:space="preserve"><value>Propriétaire GitHub</value></data>
+  <data name="M07SetupGitHubRepository" xml:space="preserve"><value>Dépôt GitHub de transfert</value></data>
+  <data name="M07SetupGitHubReleaseTag" xml:space="preserve"><value>Tag de release GitHub</value></data>
+  <data name="M07SetupGitHubReleaseName" xml:space="preserve"><value>Nom de release GitHub</value></data>
+  <data name="M07SetupGitHubCredentialTarget" xml:space="preserve"><value>Nom de justificatif protégé GitHub</value></data>
+  <data name="M07SetupGitHubHelp" xml:space="preserve"><value>Saisissez uniquement le nom de cible Credential Manager. Ne saisissez jamais le PAT ici.</value></data>
+  <data name="M07SetupSave" xml:space="preserve"><value>Valider et demander le redémarrage</value></data>
+  <data name="M07SetupRestartRequired" xml:space="preserve"><value>Configuration enregistrée. Redémarrez Sushi81 POS pour composer les services M07 et rendre l’appairage disponible.</value></data>
+  <data name="M07SetupRootRequired" xml:space="preserve"><value>Le dossier OneDrive partagé est obligatoire.</value></data>
+  <data name="M07SetupRootAbsolute" xml:space="preserve"><value>Le dossier OneDrive partagé doit être un chemin absolu.</value></data>
+  <data name="M07SetupRootUnavailable" xml:space="preserve"><value>Le dossier OneDrive partagé n’existe pas ou n’est pas accessible.</value></data>
+  <data name="M07SetupLineageUnavailable" xml:space="preserve"><value>Les métadonnées de lignée Sushi81 sont absentes ou momentanément indisponibles.</value></data>
+  <data name="M07SetupLineageInvalid" xml:space="preserve"><value>Les métadonnées de lignée Sushi81 sont invalides, contradictoires ou incompatibles.</value></data>
+  <data name="M07SetupPersistenceFailed" xml:space="preserve"><value>La configuration technique n’a pas pu être enregistrée. La configuration précédente reste active.</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>Langue</value></data>
   <data name="LanguageSaveFailure" xml:space="preserve"><value>Impossible d’enregistrer la préférence de langue. Réessayez.</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>Français</value></data>
