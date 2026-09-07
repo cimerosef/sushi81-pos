@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.GitHubTransport;
+using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Pairing.SystemMetadata;
 
@@ -24,7 +25,8 @@ public sealed class NormalHandoffService(
     ISystemMetadataStore systemMetadata,
     ITransferSnapshotFactory snapshots,
     IGitHubHandoffTransport transport,
-    IBusinessClock clock) : IAsyncDisposable
+    IBusinessClock clock,
+    IBusinessRevisionReader? revisionReader = null) : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions GrantJsonOptions = new()
     {
@@ -83,6 +85,21 @@ public sealed class NormalHandoffService(
             throw new InvalidDataException("An authoritative source is missing its lineage/generation binding.");
         if (targetDeviceId == Guid.Empty || targetDeviceId == source.DeviceId)
             throw new InvalidDataException("A normal handoff requires one other exact target device.");
+
+        var currentBusinessRevision = revisionReader is null
+            ? source.BusinessRevision
+            : await revisionReader.ReadAsync(cancellationToken);
+        if (currentBusinessRevision < source.BusinessRevision)
+            throw new InvalidDataException("The local business-data revision moved backwards relative to authority state.");
+        if (currentBusinessRevision != source.BusinessRevision)
+        {
+            source = source with
+            {
+                Revision = checked(source.Revision + 1),
+                BusinessRevision = currentBusinessRevision
+            };
+            await PersistAsync(source, cancellationToken);
+        }
 
         var devices = await systemMetadata.ListCurrentGenerationDevicesAsync(lineageId, source.Generation, cancellationToken);
         if (devices.All(device => device.DeviceId != targetDeviceId))
@@ -184,7 +201,7 @@ public sealed class NormalHandoffService(
                 var grant = new NormalHandoffGrant(
                     "M07", transfer.TransferId, transfer.LineageId, transfer.Generation, transfer.Version,
                     transfer.SourceDeviceId, transfer.TargetDeviceId, transfer.BusinessRevision,
-                    transfer.SnapshotReceipt!, clock.UtcNow);
+                    transfer.SnapshotReceipt!, transfer.RelinquishedAtUtc!.Value, clock.UtcNow);
                 grant.Validate();
                 var grantBytes = JsonSerializer.SerializeToUtf8Bytes(grant, GrantJsonOptions);
                 var grantHash = Convert.ToHexString(SHA256.HashData(grantBytes));

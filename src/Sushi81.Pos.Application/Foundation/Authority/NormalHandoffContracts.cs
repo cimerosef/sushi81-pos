@@ -45,6 +45,7 @@ public sealed record NormalHandoffGrant(
     Guid TargetDeviceId,
     long BusinessRevision,
     RemoteAssetEvidence SnapshotReceipt,
+    DateTimeOffset RelinquishedAtUtc,
     DateTimeOffset CreatedAtUtc)
 {
     public void Validate()
@@ -52,7 +53,7 @@ public sealed record NormalHandoffGrant(
         if (!string.Equals(ProtocolVersion, "M07", StringComparison.Ordinal)
             || TransferId == Guid.Empty || LineageId == Guid.Empty || Generation < 1 || HandoffVersion < 1
             || SourceDeviceId == Guid.Empty || TargetDeviceId == Guid.Empty || SourceDeviceId == TargetDeviceId
-            || BusinessRevision < 0 || CreatedAtUtc == default)
+            || BusinessRevision < 0 || RelinquishedAtUtc == default || CreatedAtUtc == default)
             throw new InvalidDataException("The normal handoff grant is incomplete or contradictory.");
         SnapshotReceipt.Validate();
     }
