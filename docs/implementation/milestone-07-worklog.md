@@ -141,7 +141,7 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 **Release tests:** local full solution `439/439` Passed, `0` failed, `0` skipped (Domain 33; Application 47; Infrastructure integration 130; test OneDrive feasibility 32; tool OneDrive feasibility 92; Architecture/WPF 105). The prior exact-head repository-wide CI count remains `434/434` Passed.
 **Release build warnings/errors:** `0/0`
 **Self-contained win-x64 publish:** Not run; not required by this remediation handoff
-**Exact-head CI run:** prior exact head `b1cf28c140f8c749a8bb496091649b6bd9477207` — `34163900315` success; cycle-4 exact-head CI pending after push
+**Exact-head CI run:** prior exact head `b1cf28c140f8c749a8bb496091649b6bd9477207` — `34163900315` success; cycle-4 head `86c18cebb16239a23b0d120413ee0c71dcf58bf7` — `34166285616` (run #582) success, CI Release build `0` warnings / `0` errors and Release tests `439/439` Passed, `0` failed, `0` skipped
 **Known carry-over:** WP7 proof environment is authorized but real proof remains pending; WP8 and M08 remain not started.
 
 ## 4. Review/remediation log
@@ -181,7 +181,7 @@ Append each ChatGPT review/remediation cycle with exact head SHA, findings, seve
 **Findings:** A fresh/default installation could not reach self-join because the M07 runtime required a hand-edited absolute OneDrive root; non-secret GitHub transport settings were not reachable through a supported production setup surface; the worklog/test-count evidence was stale or scope-ambiguous; and the prior Remediation-04 completion record still contained non-terminal `browserNotification: pending`.
 **Disposition:** Review-cycle-4 remediation adds a localized technical setup/onboarding action available before M07 runtime composition, validates the existing OneDrive root and production System lineage through `JsonSystemMetadataStore` before persistence, persists only non-secret GitHub transport values through `ILocalConfigurationService`, and requires restart before runtime composition changes. It never creates authority, membership, bootstrap evidence or business state. Fresh/default, valid persistence, invalid-root/lineage preservation, re-composition/read-only self-join, fresh-shell STA visibility and FR/zh-CN evidence are covered. The worklog now distinguishes the prior local `401/401` scope from the exact-head CI repository-wide `434/434` count, records the actual `b1cf28c`/`34163900315` evidence, and changes WP7 to `proof environment authorized / real proof pending execution`. Current execution history also verifies the Remediation-04 browser notification succeeded; the historical completion marker remains otherwise untouched.
 **Remediation commit(s):** `9492e4d6cbd374b183116ac5b651015e3ad4c59d`.
-**Tests/evidence:** Focused setup infrastructure tests `3/3` Passed; fresh-shell/recomposition STA/WPF tests `3/3` Passed; full local Release solution `439/439` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors. Exact-head CI evidence remains to be recorded after push.
+**Tests/evidence:** Focused setup infrastructure tests `3/3` Passed; fresh-shell/recomposition STA/WPF tests `3/3` Passed; full local Release solution `439/439` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors; exact-head CI run `34166285616` succeeded with the same `439/439` test result and `0/0` build warnings/errors.
 
 ## 5. Project-owner manual acceptance
 
