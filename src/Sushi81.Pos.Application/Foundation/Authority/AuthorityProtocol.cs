@@ -39,7 +39,19 @@ public sealed record TransferEvidence(
     Guid SourceDeviceId, Guid TargetDeviceId, long BusinessRevision,
     string SnapshotName, string SnapshotPath, long SnapshotSize, string SnapshotSha256,
     RemoteAssetEvidence? SnapshotReceipt = null, RemoteAssetEvidence? GrantReceipt = null,
-    DateTimeOffset? RelinquishedAtUtc = null);
+    DateTimeOffset? RelinquishedAtUtc = null, bool SnapshotReady = true)
+{
+    public static TransferEvidence Pending(
+        Guid transferId,
+        Guid lineageId,
+        long generation,
+        long version,
+        Guid sourceDeviceId,
+        Guid targetDeviceId,
+        long businessRevision) => new(
+            transferId, lineageId, generation, version, sourceDeviceId, targetDeviceId, businessRevision,
+            string.Empty, string.Empty, 0, string.Empty, SnapshotReady: false);
+}
 
 public sealed record RecoveryActivationEvidence(
     Guid RecoveryId, Guid DeviceId, Guid LineageId, long PriorGeneration, long NextGeneration,
@@ -91,6 +103,8 @@ public sealed record AuthorityProtocolState(
             transfer.Validate();
             if (Phase != AuthorityPhase.TransferPreparing && (transfer.SnapshotReceipt is null || transfer.RelinquishedAtUtc is null))
                 throw new InvalidDataException("Relinquished/acquiring state requires immutable snapshot evidence.");
+            if (Phase != AuthorityPhase.TransferPreparing && !transfer.SnapshotReady)
+                throw new InvalidDataException("Relinquished/acquiring state requires a prepared snapshot.");
             if (Phase is AuthorityPhase.ReleasedNonAuthoritative or AuthorityPhase.TargetAcquisitionPending && transfer.GrantReceipt is null)
                 throw new InvalidDataException("Released/acquiring state requires grant evidence.");
             if (Phase == AuthorityPhase.TransferPreparing && transfer.GrantReceipt is not null)
@@ -131,10 +145,20 @@ public static class AuthorityProtocolValidationExtensions
             || transfer.Generation < 1 || transfer.Version < 1
             || transfer.SourceDeviceId == Guid.Empty || transfer.TargetDeviceId == Guid.Empty
             || transfer.SourceDeviceId == transfer.TargetDeviceId
-            || transfer.BusinessRevision < 0 || string.IsNullOrWhiteSpace(transfer.SnapshotName)
-            || string.IsNullOrWhiteSpace(transfer.SnapshotPath) || transfer.SnapshotSize < 0
-            || !AuthorityProtocolState.IsSha256(transfer.SnapshotSha256))
+            || transfer.BusinessRevision < 0)
             throw new InvalidDataException("The transfer evidence is incomplete or contradictory.");
+        if (!transfer.SnapshotReady)
+        {
+            if (!string.IsNullOrEmpty(transfer.SnapshotName) || !string.IsNullOrEmpty(transfer.SnapshotPath)
+                || transfer.SnapshotSize != 0 || !string.IsNullOrEmpty(transfer.SnapshotSha256)
+                || transfer.SnapshotReceipt is not null || transfer.GrantReceipt is not null
+                || transfer.RelinquishedAtUtc is not null)
+                throw new InvalidDataException("A pending transfer cannot carry partial snapshot or grant evidence.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(transfer.SnapshotName) || string.IsNullOrWhiteSpace(transfer.SnapshotPath)
+            || transfer.SnapshotSize < 0 || !AuthorityProtocolState.IsSha256(transfer.SnapshotSha256))
+            throw new InvalidDataException("The transfer snapshot evidence is incomplete or contradictory.");
         transfer.SnapshotReceipt?.Validate();
         transfer.GrantReceipt?.Validate();
         if (transfer.SnapshotReceipt is { } receipt
