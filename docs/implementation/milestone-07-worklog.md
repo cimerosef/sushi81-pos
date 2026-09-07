@@ -127,12 +127,12 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 
 ### M07-WP9 — WPF/localization/observability/integration
 
-**Status:** Not started  
-**Commit(s):**  
-**STA/WPF evidence:**  
-**FR/zh-CN evidence:**  
-**Responsiveness/redaction evidence:**  
-**Next:**
+**Status:** In progress — review-cycle-2 desktop remediation implemented; owner acceptance remains pending and WP7 remains the hard prerequisite  
+**Commit(s):** `f780762` — single desktop close arbiter, target-late close flow, read-only acquisition/connection actions and STA/integration evidence  
+**STA/WPF evidence:** 103/103 Architecture/WPF tests passed, including Cancel, Retain, target-directed transfer ordering, transfer failure, repeated-close reentrancy, non-authoritative close, flush failure, and visible read-only M07 action/status controls.  
+**FR/zh-CN evidence:** Localized authority close/target-selection, transferred-authority acquisition/status, connection-test/status and safe 401/403/404/credential states are present and exercised through the STA shell language round-trip.  
+**Responsiveness/redaction evidence:** Closing remains asynchronous and dispatcher-responsive; Retain/Cancel do not enumerate targets. Connection tests are non-mutating and expose only safe categorized status, never credential or transport detail.  
+**Next:** Complete the WP7 authorized disposable private-repository proof before any WP8 production DR work; then obtain project-owner M07 manual acceptance.
 
 ### M07-WP10 — automated/CI closure before owner acceptance
 
@@ -155,6 +155,13 @@ Append each ChatGPT review/remediation cycle with exact head SHA, findings, seve
 **Disposition:** Remediated in the existing M07 branch. Grant creation now uses persisted immutable timestamp evidence; retention validates complete lineage-bound units and deletes exact IDs by generation/handoff ordering; self-join is durable/read-only and authoritative startup publishes idempotent membership; production configuration/credential/test-connection, normal handoff/target acquisition composition, independent OneDrive scheduling, close choice and localized read-only onboarding are wired without WP8 DR UI. Historical grants and occupied snapshot/grant name pairs are ignored/advanced safely. No real WP7 private-repository drill was run, and WP8/M08 remain unstarted.
 **Remediation head:** `5067caaf528947f29fd771bbfb6810a20017bb8b` (rebased onto governance commit `22ef4c5aaafc6cf21b9dbdfec3093c06775dbf44`).
 **CI/tests:** Focused remediation/recovery tests passed; full Release suite `414/414` Passed with `0` skipped; `dotnet build Sushi81.Pos.sln --configuration Release --no-restore` passed with `0` warnings / `0` errors. Exact-head CI verification remains pending after push.
+
+### Review cycle 2
+
+**Head reviewed:** `848a7a73475fb3946d624b489c1a07899a9e5d7c` — review `5135084944`, findings `G` through `K`.
+**Findings:** `G` critical close orchestration had separate `MainWindow` and `CompositionRoot` Closing handlers; `H` target acquisition had no production user/startup action or status; `I` the composed GitHub connection tester was not visible; `J` the desktop evidence seam did not cover the required M07 interaction matrix; `K` the worklog and WP9 truth were stale.
+**Disposition:** `f780762` installs one MainWindow-owned close arbiter with deterministic Cancel/Retain/transfer/failure/reentrancy behavior and one orderly recovery flush; target enumeration is deferred until Transfer is explicitly selected. Read-only M07 UI now exposes target acquisition and non-mutating GitHub connection testing with FR/zh-CN safe status classification. STA/WPF tests cover close paths, visible operator actions/status and language round-trip; infrastructure tests cover credential/401/403/404 classification without exposing transport details. The implementation preserves M06 fail-closed/write-guard behavior and does not implement WP8 or M08.
+**CI/tests:** Full Release suite `425/425` Passed with `0` skipped; `dotnet build Sushi81.Pos.sln --configuration Release --no-restore` passed with `0` warnings / `0` errors. Exact-head CI verification is pending after push. WP7 real private-repository proof was not run; WP8 and M08 remain not started. Project-owner manual acceptance remains pending; it is not the only unresolved M07 prerequisite because WP7 is still hard-blocked.
 
 ## 5. Project-owner manual acceptance
 
