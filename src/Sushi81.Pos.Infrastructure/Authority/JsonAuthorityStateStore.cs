@@ -13,6 +13,8 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths, Action<string>? dur
     private const string StateFileName = "authority-state.json";
     private const string BootstrapMarkerFileName = "authority-bootstrap.marker";
     private const string BootstrapAnchorFileName = "authority-bootstrap.anchor";
+    private static readonly byte[] BootstrapMarkerContents = "Sushi81 POS local authority bootstrap completed\n"u8.ToArray();
+    private static readonly byte[] BootstrapAnchorContents = "Sushi81 POS M06 bootstrap completed\n"u8.ToArray();
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -83,25 +85,30 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths, Action<string>? dur
         durabilityProbe?.Invoke("after-reopen");
     }
 
-    public Task<bool> HasBootstrapMarkerAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> HasBootstrapMarkerAsync(CancellationToken cancellationToken = default)
     {
         paths.EnsureInitialized();
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(File.Exists(Path.Combine(paths.ConfigDirectory, BootstrapMarkerFileName)));
+        return await HasExpectedEvidenceAsync(Path.Combine(paths.ConfigDirectory, BootstrapMarkerFileName), BootstrapMarkerContents, cancellationToken);
     }
 
     public async Task WriteBootstrapMarkerAsync(CancellationToken cancellationToken = default)
     {
         paths.EnsureInitialized();
         var path = Path.Combine(paths.ConfigDirectory, BootstrapMarkerFileName);
-        if (File.Exists(path)) return;
+        if (File.Exists(path))
+        {
+            if (!await HasExpectedEvidenceAsync(path, BootstrapMarkerContents, cancellationToken))
+                throw new InvalidDataException("The existing bootstrap marker is corrupt.");
+            return;
+        }
         var temporaryPath = Path.Combine(paths.ConfigDirectory, $".{BootstrapMarkerFileName}.{Guid.NewGuid():N}.tmp");
         try
         {
             await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, useAsync: true))
             {
-                await stream.WriteAsync("Sushi81 POS local authority bootstrap completed\n"u8.ToArray(), cancellationToken);
+                await stream.WriteAsync(BootstrapMarkerContents, cancellationToken);
                 await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
             File.Move(temporaryPath, path, overwrite: false);
         }
@@ -142,11 +149,10 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths, Action<string>? dur
         }
     }
 
-    public Task<bool> HasBootstrapAnchorAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> HasBootstrapAnchorAsync(CancellationToken cancellationToken = default)
     {
         paths.EnsureInitialized();
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(File.Exists(Path.Combine(paths.DataDirectory, BootstrapAnchorFileName)));
+        return await HasExpectedEvidenceAsync(Path.Combine(paths.DataDirectory, BootstrapAnchorFileName), BootstrapAnchorContents, cancellationToken);
     }
 
     public Task<bool> HasEstablishedAuthorityArtifactsAsync(CancellationToken cancellationToken = default)
@@ -162,15 +168,22 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths, Action<string>? dur
     public async Task WriteBootstrapAnchorAsync(CancellationToken cancellationToken = default)
     {
         paths.EnsureInitialized();
+        Directory.CreateDirectory(paths.DataDirectory);
         var path = Path.Combine(paths.DataDirectory, BootstrapAnchorFileName);
-        if (File.Exists(path)) return;
+        if (File.Exists(path))
+        {
+            if (!await HasExpectedEvidenceAsync(path, BootstrapAnchorContents, cancellationToken))
+                throw new InvalidDataException("The existing bootstrap anchor is corrupt.");
+            return;
+        }
         var temporaryPath = Path.Combine(paths.DataDirectory, $".{BootstrapAnchorFileName}.{Guid.NewGuid():N}.tmp");
         try
         {
             await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, useAsync: true))
             {
-                await stream.WriteAsync("Sushi81 POS M06 bootstrap completed\n"u8.ToArray(), cancellationToken);
+                await stream.WriteAsync(BootstrapAnchorContents, cancellationToken);
                 await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
             File.Move(temporaryPath, path, overwrite: false);
         }
@@ -178,6 +191,16 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths, Action<string>? dur
         {
             if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
+    }
+
+    private static async Task<bool> HasExpectedEvidenceAsync(
+        string path,
+        ReadOnlyMemory<byte> expected,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(path)) return false;
+        var actual = await File.ReadAllBytesAsync(path, cancellationToken);
+        return actual.AsSpan().SequenceEqual(expected.Span);
     }
 
     private async Task WriteAtomicallyAsync<T>(string path, T value, CancellationToken cancellationToken)

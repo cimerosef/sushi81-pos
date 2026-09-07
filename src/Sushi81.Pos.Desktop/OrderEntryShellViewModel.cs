@@ -314,6 +314,15 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public bool CanConfirm => CanWrite && !IsBusy && !IsCommitted && PlannedDateValid && PlannedTimeValid && pricing?.IsValid == true;
     public bool CanStartNewOrder => IsCommitted && !IsBusy;
 
+    public void RefreshAuthorityState()
+    {
+        OnPropertyChanged(nameof(CanWrite));
+        OnPropertyChanged(nameof(CanAddSelectedProduct));
+        OnPropertyChanged(nameof(CanConfirm));
+        OnPropertyChanged(nameof(CanStartNewOrder));
+        OnPropertyChanged(nameof(IsPickupDiscountEnabled));
+    }
+
     public bool HasUncommittedDraft => !IsCommitted && (Cart.Count > 0 || SelectedFulfilment is not null || !string.IsNullOrWhiteSpace(Telephone) || !string.IsNullOrWhiteSpace(DeliveryAddress) || !string.IsNullOrWhiteSpace(Comment));
 
     public void ApplyCustomerDetailsFromOrder(OrderSnapshot source)

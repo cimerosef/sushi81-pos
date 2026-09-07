@@ -143,6 +143,7 @@ public static partial class CompositionRoot
                     targetAcquisition,
                     connectionTester,
                     connectionSetup);
+                await m07Runtime.RefreshAuthorityStateAsync();
             }
             LogFoundationStartupSucceeded(logger);
             startupSucceeded = true;

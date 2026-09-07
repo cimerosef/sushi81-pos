@@ -2,6 +2,13 @@ using Sushi81.Pos.Application.Foundation.Authority;
 
 namespace Sushi81.Pos.Application.Pairing.SystemMetadata;
 
+/// <summary>
+/// The shared System root or a required metadata artifact is temporarily unavailable.
+/// This is distinct from readable contradictory/corrupt metadata, which must fail closed.
+/// </summary>
+public sealed class SystemMetadataUnavailableException(string message, Exception? innerException = null)
+    : IOException(message, innerException);
+
 /// <summary>Stable names and validation rules for non-authority OneDrive System artifacts.</summary>
 public static class SystemMetadataContract
 {

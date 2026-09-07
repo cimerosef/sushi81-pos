@@ -80,7 +80,19 @@ public sealed partial class AuthorityStateCoordinator(
                     await store.SaveAsync(document, cancellationToken);
                 }
                 if (document.Protocol is { Phase: AuthorityPhase.Authoritative or AuthorityPhase.ClosedRetainedAuthority } existingProtocol)
-                    await EnsureAuthoritativeMembershipAsync(existingProtocol, cancellationToken);
+                {
+                    try
+                    {
+                        await EnsureAuthoritativeMembershipAsync(existingProtocol, cancellationToken);
+                    }
+                    catch (Exception exception) when (IsUnavailableSystemMetadata(exception))
+                    {
+                        // Ordinary authority is local-first. A disconnected/unavailable
+                        // OneDrive System publication is a deferred diagnostic, not a remote
+                        // lease failure and must not revoke a valid local writer.
+                        LogSystemMetadataUnavailable(logger, exception);
+                    }
+                }
                 guard.SetState(document.EffectiveState);
                 return new(document.EffectiveState, null);
             }
@@ -146,6 +158,19 @@ public sealed partial class AuthorityStateCoordinator(
         return new(WriteAuthorityState.RecoveryRequired, exception);
     }
 
+    private static bool IsUnavailableSystemMetadata(Exception exception) => exception switch
+    {
+        SystemMetadataUnavailableException => true,
+        DirectoryNotFoundException => true,
+        FileNotFoundException => true,
+        UnauthorizedAccessException => true,
+        IOException => true,
+        _ => false
+    };
+
     [LoggerMessage(EventId = 1201, Level = LogLevel.Error, Message = "Local authority state could not be validated; startup is read-only.")]
     private static partial void LogAuthorityStateFailure(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 1202, Level = LogLevel.Warning, Message = "Shared System metadata is unavailable; retaining valid local authority and deferring membership publication.")]
+    private static partial void LogSystemMetadataUnavailable(ILogger logger, Exception exception);
 }

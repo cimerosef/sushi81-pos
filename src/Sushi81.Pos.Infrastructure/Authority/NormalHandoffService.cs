@@ -71,6 +71,41 @@ public sealed class NormalHandoffService(
         }
     }
 
+    /// <summary>
+    /// Resumes only the immutable source-side transfer already persisted at or after
+    /// relinquishment. It deliberately accepts no target so a pending transfer cannot be
+    /// retargeted or used to reclaim writable authority.
+    /// </summary>
+    public async Task<NormalHandoffResult> ResumePendingTransferAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await operationGate.WaitAsync(cancellationToken);
+        try
+        {
+            var document = await authorityStore.LoadAsync(cancellationToken)
+                ?? throw new InvalidDataException("No canonical authority state is available.");
+            var protocol = document.Protocol
+                ?? throw new InvalidDataException("Pending transfer resume requires canonical M07 authority metadata.");
+            protocol.Validate();
+            if (protocol.Phase is not (AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant))
+                throw new WriteAuthorityException(protocol.WriteState);
+
+            return await ResumeTransferAsync(protocol, cancellationToken);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception)
+        {
+            var transferId = Guid.Empty;
+            try { transferId = (await authorityStore.LoadAsync(CancellationToken.None))?.Protocol?.Transfer?.TransferId ?? Guid.Empty; }
+            catch { }
+            return NormalHandoffResult.Failure(transferId, exception);
+        }
+        finally
+        {
+            operationGate.Release();
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         operationGate.Dispose();

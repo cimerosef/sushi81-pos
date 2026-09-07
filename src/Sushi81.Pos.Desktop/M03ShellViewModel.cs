@@ -194,6 +194,20 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     public bool CanToggleProduct => CanWrite && SelectedProduct is not null && !IsBusy;
     public bool CanBulkActivate => CanWrite && !IsBusy && Products.Any(product => !product.IsActive);
     public bool CanBulkDeactivate => CanWrite && !IsBusy && Products.Any(product => product.IsActive);
+
+    public void RefreshAuthorityState()
+    {
+        OnPropertyChanged(nameof(CanWrite));
+        OnPropertyChanged(nameof(CanCreateProduct));
+        OnPropertyChanged(nameof(CanManageCategories));
+        OnPropertyChanged(nameof(CanSaveSettings));
+        OnPropertyChanged(nameof(CanEditProduct));
+        OnPropertyChanged(nameof(CanDeleteProduct));
+        OnPropertyChanged(nameof(CanToggleProduct));
+        OnPropertyChanged(nameof(CanBulkActivate));
+        OnPropertyChanged(nameof(CanBulkDeactivate));
+        OnPropertyChanged(nameof(ToggleProductActionLabel));
+    }
     public int FilteredProductCount => Products.Count;
     public int FilteredProductsToActivateCount => Products.Count(product => !product.IsActive);
     public int FilteredProductsToDeactivateCount => Products.Count(product => product.IsActive);

@@ -33,6 +33,27 @@ public sealed class M07RuntimeServices(
     public TargetAcquisitionService? TargetAcquisition { get; } = targetAcquisition;
     public GitHubHandoffConnectionTester? ConnectionTester { get; } = connectionTester;
     public GitHubConnectionSetupState ConnectionSetup { get; } = connectionSetup;
+    public AuthorityPhase? CurrentPhase { get; private set; }
+    public bool CanSelfJoin { get; private set; }
+
+    public async Task<AuthorityProtocolState?> RefreshAuthorityStateAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var document = await AuthorityStore.LoadAsync(cancellationToken);
+        var protocol = document?.Protocol;
+        protocol?.Validate();
+        CurrentPhase = protocol?.Phase;
+        CanSelfJoin = protocol is null
+            || protocol.Phase == AuthorityPhase.Uninitialized
+            || protocol.Phase == AuthorityPhase.NonAuthoritativeReadOnly
+                && protocol.LineageId is null
+                && protocol.Generation == 0
+                && protocol.HandoffVersion == 0
+                && protocol.BusinessRevision == 0
+                && protocol.Transfer is null
+                && protocol.Recovery is null;
+        return protocol;
+    }
 
     public async Task<IReadOnlyList<DeviceRegistrationArtifact>> GetEligibleTransferTargetsAsync(
         CancellationToken cancellationToken = default)

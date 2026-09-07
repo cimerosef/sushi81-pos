@@ -40,6 +40,22 @@ public sealed class M07ReviewRemediationTests
     }
 
     [TestMethod]
+    public async Task PendingTransferResumesThroughExactPersistedIdentityWithoutRetargeting()
+    {
+        using var fixture = await ReviewFixture.CreateAsync(0);
+        fixture.Transport.LoseFirstGrantResponse = true;
+        await using (var first = fixture.CreateHandoff())
+            Assert.IsFalse((await first.TransferAndCloseAsync(fixture.TargetDeviceId)).Succeeded);
+
+        await using var retry = fixture.CreateHandoff();
+        var result = await retry.ResumePendingTransferAsync();
+
+        Assert.IsTrue(result.Succeeded, result.Error?.ToString());
+        Assert.AreEqual(fixture.TargetDeviceId, (await fixture.Store.LoadAsync())!.Protocol!.Transfer!.TargetDeviceId);
+        Assert.AreEqual(AuthorityPhase.ReleasedNonAuthoritative, (await fixture.Store.LoadAsync())!.Protocol!.Phase);
+    }
+
+    [TestMethod]
     public async Task ContradictorySameNameGrantAfterRelinquishmentRemainsReadOnly()
     {
         using var fixture = await ReviewFixture.CreateAsync(0);

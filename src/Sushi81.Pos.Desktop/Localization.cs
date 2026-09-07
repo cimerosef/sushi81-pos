@@ -104,10 +104,15 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     public bool IsAuthorityWarningVisible => !CanWrite;
 
     public bool CanJoinExistingLineage => M07Runtime is not null
-        && AuthorityState is WriteAuthorityState.Uninitialized or WriteAuthorityState.RecoveryRequired;
+        && M07Runtime.CanSelfJoin;
 
     public bool CanAcquireTransferredAuthority => M07Runtime is not null
         && !CanWrite
+        && M07Runtime.CurrentPhase is not (AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant)
+        && !_m07OperationInProgress;
+
+    public bool CanResumePendingTransfer => M07Runtime?.NormalHandoff is not null
+        && M07Runtime.CurrentPhase is AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant
         && !_m07OperationInProgress;
 
     public bool CanTestGitHubConnection => M07Runtime is not null && !_m07OperationInProgress;
@@ -216,7 +221,11 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             WriteAuthorityState.Uninitialized => "AuthorityRecoveryRequired",
             _ => "AuthorityReadOnly"
         });
-        M07OperationStatus = _m07OperationStatusKey is null ? string.Empty : Read(_m07OperationStatusKey);
+        M07OperationStatus = _m07OperationStatusKey is not null
+            ? Read(_m07OperationStatusKey)
+            : M07Runtime?.CurrentPhase is AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant
+                ? Read("M07PendingTransfer")
+                : string.Empty;
         LanguageLabel = Read("LanguageLabel");
         LanguageSaveFailure = Read("LanguageSaveFailure");
         Languages.Clear();
@@ -231,6 +240,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             .Append("JoinConfirm").Append("JoinSucceeded")
             .Append("M07AcquireAuthority").Append("M07AcquireValidating").Append("M07AcquireAcquired")
             .Append("M07AcquireUnavailable").Append("M07AcquireFailed")
+            .Append("M07ResumeTransfer").Append("M07ResumeValidating").Append("M07ResumeSucceeded")
+            .Append("M07ResumeFailed").Append("M07PendingTransfer")
             .Append("M07ConnectionTest").Append("M07ConnectionChecking").Append("M07ConnectionSuccess")
             .Append("M07ConnectionNotConfigured").Append("M07ConnectionCredentialMissing")
             .Append("M07ConnectionUnauthorized").Append("M07ConnectionForbidden")
@@ -245,6 +256,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(IsAuthorityWarningVisible));
         OnPropertyChanged(nameof(CanJoinExistingLineage));
         OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
+        OnPropertyChanged(nameof(CanResumePendingTransfer));
         OnPropertyChanged(nameof(CanTestGitHubConnection));
         OnPropertyChanged(nameof(M07OperationStatus));
         OnPropertyChanged(nameof(LanguageLabel));
@@ -261,6 +273,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
         var result = await M07Runtime.SelfJoin.JoinAsync(displayName, cancellationToken);
         AuthorityState = M07Runtime.AuthorityGuard.State;
+        await M07Runtime.RefreshAuthorityStateAsync(cancellationToken);
+        RefreshChildAuthorityCommands();
         RefreshResources();
         return result;
     }
@@ -284,7 +298,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
             var result = await acquisition.AcquireAsync(cancellationToken);
             AuthorityState = M07Runtime.AuthorityGuard.State;
+            await M07Runtime.RefreshAuthorityStateAsync(cancellationToken);
             SetM07Operation(result.Succeeded ? "M07AcquireAcquired" : "M07AcquireFailed");
+            RefreshChildAuthorityCommands();
             RefreshResources();
             return result;
         }
@@ -292,8 +308,47 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         {
             _m07OperationInProgress = false;
             OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
+            OnPropertyChanged(nameof(CanResumePendingTransfer));
             OnPropertyChanged(nameof(CanTestGitHubConnection));
         }
+    }
+
+    public async Task<NormalHandoffResult?> ResumePendingTransferAsync(CancellationToken cancellationToken = default)
+    {
+        if (M07Runtime?.NormalHandoff is not { } handoff)
+            return null;
+
+        SetM07Operation("M07ResumeValidating");
+        _m07OperationInProgress = true;
+        OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
+        OnPropertyChanged(nameof(CanResumePendingTransfer));
+        OnPropertyChanged(nameof(CanTestGitHubConnection));
+        try
+        {
+            var result = await handoff.ResumePendingTransferAsync(cancellationToken);
+            AuthorityState = M07Runtime.AuthorityGuard.State;
+            await M07Runtime.RefreshAuthorityStateAsync(cancellationToken);
+            SetM07Operation(result.Succeeded ? "M07ResumeSucceeded" : "M07ResumeFailed");
+            RefreshChildAuthorityCommands();
+            RefreshResources();
+            return result;
+        }
+        finally
+        {
+            _m07OperationInProgress = false;
+            OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
+            OnPropertyChanged(nameof(CanResumePendingTransfer));
+            OnPropertyChanged(nameof(CanTestGitHubConnection));
+        }
+    }
+
+    public async Task RefreshAuthorityStateAsync(CancellationToken cancellationToken = default)
+    {
+        if (M07Runtime is null) return;
+        await M07Runtime.RefreshAuthorityStateAsync(cancellationToken);
+        AuthorityState = M07Runtime.AuthorityGuard.State;
+        RefreshChildAuthorityCommands();
+        RefreshResources();
     }
 
     public async Task<GitHubConnectionTestResult?> TestGitHubConnectionAsync(CancellationToken cancellationToken = default)
@@ -345,6 +400,13 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         _m07OperationStatusKey = key;
         M07OperationStatus = Read(key);
         OnPropertyChanged(nameof(M07OperationStatus));
+    }
+
+    private void RefreshChildAuthorityCommands()
+    {
+        Admin?.RefreshAuthorityState();
+        Entry?.RefreshAuthorityState();
+        Lifecycle?.RefreshAuthorityState();
     }
 
     private string Read(string key) => ResourceManager.GetString(key, _culture) ?? throw new InvalidOperationException($"Missing required localization resource '{key}'.");

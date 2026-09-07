@@ -31,7 +31,7 @@ public partial class MainWindow : Window
         ApplyCatalogueHeaders();
         closeCoordinator = new MainWindowCloseCoordinator(
             () => viewModel.AuthorityState == WriteAuthorityState.Authoritative
-                && viewModel.M07Runtime?.NormalHandoff is not null,
+                && viewModel.M07Runtime is not null,
             () => RequestCloseAsync(viewModel),
             targetDeviceId => TransferAndCloseAsync(viewModel, targetDeviceId),
             recoveryScheduler is null ? null : new Func<ValueTask>(recoveryScheduler.DisposeAsync),
@@ -90,6 +90,7 @@ public partial class MainWindow : Window
         }
 
         var result = await runtime.NormalHandoff.TransferAndCloseAsync(targetDeviceId);
+        await viewModel.RefreshAuthorityStateAsync();
         if (!result.Succeeded)
         {
             // A failed handoff must leave the source visible. In particular, a
@@ -165,6 +166,22 @@ public partial class MainWindow : Window
         try
         {
             var result = await viewModel.AcquireTransferredAuthorityAsync();
+            if (result is { Succeeded: false })
+                MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnResumePendingTransfer(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanResumePendingTransfer: true } viewModel) return;
+        try
+        {
+            var result = await viewModel.ResumePendingTransferAsync();
             if (result is { Succeeded: false })
                 MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }

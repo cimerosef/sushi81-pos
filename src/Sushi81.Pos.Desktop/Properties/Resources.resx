@@ -28,6 +28,11 @@
   <data name="M07AcquireAcquired" xml:space="preserve"><value>Autorité acquise. Les écritures sont disponibles après validation locale.</value></data>
   <data name="M07AcquireUnavailable" xml:space="preserve"><value>L’acquisition de l’autorité transférée n’est pas configurée.</value></data>
   <data name="M07AcquireFailed" xml:space="preserve"><value>L’acquisition a échoué. Cette machine reste en lecture seule ou en récupération requise.</value></data>
+  <data name="M07ResumeTransfer" xml:space="preserve"><value>Reprendre le transfert en attente</value></data>
+  <data name="M07ResumeValidating" xml:space="preserve"><value>Reprise du transfert d’autorité en cours…</value></data>
+  <data name="M07ResumeSucceeded" xml:space="preserve"><value>Le même transfert est terminé. Cette machine reste en lecture seule jusqu’à acquisition par la cible.</value></data>
+  <data name="M07ResumeFailed" xml:space="preserve"><value>La reprise du même transfert a échoué. Cette machine reste en lecture seule et le transfert exact reste en attente.</value></data>
+  <data name="M07PendingTransfer" xml:space="preserve"><value>Un transfert exact est en attente. Il ne peut pas être modifié ou réattribué.</value></data>
   <data name="M07ConnectionTest" xml:space="preserve"><value>Tester la connexion GitHub de transfert</value></data>
   <data name="M07ConnectionChecking" xml:space="preserve"><value>Test de connexion GitHub en cours…</value></data>
   <data name="M07ConnectionSuccess" xml:space="preserve"><value>Connexion GitHub de transfert disponible.</value></data>

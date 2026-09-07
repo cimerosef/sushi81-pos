@@ -22,10 +22,13 @@
           <WrapPanel Margin="0,6,0,0">
             <Button Content="{Binding DataContext.Localized[JoinExistingLineage], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanJoinExistingLineage}" Visibility="{Binding CanJoinExistingLineage, Converter={StaticResource BoolToVisibility}}" Click="OnJoinExistingLineage" HorizontalAlignment="Left" Padding="10,4" Margin="0,0,8,0" />
             <Button Content="{Binding DataContext.Localized[M07AcquireAuthority], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanAcquireTransferredAuthority}" Visibility="{Binding CanAcquireTransferredAuthority, Converter={StaticResource BoolToVisibility}}" Click="OnAcquireTransferredAuthority" HorizontalAlignment="Left" Padding="10,4" Margin="0,0,8,0" />
-            <Button Content="{Binding DataContext.Localized[M07ConnectionTest], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanTestGitHubConnection}" Visibility="{Binding CanTestGitHubConnection, Converter={StaticResource BoolToVisibility}}" Click="OnTestGitHubConnection" HorizontalAlignment="Left" Padding="10,4" />
+            <Button Content="{Binding DataContext.Localized[M07ResumeTransfer], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanResumePendingTransfer}" Visibility="{Binding CanResumePendingTransfer, Converter={StaticResource BoolToVisibility}}" Click="OnResumePendingTransfer" HorizontalAlignment="Left" Padding="10,4" />
           </WrapPanel>
         </StackPanel>
       </Border>
+      <WrapPanel Margin="0,6,0,0">
+        <Button Content="{Binding DataContext.Localized[M07ConnectionTest], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanTestGitHubConnection}" Visibility="{Binding CanTestGitHubConnection, Converter={StaticResource BoolToVisibility}}" Click="OnTestGitHubConnection" HorizontalAlignment="Left" Padding="10,4" />
+      </WrapPanel>
     </StackPanel>
     <TabControl x:Name="mainTabs" Grid.Row="2" DataContext="{Binding Admin}" SelectionChanged="OnMainTabsSelectionChanged" IsEnabled="{Binding IsM03Available, RelativeSource={RelativeSource AncestorType=Window}}" Visibility="{Binding IsM03Available, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
       <TabItem Header="{Binding DataContext.Localized[Catalogue], RelativeSource={RelativeSource AncestorType=Window}}">

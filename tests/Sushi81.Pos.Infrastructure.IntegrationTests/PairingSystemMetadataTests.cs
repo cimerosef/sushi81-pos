@@ -77,6 +77,143 @@ public sealed class PairingSystemMetadataTests
     }
 
     [TestMethod]
+    public async Task FreshSelfJoinEstablishesIndependentEvidenceAndRestartsReadOnly()
+    {
+        using var fixture = new SystemMetadataFixture();
+        var lineage = fixture.CreateLineage();
+        await fixture.WriteLineageAsync(lineage);
+        var paths = new TestPaths(fixture.Root);
+        var store = new JsonAuthorityStateStore(paths);
+        using var guard = new WriteAuthorityGuard(WriteAuthorityState.Uninitialized);
+
+        var first = await new SelfJoinService(store, guard, fixture.CreateStore(), new FixedBusinessClock(fixture.Now))
+            .JoinAsync("Fresh B");
+        var firstDocument = await store.LoadAsync();
+        Assert.IsTrue(await store.HasBootstrapMarkerAsync());
+        Assert.IsTrue(await store.HasBootstrapAnchorAsync());
+        Assert.AreEqual(AuthorityPhase.PairedUninitializedReadOnly, firstDocument!.Protocol!.Phase);
+        Assert.AreEqual(0L, firstDocument.Protocol.BusinessRevision);
+
+        using var restartedGuard = new WriteAuthorityGuard();
+        var restarted = await new AuthorityStateCoordinator(
+            store,
+            restartedGuard,
+            new FixedBusinessClock(fixture.Now),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AuthorityStateCoordinator>.Instance)
+            .InitializeAsync(legacyBootstrapEvidence: true, preMigrationLiveDatabaseEvidence: true);
+
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, restarted.State);
+        Assert.AreEqual(first.Registration.DeviceId, (await store.LoadAsync())!.Protocol!.DeviceId);
+        Assert.Throws<WriteAuthorityException>(() => restartedGuard.RequireWriteAuthority());
+    }
+
+    [TestMethod]
+    public async Task SelfJoinFailureAfterIdentityEvidenceCanRetrySameDevice()
+    {
+        using var fixture = new SystemMetadataFixture();
+        var paths = new TestPaths(fixture.Root);
+        var store = new JsonAuthorityStateStore(paths);
+        using var guard = new WriteAuthorityGuard(WriteAuthorityState.Uninitialized);
+        var service = new SelfJoinService(store, guard, fixture.CreateStore(), new FixedBusinessClock(fixture.Now));
+
+        await Assert.ThrowsAsync<SystemMetadataUnavailableException>(() => service.JoinAsync("Retry B"));
+        var failed = await store.LoadAsync();
+        var deviceId = failed!.Protocol!.DeviceId;
+        Assert.AreEqual(AuthorityPhase.Uninitialized, failed.Protocol.Phase);
+
+        var lineage = fixture.CreateLineage();
+        await fixture.WriteLineageAsync(lineage);
+        var retry = await service.JoinAsync("Retry B");
+        Assert.AreEqual(deviceId, retry.Registration.DeviceId);
+        Assert.AreEqual(AuthorityPhase.PairedUninitializedReadOnly, (await store.LoadAsync())!.Protocol!.Phase);
+    }
+
+    [TestMethod]
+    public async Task EstablishedRecoveryRequiredCannotBeResetBySelfJoin()
+    {
+        using var fixture = new SystemMetadataFixture();
+        var paths = new TestPaths(fixture.Root);
+        var store = new JsonAuthorityStateStore(paths);
+        var deviceId = Guid.NewGuid();
+        var lineageId = Guid.NewGuid();
+        await store.SaveAsync(new AuthorityStateDocument(2, WriteAuthorityState.RecoveryRequired, fixture.Now)
+        {
+            Protocol = new AuthorityProtocolState(1, deviceId, "Established", lineageId, 1, 4, 8, AuthorityPhase.RecoveryRequired)
+        });
+        await store.WriteBootstrapMarkerAsync();
+        await store.WriteBootstrapAnchorAsync();
+        using var guard = new WriteAuthorityGuard(WriteAuthorityState.RecoveryRequired);
+        var service = new SelfJoinService(store, guard, fixture.CreateStore(), new FixedBusinessClock(fixture.Now));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.JoinAsync("Must not reset"));
+        Assert.AreEqual(AuthorityPhase.RecoveryRequired, (await store.LoadAsync())!.Protocol!.Phase);
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, guard.State);
+    }
+
+    [TestMethod]
+    public async Task SafeUnboundM06ReadOnlyStateCanSelfJoinWithoutPromotion()
+    {
+        using var fixture = new SystemMetadataFixture();
+        var lineage = fixture.CreateLineage();
+        await fixture.WriteLineageAsync(lineage);
+        var paths = new TestPaths(fixture.Root);
+        var store = new JsonAuthorityStateStore(paths);
+        var deviceId = Guid.NewGuid();
+        await store.SaveAsync(new AuthorityStateDocument(2, WriteAuthorityState.NonAuthoritativeReadOnly, fixture.Now)
+        {
+            Protocol = new AuthorityProtocolState(1, deviceId, "Legacy", null, 0, 0, 0, AuthorityPhase.NonAuthoritativeReadOnly)
+        });
+        await store.WriteBootstrapMarkerAsync();
+        await store.WriteBootstrapAnchorAsync();
+        using var guard = new WriteAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly);
+
+        var result = await new SelfJoinService(store, guard, fixture.CreateStore(), new FixedBusinessClock(fixture.Now))
+            .JoinAsync("Legacy joined");
+
+        Assert.AreEqual(deviceId, result.Registration.DeviceId);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, guard.State);
+        Assert.AreEqual(AuthorityPhase.PairedUninitializedReadOnly, (await store.LoadAsync())!.Protocol!.Phase);
+    }
+
+    [TestMethod]
+    public async Task ProductionSelfJoinDoesNotClaimValidatedSeedUntilItIsInstalled()
+    {
+        using var fixture = new SystemMetadataFixture();
+        var lineage = fixture.CreateLineage();
+        await fixture.WriteLineageAsync(lineage);
+        var systemStore = fixture.CreateStore();
+        var payload = await fixture.CreateSyntheticSqlitePayloadAsync();
+        var seedId = Guid.NewGuid();
+        await systemStore.PublishReadOnlySeedAsync(new ReadOnlySeedMetadata(
+            SystemMetadataContract.SchemaVersion,
+            SystemMetadataContract.ProtocolVersion,
+            SystemMetadataContract.ReadOnlySeedArtifactKind,
+            seedId,
+            lineage.LineageId,
+            lineage.CurrentGeneration,
+            Guid.NewGuid(),
+            99,
+            SystemMetadataContract.SeedPayloadFileName(seedId),
+            payload.LongLength,
+            Convert.ToHexString(SHA256.HashData(payload)),
+            fixture.Now), payload);
+
+        using var guard = new WriteAuthorityGuard(WriteAuthorityState.Uninitialized);
+        var authorityStore = new JsonAuthorityStateStore(new TestPaths(fixture.Root));
+        var result = await new SelfJoinService(
+            authorityStore,
+            guard,
+            systemStore,
+            new FixedBusinessClock(fixture.Now)).JoinAsync("Seed not yet installed");
+
+        Assert.IsNull(result.Seed);
+        var persisted = (await authorityStore.LoadAsync())!.Protocol!;
+        Assert.AreEqual(AuthorityPhase.PairedUninitializedReadOnly, persisted.Phase);
+        Assert.AreEqual(0L, persisted.BusinessRevision);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, guard.State);
+    }
+
+    [TestMethod]
     public async Task IndependentAndDuplicateRegistrationsUseNonOverwritingSemantics()
     {
         using var fixture = new SystemMetadataFixture();

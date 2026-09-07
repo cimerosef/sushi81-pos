@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.Extensions.Logging.Abstractions;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.GitHubTransport;
 using Sushi81.Pos.Application.Foundation.Paths;
@@ -107,6 +108,35 @@ public sealed class TargetAcquisitionTests
         Assert.AreEqual(AuthorityPhase.TargetAcquisitionPending, (await store.LoadAsync())!.Protocol!.Phase);
     }
 
+    [TestMethod]
+    public async Task StartupEvidenceFailureCannotBeBypassedByTargetAcquisition()
+    {
+        using var fixture = new AcquisitionFixture();
+        var grant = await fixture.CreateGrantAsync(fixture.DeviceId);
+        var store = fixture.CreateStateStore();
+        await store.SaveAsync(fixture.PairedDocument());
+        File.Delete(Path.Combine(fixture.Root, "Config", "authority-bootstrap.marker"));
+
+        using var startupGuard = new WriteAuthorityGuard();
+        var startup = await new AuthorityStateCoordinator(
+            store,
+            startupGuard,
+            fixture.Clock,
+            NullLogger<AuthorityStateCoordinator>.Instance)
+            .InitializeAsync(legacyBootstrapEvidence: true, preMigrationLiveDatabaseEvidence: true);
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, startup.State);
+
+        using var acquisitionGuard = new WriteAuthorityGuard(startupGuard.State);
+        await using var service = new TargetAcquisitionService(
+            store, acquisitionGuard, fixture.SystemStore, new AcquisitionTransport(fixture, grant),
+            new RecordingInstaller(fixture, store), fixture.Clock);
+        var result = await service.AcquireAsync();
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, acquisitionGuard.State);
+        Assert.AreEqual(AuthorityPhase.PairedUninitializedReadOnly, (await store.LoadAsync())!.Protocol!.Phase);
+    }
+
     private sealed class AcquisitionFixture : IDisposable
     {
         public AcquisitionFixture()
@@ -145,6 +175,9 @@ public sealed class TargetAcquisitionTests
         {
             await WriteJsonAsync(Path.Combine(Root, "System", "Lineage", "lineage.json"), new SystemLineageMetadata(1, "M07", LineageId, generation, Clock.UtcNow));
             await WriteJsonAsync(Path.Combine(Root, "System", "Devices", generation.ToString(System.Globalization.CultureInfo.InvariantCulture), $"{DeviceId:N}.device.json"), new DeviceRegistrationArtifact(1, "M07", "device-membership", DeviceId, "Target", LineageId, generation, Clock.UtcNow));
+            var localEvidence = CreateStateStore();
+            await localEvidence.WriteBootstrapMarkerAsync();
+            await localEvidence.WriteBootstrapAnchorAsync();
             var snapshotBytes = new byte[] { 9, 8, 7, 6, 5 };
             var snapshotHash = Convert.ToHexString(SHA256.HashData(snapshotBytes));
             var snapshotName = GitHubHandoffAssetNames.CreateSnapshotName(Clock.UtcNow.AddMinutes(generation - 1));

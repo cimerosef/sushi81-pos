@@ -114,7 +114,7 @@ public sealed class JsonSystemMetadataStore : ISystemMetadataStore
         {
             seed = await FindValidatedReadOnlySeedAsync(lineage.LineageId, lineage.CurrentGeneration, cancellationToken);
         }
-        catch (InvalidDataException)
+        catch (Exception exception) when (exception is InvalidDataException or SystemMetadataUnavailableException)
         {
             // A missing/corrupt optional seed keeps the new device paired and read-only. The
             // caller can surface the diagnostic and still enter the separately fenced DR flow.
@@ -414,7 +414,7 @@ public sealed class JsonSystemMetadataStore : ISystemMetadataStore
 
     private static async Task<T> ReadJsonAsync<T>(string path, CancellationToken cancellationToken)
     {
-        if (!File.Exists(path)) throw new InvalidDataException($"The metadata artifact '{path}' is missing.");
+        if (!File.Exists(path)) throw new SystemMetadataUnavailableException($"The metadata artifact '{path}' is unavailable.");
         try
         {
             await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);

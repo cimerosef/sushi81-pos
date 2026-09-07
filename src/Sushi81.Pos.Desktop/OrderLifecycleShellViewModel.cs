@@ -276,6 +276,12 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     public bool CanCancel => CanWrite && SelectedOrder is { Status: not OrderStatus.Cancelled } && !IsEditing;
     public bool CanReuseCustomer => SelectedOrder is not null;
     public bool CanAddCurrentLine => CanWrite && IsEditing && SelectedOrder is not null;
+
+    public void RefreshAuthorityState()
+    {
+        OnPropertyChanged(nameof(CanWrite));
+        RaiseCommandProperties();
+    }
     public string DashboardTurnoverText => summary.TurnoverTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string DashboardReceivedText => summary.ReceivedTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string DashboardReceivedCardText => summary.ReceivedCardTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);

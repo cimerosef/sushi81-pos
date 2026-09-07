@@ -38,7 +38,8 @@ public sealed class TargetAcquisitionService(
                 ?? throw new InvalidDataException("No canonical authority state is available.");
             if (document.Protocol is null)
                 throw new InvalidDataException("Target acquisition requires canonical M07 authority metadata.");
-            document.Protocol.Validate();
+        document.Protocol.Validate();
+            await EnsureStartupSafetyBoundaryAsync(document.Protocol, cancellationToken);
             return await AcquireFromStateAsync(document.Protocol, cancellationToken);
         }
         catch (OperationCanceledException) { throw; }
@@ -65,7 +66,7 @@ public sealed class TargetAcquisitionService(
         if (local.LineageId is not { } lineageId || local.Generation < 1)
             throw new InvalidDataException("A target must be paired to a current lineage before normal acquisition.");
         if (local.Phase is not (AuthorityPhase.PairedUninitializedReadOnly or AuthorityPhase.NonAuthoritativeReadOnly
-            or AuthorityPhase.TargetAcquisitionPending))
+            or AuthorityPhase.ReleasedNonAuthoritative or AuthorityPhase.TargetAcquisitionPending))
             throw new WriteAuthorityException(local.WriteState);
 
         var devices = await systemMetadata.ListCurrentGenerationDevicesAsync(lineageId, local.Generation, cancellationToken);
@@ -168,6 +169,24 @@ public sealed class TargetAcquisitionService(
         if (selected.Length != 1)
             throw new InvalidDataException("Multiple target-bound grants have the same handoff version.");
         return selected[0];
+    }
+
+    private async Task EnsureStartupSafetyBoundaryAsync(
+        AuthorityProtocolState local,
+        CancellationToken cancellationToken)
+    {
+        if (guard.State != local.WriteState)
+        {
+            guard.SetState(WriteAuthorityState.RecoveryRequired);
+            throw new InvalidDataException("The in-memory startup authority result contradicts the canonical acquisition phase.");
+        }
+
+        if (!await authorityStore.HasBootstrapMarkerAsync(cancellationToken)
+            || !await authorityStore.HasBootstrapAnchorAsync(cancellationToken))
+        {
+            guard.SetState(WriteAuthorityState.RecoveryRequired);
+            throw new InvalidDataException("Target acquisition requires the independent local bootstrap marker and anchor.");
+        }
     }
 
     private async Task<DiscoveredGrant> LoadExactPendingGrantAsync(

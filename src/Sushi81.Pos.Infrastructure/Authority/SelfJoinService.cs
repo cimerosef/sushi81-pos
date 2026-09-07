@@ -24,8 +24,14 @@ public sealed class SelfJoinService(
 
         var existing = await authorityStore.LoadAsync(cancellationToken);
         var protocol = existing?.Protocol;
-        if (protocol is not null && protocol.Phase is not (AuthorityPhase.Uninitialized or AuthorityPhase.RecoveryRequired))
-            throw new InvalidOperationException("Self-join is only available before this installation has established authority state.");
+        if (protocol is not null && !CanResumeFreshOrUnboundJoin(protocol))
+            throw new InvalidOperationException("Self-join is only available to a fresh or safely migrated unbound read-only installation.");
+        if (protocol is { Phase: AuthorityPhase.NonAuthoritativeReadOnly })
+        {
+            if (!await authorityStore.HasBootstrapMarkerAsync(cancellationToken)
+                || !await authorityStore.HasBootstrapAnchorAsync(cancellationToken))
+                throw new InvalidDataException("An established unbound installation is missing independent local authority evidence.");
+        }
 
         var deviceId = protocol is not null && protocol.DeviceId != Guid.Empty
             ? protocol.DeviceId
@@ -47,6 +53,11 @@ public sealed class SelfJoinService(
 
         try
         {
+            // Self-join establishes the same independent local evidence boundary used by
+            // M06. Both writes are idempotent; a crash between them leaves the canonical
+            // state non-writable and a retry completes the evidence without a new identity.
+            await authorityStore.WriteBootstrapMarkerAsync(cancellationToken);
+            await authorityStore.WriteBootstrapAnchorAsync(cancellationToken);
             var lineage = await systemMetadata.ReadLineageAsync(cancellationToken);
             var registration = await systemMetadata.JoinCurrentGenerationAsync(deviceId, displayName, cancellationToken);
             var next = identity with
@@ -54,13 +65,14 @@ public sealed class SelfJoinService(
                 Revision = checked(identity.Revision + 1),
                 LineageId = lineage.LineageId,
                 Generation = lineage.CurrentGeneration,
-                BusinessRevision = registration.Seed?.Metadata.BusinessRevision ?? 0,
-                Phase = registration.Readiness == PairingReadiness.NonAuthoritativeReadOnly
-                    ? AuthorityPhase.NonAuthoritativeReadOnly
-                    : AuthorityPhase.PairedUninitializedReadOnly
+                // The current self-join seam validates an optional seed but does not install
+                // its SQLite payload. Do not claim hydrated data until an explicit safe
+                // installer exists; remain paired/uninitialized and read-only.
+                BusinessRevision = 0,
+                Phase = AuthorityPhase.PairedUninitializedReadOnly
             };
             await PersistAsync(next, cancellationToken);
-            return registration;
+            return registration with { Seed = null };
         }
         catch
         {
@@ -77,4 +89,14 @@ public sealed class SelfJoinService(
             cancellationToken);
         guard.SetState(state.WriteState);
     }
+
+    private static bool CanResumeFreshOrUnboundJoin(AuthorityProtocolState protocol) =>
+        protocol.Phase == AuthorityPhase.Uninitialized
+        || protocol.Phase == AuthorityPhase.NonAuthoritativeReadOnly
+            && protocol.LineageId is null
+            && protocol.Generation == 0
+            && protocol.HandoffVersion == 0
+            && protocol.BusinessRevision == 0
+            && protocol.Transfer is null
+            && protocol.Recovery is null;
 }
