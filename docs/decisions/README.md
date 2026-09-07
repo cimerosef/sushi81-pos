@@ -41,4 +41,8 @@ The M07 implementation must read these Approved records together:
 
 - `target-directed-authority-handoff.md` — normal source-directed transfer to exactly one target;
 - `github-handoff-transport.md` — dedicated private GitHub Release Asset normal handoff transport and acknowledgement;
-- `m07-self-join-disaster-recovery.md` — self-service device joining without write authority, exceptional Disaster Recovery quarantine/fencing, and freshest validated safe recovery-source selection.
+- `m07-self-service-pairing-and-disaster-recovery.md` — concise canonical 2026-09-07 owner-decision record: self-service joining without write authority, exceptional DR quarantine/fencing, and freshest validated safe recovery source;
+- `m07-self-join-disaster-recovery.md` — detailed Approved companion covering the same owner decisions plus UI/storage/governance consequences;
+- `m07-recovery-candidate-ordering-clarification.md` — controlling technical consistency clarification: eligible M07 handoff/checkpoint recovery candidates carry a durable monotonic business-data revision, so freshness is mechanically ordered rather than guessed from timestamps/operator choice.
+
+The two self-join/self-service records were produced during the same closed-gate preparation pass and are not competing product decisions. Where an older sentence in the detailed companion or prepared implementation material allows manual selection solely because two M07 candidates cannot be durably ordered, the recovery-candidate-ordering clarification supersedes that fallback. Otherwise the records are complementary.
