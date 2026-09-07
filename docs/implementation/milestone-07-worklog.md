@@ -1,6 +1,6 @@
 # M07 worklog — pairing, target-directed handoff and disaster recovery
 
-**Status:** Authorized / In progress — WP0/WP1 executed
+**Status:** Authorized / In progress — WP0–WP6 executed; WP7 hard-stop gate pending
 **Prepared:** 2026-09-07  
 **Authorized:** 2026-09-07  
 **Execution gate:** OPEN — verified against GitHub Issue #4 on 2026-09-07
@@ -86,27 +86,27 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 
 ### M07-WP4 — normal source close/handoff
 
-**Status:** Not started  
-**Commit(s):**  
-**Tests/evidence:**  
-**Irreversible-point/restart evidence:**  
-**Next:**
+**Status:** Passed — bounded source state-machine slice
+**Commit(s):** `e15aa3e` — source normal handoff ordering; `61e72ac` — immutable relinquished-at evidence in grant
+**Tests/evidence:** `NormalHandoffTests`: 3/3 Passed; source validates exact current-generation target, enters Transitioning before remote work, persists `TransferPreparing`, creates/validates the SQLite snapshot, persists `RelinquishedPendingGrant` before constructing the target grant, and persists `ReleasedNonAuthoritative` only after the strict grant receipt. Full Release suite at the WP4 boundary: 392/392 Passed.
+**Irreversible-point/restart evidence:** Pre-relinquishment failure returns to Authoritative while consuming the allocated handoff version; post-relinquishment grant failure remains pending/read-only; exact persisted transfer identity and receipts support retry without writable rollback. Cleanup is best-effort and never rolls back relinquishment.
+**Next:** Verify data-first target acquisition without allowing a receipt or local membership to grant authority.
 
 ### M07-WP5 — target acquisition
 
-**Status:** Not started  
-**Commit(s):**  
-**Tests/evidence:**  
-**Wrong-target/crash/idempotency evidence:**  
-**Next:**
+**Status:** Passed — bounded data-first acquisition slice
+**Commit(s):** `b55cf66`
+**Tests/evidence:** `TargetAcquisitionTests`: 3/3 Passed; exact target/current-generation/lineage/version checks, strict grant/snapshot receipt validation, durable `TargetAcquisitionPending`, atomic SQLite install/reopen validation, and authority-last commit are covered. Non-target grants remain read-only; install failure leaves the transfer pending and guard fail-closed.
+**Wrong-target/crash/idempotency evidence:** The pending retry path revalidates the same transfer identity and grant receipt; the installer stages by exact size/SHA-256 and validates SQLite integrity/schema before replacing `Data/live.db`. Broad restart/failure-boundary coverage remains part of the final M07 matrix.
+**Next:** Add independent changed-only OneDrive DR checkpoint publication and the canonical durable business-data revision seam.
 
 ### M07-WP6 — OneDrive recovery checkpoints
 
-**Status:** Not started  
-**Commit(s):**  
-**Tests/evidence:**  
-**15-minute/newest-five/offline evidence:**  
-**Next:**
+**Status:** Passed — bounded checkpoint/revision slice
+**Commit(s):** `dbec2d9`
+**Tests/evidence:** `RecoveryCheckpointTests`: 5/5 Passed; `BusinessRevisionTests`: 3/3 Passed; full Release suite at the WP6 boundary: 403/403 Passed (0 failures, 0 skipped). Checkpoints are staged with write-through/flush, exact size/SHA-256, SQLite integrity/schema and embedded business-revision validation, then atomically finalized under `DisasterRecovery/Checkpoints/<generation>/<checkpoint-id>`.
+**15-minute/newest-five/offline evidence:** Scheduler coalesces post-commit changes, enforces the injectable 15-minute boundary, persists/reloads a separate local cloud-checkpoint watermark, retains newest five valid units, leaves corrupt/incomplete units untouched, and retries publication failures without changing authority. SQLite business revision advances in the same transaction as accepted durable mutations; rollback/commit-failure tests prove it does not falsely advance, and post-commit notifications carry the canonical revision.
+**Next:** Execute WP7 deterministic and disposable real-private-repository single-winner proof before any broad Disaster Recovery implementation.
 
 ### M07-WP7 — DR activation single-winner proof
 
