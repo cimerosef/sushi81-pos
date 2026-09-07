@@ -140,9 +140,9 @@ Approved detailed contract: `implementation/milestone-06-local-recovery-read-onl
 
 Durable authorization: `implementation/milestone-06-authorization.md`.
 
-Prepared evidence records: `implementation/milestone-06-worklog.md` and `implementation/milestone-06-final-manual-acceptance.md`.
+Final evidence records: `implementation/milestone-06-worklog.md` and `implementation/milestone-06-final-manual-acceptance.md`.
 
-M06 deliberately stops before real pairing, target-directed remote handoff, target acquisition, recovery-only cloud checkpoints and Disaster Recovery, which remain M07.
+M06 deliberately stopped before real pairing, target-directed remote handoff, target acquisition, recovery-only cloud checkpoints and Disaster Recovery, which remain M07. M06 is Passed and merged through PR #11 at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; accepted production repair head is `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`, final documentation/PR head is `86326d81551aa4cb5cdcbc6826b8c740317b34c4`, Release tests are 364/364 Passed, and project-owner Windows/WPF manual acceptance is Passed.
 
 ### M07 — Pairing, target-directed formal handoff and disaster recovery
 
@@ -226,6 +226,6 @@ M04 — First complete order-entry vertical slice — is Passed and merged throu
 
 M05 — Lifecycle, payments, search and operational dashboard — is Passed and merged through PR #10 at merge commit `79499d7c6ed65a74f524097c1507ca648dc151c3`. Accepted production-code head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`, full Release tests 340/340, Release build 0 warnings/0 errors, self-contained `win-x64` publish, exact-head CI success and project-owner Windows/WPF acceptance are recorded in the M05 evidence. M05 is no longer open work.
 
-M06 — Local recovery and authoritative/read-only enforcement — is the current explicitly authorized controlled implementation milestone on branch `codex/m06-local-recovery-read-only`. Its authoritative task definition is `implementation/milestone-06-local-recovery-read-only-enforcement.md`; durable owner authorization is `implementation/milestone-06-authorization.md`; implementation evidence belongs in `implementation/milestone-06-worklog.md`; and the final owner Windows/WPF checklist is `implementation/milestone-06-final-manual-acceptance.md`.
+M06 — Local recovery and authoritative/read-only enforcement — is Passed and merged through PR #11 at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e`. Accepted production repair head `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`, final documentation/PR head `86326d81551aa4cb5cdcbc6826b8c740317b34c4`, Release tests 364/364, exact-head CI success and project-owner Windows/WPF manual acceptance are recorded in the M06 evidence. M06 is no longer open work.
 
-M06 implementation is activated only through the dedicated M06 PR mailbox, the single-use `CODEX_HANDOFF_READY: M06-IMPLEMENT-01` record and GitHub issue #4 being OPEN after the mailbox pointer is valid. M07 and later milestones are not authorized by M06 implementation or completion.
+M07 — Pairing, target-directed formal handoff and disaster recovery — is the next planned milestone, but it is not yet implementation-authorized. No M07 implementation branch, PR, durable authorization or active handoff exists; GitHub issue #4 remains CLOSED. M08 and later milestones are not started. Completion of M06 does not authorize M07.
