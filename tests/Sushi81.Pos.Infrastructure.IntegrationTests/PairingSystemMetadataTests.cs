@@ -1,0 +1,242 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Microsoft.Data.Sqlite;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Sushi81.Pos.Application.Foundation.Authority;
+using Sushi81.Pos.Application.Pairing.SystemMetadata;
+using Sushi81.Pos.Infrastructure.Pairing.SystemMetadata;
+
+namespace Sushi81.Pos.Infrastructure.IntegrationTests;
+
+[TestClass]
+public sealed class PairingSystemMetadataTests
+{
+    [TestMethod]
+    public async Task SelfJoinIsIdempotentAndAlwaysReadOnly()
+    {
+        using var fixture = new SystemMetadataFixture();
+        var lineage = fixture.CreateLineage();
+        await fixture.WriteLineageAsync(lineage);
+        var store = fixture.CreateStore();
+        var deviceId = Guid.NewGuid();
+
+        var first = await store.JoinCurrentGenerationAsync(deviceId, "Replacement PC");
+        var retry = await store.JoinCurrentGenerationAsync(deviceId, "A different local label");
+
+        Assert.IsTrue(first.RegistrationCreated);
+        Assert.IsFalse(retry.RegistrationCreated);
+        Assert.AreEqual(deviceId, retry.Registration.DeviceId);
+        Assert.AreEqual("Replacement PC", retry.Registration.DisplayName, "An immutable registration is never overwritten by a retry.");
+        Assert.AreEqual(PairingReadiness.PairedUninitializedReadOnly, first.Readiness);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, first.WriteAuthorityState);
+        Assert.AreNotEqual(WriteAuthorityState.Authoritative, first.WriteAuthorityState);
+
+        var devices = await store.ListCurrentGenerationDevicesAsync(lineage.LineageId, lineage.CurrentGeneration);
+        Assert.HasCount(1, devices);
+        var artifactJson = await File.ReadAllTextAsync(fixture.DeviceArtifactPath(lineage.CurrentGeneration, deviceId));
+        Assert.IsFalse(artifactJson.Contains("authority", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(artifactJson.Contains("grant", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public async Task IndependentAndDuplicateRegistrationsUseNonOverwritingSemantics()
+    {
+        using var fixture = new SystemMetadataFixture();
+        var lineage = fixture.CreateLineage();
+        await fixture.WriteLineageAsync(lineage);
+        var storeA = fixture.CreateStore();
+        var storeB = fixture.CreateStore();
+        var sameDevice = Guid.NewGuid();
+
+        var sameDeviceResults = await Task.WhenAll(
+            storeA.JoinCurrentGenerationAsync(sameDevice, "Same device"),
+            storeB.JoinCurrentGenerationAsync(sameDevice, "Same device"));
+        var independentResults = await Task.WhenAll(
+            storeA.JoinCurrentGenerationAsync(Guid.NewGuid(), "Device B"),
+            storeB.JoinCurrentGenerationAsync(Guid.NewGuid(), "Device C"));
+
+        Assert.HasCount(1, sameDeviceResults.Where(result => result.RegistrationCreated));
+        Assert.IsTrue(independentResults.All(result => result.RegistrationCreated));
+        var devices = await storeA.ListCurrentGenerationDevicesAsync(lineage.LineageId, lineage.CurrentGeneration);
+        Assert.HasCount(3, devices);
+    }
+
+    [TestMethod]
+    public async Task ContradictoryRegistrationIdentityAndGenerationFailClosed()
+    {
+        using var fixture = new SystemMetadataFixture();
+        var lineage = fixture.CreateLineage();
+        await fixture.WriteLineageAsync(lineage);
+        var deviceId = Guid.NewGuid();
+        var contradictory = new DeviceRegistrationArtifact(
+            SystemMetadataContract.SchemaVersion,
+            SystemMetadataContract.ProtocolVersion,
+            SystemMetadataContract.DeviceArtifactKind,
+            deviceId,
+            "Synthetic device",
+            Guid.NewGuid(),
+            lineage.CurrentGeneration,
+            fixture.Now);
+        await SystemMetadataFixture.WriteJsonAsync(
+            fixture.DeviceArtifactPath(lineage.CurrentGeneration, deviceId),
+            contradictory);
+
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => fixture.CreateStore().JoinCurrentGenerationAsync(deviceId, "Synthetic device"));
+
+        using var generationFixture = new SystemMetadataFixture();
+        var generationLineage = generationFixture.CreateLineage();
+        await generationFixture.WriteLineageAsync(generationLineage);
+        var futureDevice = Guid.NewGuid();
+        var futureArtifact = new DeviceRegistrationArtifact(
+            SystemMetadataContract.SchemaVersion,
+            SystemMetadataContract.ProtocolVersion,
+            SystemMetadataContract.DeviceArtifactKind,
+            futureDevice,
+            "Future device",
+            generationLineage.LineageId,
+            generationLineage.CurrentGeneration + 1,
+            generationFixture.Now);
+        await SystemMetadataFixture.WriteJsonAsync(
+            generationFixture.DeviceArtifactPath(generationLineage.CurrentGeneration, futureDevice),
+            futureArtifact);
+
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => generationFixture.CreateStore().ListCurrentGenerationDevicesAsync(
+                generationLineage.LineageId,
+                generationLineage.CurrentGeneration));
+    }
+
+    [TestMethod]
+    public async Task ReadOnlySeedIsIntegrityValidatedAndCannotCreateAuthority()
+    {
+        using var fixture = new SystemMetadataFixture();
+        var lineage = fixture.CreateLineage();
+        await fixture.WriteLineageAsync(lineage);
+        var store = fixture.CreateStore();
+        var payload = await fixture.CreateSyntheticSqlitePayloadAsync();
+        var seedId = Guid.NewGuid();
+        var metadata = new ReadOnlySeedMetadata(
+            SystemMetadataContract.SchemaVersion,
+            SystemMetadataContract.ProtocolVersion,
+            SystemMetadataContract.ReadOnlySeedArtifactKind,
+            seedId,
+            lineage.LineageId,
+            lineage.CurrentGeneration,
+            Guid.NewGuid(),
+            12,
+            SystemMetadataContract.SeedPayloadFileName(seedId),
+            payload.LongLength,
+            Convert.ToHexString(SHA256.HashData(payload)),
+            fixture.Now);
+
+        var first = await store.PublishReadOnlySeedAsync(metadata, payload);
+        var retry = await store.PublishReadOnlySeedAsync(metadata, payload);
+        var joined = await store.JoinCurrentGenerationAsync(Guid.NewGuid(), "Seeded read-only PC");
+
+        Assert.IsTrue(first.Created);
+        Assert.IsFalse(retry.Created);
+        Assert.IsNotNull(joined.Seed);
+        Assert.AreEqual(PairingReadiness.NonAuthoritativeReadOnly, joined.Readiness);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, joined.WriteAuthorityState);
+        Assert.AreNotEqual(WriteAuthorityState.Authoritative, joined.WriteAuthorityState);
+        var persistedPayload = await File.ReadAllBytesAsync(joined.Seed!.PayloadPath);
+        Assert.IsTrue(payload.AsSpan().SequenceEqual(persistedPayload));
+
+        var corruptedPayload = Encoding.UTF8.GetBytes("corrupted synthetic seed");
+        await File.WriteAllBytesAsync(joined.Seed.PayloadPath, corruptedPayload);
+        var noSeedAfterCorruption = await store.JoinCurrentGenerationAsync(Guid.NewGuid(), "Uninitialized read-only PC");
+        Assert.IsNull(noSeedAfterCorruption.Seed);
+        Assert.AreEqual(PairingReadiness.PairedUninitializedReadOnly, noSeedAfterCorruption.Readiness);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, noSeedAfterCorruption.WriteAuthorityState);
+
+        var wrongGeneration = metadata with { Generation = lineage.CurrentGeneration + 1 };
+        await Assert.ThrowsAsync<InvalidDataException>(
+            () => store.PublishReadOnlySeedAsync(wrongGeneration, payload));
+    }
+
+    private sealed class SystemMetadataFixture : IDisposable
+    {
+        private static readonly JsonSerializerOptions SerializerOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = true
+        };
+
+        public SystemMetadataFixture()
+        {
+            Root = Path.Combine(Path.GetTempPath(), "Sushi81.POS.M07.SystemMetadata", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Root);
+            Now = new DateTimeOffset(2026, 9, 7, 12, 0, 0, TimeSpan.Zero);
+        }
+
+        public string Root { get; }
+
+        public DateTimeOffset Now { get; }
+
+        public SystemLineageMetadata CreateLineage() => new(
+            SystemMetadataContract.SchemaVersion,
+            SystemMetadataContract.ProtocolVersion,
+            Guid.NewGuid(),
+            1,
+            Now);
+
+        public JsonSystemMetadataStore CreateStore() => new(Root, new FixedTimeProvider(Now));
+
+        public string DeviceArtifactPath(long generation, Guid deviceId) => Path.Combine(
+            Root,
+            SystemMetadataContract.SystemDirectoryName,
+            SystemMetadataContract.DevicesDirectoryName,
+            generation.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            SystemMetadataContract.DeviceFileName(deviceId));
+
+        public async Task WriteLineageAsync(SystemLineageMetadata lineage)
+        {
+            await WriteJsonAsync(
+                Path.Combine(
+                    Root,
+                    SystemMetadataContract.SystemDirectoryName,
+                    SystemMetadataContract.LineageDirectoryName,
+                    SystemMetadataContract.LineageFileName),
+                lineage);
+        }
+
+        public async Task<byte[]> CreateSyntheticSqlitePayloadAsync()
+        {
+            var path = Path.Combine(Root, "seed-build.db");
+            await using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = path,
+                Mode = SqliteOpenMode.ReadWriteCreate,
+                Pooling = false
+            }.ToString()))
+            {
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText = "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES (5);";
+                await command.ExecuteNonQueryAsync();
+            }
+
+            var bytes = await File.ReadAllBytesAsync(path);
+            File.Delete(path);
+            return bytes;
+        }
+
+        public static async Task WriteJsonAsync<T>(string path, T value)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.WriteAllTextAsync(path, JsonSerializer.Serialize(value, SerializerOptions));
+        }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Root)) Directory.Delete(Root, recursive: true);
+        }
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+}
