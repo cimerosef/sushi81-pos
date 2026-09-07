@@ -63,26 +63,26 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 ### M07-WP1 — canonical authority state and M06 migration
 
 **Status:** Passed — bounded canonical-state slice
-**Commit(s):** `ce52abb` — canonical M07 authority-state foundation
-**Tests/evidence:** Canonical schema v2 is persisted only as detailed protocol metadata; `WriteAuthorityState` is derived. Exact M06 schema-v1 migration preserves Authoritative and NonAuthoritativeReadOnly semantics, maps unresolved Transitioning/RecoveryRequired to fail-closed RecoveryRequired, and preserves marker/anchor/live-database checks. Infrastructure authority tests: 68/68 Passed; full Release suite: 368/368 Passed.
+**Commit(s):** `ce52abb` — canonical M07 authority-state foundation; `5e82b1c` — mutation fence
+**Tests/evidence:** Canonical schema v2 is persisted only as detailed protocol metadata; `WriteAuthorityState` is derived. Exact M06 schema-v1 migration preserves Authoritative and NonAuthoritativeReadOnly semantics, maps unresolved Transitioning/RecoveryRequired to fail-closed RecoveryRequired, and preserves marker/anchor/live-database checks. Infrastructure authority tests: 68/68 Passed; full Release suite before WP2/WP3 lanes: 368/368 Passed.
 **Failure-injection evidence:** Same-volume temporary write, write-through/flush, replacement, reopen/reparse/read-back validation; injected failure before replacement leaves the prior canonical document intact.
-**Next:** Freeze these DTO/store seams while WP2/WP3 lanes are independently implemented; do not implement transfer or DR authority transitions until the transport and membership contracts are integrated.
+**Next:** Integrate the bounded WP2/WP3 seams into the state-machine and desktop composition without allowing either seam to grant authority.
 
 ### M07-WP2 — self-join/System metadata/read-only initialization
 
-**Status:** Not started  
-**Commit(s):**  
-**Tests/evidence:**  
-**N-device evidence:**  
-**Next:**
+**Status:** Bounded seam complete — authority/startup integration pending
+**Commit(s):** `1414f8d`
+**Tests/evidence:** `PairingSystemMetadataTests`: 4/4 Passed; current full Release suite: 389/389 Passed. OneDrive `System` lineage/device artifacts use non-overwriting same-identity retry; optional seed metadata is size/SHA-256 and SQLite integrity/schema validated.
+**N-device evidence:** Concurrent same-device retry is idempotent; independent devices register without overwriting; contradictory identity/lineage/generation fails closed; missing/corrupt seed remains read-only. The lane intentionally does not create lineage, persist local device identity or change the canonical authority document.
+**Next:** Integrate local immutable identity/current-generation membership into the canonical state and read-only setup flow.
 
 ### M07-WP3 — production GitHub configuration/credential/transport
 
-**Status:** Not started  
-**Commit(s):**  
-**Tests/evidence:**  
-**Secret/redaction evidence:**  
-**Next:**
+**Status:** Bounded seam complete — authority/state-machine integration pending
+**Commit(s):** `138f7e1`; activation-name validation fix `7e6ca3a`
+**Tests/evidence:** `GitHubTransportTests`: 17/17 Passed; current full Release suite: 389/389 Passed. Dedicated private-repository/release configuration rejects the source repository, strict transport validates HTTP 201, uploaded state, exact name/size/asset ID and SHA-256 digest, and exposes list/get/download/delete seams.
+**Secret/redaction evidence:** Protected credential interface is isolated from transport; API/provider failures do not echo PAT or Authorization text. A real Windows protected-credential implementation and non-mutating connection action remain integration work.
+**Next:** Bind this transport to the main-owned normal-transfer and DR activation state machines; no transport receipt alone changes the write guard.
 
 ### M07-WP4 — normal source close/handoff
 
