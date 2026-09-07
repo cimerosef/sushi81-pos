@@ -52,19 +52,25 @@ Historical M05 records remain under this directory, including:
 
 M05 is no longer active work and does not itself authorize M06.
 
-## Current M06 contract
+## Completed M06 contracts
 
-M06 — Local recovery and authoritative/read-only enforcement — is the current controlled implementation milestone on branch `codex/m06-local-recovery-read-only`.
+M06 — Local recovery and authoritative/read-only enforcement — is Passed and merged through PR #11 at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e` after complete project-owner Windows/WPF manual acceptance.
 
-Authoritative M06 preparation:
+Accepted production repair head: `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`. Final documentation/PR head: `86326d81551aa4cb5cdcbc6826b8c740317b34c4`. Release tests: 364/364 Passed.
 
-- `milestone-06-local-recovery-read-only-enforcement.md` — detailed implementation contract and acceptance/failure-test mapping;
-- `milestone-06-authorization.md` — durable project-owner authorization;
-- `milestone-06-worklog.md` — living implementation/evidence record;
-- `milestone-06-final-manual-acceptance.md` — prepared project-owner Windows/WPF checklist, not Passed until actually executed.
+Historical M06 records remain under this directory:
 
-M06 inherits every cross-cutting governance file listed above. Its implementation PR must remain open/unmerged until explicit project-owner merge approval. M06 completion does not authorize M07.
+- `milestone-06-local-recovery-read-only-enforcement.md` — detailed historical implementation contract;
+- `milestone-06-authorization.md` — historical durable project-owner authorization;
+- `milestone-06-worklog.md` — historical implementation/evidence record;
+- `milestone-06-final-manual-acceptance.md` — Passed project-owner Windows/WPF acceptance record.
 
-M06 specifically owns local recovery (`AC-STO-006`) and centralized persistent read-only enforcement (`AC-STO-010`) while leaving real pairing/target-directed GitHub handoff/target acquisition/disaster recovery to M07.
+M06 is no longer active work. Its completion does not authorize M07.
+
+## Next milestone
+
+M07 — Pairing, target-directed formal handoff and disaster recovery — is the next planned milestone but is not yet implementation-authorized. No M07 implementation branch, PR, durable authorization or active handoff exists; Codex execution gate issue #4 is CLOSED. Any pre-authorization M07 design-review material under this directory is non-executable until the project owner explicitly approves the M07 implementation and the normal closed-gate preparation sequence is completed.
+
+M07 inherits every cross-cutting governance file listed above. It owns the production connection of the M02 target-directed GitHub transport/revalidation semantics to the M06 production authority/read-only/recovery seams, while preserving the single Application-layer write guard as the business-write safety boundary.
 
 Future milestone contracts M07–M13 must include a short **Parallel execution plan** section that identifies likely independent workstreams and the dependency seams that must be stabilized before concurrent delegation, and must treat `interactive-quality-gate.md` as inherited whenever the milestone includes user-visible UI/workflow behavior.
