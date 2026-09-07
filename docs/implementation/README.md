@@ -70,19 +70,24 @@ M06 is no longer active work. Its completion does not authorize M07.
 
 ## M07 preparation — material decisions approved, implementation not authorized
 
-M07 — Pairing, target-directed formal handoff and disaster recovery — is the next milestone and is currently in **Preparation**.
+M07 — Pairing, target-directed formal handoff and disaster recovery — is the next milestone and its closed-gate implementation preparation is complete pending explicit project-owner implementation authorization.
 
 The project owner approved the material self-join/DR/recovery-source semantics on 2026-09-07. The controlling Approved records are:
 
-- `../decisions/m07-self-join-disaster-recovery.md` — self-join without old-source approval, self-join ≠ authority, operationally fenced DR and freshest validated safe recovery candidate;
-- `../acceptance-criteria-amendment-m07-self-join-disaster-recovery.md` — corresponding acceptance clarifications.
+- `../decisions/m07-self-service-pairing-and-disaster-recovery.md` — concise canonical owner decision: self-service joining without old-source approval, joining ≠ authority, operationally fenced DR and freshest validated safe recovery source;
+- `../decisions/m07-self-join-disaster-recovery.md` — detailed Approved companion covering the same decisions and UI/storage/governance consequences;
+- `../decisions/m07-recovery-candidate-ordering-clarification.md` — technical consistency clarification requiring a durable monotonic business-data revision for deterministic recovery freshness;
+- `../acceptance-criteria-amendment-m07-self-join-disaster-recovery.md` — corresponding acceptance clarifications, with candidate-ordering fallback superseded by the monotonic-revision clarification.
 
 Prepared M07 implementation artifacts are:
 
 - `milestone-07-pairing-handoff-disaster-recovery.md` — detailed implementation contract, explicitly **NOT YET AUTHORIZED**;
+- `milestone-07-contract-addendum-recovery-ordering.md` — mandatory contract addendum applying deterministic business-data revision ordering;
+- `milestone-07-parallel-execution-plan.md` — mandatory parallelization/dependency companion;
 - `milestone-07-worklog.md` — prepared execution/evidence log, no implementation entries yet;
 - `milestone-07-final-manual-acceptance.md` — prepared project-owner Windows/WPF checklist, not executed;
-- `milestone-07-preauthorization-design-review.md` — historical pre-authorization analysis. Its former proposal requiring authoritative-device approval for new pairing is superseded by the Approved 2026-09-07 decision and must not guide implementation.
+- `milestone-07-preparation-readiness.md` — preparation-closure/gate checklist;
+- `milestone-07-preauthorization-design-review.md` — historical pre-authorization analysis. Its former proposal requiring authoritative-device approval for new pairing is superseded and must not guide implementation.
 
 Current governance remains:
 
@@ -98,4 +103,4 @@ M07 owns the production connection of the M02 target-directed GitHub transport/r
 
 When the project owner later explicitly authorizes M07 implementation, governance must first create the durable M07 authorization and then complete the normal dedicated-branch/PR/mailbox/handoff prerequisites before issue #4 may be opened and Codex may execute.
 
-Future milestone contracts M07–M13 must include a short **Parallel execution plan** section that identifies likely independent workstreams and the dependency seams that must be stabilized before concurrent delegation, and must treat `interactive-quality-gate.md` as inherited whenever the milestone includes user-visible UI/workflow behavior.
+Future milestone contracts M07–M13 must include a short **Parallel execution plan** section or mandatory contract companion that identifies likely independent workstreams and the dependency seams that must be stabilized before concurrent delegation, and must treat `interactive-quality-gate.md` as inherited whenever the milestone includes user-visible UI/workflow behavior.
