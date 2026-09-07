@@ -11,13 +11,15 @@ The approved V1 product, business, architecture, data, storage, paste-import, pr
 Formal freeze record: `docs/v1-specification-freeze.md`  
 Implementation acceptance contract: `docs/acceptance-criteria.md`
 
-M01 through M05 are Passed and merged. M04 merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a` after complete Windows/WPF manual acceptance.
+M01 through M06 are Passed and merged. M04 merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a` after complete Windows/WPF manual acceptance.
 
 M05 — Lifecycle, payments, search and operational dashboard — Passed implementation and project-owner Windows/WPF acceptance and was merged through PR #10 to `main` at merge commit `79499d7c6ed65a74f524097c1507ca648dc151c3`. Accepted M05 production-code head: `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`; final M05 documentation head: `217d187dd3ef5498c11f21bc516eccc6737fa952`. M05 is no longer open work.
 
-M06 — Local recovery and authoritative/read-only enforcement — is the current controlled implementation milestone on branch `codex/m06-local-recovery-read-only`. Its authoritative contract, authorization, worklog and prepared project-owner manual-acceptance checklist are under `docs/implementation/`. Codex execution remains controlled by GitHub issue #4 and does not authorize M07 or later milestones.
+M06 — Local recovery and authoritative/read-only enforcement — Passed implementation and project-owner Windows/WPF acceptance and was merged through PR #11 to `main` at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e`. Accepted M06 production repair head: `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`; final M06 documentation/PR head: `86326d81551aa4cb5cdcbc6826b8c740317b34c4`; Release tests: 364/364 Passed.
 
-Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. Historical OneDrive feasibility evidence is retained and is not the normal authority gate. Real pairing/handoff/target acquisition/disaster recovery remain M07 rather than M06.
+M07 — Pairing, target-directed formal handoff and disaster recovery — is the next planned milestone and is **not yet implementation-authorized**. There is no active implementation PR/branch/handoff, and Codex execution gate issue #4 is CLOSED. M08 and later milestones are not started.
+
+Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. Historical OneDrive feasibility evidence is retained and is not the normal authority gate. Real pairing/handoff/target acquisition/disaster recovery belong to M07.
 
 ## Working model
 
