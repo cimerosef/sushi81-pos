@@ -180,7 +180,7 @@ public static class GitHubHandoffAssetNames
             || !name.EndsWith(".activation.json", StringComparison.Ordinal))
             return false;
 
-        var core = name[3..^15];
+        var core = name[3..^16];
         var separator = core.IndexOf("-g-", StringComparison.Ordinal);
         return separator > 0
             && Guid.TryParseExact(core[..separator], "N", out _)
