@@ -2,9 +2,9 @@
 
 Production source code lives under this directory.
 
-**Current status:** M01–M05 are implemented and merged to `main`; M02 transport harness work remains isolated under `tools/`. M06 — Local recovery/read-only enforcement — has completed the controlled `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-03` pass on `codex/m06-local-recovery-read-only`, PR #11; owner Windows/WPF manual acceptance remains pending and M07 is not authorized. M05's contract and final acceptance record are under `../docs/implementation/`.
+**Current status:** M01–M06 are implemented, accepted and merged to `main`; M02 transport harness work remains isolated under `tools/`. M06 — Local recovery and authoritative/read-only enforcement — passed project-owner Windows/WPF manual acceptance and was merged through PR #11 at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e`. Accepted M06 production repair head: `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`; final documentation/PR head: `86326d81551aa4cb5cdcbc6826b8c740317b34c4`; Release tests: 364/364 Passed. M07 is the next planned milestone and is not yet implementation-authorized.
 
-The source tree is ready for explicit Codex implementation milestones against:
+The source tree is ready for explicitly authorized Codex implementation milestones against:
 
 - `../docs/v1-specification-freeze.md`;
 - the approved baseline/amendment documents under `../docs/`;
@@ -15,4 +15,4 @@ Do not implement speculative features or alter frozen/amended business/architect
 
 Normal handoff transport is the dedicated private GitHub Release Asset API defined by `../docs/decisions/github-handoff-transport.md`; the historical OneDrive diagnostics are not a source of write authority.
 
-The merged M03/M04 production code provides current Catalogue and settings maintenance, the order-entry/cart/pricing/order-snapshot slice, and the post-commit print-dispatch boundary. M05 adds the same-ID Commandes lifecycle/payment/search/dashboard workflow and SQLite migration 5. Final Windows printing, imports/exports, handoff UI, recovery enforcement, archive and installer remain in later milestones.
+The merged M03–M05 production code provides Catalogue/settings maintenance, order entry/cart/pricing/order snapshots, same-ID lifecycle/payment/search/dashboard behavior and the post-commit print-dispatch boundary. M06 adds the single production persistent authority/read-only state, centralized Application-layer business-write guard, validated latest-five local recovery snapshots and recovery scheduling/flush. M07 owns production pairing, target-directed formal handoff, target acquisition, recovery-only cloud checkpoints, Disaster Recovery and generation invalidation. Final Windows printing, imports/exports, archive and installer remain in later milestones.
