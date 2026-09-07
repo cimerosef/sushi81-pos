@@ -6,9 +6,10 @@ using Sushi81.Pos.Application.Foundation.Paths;
 namespace Sushi81.Pos.Infrastructure.Authority;
 
 /// <summary>Crash-safe local authority document and bootstrap marker storage.</summary>
-public sealed class JsonAuthorityStateStore(IAppPaths paths) : IAuthorityStateStore
+public sealed class JsonAuthorityStateStore(IAppPaths paths, Action<string>? durabilityProbe = null) : IAuthorityStateStore
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int LegacySchemaVersion = 1;
+    private const int CanonicalSchemaVersion = 2;
     private const string StateFileName = "authority-state.json";
     private const string BootstrapMarkerFileName = "authority-bootstrap.marker";
     private const string BootstrapAnchorFileName = "authority-bootstrap.anchor";
@@ -27,15 +28,33 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths) : IAuthorityStateSt
         try
         {
             await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
-            var document = await JsonSerializer.DeserializeAsync<AuthorityStateDocument>(stream, SerializerOptions, cancellationToken);
+            using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            var schema = json.RootElement.GetProperty("schemaVersion").GetInt32();
+            AuthorityStateDocument? document;
+            if (schema == 2)
+            {
+                if (json.RootElement.TryGetProperty("state", out _))
+                    throw new InvalidDataException("Canonical authority may not persist a competing coarse state.");
+                var protocol = json.RootElement.GetProperty("protocol").Deserialize<AuthorityProtocolState>(SerializerOptions)
+                    ?? throw new InvalidDataException("Canonical authority is missing.");
+                protocol.Validate();
+                document = new(2, protocol.WriteState, json.RootElement.GetProperty("updatedAtUtc").GetDateTimeOffset()) { Protocol = protocol };
+            }
+            else document = json.RootElement.Deserialize<AuthorityStateDocument>(SerializerOptions);
             if (document is null) throw new InvalidDataException("The authority state file contains no document.");
-            if (document.SchemaVersion != CurrentSchemaVersion) throw new InvalidDataException($"The authority state schema version {document.SchemaVersion} is not supported.");
+            if (document.SchemaVersion is not (LegacySchemaVersion or CanonicalSchemaVersion)) throw new InvalidDataException($"The authority state schema version {document.SchemaVersion} is not supported.");
             if (!Enum.IsDefined(document.State) || document.State == WriteAuthorityState.Uninitialized)
                 throw new InvalidDataException("The authority state file contains an invalid state.");
+            if (document.SchemaVersion == CanonicalSchemaVersion && document.Protocol is null)
+                throw new InvalidDataException("The canonical authority state is missing its protocol.");
             if (document.UpdatedAtUtc == default) throw new InvalidDataException("The authority state file has no update timestamp.");
             return document;
         }
         catch (JsonException exception)
+        {
+            throw new InvalidDataException($"The authority state file '{path}' is malformed.", exception);
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException or FormatException)
         {
             throw new InvalidDataException($"The authority state file '{path}' is malformed.", exception);
         }
@@ -44,10 +63,24 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths) : IAuthorityStateSt
     public async Task SaveAsync(AuthorityStateDocument document, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
-        if (document.SchemaVersion != CurrentSchemaVersion || !Enum.IsDefined(document.State) || document.State == WriteAuthorityState.Uninitialized)
+        if (document.SchemaVersion is not (LegacySchemaVersion or CanonicalSchemaVersion) || !Enum.IsDefined(document.State) || document.State == WriteAuthorityState.Uninitialized || document.UpdatedAtUtc == default)
             throw new InvalidDataException("The authority state document is invalid.");
+        if (document.SchemaVersion == CanonicalSchemaVersion)
+        {
+            if (document.Protocol is null || document.State != document.Protocol.WriteState)
+                throw new InvalidDataException("Canonical authority contradicts its derived state.");
+            document.Protocol.Validate();
+        }
+        else if (document.Protocol is not null) throw new InvalidDataException("Legacy state cannot carry canonical protocol metadata.");
         paths.EnsureInitialized();
-        await WriteAtomicallyAsync(Path.Combine(paths.ConfigDirectory, StateFileName), document, cancellationToken);
+        object payload = document.SchemaVersion == CanonicalSchemaVersion
+            ? new { document.SchemaVersion, document.UpdatedAtUtc, document.Protocol }
+            : new { document.SchemaVersion, document.State, document.UpdatedAtUtc };
+        await WriteAtomicallyAsync(Path.Combine(paths.ConfigDirectory, StateFileName), payload, cancellationToken);
+        durabilityProbe?.Invoke("before-reopen");
+        var persisted = await LoadAsync(cancellationToken);
+        if (persisted != document) throw new InvalidDataException("Authority replacement failed read-back validation.");
+        durabilityProbe?.Invoke("after-reopen");
     }
 
     public Task<bool> HasBootstrapMarkerAsync(CancellationToken cancellationToken = default)
@@ -147,17 +180,21 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths) : IAuthorityStateSt
         }
     }
 
-    private static async Task WriteAtomicallyAsync<T>(string path, T value, CancellationToken cancellationToken)
+    private async Task WriteAtomicallyAsync<T>(string path, T value, CancellationToken cancellationToken)
     {
         var temporaryPath = Path.Combine(Path.GetDirectoryName(path)!, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
         try
         {
-            await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, useAsync: true))
+            durabilityProbe?.Invoke("before-write");
+            await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 await JsonSerializer.SerializeAsync(stream, value, SerializerOptions, cancellationToken);
                 await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
+            durabilityProbe?.Invoke("before-replace");
             File.Move(temporaryPath, path, overwrite: true);
+            durabilityProbe?.Invoke("after-replace");
         }
         finally
         {

@@ -1,13 +1,13 @@
 # M07 worklog — pairing, target-directed handoff and disaster recovery
 
-**Status:** Authorized / In progress — execution setup underway  
+**Status:** Authorized / In progress — WP0/WP1 executed
 **Prepared:** 2026-09-07  
 **Authorized:** 2026-09-07  
-**Execution gate:** CLOSED until PR/mailbox/handoff verification completes  
+**Execution gate:** OPEN — verified against GitHub Issue #4 on 2026-09-07
 **Contract:** `docs/implementation/milestone-07-pairing-handoff-disaster-recovery.md`  
 **Authorization:** `docs/implementation/milestone-07-authorization.md`
 
-This file is the durable execution/evidence log for M07. Project-owner implementation authorization now exists, but Codex may execute only after the active PR/mailbox pointer and one complete handoff are created and Issue #4 is reopened.
+This file is the durable execution/evidence log for M07. Project-owner implementation authorization, the active PR/mailbox pointer, the valid handoff and the OPEN Issue #4 gate were verified before implementation continued.
 
 ## 1. Entry baseline
 
@@ -23,9 +23,10 @@ This file is the durable execution/evidence log for M07. Project-owner implement
 - M07 implementation authorization: `docs/implementation/milestone-07-authorization.md` — **AUTHORIZED 2026-09-07**.
 - Authorized preparation head: `e8a9992ba04a21ac4854492bd3bcb7a8ce6e4b96`.
 - Active M07 branch: `codex/m07-pairing-handoff-disaster-recovery`.
-- Active M07 PR: pending creation during execution setup.
-- `CODEX_HANDOFF_READY`: pending creation during execution setup.
-- Issue #4 execution gate: CLOSED until setup verification completes.
+- Active M07 PR: #13 — `M07: pairing, target-directed handoff and disaster recovery`.
+- Active implementation head at continuation: `40137b201b59c907bd0e7009d8cfae78deac14f9` before local WP0/WP1 work.
+- `CODEX_HANDOFF_READY`: `M07-IMPLEMENTATION-01`, top-level and unprocessed at continuation.
+- Issue #4 execution gate: OPEN.
 
 ### Authorization event
 
@@ -53,19 +54,19 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 
 ### M07-WP0 — baseline and mutation-guard audit
 
-**Status:** Not started  
-**Commit(s):**  
-**Tests/evidence:**  
-**Findings:**  
-**Next:**
+**Status:** Passed
+**Commit(s):** Pending in the current implementation commit
+**Tests/evidence:** Inherited Release baseline 364/364 Passed; `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings/0 errors. Static audit covered catalogue/settings/order-entry/order-lifecycle writers and confirmed the single M06 guard is checked before persistence.
+**Findings:** No discovered M03–M05 guard bypass. M07 still requires a shared in-flight mutation fence before irreversible authority transitions; this remains a WP4 integration prerequisite.
+**Next:** Preserve the guard while integrating canonical state and transition services.
 
 ### M07-WP1 — canonical authority state and M06 migration
 
-**Status:** Not started  
-**Commit(s):**  
-**Tests/evidence:**  
-**Failure-injection evidence:**  
-**Next:**
+**Status:** Passed — bounded canonical-state slice
+**Commit(s):** Pending in the current implementation commit
+**Tests/evidence:** Canonical schema v2 is persisted only as detailed protocol metadata; `WriteAuthorityState` is derived. Exact M06 schema-v1 migration preserves Authoritative and NonAuthoritativeReadOnly semantics, maps unresolved Transitioning/RecoveryRequired to fail-closed RecoveryRequired, and preserves marker/anchor/live-database checks. Infrastructure authority tests: 67/67 Passed.
+**Failure-injection evidence:** Same-volume temporary write, write-through/flush, replacement, reopen/reparse/read-back validation; injected failure before replacement leaves the prior canonical document intact.
+**Next:** Freeze these DTO/store seams before WP2/WP3 lanes; do not implement transfer or DR authority transitions until the shared mutation fence and transport contracts exist.
 
 ### M07-WP2 — self-join/System metadata/read-only initialization
 

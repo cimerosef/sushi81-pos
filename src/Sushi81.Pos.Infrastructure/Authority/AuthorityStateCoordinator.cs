@@ -19,7 +19,7 @@ public sealed partial class AuthorityStateCoordinator(
     IBusinessClock clock,
     ILogger logger)
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int CanonicalSchemaVersion = 2;
 
     /// <summary>
     /// Resolves authority after migration using evidence captured before migration. This keeps a
@@ -52,8 +52,33 @@ public sealed partial class AuthorityStateCoordinator(
                     return FailClosed(new InvalidDataException("The durable authority state exists without its bootstrap marker."));
                 if (!await store.HasBootstrapAnchorAsync(cancellationToken))
                     return FailClosed(new InvalidDataException("The durable authority state exists without its independent bootstrap anchor."));
-                guard.SetState(document.State);
-                return new(document.State, null);
+                if (document.SchemaVersion == 1)
+                {
+                    var phase = document.State switch
+                    {
+                        WriteAuthorityState.Authoritative => AuthorityPhase.Authoritative,
+                        WriteAuthorityState.NonAuthoritativeReadOnly => AuthorityPhase.NonAuthoritativeReadOnly,
+                        WriteAuthorityState.Transitioning or WriteAuthorityState.RecoveryRequired => AuthorityPhase.RecoveryRequired,
+                        _ => AuthorityPhase.RecoveryRequired
+                    };
+                    // Only accepted legacy authority establishes a lineage. A legacy non-writer
+                    // retains its coarse non-writer state without inventing membership or authority.
+                    var established = phase == AuthorityPhase.Authoritative;
+                    var protocol = new AuthorityProtocolState(
+                        Revision: 1,
+                        DeviceId: Guid.NewGuid(),
+                        DisplayName: Environment.MachineName,
+                        LineageId: established ? Guid.NewGuid() : null,
+                        Generation: established ? 1 : 0,
+                        HandoffVersion: 0,
+                        BusinessRevision: 0,
+                        Phase: phase);
+                    protocol.Validate();
+                    document = new AuthorityStateDocument(CanonicalSchemaVersion, protocol.WriteState, clock.UtcNow) { Protocol = protocol };
+                    await store.SaveAsync(document, cancellationToken);
+                }
+                guard.SetState(document.EffectiveState);
+                return new(document.EffectiveState, null);
             }
 
             if (await store.HasBootstrapMarkerAsync(cancellationToken))
@@ -68,7 +93,20 @@ public sealed partial class AuthorityStateCoordinator(
             // M06 permits the one-time local single-device bootstrap after the supported M01-M05
             // schema has been migrated. The marker and independent data-directory anchor make
             // deletion of the state files fail closed later.
-            var bootstrap = new AuthorityStateDocument(CurrentSchemaVersion, WriteAuthorityState.Authoritative, clock.UtcNow);
+            var bootstrapProtocol = new AuthorityProtocolState(
+                Revision: 1,
+                DeviceId: Guid.NewGuid(),
+                DisplayName: Environment.MachineName,
+                LineageId: Guid.NewGuid(),
+                Generation: 1,
+                HandoffVersion: 0,
+                BusinessRevision: 0,
+                Phase: AuthorityPhase.Authoritative);
+            bootstrapProtocol.Validate();
+            var bootstrap = new AuthorityStateDocument(CanonicalSchemaVersion, bootstrapProtocol.WriteState, clock.UtcNow)
+            {
+                Protocol = bootstrapProtocol
+            };
             await store.SaveAsync(bootstrap, cancellationToken);
             await store.WriteBootstrapMarkerAsync(cancellationToken);
             await store.WriteBootstrapAnchorAsync(cancellationToken);

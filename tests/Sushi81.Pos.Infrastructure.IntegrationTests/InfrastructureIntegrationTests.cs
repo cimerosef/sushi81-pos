@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 using Sushi81.Pos.Application.Foundation.Authority;
@@ -460,14 +461,146 @@ public sealed class InfrastructureIntegrationTests
         var store = new JsonAuthorityStateStore(paths);
         var legacyBootstrapEvidence = await store.HasLegacyBootstrapEvidenceAsync();
         await new AuthorityStateCoordinator(store, new WriteAuthorityGuard(), new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
-        foreach (var state in new[] { WriteAuthorityState.Authoritative, WriteAuthorityState.NonAuthoritativeReadOnly, WriteAuthorityState.Transitioning, WriteAuthorityState.RecoveryRequired })
+        foreach (var (legacyState, expectedState) in new[]
         {
-            await store.SaveAsync(new AuthorityStateDocument(1, state, DateTimeOffset.UtcNow));
+            (WriteAuthorityState.Authoritative, WriteAuthorityState.Authoritative),
+            (WriteAuthorityState.NonAuthoritativeReadOnly, WriteAuthorityState.NonAuthoritativeReadOnly),
+            (WriteAuthorityState.Transitioning, WriteAuthorityState.RecoveryRequired),
+            (WriteAuthorityState.RecoveryRequired, WriteAuthorityState.RecoveryRequired)
+        })
+        {
+            await store.SaveAsync(new AuthorityStateDocument(1, legacyState, DateTimeOffset.UtcNow));
             var guard = new WriteAuthorityGuard();
             var reloaded = await new AuthorityStateCoordinator(store, guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
-            Assert.AreEqual(state, reloaded.State);
-            Assert.AreEqual(state, guard.State);
+            Assert.AreEqual(expectedState, reloaded.State);
+            Assert.AreEqual(expectedState, guard.State);
         }
+    }
+
+    [TestMethod]
+    public async Task CanonicalAuthorityPersistsOnlyDetailedProtocolAndDerivesTheCoarseGuardState()
+    {
+        using var paths = new TestAppPaths();
+        var store = new JsonAuthorityStateStore(paths);
+        var lineage = Guid.NewGuid();
+        var source = Guid.NewGuid();
+        var target = Guid.NewGuid();
+        var hash = new string('a', 64);
+        var snapshotReceipt = new RemoteAssetEvidence(12, 34, "snapshot.db", 123, hash);
+        var grantReceipt = new RemoteAssetEvidence(12, 35, "grant.json", 456, hash);
+        var transfer = new TransferEvidence(
+            Guid.NewGuid(), lineage, 1, 1, source, target, 7,
+            "snapshot.db", "C:\\snapshot.db", 123, hash, snapshotReceipt, grantReceipt, DateTimeOffset.UtcNow);
+
+        var cases = new (AuthorityPhase Phase, WriteAuthorityState State, AuthorityProtocolState Protocol)[]
+        {
+            (AuthorityPhase.Uninitialized, WriteAuthorityState.RecoveryRequired,
+                new(1, source, "fresh", null, 0, 0, 0, AuthorityPhase.Uninitialized)),
+            (AuthorityPhase.PairedUninitializedReadOnly, WriteAuthorityState.NonAuthoritativeReadOnly,
+                new(1, source, "joined", lineage, 1, 0, 0, AuthorityPhase.PairedUninitializedReadOnly)),
+            (AuthorityPhase.Authoritative, WriteAuthorityState.Authoritative,
+                new(1, source, "source", lineage, 1, 0, 0, AuthorityPhase.Authoritative)),
+            (AuthorityPhase.ClosedRetainedAuthority, WriteAuthorityState.Authoritative,
+                new(1, source, "source", lineage, 1, 0, 0, AuthorityPhase.ClosedRetainedAuthority)),
+            (AuthorityPhase.TransferPreparing, WriteAuthorityState.Transitioning,
+                new(1, source, "source", lineage, 1, 1, 7, AuthorityPhase.TransferPreparing, transfer with { SnapshotReceipt = null, GrantReceipt = null, RelinquishedAtUtc = null })),
+            (AuthorityPhase.RelinquishedPendingGrant, WriteAuthorityState.Transitioning,
+                new(1, source, "source", lineage, 1, 1, 7, AuthorityPhase.RelinquishedPendingGrant, transfer with { GrantReceipt = null })),
+            (AuthorityPhase.ReleasedNonAuthoritative, WriteAuthorityState.NonAuthoritativeReadOnly,
+                new(1, source, "source", lineage, 1, 1, 7, AuthorityPhase.ReleasedNonAuthoritative, transfer)),
+            (AuthorityPhase.TargetAcquisitionPending, WriteAuthorityState.Transitioning,
+                new(1, target, "target", lineage, 1, 1, 7, AuthorityPhase.TargetAcquisitionPending, transfer)),
+            (AuthorityPhase.NonAuthoritativeReadOnly, WriteAuthorityState.NonAuthoritativeReadOnly,
+                new(1, target, "target", lineage, 1, 1, 7, AuthorityPhase.NonAuthoritativeReadOnly)),
+            (AuthorityPhase.StaleGeneration, WriteAuthorityState.NonAuthoritativeReadOnly,
+                new(1, target, "target", lineage, 1, 1, 7, AuthorityPhase.StaleGeneration)),
+            (AuthorityPhase.DisasterRecoveryPending, WriteAuthorityState.Transitioning,
+                new(1, target, "replacement", lineage, 1, 1, 7, AuthorityPhase.DisasterRecoveryPending,
+                    Recovery: new(Guid.NewGuid(), target, lineage, 1, 2, "candidate", hash, 7, snapshotReceipt))),
+            (AuthorityPhase.RecoveryRequired, WriteAuthorityState.RecoveryRequired,
+                new(1, target, "target", null, 0, 0, 0, AuthorityPhase.RecoveryRequired))
+        };
+
+        foreach (var testCase in cases)
+        {
+            testCase.Protocol.Validate();
+            var document = new AuthorityStateDocument(2, testCase.State, DateTimeOffset.UtcNow)
+            {
+                Protocol = testCase.Protocol
+            };
+            await store.SaveAsync(document);
+            var json = await File.ReadAllTextAsync(Path.Combine(paths.ConfigDirectory, "authority-state.json"));
+            using var jsonDocument = JsonDocument.Parse(json);
+            Assert.IsFalse(jsonDocument.RootElement.TryGetProperty("state", out _));
+            var reloaded = await store.LoadAsync();
+            Assert.IsNotNull(reloaded);
+            Assert.AreEqual(testCase.State, reloaded!.EffectiveState);
+            Assert.AreEqual(testCase.Phase, reloaded.Protocol!.Phase);
+        }
+    }
+
+    [TestMethod]
+    public async Task ExactSerializedM06RecoveryAndTransitioningStatesRemainNonWritableAfterMigration()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await using (var legacyConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.LiveDatabasePath, Pooling = false }.ToString()))
+        {
+            await legacyConnection.OpenAsync();
+            await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
+        }
+
+        var store = new JsonAuthorityStateStore(paths);
+        var legacyEvidence = await store.HasLegacyBootstrapEvidenceAsync();
+        await new AuthorityStateCoordinator(store, new WriteAuthorityGuard(), new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance)
+            .InitializeAsync(legacyEvidence);
+
+        foreach (var legacyState in new[] { "Transitioning", "RecoveryRequired" })
+        {
+            var legacyValue = legacyState == "Transitioning" ? 3 : 4;
+            await File.WriteAllTextAsync(
+                Path.Combine(paths.ConfigDirectory, "authority-state.json"),
+                $"{{\"schemaVersion\":1,\"state\":{legacyValue},\"updatedAtUtc\":\"2026-09-07T12:00:00Z\"}}");
+            var guard = new WriteAuthorityGuard();
+            var result = await new AuthorityStateCoordinator(store, guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance)
+                .InitializeAsync(legacyEvidence);
+            Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
+            Assert.AreEqual(WriteAuthorityState.RecoveryRequired, guard.State);
+            Assert.AreEqual(2, (await store.LoadAsync())!.SchemaVersion);
+        }
+    }
+
+    [TestMethod]
+    public async Task CanonicalAuthorityReplacementReopensAndFailureBeforeReplaceLeavesPriorDocumentIntact()
+    {
+        using var paths = new TestAppPaths();
+        var lineage = Guid.NewGuid();
+        var device = Guid.NewGuid();
+        var firstProtocol = new AuthorityProtocolState(1, device, "device", lineage, 1, 0, 0, AuthorityPhase.Authoritative);
+        var firstDocument = new AuthorityStateDocument(2, WriteAuthorityState.Authoritative, DateTimeOffset.UtcNow)
+        {
+            Protocol = firstProtocol
+        };
+        var firstEvents = new List<string>();
+        var store = new JsonAuthorityStateStore(paths, firstEvents.Add);
+        await store.SaveAsync(firstDocument);
+        CollectionAssert.Contains(firstEvents, "before-replace");
+        CollectionAssert.Contains(firstEvents, "after-reopen");
+
+        var secondProtocol = firstProtocol with { Phase = AuthorityPhase.NonAuthoritativeReadOnly };
+        var secondDocument = new AuthorityStateDocument(2, WriteAuthorityState.NonAuthoritativeReadOnly, DateTimeOffset.UtcNow)
+        {
+            Protocol = secondProtocol
+        };
+        var failingStore = new JsonAuthorityStateStore(paths, point =>
+        {
+            if (point == "before-replace") throw new IOException("injected before replace");
+        });
+        await Assert.ThrowsAsync<IOException>(() => failingStore.SaveAsync(secondDocument));
+        var persisted = await store.LoadAsync();
+        Assert.IsNotNull(persisted);
+        Assert.AreEqual(AuthorityPhase.Authoritative, persisted!.Protocol!.Phase);
+        Assert.AreEqual(WriteAuthorityState.Authoritative, persisted.EffectiveState);
     }
 
     [TestMethod]

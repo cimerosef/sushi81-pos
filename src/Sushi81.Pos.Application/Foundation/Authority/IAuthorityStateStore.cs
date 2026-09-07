@@ -4,7 +4,12 @@ namespace Sushi81.Pos.Application.Foundation.Authority;
 public sealed record AuthorityStateDocument(
     int SchemaVersion,
     WriteAuthorityState State,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc)
+{
+    public AuthorityProtocolState? Protocol { get; init; }
+
+    public WriteAuthorityState EffectiveState => Protocol?.WriteState ?? State;
+}
 
 public interface IAuthorityStateStore
 {
