@@ -137,11 +137,11 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 ### M07-WP10 — automated/CI closure before owner acceptance
 
 **Status:** In progress — cycle-5 T/U/V remediation complete; exact-head CI, WP7 and owner acceptance remain pending
-**Accepted production-code head candidate:** `21e0781` — pending exact-head CI and owner acceptance
+**Accepted production-code head candidate:** `21e078185608b7f7edb86a19c36dba3ec08b2dfb` — exact-head CI passed; owner acceptance remains pending
 **Release tests:** local full solution `444/444` Passed, `0` failed, `0` skipped (Domain 33; Application 47; Infrastructure integration 134; test OneDrive feasibility 32; tool OneDrive feasibility 92; Architecture/WPF 106). The prior exact-head repository-wide CI count remains `439/439` Passed.
 **Release build warnings/errors:** `0/0`
 **Self-contained win-x64 publish:** Not run; not required by this remediation handoff
-**Exact-head CI run:** prior exact head `cb1db0c38993687e9b9546f80f4586ef23647de0` — `34166501154` (run #584) success, CI Release build `0` warnings / `0` errors and Release tests `439/439` Passed, `0` failed, `0` skipped. Current remediation head `21e0781` exact-head CI is pending.
+**Exact-head CI run:** prior exact head `cb1db0c38993687e9b9546f80f4586ef23647de0` — `34166501154` (run #584) success, CI Release build `0` warnings / `0` errors and Release tests `439/439` Passed, `0` failed, `0` skipped. Current remediation/evidence head `e12b4092239b052baf4f0e8c4ec619fd2b3c90ed` — `34168357623` (run #586) success, CI Release build `0` warnings / `0` errors and Release tests `444/444` Passed, `0` failed, `0` skipped.
 **Known carry-over:** WP7 proof environment is authorized but real proof remains pending; WP8 and M08 remain not started.
 
 ## 4. Review/remediation log
@@ -189,7 +189,7 @@ Append each ChatGPT review/remediation cycle with exact head SHA, findings, seve
 **Findings:** Technical setup remained writable during immutable transfer/acquisition/disaster-recovery and recovery-required phases; a stable authoritative device could not perform its first M06-to-M07 setup against an empty shared root and then publish its existing lineage on restart; the worklog needed the exact remediation evidence while preserving the pending WP7/manual-acceptance truth.
 **Disposition:** `21e0781` makes the existing M07 setup service and desktop entry point phase-aware. TransferPreparing, RelinquishedPendingGrant, TargetAcquisitionPending, DisasterRecoveryPending, RecoveryRequired and StaleGeneration reject setup before any root or persistence work, and FR/zh-CN UI hides the action. A stable bound Authoritative/ClosedRetainedAuthority device may bind an empty/new root without creating lineage; the existing startup coordinator subsequently publishes the exact local lineage/generation and device membership. Existing lineage must match the local bound identity/generation, while fresh/uninitialized and non-authoritative empty-root setup fails closed. No authority, transfer, recovery, database, marker, anchor or shared metadata mutation is performed by setup.
 **Remediation commit:** `21e0781`.
-**Tests/evidence:** Focused setup infrastructure tests `7/7` Passed; unsafe-phase/FR/zh-CN WPF tests `3/3` Passed; full local Release solution `444/444` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors. Exact-head CI for `21e0781` is pending. WP7 real disposable private-repository proof was not run; WP8 and M08 remain not started; manual acceptance and merge remain unauthorized.
+**Tests/evidence:** Focused setup infrastructure tests `7/7` Passed; unsafe-phase/FR/zh-CN WPF tests `3/3` Passed; full local Release solution `444/444` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors; exact-head CI run `34168357623` succeeded with the same `444/444` result and `0/0` build warnings/errors. WP7 real disposable private-repository proof was not run; WP8 and M08 remain not started; manual acceptance and merge remain unauthorized.
 
 ## 5. Project-owner manual acceptance
 
