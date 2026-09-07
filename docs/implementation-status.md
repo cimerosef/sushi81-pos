@@ -1,523 +1,82 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Initialized:** 2026-08-27  
-**Current state:** Phase 6 M01 is Passed. The original M02 OneDrive competitive-acquisition design correctly ended Blocked and its evidence was merged through PR #2. The approved target-directed authority-handoff amendment and GitHub transport revalidation are Passed. M03 Catalogue and Settings and M04 Order Entry are Passed, with their final Windows/WPF acceptance recorded in the applicable evidence; M04 merged through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a`. M05 implementation and project-owner Windows/WPF acceptance are Passed; PR #10 is merged to `main` at `79499d7c6ed65a74f524097c1507ca648dc151c3`, with accepted production-code head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70` and final documentation head `217d187dd3ef5498c11f21bc516eccc6737fa952`. M06 is the current authorized implementation on PR #11 under `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-04`; the fourth controlled review-remediation pass is complete pending project-owner manual acceptance, and M07 and later milestones remain unauthorized.
+**Last updated:** 2026-09-07  
+**Current state:** M01 through M06 are Passed and merged. M07 — Pairing, target-directed formal handoff and disaster recovery — is the next milestone and is in **implementation preparation only**. Its material product/safety decisions have been approved by the project owner, but M07 production implementation is **not yet authorized**. GitHub issue #4 remains CLOSED; there is no active M07 implementation branch, PR or executable Codex handoff. M08 and later milestones have not started.
+
+> Historical implementation/evidence detail through M06 is preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). This living document intentionally contains current control state only; historical evidence must not be rewritten merely to update current milestone status.
 
 ## 1. Status vocabulary
 
 - `Not started` — no conforming implementation evidence yet.
+- `Preparation` — specification/contract/checklist preparation is occurring, but implementation is not authorized and Codex must not execute.
 - `In progress` — the explicitly authorized milestone is being implemented/revalidated or still has an open gate.
 - `Partial` — some evidence exists, but the complete acceptance criterion/gate is not yet satisfied.
-- `Passed` — automated/manual evidence required by the criterion is recorded and passes on the applicable build.
+- `Passed` — required automated/manual evidence is recorded and passes on the applicable build.
 - `Blocked — amendment required` — a genuine material specification conflict prevents conforming implementation.
-- `Blocked — architecture decision required` — the approved protocol remains safe, but a required transport capability is not documented by the current platform boundary.
+- `Blocked — architecture decision required` — an approved protocol remains safe, but a required technical capability still needs an architecture decision/proof.
 - `Not applicable — amended` — allowed only when an approved specification amendment explicitly makes the criterion inapplicable.
 
-Only `Passed` and properly approved `Not applicable — amended` satisfy the final V1 acceptance gate.
+Only `Passed` and properly approved `Not applicable — amended` satisfy final V1 acceptance.
 
 ## 2. Milestone status
 
-| Milestone | Status | Authorization / result |
+| Milestone | Status | Current authoritative result |
 |---|---|---|
-| M01 — Foundation and safe persistence spine | Passed | Merged to `main` via PR #1 after automated verification and successful Windows/WPF manual re-verification. |
-| M02 — remote handoff feasibility gate | Passed | Original competitive OneDrive model remains historically Blocked. Approved GitHub private Release Asset transport, automated failure evidence, real private-repository A → B v1 / B → A v2 round-trip evidence, and isolated destructive newest-three retention evidence are complete; the amended M02 gate is closed by evidence. |
-| M03 — Catalogue and settings | Passed | Authorized by `CODEX_HANDOFF_READY: M03-IMPLEMENT-01`; migration 2, layered catalogue/settings services, localized WPF maintenance shell, automated evidence, and the complete operator Windows/WPF checklist are recorded on the applicable head. Cross-milestone regressions explicitly owned by M04 remain deferred. |
-| M04 — Order-entry vertical slice | Passed | Authorized by `CODEX_HANDOFF_READY: M04-IMPLEMENT-01`; accepted implementation head `76a41df917282763fc5957be7118bbffbeb21568` passed the automated M04 evidence and CI #272, and the project owner passed the final Windows/WPF manual acceptance on 2026-09-02. Merged to `main` through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a` on 2026-09-02. |
-| M05 — Lifecycle/payments/search/dashboard | Passed | Accepted production-code head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`; complete Release suite 340/340, Release build 0 warnings/0 errors, self-contained `win-x64` publish and exact-head CI run `34034418001` passed; project-owner Windows/WPF acceptance is recorded in `implementation/milestone-05-final-manual-acceptance.md`. PR #10 is merged to `main` through `79499d7c6ed65a74f524097c1507ca648dc151c3`. |
-| M06 — Local recovery/read-only enforcement | In progress | PR #11 / `codex/m06-local-recovery-read-only`: `M06-MANUAL-ACCEPTANCE-STARTUP-FIX-06` corrects an existing-Recovery WPF startup deadlock; 364/364 Release tests pass. Owner A1 and all remaining Windows/WPF acceptance remain Pending; artifact and exact-head CI evidence are in its completion record. |
-| M07 — Handoff and disaster recovery | Not started | Pending M06; must implement amended target-directed protocol |
-| M08 — Printing and reprinting | Not started | Pending M07 |
-| M09 — Hiboutik paste fallback | Not started | Pending M08 |
-| M10 — Catalogue `.xlsx` | Not started | Pending M09 |
-| M11 — Gestion export | Not started | Pending M10 |
-| M12 — Annual archive/historical access | Not started | Pending M11 |
-| M13 — Installer and final acceptance | Not started | Pending M12 |
+| M01 — Foundation and safe persistence spine | Passed | Merged through PR #1; automated and Windows/WPF evidence Passed. |
+| M02 — remote handoff feasibility gate | Passed | Original competitive OneDrive model remains historically Blocked; approved target-directed GitHub Release Asset transport revalidation Passed. |
+| M03 — Catalogue and settings | Passed | Merged through PR #5; final Windows/WPF acceptance Passed. |
+| M04 — Order-entry vertical slice | Passed | Merged through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a`; final Windows/WPF acceptance Passed. |
+| M05 — Lifecycle/payments/search/dashboard | Passed | Merged through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`; accepted production head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`; final Windows/WPF acceptance Passed. |
+| M06 — Local recovery/read-only enforcement | Passed | PR #11 merged at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; accepted production repair head `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`; final docs/PR head `86326d81551aa4cb5cdcbc6826b8c740317b34c4`; Release tests 364/364, build 0 warnings/errors, exact-head CI `34091370109`, project-owner Windows/WPF acceptance Passed. |
+| M07 — Pairing, target-directed formal handoff and disaster recovery | Preparation | Material decisions approved 2026-09-07; specification/implementation-contract preparation underway. **Not implementation-authorized. Execution gate CLOSED.** |
+| M08 — Printing and reprinting | Not started | Pending M07. |
+| M09 — Hiboutik paste fallback | Not started | Pending M08. |
+| M10 — Catalogue `.xlsx` | Not started | Pending M09. |
+| M11 — Gestion export | Not started | Pending M10. |
+| M12 — Annual archive/historical access | Not started | Pending M11. |
+| M13 — Installer and final acceptance | Not started | Pending M12. |
 
-## 3. Acceptance ownership matrix
+## 3. Current acceptance ownership relevant to M06/M07
 
-The owner milestone is responsible for closing the criterion. Earlier milestones may provide foundations/feasibility evidence and later M13 performs the final production-target regression.
+Historical criterion-by-criterion evidence through M06 remains in the archived status record. The current transition facts are:
 
-### Product
-
-| Criterion | Owner | Status | Evidence |
+| Criterion | Owner | Current state | Note |
 |---|---:|---|---|
-| AC-PROD-001 | M13 | Not started | — |
-| AC-PROD-002 | M07 | Not started | M02 revalidation prepares amended handoff/offline boundaries |
-| AC-PROD-003 | M13 | Not started | — |
-| AC-PROD-004 | M13 | Not started | — |
+| AC-PROD-002 | M07 | Preparation | M07 must preserve local-first authoritative operation when ordinary Internet/OneDrive services are unavailable; M08 retains the final real printer-adapter offline cross-check. |
+| AC-STO-002 | M07 | Preparation | N-device single-writer and target-directed normal transfer, including approved self-join semantics. |
+| AC-STO-003 | M07 | Preparation | Close-retain and strict source relinquishment-before-grant ordering. |
+| AC-STO-004 | M07 | Preparation | Exact-target validation/acquisition. |
+| AC-STO-005 | M07 | Preparation | No silent takeover/source rollback/target substitution; genuine loss uses explicit DR. |
+| AC-STO-006 | M06 | Passed | M06 local recovery generation/debounce/retention accepted with final 364-test and owner evidence. |
+| AC-STO-007 | M07 | Preparation | Newest-three complete GitHub handoff-unit retention. |
+| AC-STO-008 | M07 | Preparation | Changed-only OneDrive DR checkpoints, maximum normal frequency once per 15 minutes, newest five. |
+| AC-STO-009 | M07 | Preparation | Explicit generation-advancing DR under the 2026-09-07 approved quarantine/safe-candidate rules. |
+| AC-STO-010 | M06 | Passed foundation; M07 regression required | M06 centralized Application write guard, fail-closed startup and persistent read-only/recovery presentation are accepted. M07 must exercise them in real transfer/pending/stale/self-join states; printing remains AC-PRINT-010/M08. |
 
-### Catalogue
+## 4. M07 approved material direction
 
-| Criterion | Owner | Status | Evidence |
-|---|---:|---|---|
-| AC-CAT-001 | M03 | Passed | Automated domain/integration coverage plus completed operator Windows/WPF catalogue workflow |
-| AC-CAT-002 | M03 | Passed | Normalized category uniqueness and rename tests in `tests/Sushi81.Pos.Infrastructure.IntegrationTests/M03CatalogueIntegrationTests.cs` |
-| AC-CAT-003 | M03 | Partial | Current-product maintenance and the M04 historical-order snapshot regression are automated/passing; M05 confirmed category filtering/selection stability, but the M03-owned product-maintenance operator gate remains Partial. |
-| AC-CAT-004 | M03 | Passed | Required-field, price and VAT boundary validation tests |
-| AC-CAT-005 | M03 | Passed | Structured group/option validation, ordering, signed adjustments and aggregate persistence tests |
-| AC-CAT-006 | M04 | Passed | Ordinary option-selection UI plus required/optional single/multi, boundary, stale/inactive and dormant-option validation, direct-add simple-product paths, and the final category-first/direct-add WPF acceptance are recorded in the M04 evidence and final acceptance document |
-| AC-CAT-007 | M04 | Passed | Positive/negative/zero cent custom line adjustments, required labels, per-unit quantity semantics, actual option-dialog controls, automated regression coverage and final operator acceptance are complete |
-| AC-CAT-008 | M10 | Not started | — |
-| AC-CAT-009 | M10 | Not started | — |
-| AC-CAT-010 | M10 | Not started | — |
-| AC-CAT-011 | M10 | Not started | — |
-| AC-CAT-012 | M04 | Passed | Sale-time product/category/price/VAT/eligibility/option snapshots survive catalogue mutation and deletion, including restart reload; automated evidence and final read-only exact-snapshot operator acceptance are complete |
-| AC-CAT-013 | M03 | Passed | Application/SQLite/presentation automation plus completed three-filter intersection and precise bulk-mutation Windows/WPF checklist |
+The project owner approved the following product/safety semantics on 2026-09-07. Detailed controlling wording belongs in the M07 approved decision/specification amendment.
 
-### Order creation and business rules
+1. **Self-join without authority approval.** A newly installed computer may join an existing Sushi81 POS lineage without approval from the old/current authoritative computer. Joining establishes device identity/membership only and never grants write authority. In a healthy system it remains read-only until a normal handoff is explicitly targeted to it. If the former authoritative computer is genuinely dead/unavailable, the newly joined replacement may enter explicit Disaster Recovery.
+2. **Operationally fenced exceptional Disaster Recovery.** Normal authoritative offline operation remains supported. DR requires explicit confirmation that the former authoritative/designated-target device is genuinely unavailable and will remain stopped/quarantined until reinitialized; DR itself requires online single-winner generation activation before the recovery device may become writable. Software cannot remotely revoke a still-running disconnected stale writer if the operator violates that quarantine precondition.
+3. **Freshest validated safe recovery data.** DR may use a validated OneDrive recovery checkpoint or a complete validated GitHub handoff snapshot+matching grant. A snapshot without its valid matching grant is never an eligible DR source. DR always advances generation rather than turning the old target binding into an ordinary acquisition.
 
-| Criterion | Owner | Status | Evidence |
-|---|---:|---|---|
-| AC-ORD-001 | M04 | Passed | Fast cart editing, direct add/double-click, quantity/action alignment and the corresponding final Windows/WPF operator path passed |
-| AC-ORD-002 | M04 | Partial | M04 explicit Retrait/Livraison selection and new-order validation passed; the current M05 closure record does not provide criterion-specific evidence for reusable information plus fresh fulfilment selection, so this carry-over remains Partial. |
-| AC-ORD-003 | M04 | Partial | Optional telephone/address and initial Livraison confirmation passed; the current M05 closure record does not provide criterion-specific evidence for later same-ID saved address correction, so this carry-over remains Partial. |
-| AC-ORD-004 | M04 | Passed | Shared French telephone normalization/display evidence is automated and included in the accepted M04 implementation |
-| AC-ORD-005 | M04 | Passed | Retrait discount default/request, eligibility, signed components, threshold and current-settings behavior are covered by automated M04 pricing evidence and accepted operator behavior |
-| AC-ORD-006 | M04 | Passed | Livraison minimum and fee ordering/boundaries are covered by automated M04 pricing evidence and accepted operator behavior |
-| AC-ORD-007 | M04 | Passed | Positive/negative option-adjustment VAT behavior is covered by the M04 tax evidence and accepted implementation |
-| AC-ORD-008 | M04 | Passed | Integer-cent, decimal and half-up monetary rounding is covered by the M04 pricing/tax regressions and accepted implementation |
-| AC-ORD-009 | M04 | Passed | The authoritative total override and price-affecting reset/preservation behavior are covered by automated M04 evidence and accepted operator behavior |
-| AC-ORD-010 | M04 | Passed | The exact single 10% VAT bucket during manual-total override and normal mixed-tax restoration are covered by M04 persistence/tax evidence |
-| AC-ORD-011 | M03 | Passed | BusinessSettings UI/persistence plus M04 pricing-consumer current-settings/repricing evidence |
+## 5. M07 governance gate
 
-### Lifecycle, payments and operational views
+Until a separate explicit project-owner implementation approval is recorded, all of the following remain prohibited:
 
-| Criterion | Owner | Status | Evidence |
-|---|---:|---|---|
-| AC-LIFE-001 | M04 | Passed | M04 commit-before-deterministic-fake-dispatch, restart and post-commit failure evidence passed; the final Windows print-adapter cross-check remains explicitly owned by M08 |
-| AC-LIFE-002 | M04 | Passed | Controlled Open/Closed/Cancelled status model and persistence evidence are complete; M04 does not expose later lifecycle actions |
-| AC-LIFE-003 | M05 | Passed | Cumulative CB/Espèce editing passed the M05 automated lifecycle evidence and the project-owner Windows/WPF acceptance recorded in `milestone-05-final-manual-acceptance.md`. |
-| AC-LIFE-004 | M05 | Passed | Exact-cent Close guard and clear mismatch feedback passed the lifecycle tests and final Windows/WPF acceptance. |
-| AC-LIFE-005 | M05 | Passed | Atomic signed payment deltas, effective business dates and recorded timestamps passed automated multi-day/back-entry evidence and final Windows/WPF acceptance. |
-| AC-LIFE-006 | M05 | Passed | Effective-date received-payment summaries and Caisse indicators passed synthetic cross-day evidence and final Windows/WPF acceptance. |
-| AC-LIFE-007 | M05 | Passed | Planned-date operational turnover and non-cancelled/ordinary POS exclusions passed reporting tests and final Windows/WPF acceptance. |
-| AC-LIFE-008 | M05 | Passed | Sticky advance markers, future views and due-today reminder behavior passed date-transition/UI evidence and final Windows/WPF acceptance. |
-| AC-LIFE-009 | M05 | Passed | Overdue-unsettled semantics passed reporting/UI evidence and final Windows/WPF acceptance. |
-| AC-LIFE-010 | M05 | Passed | Same-ID modification and Closed-to-Open reopening passed lifecycle integration evidence and final Windows/WPF acceptance. |
-| AC-LIFE-011 | M05 | Passed | Abandon restore and persisted-snapshot/restart behavior passed STA/WPF and persistence evidence plus final Windows/WPF acceptance. |
-| AC-LIFE-012 | M05 | Passed | Retained cancellation, timestamp/history preservation and active-financial exclusion passed lifecycle/reporting evidence and final Windows/WPF acceptance. |
-| AC-LIFE-013 | M05 | Passed | Starting a new order from reusable prior-order contact information without inheriting order/payment/lifecycle fields passed M05 UI evidence and final Windows/WPF acceptance. |
-| AC-LIFE-014 | M05 | Passed | Future-order count/entry behavior and inspection of actual future orders/dates passed M05 UI evidence and final Windows/WPF acceptance. |
-| AC-LIFE-015 | M12 | Partial | M05's live/current search, telephone/comment lookup and prior-contact reuse portion is Passed by M05 automated/final Windows/WPF evidence; annual archive selection and historical access remain owned by M12. |
+- reopening GitHub issue #4 as an execution gate;
+- creating an active M07 implementation branch/PR;
+- publishing an executable `CODEX_HANDOFF_READY` pointer;
+- telling Codex to start production implementation;
+- treating preparation documents as authorization;
+- starting M08.
 
-### Hiboutik paste fallback
+Implementation preparation may create/align Approved specification records and prepared-but-not-authorized implementation/checklist documents on `main`.
 
-| Criterion | Owner | Status | Evidence |
-|---|---:|---|---|
-| AC-HIB-001 through AC-HIB-009 | M09 | Not started | AC-HIB-008 export cross-check in M11 |
+After explicit implementation approval, follow the repository governance sequence: durable M07 authorization → worklog/manual checklist finalized → dedicated implementation branch/PR → issue #4 mailbox pointer → one complete handoff → verify prerequisites → open execution gate → Codex implementation/review/remediation → exact-head project-owner acceptance and CI → explicit merge approval.
 
-### Printing
+## 6. Evidence preservation
 
-| Criterion | Owner | Status | Evidence |
-|---|---:|---|---|
-| AC-PRINT-001 through AC-PRINT-008 | M08 | Not started | Record individual model/integration/manual evidence |
-| AC-PRINT-009 | M12 | Not started | — |
-| AC-PRINT-010 | M08 | Not started | — |
-| AC-PRINT-011 | M08 | Not started | — |
-
-### Export
-
-| Criterion | Owner | Status | Evidence |
-|---|---:|---|---|
-| AC-EXP-001 through AC-EXP-011 | M11 | Not started | Record individual workbook/ledger tests |
-
-### Storage, handoff, recovery and archive
-
-| Criterion | Owner | Status | Evidence |
-|---|---:|---|---|
-| AC-STO-001 | M01 | Passed | `tests/Sushi81.Pos.Infrastructure.IntegrationTests/InfrastructureIntegrationTests.cs` covers local paths, SQLite PRAGMAs, migrations, transactional rollback and validated local recovery snapshots. |
-| AC-STO-002 through AC-STO-005 | M07 | Not started | Original M02 blocker evidence preserved; amended target-directed feasibility revalidation now authorized |
-| AC-STO-006 | M06 | In progress | M01 snapshot primitive is wired through the M03–M05 Application mutation boundaries; M06 failure, retention and non-blocking WPF shutdown-flush evidence is recorded on PR #11, with owner acceptance pending. |
-| AC-STO-007 through AC-STO-009 | M07 | Not started | M02 revalidation prepares target-binding/transport/failure evidence |
-| AC-STO-010 | M06 | In progress | M06 durable authority state, independent bootstrap-anchor validation, centralized write blocking and localized read-only presentation are implemented; owner acceptance and M08 printing/M12 archive cross-checks remain deferred. |
-| AC-STO-011 through AC-STO-014 | M12 | Not started | — |
-
-### Architecture and deployment
-
-| Criterion | Owner | Status | Evidence |
-|---|---:|---|---|
-| AC-ARCH-001 through AC-ARCH-004 | M01 | Passed | `tests/Sushi81.Pos.ArchitectureTests/DependencyBoundaryTests.cs`; Release build and win-x64 self-contained publish evidence in section 5. |
-| AC-ARCH-005 | M11 | Not started | Catalogue half implemented in M10; export half closes in M11 |
-| AC-ARCH-006 | M08 | Not started | — |
-| AC-ARCH-007 | M13 | Not started | Durable authority/transfer state preservation added by 2026-08-28 amendment |
-
-### Reliability, security and performance
-
-| Criterion | Owner | Status | Evidence |
-|---|---:|---|---|
-| AC-NFR-001 | M13 | Not started | Enforced continuously from M01 |
-| AC-NFR-002 | M13 | Not started | Test suite grows each milestone |
-| AC-NFR-003 | M13 | Not started | Targeted checks begin in M04/M08 |
-| AC-NFR-004 | M13 | Not started | Failure paths added each milestone; amended handoff failure paths begin in M02 revalidation |
-
-## 4. Milestone evidence template
-
-For each completed milestone append a short record containing:
-
-- milestone and completion commit SHA;
-- production-target framework/runtime and Windows build environment;
-- Release build command/result;
-- test command/result and total passed/failed/skipped;
-- acceptance criteria closed or left Partial;
-- manual checks performed and environment;
-- migration/data-safety/failure-injection evidence where applicable;
-- known non-blocking limitations belonging to later milestones;
-- confirmation that no real customer/order/payment/credential data was added.
-
-Do not mark an AC Passed using only a planned test name or an unexecuted checklist.
-
-## 5. M01 implementation and re-verification evidence
-
-**Milestone:** M01 — Executable foundation and safe persistence spine  
-**Implementation branch:** `codex/m01-foundation`  
-**Accepted implementation head before status-only closure commit:** `000d6feb9fd2975784c69661f6362366843b682a`  
-**Latest repair commit:** `2a7e5f9e00ff7356fd9bd2d024e0b9a615b1f4f7`  
-**PR #1 final head:** `8a21b137d354f02a8ac2649c78b11c136dda8567`  
-**Merged to `main`:** `b8590d1d0a2aee4ec6554ddee43587a257cedc47`  
-**Environment:** Windows 10.0.26200 x64; .NET SDK 10.0.400; .NET/WindowsDesktop runtime 10.0.11.
-
-### Delivered structure and dependencies
-
-- Production projects: `Sushi81.Pos.Domain` (`net10.0`), `Sushi81.Pos.Application` (`net10.0`), `Sushi81.Pos.Infrastructure` (`net10.0-windows`) and WPF `Sushi81.Pos.Desktop` (`net10.0-windows`).
-- Test projects: Domain (3), Application (2), Infrastructure integration (16) and architecture/localization (8).
-- Exact NuGet versions: `Microsoft.Data.Sqlite` 10.0.11, `Microsoft.Extensions.Logging.Abstractions` 10.0.0 and `MSTest` 4.0.2. Central package management pins all direct dependencies.
-
-### Verification
-
-- `dotnet restore Sushi81.Pos.sln`: Passed.
-- `dotnet build Sushi81.Pos.sln -c Release --no-restore`: Passed, 0 warnings and 0 errors.
-- `dotnet test Sushi81.Pos.sln -c Release --no-build`: Passed: Domain 3/0/0, Application 2/0/0, Infrastructure integration 16/0/0, Architecture/localization 8/0/0 (passed/failed/skipped), 29 total.
-- `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false`: Passed; output is generated under the ignored Desktop `bin/Release/net10.0-windows/win-x64/publish/` path.
-- GitHub Actions Continuous integration for the accepted implementation head completed successfully; restore, build and test steps all passed.
-- The final documentation-only PR head also completed CI successfully before merge.
-
-### Acceptance and safety evidence
-
-- **Passed:** AC-ARCH-001 through AC-ARCH-004 and AC-STO-001. Evidence is in the project-specific test files above, notably dependency/WPF-SQLite boundary checks, path/configuration/authority tests, active SQLite PRAGMA checks, migration failure/rollback/history checks, transaction atomicity, validated WAL-safe recovery snapshots, retention and recovery scheduler tests.
-- **Partial:** AC-STO-006 (safe snapshot and scheduler primitives are implemented/tested; business mutation triggers are deferred to M06); AC-PROD-004, AC-NFR-001, AC-NFR-002 and AC-NFR-004 (M01 foundations only; their owner milestones remain unchanged).
-- No Catalogue, BusinessSettings, Order, Payment, pricing/VAT, printing, Hiboutik parsing, ClosedXML, export, OneDrive handoff, pairing/disaster-recovery, archive, installer or legacy emergency-model code was added.
-- Tests use only synthetic data. No database, log, local configuration, build output, credentials or business data is committed.
-
-### Windows/WPF manual verification
-
-- First interactive check: application launched and French default interface displayed correctly, but selecting Simplified Chinese caused a repeatable UI hang on two attempts. M01 remained blocked at that point.
-- Confirmed root cause: synchronous waiting on asynchronous local-configuration persistence from the WPF language-selection path.
-- Repair: explicit awaitable language-change operation; persistence completes before localized resources are refreshed, failed persistence preserves the previous selection, and regression tests cover real configuration persistence and synchronization-context behavior.
-- Second interactive Windows/WPF check on 2026-08-28: application launched normally; default French interface displayed correctly; the language selector opened normally; switching to Simplified Chinese completed successfully and displayed the Chinese interface without hanging or becoming unresponsive.
-- The application was then closed and relaunched; the previously selected Simplified Chinese culture remained selected and the Chinese interface was restored successfully.
-- This second manual check closes the previously observed WPF localization blocker. Together with the passing automated suite and CI, M01 is accepted as `Passed`.
-
-## 6. M02 original feasibility evidence
-
-**Milestone:** M02 — OneDrive single-writer feasibility gate  
-**Original task definition:** `docs/implementation/milestone-02-onedrive-feasibility.md`  
-**Task-definition commit:** `a158e6a49faff831c6236df06e285056410e6225`  
-**Original final gate:** `BLOCKED — specification/architecture amendment required`  
-**Correction code/tests verified at:** `5f44e34ec4a98b767d01a35846deec75e6d29825`  
-**PR #2 final head:** `21a88d51b558ceabe563ddfb80752a37d1dccae4`  
-**Merged to `main`:** `5bacafa0e4ca906d8ff058e34586dee43503bc42`.
-
-### Original M02 evidence record
-
-`docs/implementation/milestone-02-feasibility-report.md` records:
-
-- corrected Microsoft `CF_PLACEHOLDER_STATE` values and fail-closed interpretation;
-- strict synthetic snapshot/marker metadata, checksum and SQLite validation;
-- publication-order tests;
-- deterministic N-device delayed/reordered claim simulation;
-- executable double-writer counterexample for competitive claim-only acquisition;
-- fail-closed protocol safety only by refusing N-device write activation without an external atomic grant;
-- Release verification of 67 passed / 0 failed / 0 skipped with 0 build warnings/errors;
-- CI success;
-- no business/sensitive data committed.
-
-This evidence is retained as the rationale for the amendment. It is not erased or reclassified as a successful proof of the superseded competitive-acquisition model.
-
-## 7. Approved 2026-08-28 M02 specification amendment
-
-**Decision record:** `docs/decisions/target-directed-authority-handoff.md`  
-**Amended baseline:** `docs/architecture.md`, `docs/storage-strategy.md`, `docs/acceptance-criteria.md`, `docs/v1-specification-freeze.md`  
-**Revalidation task:** `docs/implementation/milestone-02-directed-handoff-revalidation.md`  
-**Historical directed revalidation status:** Implemented correction pass; its OneDrive-only transport conclusion is superseded by the approved GitHub transport amendment below. Real private-repository A → B v1 and B → A v2 evidence and the isolated live-retention observation are recorded; the amended M02 gate is Passed.
-
-Approved semantics:
-
-- normal close distinguishes retain authority from transfer authority;
-- normal transfer is bound to one selected paired target;
-- source durably relinquishes business-write authority before the target-releasing marker can exist;
-- source remains read-only/pending-transfer after that irreversible point and may retry only the same immutable transfer;
-- only the exact target may acquire;
-- target acquisition is durably recorded with exact identity/checksum/snapshot evidence before the centralized write gate can return true;
-- source `RelinquishedBlocked` becomes `Released` only after GitHub snapshot and grant Release Asset server receipts are validated and that transition is durably committed. OneDrive `IN_SYNC` is historical M02 evidence only, not the current normal-handoff acknowledgement;
-- non-target devices do not compete through file claims/election;
-- unrecoverable target path uses explicit Disaster Recovery;
-- no hosted/Graph/OAuth coordinator is introduced for normal transfer.
-
-The amended M02 deterministic safety/liveness proof, transport architecture decision and isolated live-retention evidence are now recorded; the amended M02 gate is closed as Passed. The historical OneDrive observer still demonstrates a false negative rather than local confirmation and remains preserved as historical evidence.
-
-M03 must not start until M02 revalidation is accepted and M03 receives an explicit detailed task definition.
-
-## 8. Historical M02 directed-handoff revalidation evidence
-
-Report: `docs/implementation/milestone-02-directed-handoff-revalidation-report.md`.
-
-The historical directed protocol and durable persistence evidence were verified at implementation commit `0e5938d1f3fd7d7bc0af6bf2f25eed31759a01dc`; prior CI run #75 covered evidence head `49c9866576dee27b35af62b0e177464b176830eb`. That historical record includes the atomic durable target-acquisition store, restart reconstruction, strict wrong-target/stale/replay fail-closed checks, the narrow `IArtifactSyncObserver` boundary, source `Released` ordering, clean `RetainClose` cancellation, the persistent device-local authority cursor, the centralized lifecycle-aware write gate, and the independent-device lifecycle regression. It also records the real Home Device A OneDrive observation (`CF_PLACEHOLDER_STATE_NO_STATES`, raw 0) as a historical false negative: source remained `TransferPrepared` with null snapshot/marker evidence and no ready/grant markers. This historical OneDrive conclusion is superseded for normal handoff by the approved GitHub transport amendment; no AC was marked Passed from it. M03 remains Not started.
-
-## 9. M02 GitHub transport revalidation (current)
-
-**Status:** `Passed — amended GitHub target-directed handoff safety/liveness and live retention evidence complete`
-**Implementation branch:** `codex/m02-directed-handoff-revalidation`
-**Approved sources:** `docs/decisions/github-handoff-transport.md`, `docs/implementation/milestone-02-github-transport-revalidation.md`
-**Historical evidence:** the original OneDrive competitive blocker and Home Device A `NO_STATES` false-negative remain above and in the dedicated M02 report; they are not erased or relabeled as passes.
-
-The implementation adds direct .NET `HttpClient` GitHub Release Asset transport against a configurable dedicated private repository. The source flow requires HTTP 201, `uploaded`, exact name/size, asset ID and matching `sha256:<hex>` receipt for the snapshot before durable relinquishment; it then uploads/validates the exact-basename grant before `Released`. The target flow validates grant metadata, exact referenced asset identity including source device, authenticated download, local hash/size and SQLite integrity before the existing pending/evidence/final-cursor write gate. The GitHub target wrapper reconstructs the device-local source state so a returning device can validate its exact Released predecessor for B → A v2 and A → B v3. A valid receipt from an earlier completed transfer is ignored for a later transfer, while malformed or same-transfer receipts still fail closed. Retention validates complete snapshot+grant units release-wide and retains exactly the newest three by generation/handoff-version metadata; cleanup failure is retryable and cannot roll authority back, including reconvergence after a newer unit arrives during an old-plan retry. Grant upload failure and pre-`Released` commit interruption are restart-safe and do not duplicate an acknowledged asset. Gateway failures remove only exact-ID `starter` assets and retry once; receipt/grant artifacts use crash-atomic durable replacement and strict grant validation. Credentials are read only from `SUSHI81_GITHUB_HANDOFF_TOKEN` and are not serialized/logged. Recovery-hardening implementation code head: `edc7fdc5ccdd75f8d97f9cb0d6c2bb239a95dea8`. Evidence-closure documentation head: `b78fd34465f8ae49df52c43e2428eea3337512fb`; local verification is complete and the GitHub Actions check for this head is awaiting connector exposure.
-
-The current automated GitHub transport evidence is synthetic/fake-HTTP: the latest correction pass records 153 passed, 0 failed and 0 skipped across the solution (Domain 3, Application 2, Infrastructure integration 16, Architecture 8, protocol 32, GitHub wrapper/harness 92), with 0 Release build warnings/errors and a self-contained win-x64 publish. Coverage includes A → B v1 → B → A v2 → A → B v3 through the GitHub wrappers, stale-receipt replacement, release-wide retention, grant restart/retry, exact-ID starter deletion after 502, crash-atomic receipt/grant persistence, strict malformed-grant rejection, post-plan retention reconvergence, target truncation/hash/SQLite corruption, duplicate-name 422, upstream 502/starter and timestamp collision. No token, credential, database or business data is committed. The report also preserves sanitized real historical Home Device A OneDrive evidence; that OneDrive `IN_SYNC` observation is historical only.
-
-### Real private-repository operator evidence (sanitized)
-
-Final evidence-closure documentation commit: `ed73fc99e77fed79e36707126ec3fda4ff2388c1`. The preceding `b78fd34465f8ae49df52c43e2428eea3337512fb` entry records the initial evidence commit; the final metadata alignment is included in the commit above.
-
-- Dedicated private repository: `cimerosef/sushi81-pos-handoff`; release tag `sushi81-handoff-v1`; release ID `378925560`.
-- A → B v1 (`device-a` → `device-b`, generation 7, version 1, lineage `ca9dfdd4-fa48-4002-b993-23ce5c52a141`, transfer `fc235936-64a6-460b-bcaf-f2f0b212790e`) completed with snapshot asset `534990583` (`20260829104435.snapshot.db`, 8192 bytes, digest `sha256:67ec69e5e1cbb73fd0b312a759390e6696f87563a2c0459eee1d299a260091e1`) and grant asset `534990601` (`20260829104435.grant.json`, 699 bytes, digest `sha256:b37034026a16b7f219068dfcd40754674e10bb5c9e4914e83b1b101116e72dab`). Device A reached durable `Released` and a fresh process confirmed `mayBusinessWrite=false`; Device B acquired the exact target-bound pair.
-- B → A v2 (same lineage/generation, version 2, transfer `e55cc196-cd67-4b9a-a15e-662ac3e0f0ea`) completed with snapshot asset `535105715` (`20260829125825.snapshot.db`, 8192 bytes, digest `sha256:67ec69e5e1cbb73fd0b312a759390e6696f87563a2c0459eee1d299a260091e1`) and grant asset `535105732` (`20260829125825.grant.json`, 699 bytes, digest `sha256:5bb7c3f441990a58121538ed97a574c5e074416260308ff41b86c22ae21e5bbd`). Device A validated protocol version 1, exact source/target, and `IsValid=true`; acquisition returned `target-acquired`, durable `Acquired`, `mayBusinessWrite=true`, and the exact checksum/8192-byte snapshot. A fresh process repeated the run as `already-acquired` with the same durable state.
-- The earlier real release inspection found exactly four assets (two complete handoff units), so newest-three retention had no eligible deletion at that stage. The separate disposable-release drill below supplies the now-complete destructive live-retention evidence. No token, PAT, authorization header, business snapshot contents or personal file listing was recorded.
-
-The earlier `ca9dfdd4-fa48-4602-b993-23ce5c52a141` command is retained only as fail-closed historical evidence: it returned `transfer-state-mismatch`, left the source prepared, and created no remote asset. It is not the identity of the successful transfers above. M03 remains Not started.
-
-### Retention observation preparation and completed drill
-
-The current CLI was audited for a safe same-home drill. GitHub target acquisition writes only the target directory's durable cursor; the existing transport-independent `directed-target-promote` then advances that local cursor to source authority. No authority JSON needs to be copied or forged, so the drill is feasible only with two fresh synthetic state directories and a separate disposable GitHub release. The real `sushi81-handoff-v1` release is explicitly excluded: retention is release-wide and a four-unit drill there could delete the real v1 pair (`534990583`/`534990601`) and potentially other real evidence assets.
-
-The detailed one-command-at-a-time sequence is recorded in `docs/implementation/milestone-02-directed-handoff-revalidation-report.md`. It used an automatically generated release tag and GUID lineage, printed a token-free preflight summary for operator confirmation, and stored separate state directories under the user's profile (outside AppData/TEMP and never under the real `Sushi81-M02-Test\device-a|device-b` paths). The completed disposable drill moved `0 → 2 → 4 → 6` complete assets for A → B v1, B → A v2 and A → B v3 with no deletion; B → A v4 logically reached `8` inside source completion and converged externally to exactly `6`, deleting only the recorded disposable oldest pair. The transient eight-asset state was not externally inspectable because cleanup is part of the source command; this limitation is recorded rather than bypassed. The disposable Release and synthetic state directories remain preserved as audit evidence, and the M02 gate is Passed.
-
-The completed drill used repository `cimerosef/sushi81-pos-handoff`, release ID `378975662`, tag `sushi81-retention-prep-20260829142002`, lineage `3cdde18b-048e-4a0e-b894-fb901d54e6c4`, generation `1`. It retained v2/v3/v4 pairs (`535191449`/`535191462`, `535193129`/`535193154`, `535195062`/`535195080`) and removed only the disposable v1 pair (`535189220`/`535189245`). Final A v4 acquisition returned `target-acquired`, `acquisitionSucceeded=true`, `mayBusinessWrite=true`; B remained the read-only v4 source. The successful real contract lineage remains `ca9dfdd4-fa48-4002-b993-23ce5c52a141`; `...4602...` remains historical fail-closed evidence only.
-
-## 10. M03 catalogue and settings implementation evidence
-
-**Milestone:** M03 — Catalogue and business settings
-**Implementation branch:** `codex/m03-catalogue-settings`
-**Handoff authorization:** `CODEX_HANDOFF_READY: M03-IMPLEMENT-01` on the active M03 implementation PR
-**Implementation/evidence commits:** `466dd06e5f9e7d1e2ea7d75b8a02d14d5f569a64`, `5a36bf9e6e656db842c4bebc464289ade3e1b436`, `80647b131d7a52b410675ba2802d68be29f3d891`
-**Remediation handoffs:** `CODEX_HANDOFF_READY: M03-REVIEW-FIX-02`; post-fix implementation head `710d95b2dcb75995428ace25cc38081afd48127a` passed GitHub Actions Continuous integration run **#133** (success). Follow-up `CODEX_HANDOFF_READY: M03-MANUAL-UI-FILTER-FIX-03` is implemented at head `e6fc0ddeb8077cab33758da9f62cb615300b2cb7` and passed CI run **#137** (success; durable completion records include check URLs). The category-binding remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-BINDING-FIX-04` is implemented at head `1053c9b210cac15343959aac8f9ffa2c13ccd9b8`; its final CI result is recorded in the matching PR completion evidence. The first status-key remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-STATUS-BINDING-FIX-05` is implemented at head `e56ec77b4d13898c40d57be600652309d77938df`; the follow-up lifecycle remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-STATUS-LIFECYCLE-FIX-06` is implemented at head `a3bab3de2b43e14a415f4251ab1b6dd77cf61aa0`; the category-manager layout remediation `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-LAYOUT-FIX-07` is implemented in the current final head; `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATEGORY-CREATE-ACTION-FIX-08` is implemented in the current final head; `CODEX_HANDOFF_READY: M03-MANUAL-UI-CATALOGUE-HEADER-FIX-09` is implemented at head `9bd4e057400abe0110ae95fdeb84efed43eb80a4`; `CODEX_HANDOFF_READY: M03-MANUAL-UI-OPTION-GROUP-ADD-CRASH-FIX-10` is implemented at head `64dc110bd2d6c6b9a623d4c3ba487210e014c178` and passed CI run **#173** (success); `CODEX_HANDOFF_READY: M03-MANUAL-UI-OPTION-GROUP-LAYOUT-FIX-11` is implemented in the current remediation head, with its final CI result recorded in the matching PR completion evidence; and `CODEX_HANDOFF_READY: M03-MANUAL-UI-LIVE-FILTER-FIX-12` implementation/evidence head `b3e34d0d79a4efd39dd3817d19cd107a0f7af50c` passed CI run **#189** (success). Each earlier final CI result is recorded in the matching PR completion evidence.
-**Status:** Passed for the authorized M03 milestone scope after the complete operator Windows/WPF checklist passed on head `40f6e3884af488e4dd496f26b29bf9f6ca97bece`; AC-CAT-003 historical-order independence and the AC-ORD-011 pricing-consumer cross-check remain explicitly deferred to M04.
-
-### Delivered scope
-
-- Domain records and validation for Category, Product, OptionGroup, Option and BusinessSettings, including canonical
-  Unicode/case/whitespace normalization, decimal VAT/rate boundaries, signed integer-cent money and required-choice
-  satisfiability.
-- Application-owned, narrow catalogue/settings contracts and services. All product aggregate writes use the existing
-  transaction boundary; no generic repository or speculative feature framework was added.
-- SQLite migration **version 2**, `create-catalogue-and-business-settings`, creates only the five M03 tables and inserts
-  the singleton defaults exactly once. Product/group/option writes preserve opaque identities, created timestamps,
-  explicit deletions and deterministic contiguous order; uniqueness/FK races return stable validation results.
-- Localized WPF administration shell with exactly Catalogue and Settings destinations, French/zh-CN resources, category
-  manager, product/group/option editor, explicit activation/deactivation and permanent-delete confirmation, empty-state
-  and status/category filters, and persisted settings editing. No order, payment, pricing engine, printing, import/export,
-  Hiboutik, handoff UI, recovery UI or M04 code was added.
-
-### Verification evidence
-
-- Environment: Windows x64, .NET SDK 10.0.400 (runtime 10.0.11).
-- `dotnet restore Sushi81.Pos.sln`: passed.
-- `dotnet build Sushi81.Pos.sln -c Release --no-restore`: passed with 0 warnings and 0 errors.
-- `dotnet test Sushi81.Pos.sln -c Release --no-build`: **221 passed, 0 failed, 0 skipped** (Domain 10; Application 11;
-  Infrastructure integration 34; Architecture/localization 42; protocol 32; GitHub wrapper/harness 92, including the
-  solution's existing wrapper test project instance).
-- `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true
-  -p:PublishSingleFile=false`: attempted; the default Desktop publish directory was occupied by the already-running
-  Sushi81 POS process. The same self-contained settings succeeded under the ignored alternate
-  `artifacts/m03-extension-publish/` directory without terminating that process.
-- Tests use isolated temporary SQLite paths and synthetic/sanitized catalogue values only. No database, logs, local
-  configuration, credentials, tokens, build artifacts or real customer/order/payment data are committed.
-
-### Remediation evidence
-
-The correction pass closes review findings A–I: read-only query paths with no missing-DB creation; strict non-coercing numeric
-parsing; stable localized field validation; dirty product close protection; explicit category Create/Rename Save/Cancel; stateful
-activation action labels; immediate localized All-filter/label refresh; deterministic §16 test inventory; and refreshed worklog/status
-evidence. The subsequent `M03-MANUAL-UI-FILTER-FIX-03` remediation adds explicit All-filter selection, semantic filter preservation
-across language/refresh, deterministic missing-category fallback, and no-selection guards for Edit/Delete. The
-`M03-MANUAL-UI-CATEGORY-BINDING-FIX-04` remediation replaces object-instance category selection with the stable
-`SelectedCategoryId`/`SelectedValuePath="Id"` binding shape, tolerates transient null writes during collection replacement, and
-adds binding-facing regressions for empty-state All selection, localized label replacement, real-category preservation and
-removal fallback. The `M03-MANUAL-UI-STATUS-BINDING-FIX-05` remediation applies the same stable-key approach to status filters:
-`SelectedStatusKey`/`SelectedValuePath="Key"` preserves All/Active/Inactive through localized collection replacement, ignores
-transient null writes while empty, and deterministically falls back to All. Binding-facing tests cover All round trips plus
-Active/Inactive localization and refresh preservation. The follow-up `M03-MANUAL-UI-STATUS-LIFECYCLE-FIX-06` removes the
-collection-replacement hazard entirely: the three semantic options are stable bindable objects for the view-model lifetime and
-localization mutates only their labels in place. Tests capture and verify object identity/position across both language
-directions and refresh, plus All/Active/Inactive preservation and invalid/null fallback. The follow-up
-`M03-MANUAL-UI-CATEGORY-LAYOUT-FIX-07` replaces the category-manager DockPanel with a star/Auto Grid layout and a top-aligned
-WrapPanel action area with content-sized rows and explicit minimum button sizes; its structural presentation regression is included
-in the architecture suite. The follow-up `M03-MANUAL-UI-CATEGORY-CREATE-ACTION-FIX-08` exposes the category edit action state as
-testable presentation semantics, focuses and enables the name field on Create/Rename, disables conflicting commands while editing,
-and restores the actionable state after Cancel or successful Save. The follow-up `M03-MANUAL-UI-CATALOGUE-HEADER-FIX-09` removes
-the unsupported DataGridColumn-to-Window header bindings, applies all six localized labels through a direct presentation seam on
-construction/load/language change, and gives the grid fixed Code/TTC/VAT/Active widths plus flexible Name/Category star sizing.
-The deterministic regression proves effective French → zh-CN → French labels from the real resource dictionaries and the grid
-presentation contract. M03 remains Partial because the complete post-remediation Windows/WPF checklist remains an operator
-gate; M04 is not started and is not authorized.
-
-The follow-up `M03-MANUAL-UI-OPTION-GROUP-ADD-CRASH-FIX-10` addresses the next operator-reproduced crash in the shown Product
-Editor. `GroupEditor` now exposes and owns its Border container; all dynamic group add/remove/reorder operations use that
-container instead of inserting its already-parented StackPanel child. The child editor captures the shell localization
-dictionary explicitly, and SelectionMode has dedicated French/zh-CN resources. A real STA WPF modal-dialog regression clicks
-Add Group, exercises SINGLE/MULTI min/max state, adds an option, adds a second group, moves/removes it, then invokes Cancel and
-asserts no product write. The retrospective and adjacent event-wiring audit are recorded in the M03 worklog. Manual WPF
-acceptance is still required and remains intentionally unmarked.
-
-The follow-up `M03-MANUAL-UI-OPTION-GROUP-LAYOUT-FIX-11` addresses the next operator-reproduced clipping defect in the shown
-Product Editor. The fixed-width French SelectionMode label is replaced with an Auto/gap/Star Grid; min/max and group action
-rows are content-sized WrapPanels with consistent peer-button margin/padding; OptionEditor action buttons use the same
-horizontal padding and margin alignment while retaining their approved input widths and behavior. A real STA WPF regression
-adds groups/options after render and asserts actual visual-tree widths against detached natural text DesiredSize and
-margin-aware button DesiredSize plus peer-button height spread in both French and zh-CN at normal and resized dimensions. FIX-10 lifecycle, localization and
-safe Cancel/no-write behavior remain covered. The retrospective and complete fixed-width/action audit are recorded in the
-M03 worklog. The initial FIX-11 implementation/evidence head `2ad30a7d1a4d12c256fc274b808873ef1ff8278e` passed GitHub Actions
-Continuous integration run **#179** (success); the addendum alignment head `96f9330ceae21c0fc224c0eb9a6083ecfcebcc10` passed run
-  **#183** (success). Manual WPF acceptance is still required and remains intentionally unmarked.
-
-The follow-up `M03-MANUAL-UI-LIVE-FILTER-FIX-12` addresses the operator-reproduced live-filter defect: the visible search,
-category and status controls previously changed bound state without querying until the manual refresh button was pressed.
-Status/category changes now trigger immediate product reloads, search is debounced at 250 ms, and each request carries an
-immutable filter snapshot plus monotonic version/cancellation state. New requests cancel older ones; stale stores that ignore
-cancellation cannot overwrite Products or Categories, overlapping full refreshes cannot clear a newer `IsBusy` state, and
-category collection rebuilds suppress transient WPF binding callbacks. Language changes preserve semantic category/status keys
-without issuing duplicate filter queries, selected products are cleared when excluded, and manual refresh remains a force
-reload. A localized generic error event keeps automatic query failures on the existing safe UI reporting path. Four synthetic
-architecture regressions cover status/category transitions, debounce/latest-wins, localization semantics, manual reload and
-stale full-refresh protection. Manual WPF acceptance is still required and remains intentionally unmarked.
-
-FIX-12 implementation head `b3e34d0d79a4efd39dd3817d19cd107a0f7af50c` passed CI **#189**; the final evidence-documentation
-head `47a21237f7296c002986807918c733fbc58e5858` passed CI **#193** (success).
-
-### AC-CAT-013 filtered bulk activation/deactivation extension
-
-The approved amendment and authorization are present on the branch. The Application boundary now validates immutable captured
-Product IDs/expected active states, computes matched/effective counts and delegates all-no-op requests to a read-only transactional
-preflight with no UPDATE. The SQLite
-store revalidates all captures inside one transaction, skips already-target Products, uses one operation timestamp for changed rows,
-and rolls back on missing/stale targets or injected mid-operation failure; only `is_active` and changed-row `updated_at_utc` are written.
-The WPF shell exposes exactly localized bulk Activate/Deactivate actions, waits for the latest live/debounced composed filter result,
-shows target/matched/effective confirmation counts, supports cancel/no-op/error feedback and refreshes while preserving filters.
-Automated Application, SQLite integration and desktop presentation tests cover these invariants, including option aggregate and
-unrelated-field preservation. No migration/schema change was made. The complete operator Windows/WPF extension checklist later
-passed on the final FIX-16 artifact; AC-CAT-013 is therefore `Passed` for its M03 scope.
-
-Final extension head: `37ab7c5d156a7aa0b7aec90ffa3523fb6c75551f`; incorporated `main` at `4c971afda3ff5f2bc047f083bf962ee46d74f1f7`; CI
-run **#208** passed. Follow-up evidence-documentation head `4b67bc7e0787008deb5a5033ea941f265817c967` passed CI **#210**. The required default publish directory was occupied by the running desktop process; a self-contained
-`win-x64` publish with the same settings was generated successfully under ignored `artifacts/m03-extension-publish/` without
-terminating that process.
-
-### Review remediation evidence — `M03-FILTERED-BULK-ACTIVATION-REVIEW-FIX-14`
-
-The narrow review pass adds the missing successful multi-product **Activate** SQLite integration proof, including an already-active
-no-op row, one operation timestamp for changed rows, unchanged aggregate/option fields and unchanged schema version. A real STA/WPF
-render test now constructs the actual `MainWindow` bulk controls in French and Simplified Chinese and checks visibility, hit testing,
-natural desired width, action-row bounds and absence of a bulk-delete control at `980x680`, `760x520` and a larger `1400x900` size.
-
-The production confirmation remains the native modal `MessageBox.Show(... YesNo ...)`; the smallest testable seam is
-`M03ShellViewModel.ExecuteBulkActiveStateWorkflowAsync`, which owns latest-filter capture, no-op/cancel short-circuit, one Application
-mutation and post-attempt refresh. Architecture regressions prove cancel/no-op performs no mutation, confirmed Deactivate and Activate
-refresh while preserving search/category/status filters and clear a selected Product that leaves the filtered result.
-
-Final review-remediation verification is **221 passed, 0 failed, 0 skipped** (Domain 10; Application 11; Infrastructure integration 34;
-Architecture/localization 42; protocol 32; GitHub wrapper/harness 92). Release build remains 0 warnings/0 errors. The required default
-publish path was truthfully recorded as locked by the running process; equivalent self-contained output succeeded under the ignored
-alternate path. This earlier remediation record predates the final operator acceptance closure; PR #5 remains open/unmerged, and M04
-is not started or authorized.
-
-### Failure-path refresh remediation — `M03-FILTERED-BULK-FAILURE-REFRESH-FIX-15`
-
-The narrow failure-path fix centralizes post-confirmation truth refresh in
-`M03ShellViewModel.ExecuteBulkActiveStateWorkflowAsync`: successful mutations and normal result failures each refresh exactly once,
-while unexpected non-cancellation mutation exceptions trigger a best-effort refresh before the original exception is rethrown. The
-native WPF shell keeps its safe error feedback and no longer performs a duplicate result-failure refresh. Refresh failures during the
-unexpected-exception path are swallowed only for that best-effort refresh, so the original failure cannot be masked or reported as success.
-
-Architecture regressions cover result failure refresh/filter preservation, unexpected exception refresh before propagation, and refresh
-failure without masking the original exception. Final local verification for this remediation is **224 passed, 0 failed, 0 skipped**;
-the subsequent final operator acceptance closure is recorded below; PR #5 remains open/unmerged, and M04 is not started or authorized.
-
-### Language selector height remediation — `M03-LANGUAGE-COMBO-HEIGHT-FIX-16`
-
-The top-right language selector now uses a compact explicit height, centered vertical alignment/content alignment, and minimal horizontal padding while preserving its 150px width. A structural architecture regression protects these attributes; existing French/zh-CN switching and persistence tests remain unchanged. The main-window close behavior was not modified.
-
-Final local verification for this remediation is **225 passed, 0 failed, 0 skipped**; the required self-contained win-x64 publish uses the current M03 artifact. The operator subsequently verified the compact selector as single-line in both zh-CN and French; M03 and AC-CAT-013 are now `Passed` for their authorized M03 scope. PR #5 remains open/unmerged, and M04 is not started or authorized.
-
-### Acceptance mapping and remaining checks
-
-- **Passed by automated evidence:** AC-CAT-002, AC-CAT-004, AC-CAT-005 and the current-catalogue/settings portions of
-  AC-ORD-011; migration, normalized uniqueness, FK/constraint, aggregate rollback, ordering, cascade deletion, code
-  reuse and exact settings round-trip are covered in
-  `tests/Sushi81.Pos.Infrastructure.IntegrationTests/M03CatalogueIntegrationTests.cs` and
-  `tests/Sushi81.Pos.Domain.Tests/CatalogueDomainTests.cs`.
-- **Passed by operator evidence:** AC-CAT-001 includes the completed Windows/WPF catalogue workflow; AC-CAT-013 includes the
-  completed three-filter intersection, precise bulk mutation, filter-preservation and localized-control checklist recorded below.
-- **Partial by design:** AC-CAT-003 current-product maintenance is implemented, while historical-order independence remains the
-  M04 snapshot regression; AC-ORD-011 pricing-consumer integration remains explicitly deferred to M04.
-- **Manual Windows/WPF verification:** the complete M03 checklist passed on the final FIX-16 artifact, including both French and
-  zh-CN presentation and persistence paths. No manual M03 acceptance work remains outstanding.
-- **M04:** Passed for the accepted implementation behavior on `codex/m04-order-entry`; the earlier stopped/manual findings and all subsequent remediation evidence remain recorded below, and the final project-owner Windows/WPF acceptance is linked in `docs/implementation/milestone-04-final-manual-acceptance.md`. PR #6 remains open/unmerged for explicit project-owner merge approval. **Blockers:** none for M04; M05 is not authorized.
-
-### Final operator acceptance closure — head `40f6e3884af488e4dd496f26b29bf9f6ca97bece`
-
-The operator completed the full M03 Windows/WPF checklist on the final published artifact. The following paths passed:
-
-- AC-CAT-013 three-filter intersection, exact target/matched/effective counts, precise bulk mutation and filter preservation;
-- single-product activation/deactivation regression and option hierarchy preservation through bulk state changes;
-- active/inactive restart persistence;
-- category rename with save/cancel and restored state;
-- permanent Product delete confirmation, cascade behavior and code reuse;
-- all five BusinessSettings defaults and edited Save/restart persistence;
-- no editable delivery-fee VAT control and fixed 10% explanatory boundary;
-- M03 scope boundary with no future-feature controls exposed;
-- FIX-16 language selector compact/single-line visual presentation in zh-CN and French;
-- the operator's explicit decision to retain the existing main-window X-to-exit behavior unchanged.
-
-Together with the automated evidence above, this closes M03 and AC-CAT-001/AC-CAT-013 as `Passed` for the authorized M03 scope.
-
-### M04 review remediation evidence — `M04-REVIEW-FIX-04`
-
-The WPF Caisse now uses a category-first two-pane navigator with persistent visible category names, adjacent active products, secondary code/name search, deterministic localized product headers and no shortcut-category persistence. Simple products with options disabled use the actual Add and product-row double-click paths without opening an unnecessary dialog; options-enabled products retain the existing option-selection workflow. Planned time uses structured hour/minute choices and exact `TimeOnly` conversion; the superseding time addendum requires one of the approved hour/minute slots for every new POS confirmation while preserving readable historical null-time snapshots. New-order planned dates are initialized/UI-limited from `IBusinessClock.BusinessDate` with an Application confirmation guard rejecting past dates. Cart total/actions are fixed-width and right-aligned across stretched rows, delivery address/comment controls have usable width, and the saved-order ID/snapshot panel remains visible for immediate discovery after confirmation.
-
-The automated regression adds the Application past-date no-write/no-dispatch boundary and an STA/WPF operator-path test covering categories, headers, direct Add/double-click, cart alignment, date guard, address width and saved-order discovery. Local Release verification on head `f73a3939417642cc9633f2c779d13a45febd58b9` is 270 passed, 0 failed, 0 skipped: Domain 26, Application 23, Infrastructure integration 41, Architecture 56, OneDrive feasibility 32, and OneDrive feasibility tools 92. Release build passed with 0 warnings and 0 errors; self-contained `win-x64` publish passed. GitHub Actions `Continuous integration` run **#252** completed successfully for this head; its `build-and-test` Restore, Build and Test steps all passed. The prior manual operator run stopped on the findings recorded in `docs/implementation/milestone-04-manual-acceptance-findings-01.md`; no manual acceptance is claimed until the published artifact is rerun. The time addendum is now implemented below. M05 was not started.
-
-### M04 time addendum evidence — `M04-REVIEW-FIX-04-TIME-ADDENDUM-01`
-
-New POS confirmations now require a valid planned fulfilment time for both Retrait and Livraison. The WPF selectors expose exactly hours `11, 12, 13, 14, 18, 19, 20, 21, 22` and minutes `00, 05, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55`; new orders start unselected, ordinary blank confirmation is unavailable, and no free-form time textbox is exposed. Time-only changes preserve manual total overrides and FR → zh-CN → FR preserves the selected value. Historical snapshots with null planned time remain readable without schema migration. Local Release verification on implementation commit `09d289b7499258dc550f463fcb05bce1d931fd23` passed 274 tests (Domain 26, Application 27, Infrastructure integration 41, Architecture 56, OneDrive feasibility 32, OneDrive feasibility tools 92), with a Release build at 0 warnings/0 errors and a self-contained `win-x64` publish to the required directory. GitHub Actions `Continuous integration` run **#256** passed Restore, Build and Test for that commit. Manual acceptance remains unclaimed, the PR remains open/unmerged, `POST_TASK_POWER_ACTION: NONE`, and M05 was not started.
-
-### M04 exact-time boundary correction — `M04-REVIEW-FIX-05`
-
-The Application boundary now rejects any planned `TimeOnly` containing non-zero seconds or finer ticks, without rounding or normalization. Exact approved slots such as `11:05:00` remain accepted; `11:05:30` and a one-tick variant are rejected before persistence and dispatch. Local Release verification on implementation commit `bf0a6e7888619bcb573500591500c46eae0434ef` passed 277 tests (Domain 26, Application 30, Infrastructure integration 41, Architecture 56, OneDrive feasibility 32, OneDrive feasibility tools 92), with a Release build at 0 warnings/0 errors and a self-contained `win-x64` publish. GitHub Actions `Continuous integration` run **#259** passed Restore, Build and Test for that commit. Manual acceptance remains unclaimed, the PR remains open/unmerged, `POST_TASK_POWER_ACTION: NONE`, and M05 was not started.
-
-### M04 approved operator retrieval/category-code amendment — `M04-REVIEW-FIX-06`
-
-The authorized follow-up adds the approved independent optional category short code and the read-only date browser. Migration v4 adds nullable code columns with normalized partial uniqueness and a narrow planned-date/time/order index; v3 reads and legacy category mutations remain compatible before the additive upgrade, and the migration regression verifies existing category/product/order preservation with blank migrated codes. Category maintenance shows code plus full name, Caisse uses code with full-name fallback, and code edits preserve the opaque category identity and product relationships.
-
-The Caisse browser queries persisted `planned_fulfilment_date` for past, current or future dates, includes every persisted lifecycle status, exposes only planned time/mode/status/Total TTC/telephone, and loads a selected row through the exact-ID snapshot path. Refresh and same-date confirmation retain prior rows while selecting the new exact row; date, selection and loaded snapshot survive FR ↔ zh-CN label updates. Shared invariant `HH:mm` formatting protects evening values such as `18:25` from the former `06:25` display defect. Local Release verification on `35b2a2e3f5100b1893a647ce1dc7dd618d08a822` passed 284 tests with 0 failures/skips; Release build passed with 0 warnings/errors, the isolated self-contained `win-x64` publish passed, and GitHub Actions `Continuous integration` run #268 passed Restore, Build and Test. Manual Windows/WPF acceptance was subsequently passed by the project owner on 2026-09-02 as recorded below; M05 was not started.
-
-### M04 final operator acceptance closure — `M04-FINAL-CLOSURE-07`
-
-The project owner completed the final Windows/WPF manual acceptance on 2026-09-02 for accepted implementation head `76a41df917282763fc5957be7118bbffbeb21568`. The durable checklist and result are recorded in [`docs/implementation/milestone-04-final-manual-acceptance.md`](implementation/milestone-04-final-manual-acceptance.md). It confirms category-first navigation and assigned short codes, direct add/double-click and option-dialog routing, cart/layout/time/date behavior, 24-hour display, immediate and persisted dated order browsing, multiple same-date orders, restart rediscovery, exact read-only snapshot selection and FR/zh-CN behavior.
-
-This closes the M04 Windows/WPF operator gate. M04-owned criteria AC-CAT-006, AC-CAT-007, AC-CAT-012, AC-ORD-001 and AC-ORD-004 through AC-ORD-010, AC-LIFE-001 and AC-LIFE-002 are recorded as `Passed` above. AC-ORD-002 and AC-ORD-003 remain `Partial` only for their explicit M05-owned reusable-information and later same-ID address-correction portions. AC-CAT-003 remains `Partial` under its M03 ownership and cross-milestone boundary; its M04 historical snapshot regression remains recorded as evidence without overstating the M03 gate.
-
-The accepted implementation/evidence was covered by CI #272 on the final branch head; the preceding implementation and delivery heads also passed CI #268 and #270. PR #6 remains open/unmerged and requires project-owner merge approval. The final operator review's non-blocking M05 carry-over is preserved: add a human-friendly operator order reference while retaining the GUID technical identity, improve order-detail visual grouping/readability, and provide a dedicated existing-order page/workspace. M05 was not started or authorized, and `POST_TASK_POWER_ACTION: NONE`.
-
-### M05 review remediation evidence — `M05-REVIEW-REMEDIATION-02`
-
-The authorized M05 follow-up preserves the frozen order model while correcting the review findings. Existing overdue orders retain their persisted historical planned date during ordinary edits and payment corrections; a newly selected different past date remains rejected. Price-affecting existing-order changes reprice through shared rules using current `BusinessSettings` while reading only sale-time line snapshots, and replace any previous manual total override. The actual Commandes WPF detail exposes localized Retrait discount-request and effective-payment-date controls, keeps the selected effective date through unrelated edit changes, and shows live paid/difference/Close feedback. The adjacent Catalogue picker audit confirmed that its list remains above the bottom-docked action buttons.
-
-Focused domain/application/STA-WPF regressions are recorded in `tests/Sushi81.Pos.Domain.Tests/OrderPricingTests.cs`, `tests/Sushi81.Pos.Application.Tests/OrderLifecycleApplicationTests.cs` and `tests/Sushi81.Pos.ArchitectureTests/M05DesktopTests.cs`. The subsequent FIX-16 through FIX-19 sequence passed the complete Release suite at 340/340 with 0 failures/skips, a 0-warning/0-error Release build, self-contained `win-x64` publish evidence, and GitHub Actions `Continuous integration` run **#34034418001** on accepted production head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`. The final owner record closes the M05 Windows/WPF acceptance gate, including fluidity, category-filter stability and payment-date layout/visibility. PR #10 remains open/unmerged pending explicit merge approval; M06/later milestones remain unauthorized.
-
-### M05 final implementation and Windows/WPF acceptance closure — `M05-FINAL-ACCEPTANCE-DOCS-CLOSURE-20`
-
-The project owner accepted the final M05 Windows/WPF build after FIX-16 through FIX-19. The accepted production-code head is `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`; the owner record is [`implementation/milestone-05-final-manual-acceptance.md`](implementation/milestone-05-final-manual-acceptance.md). The accepted scope includes lifecycle/payment editing, Commandes search/detail behavior, operational views, category-filter stability, compact FR/zh-CN layouts, payment-date edit-only presentation and broad application responsiveness. The optional `SUSHI81_POS_PERF_TRACE=1` diagnostic was not needed for the final acceptance result.
-
-Evidence associated with the accepted head is complete Release tests 340/340, Release build 0 warnings/0 errors, self-contained `win-x64` publish, and exact-head CI run `34034418001` with success. AC-LIFE-003 through AC-LIFE-014 are Passed; AC-LIFE-015 remains Partial overall because M12 owns annual archive/historical access, while its M05 live-search portion is Passed. AC-ORD-002, AC-ORD-003 and AC-CAT-003 remain Partial where the current closure record does not provide the remaining criterion-specific carry-over evidence.
-
-This is a documentation/status closure only. No production, test or migration files were changed by this closure, and no real customer/order/payment/credential data was added. PR #10 remains OPEN and UNMERGED pending explicit project-owner merge approval. M06 has not started and is not authorized.
+Historical M01–M06 evidence, including original M02 blocker/revalidation history and all milestone-specific manual acceptance records, remains authoritative in its original files and the archived implementation-status snapshot. Current-state cleanup must never rewrite those historical results merely to make them read as if they had always described later milestones.
