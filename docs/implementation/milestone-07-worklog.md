@@ -127,11 +127,11 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 
 ### M07-WP9 — WPF/localization/observability/integration
 
-**Status:** In progress — review-cycle-2 desktop remediation implemented; owner acceptance remains pending and WP7 remains the hard prerequisite  
-**Commit(s):** `f780762` — single desktop close arbiter, target-late close flow, read-only acquisition/connection actions and STA/integration evidence  
-**STA/WPF evidence:** 103/103 Architecture/WPF tests passed, including Cancel, Retain, target-directed transfer ordering, transfer failure, repeated-close reentrancy, non-authoritative close, flush failure, and visible read-only M07 action/status controls.  
-**FR/zh-CN evidence:** Localized authority close/target-selection, transferred-authority acquisition/status, connection-test/status and safe 401/403/404/credential states are present and exercised through the STA shell language round-trip.  
-**Responsiveness/redaction evidence:** Closing remains asynchronous and dispatcher-responsive; Retain/Cancel do not enumerate targets. Connection tests are non-mutating and expose only safe categorized status, never credential or transport detail.  
+**Status:** In progress — review-cycle-2 desktop remediation implemented; owner acceptance remains pending and WP7 remains the hard prerequisite
+**Commit(s):** `f780762` — single desktop close arbiter, target-late close flow, read-only acquisition/connection actions and STA/integration evidence
+**STA/WPF evidence:** 103/103 Architecture/WPF tests passed, including Cancel, Retain, target-directed transfer ordering, transfer failure, repeated-close reentrancy, non-authoritative close, flush failure, and visible read-only M07 action/status controls.
+**FR/zh-CN evidence:** Localized authority close/target-selection, transferred-authority acquisition/status, connection-test/status and safe 401/403/404/credential states are present and exercised through the STA shell language round-trip.
+**Responsiveness/redaction evidence:** Closing remains asynchronous and dispatcher-responsive; Retain/Cancel do not enumerate targets. Connection tests are non-mutating and expose only safe categorized status, never credential or transport detail.
 **Next:** Complete the WP7 authorized disposable private-repository proof before any WP8 production DR work; then obtain project-owner M07 manual acceptance.
 
 ### M07-WP10 — automated/CI closure before owner acceptance
