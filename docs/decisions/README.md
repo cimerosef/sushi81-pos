@@ -41,4 +41,4 @@ The M07 implementation must read these Approved records together:
 
 - `target-directed-authority-handoff.md` — normal source-directed transfer to exactly one target;
 - `github-handoff-transport.md` — dedicated private GitHub Release Asset normal handoff transport and acknowledgement;
-- `m07-self-service-pairing-and-disaster-recovery.md` — self-service device joining without write authority, exceptional Disaster Recovery quarantine/fencing, and freshest validated safe recovery-source selection.
+- `m07-self-join-disaster-recovery.md` — self-service device joining without write authority, exceptional Disaster Recovery quarantine/fencing, and freshest validated safe recovery-source selection.
