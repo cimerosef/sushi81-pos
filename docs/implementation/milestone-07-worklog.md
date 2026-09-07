@@ -55,15 +55,15 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 ### M07-WP0 — baseline and mutation-guard audit
 
 **Status:** Passed
-**Commit(s):** Pending in the current implementation commit
-**Tests/evidence:** Inherited Release baseline 364/364 Passed; `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings/0 errors. Static audit covered catalogue/settings/order-entry/order-lifecycle writers and confirmed the single M06 guard is checked before persistence.
+**Commit(s):** `ce52abb` — canonical M07 authority-state foundation
+**Tests/evidence:** Inherited Release baseline 364/364 Passed; post-change Release suite 367/367 Passed; `dotnet build Sushi81.Pos.sln -c Release --no-restore` passed with 0 warnings/0 errors. Static audit covered catalogue/settings/order-entry/order-lifecycle writers and confirmed the single M06 guard is checked before persistence.
 **Findings:** No discovered M03–M05 guard bypass. M07 still requires a shared in-flight mutation fence before irreversible authority transitions; this remains a WP4 integration prerequisite.
 **Next:** Preserve the guard while integrating canonical state and transition services.
 
 ### M07-WP1 — canonical authority state and M06 migration
 
 **Status:** Passed — bounded canonical-state slice
-**Commit(s):** Pending in the current implementation commit
+**Commit(s):** `ce52abb` — canonical M07 authority-state foundation
 **Tests/evidence:** Canonical schema v2 is persisted only as detailed protocol metadata; `WriteAuthorityState` is derived. Exact M06 schema-v1 migration preserves Authoritative and NonAuthoritativeReadOnly semantics, maps unresolved Transitioning/RecoveryRequired to fail-closed RecoveryRequired, and preserves marker/anchor/live-database checks. Infrastructure authority tests: 67/67 Passed.
 **Failure-injection evidence:** Same-volume temporary write, write-through/flush, replacement, reopen/reparse/read-back validation; injected failure before replacement leaves the prior canonical document intact.
 **Next:** Freeze these DTO/store seams before WP2/WP3 lanes; do not implement transfer or DR authority transitions until the shared mutation fence and transport contracts exist.
