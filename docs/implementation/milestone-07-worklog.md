@@ -136,13 +136,13 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 
 ### M07-WP10 — automated/CI closure before owner acceptance
 
-**Status:** Not started  
-**Accepted production-code head candidate:**  
-**Release tests:**  
-**Release build warnings/errors:**  
-**Self-contained win-x64 publish:**  
-**Exact-head CI run:**  
-**Known carry-over (M08+ only):**
+**Status:** In progress — cycle-2 production-code evidence complete; WP7 and owner acceptance remain pending
+**Accepted production-code head candidate:** `17fb2c1aa0a553da638e58549e5294851fc6e0b7`
+**Release tests:** `425/425` Passed, `0` skipped
+**Release build warnings/errors:** `0/0`
+**Self-contained win-x64 publish:** Not run; not required by this remediation handoff
+**Exact-head CI run:** `34161273997` — `success` for implementation head `17fb2c1aa0a553da638e58549e5294851fc6e0b7`
+**Known carry-over:** WP7 real disposable private-repository proof remains a hard prerequisite; WP8 and M08 remain not started.
 
 ## 4. Review/remediation log
 
@@ -161,7 +161,7 @@ Append each ChatGPT review/remediation cycle with exact head SHA, findings, seve
 **Head reviewed:** `848a7a73475fb3946d624b489c1a07899a9e5d7c` — review `5135084944`, findings `G` through `K`.
 **Findings:** `G` critical close orchestration had separate `MainWindow` and `CompositionRoot` Closing handlers; `H` target acquisition had no production user/startup action or status; `I` the composed GitHub connection tester was not visible; `J` the desktop evidence seam did not cover the required M07 interaction matrix; `K` the worklog and WP9 truth were stale.
 **Disposition:** `f780762` installs one MainWindow-owned close arbiter with deterministic Cancel/Retain/transfer/failure/reentrancy behavior and one orderly recovery flush; target enumeration is deferred until Transfer is explicitly selected. Read-only M07 UI now exposes target acquisition and non-mutating GitHub connection testing with FR/zh-CN safe status classification. STA/WPF tests cover close paths, visible operator actions/status and language round-trip; infrastructure tests cover credential/401/403/404 classification without exposing transport details. The implementation preserves M06 fail-closed/write-guard behavior and does not implement WP8 or M08.
-**CI/tests:** Full Release suite `425/425` Passed with `0` skipped; `dotnet build Sushi81.Pos.sln --configuration Release --no-restore` passed with `0` warnings / `0` errors. Exact-head CI verification is pending after push. WP7 real private-repository proof was not run; WP8 and M08 remain not started. Project-owner manual acceptance remains pending; it is not the only unresolved M07 prerequisite because WP7 is still hard-blocked.
+**CI/tests:** Full Release suite `425/425` Passed with `0` skipped; `dotnet build Sushi81.Pos.sln --configuration Release --no-restore` passed with `0` warnings / `0` errors. Exact-head CI for pushed implementation head `17fb2c1aa0a553da638e58549e5294851fc6e0b7` is run `34161273997` — `success`; subsequent worklog commits are documentation-only. WP7 real private-repository proof was not run; WP8 and M08 remain not started. Project-owner manual acceptance remains pending; it is not the only unresolved M07 prerequisite because WP7 is still hard-blocked.
 
 ## 5. Project-owner manual acceptance
 
