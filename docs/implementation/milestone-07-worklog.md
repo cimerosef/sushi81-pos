@@ -150,11 +150,11 @@ Append each ChatGPT review/remediation cycle with exact head SHA, findings, seve
 
 ### Review cycle 1
 
-**Head reviewed:**  
-**Findings:**  
-**Disposition:**  
-**Remediation head:**  
-**CI/tests:**
+**Head reviewed:** `0a717c883fec67b07e1bd6b73a968671a5bdd872` — review findings `A` through `F` and the M06 notifier/regression wiring review.
+**Findings:** Grant retry bytes were not durably fixed before the first upload; retention trusted filename time and did not validate complete matching snapshot/grant units; production self-join/System metadata and non-DR composition were incomplete; stale same-device historical grants, visible-name collisions and the M06 local/cloud scheduler boundary lacked the required remediation evidence.
+**Disposition:** Remediated in the existing M07 branch. Grant creation now uses persisted immutable timestamp evidence; retention validates complete lineage-bound units and deletes exact IDs by generation/handoff ordering; self-join is durable/read-only and authoritative startup publishes idempotent membership; production configuration/credential/test-connection, normal handoff/target acquisition composition, independent OneDrive scheduling, close choice and localized read-only onboarding are wired without WP8 DR UI. Historical grants and occupied snapshot/grant name pairs are ignored/advanced safely. No real WP7 private-repository drill was run, and WP8/M08 remain unstarted.
+**Remediation head:** `5067caaf528947f29fd771bbfb6810a20017bb8b` (rebased onto governance commit `22ef4c5aaafc6cf21b9dbdfec3093c06775dbf44`).
+**CI/tests:** Focused remediation/recovery tests passed; full Release suite `414/414` Passed with `0` skipped; `dotnet build Sushi81.Pos.sln --configuration Release --no-restore` passed with `0` warnings / `0` errors. Exact-head CI verification remains pending after push.
 
 ## 5. Project-owner manual acceptance
 
