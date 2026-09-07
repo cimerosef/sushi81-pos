@@ -288,6 +288,23 @@ public sealed class InfrastructureIntegrationTests
     }
 
     [TestMethod]
+    public async Task RecoverySchedulerDoesNotLoseACommitDuringAnActiveSnapshot()
+    {
+        var snapshots = new ActiveSnapshotService();
+        await using var scheduler = new DebouncedRecoveryScheduler(snapshots, TimeProvider.System, NullLogger<DebouncedRecoveryScheduler>.Instance);
+        scheduler.NotifyCommitted(new DurableChange(1, DateTimeOffset.UtcNow));
+        var flush = scheduler.FlushAsync();
+        await snapshots.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        scheduler.NotifyCommitted(new DurableChange(2, DateTimeOffset.UtcNow));
+        snapshots.Release();
+        await flush;
+
+        Assert.HasCount(2, snapshots.Changes);
+        CollectionAssert.AreEqual(new long[] { 1, 2 }, snapshots.Changes.Select(change => change.Sequence).ToArray());
+    }
+
+    [TestMethod]
     public void AuthorityAndIdsFailClosedAndGenerateOpaqueUniqueValues()
     {
         var guard = new WriteAuthorityGuard();
@@ -296,6 +313,213 @@ public sealed class InfrastructureIntegrationTests
         guard.RequireWriteAuthority();
         var ids = new GuidV7IdGenerator(TimeProvider.System);
         Assert.AreNotEqual(ids.NewId(), ids.NewId());
+    }
+
+    [TestMethod]
+    public async Task AuthorityBootstrapIsDurableAndMissingStateFailsClosed()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await using (var legacyConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.LiveDatabasePath, Pooling = false }.ToString()))
+        {
+            await legacyConnection.OpenAsync();
+            await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
+        }
+        var store = new JsonAuthorityStateStore(paths);
+        var legacyBootstrapEvidence = await store.HasLegacyBootstrapEvidenceAsync();
+        var firstGuard = new WriteAuthorityGuard();
+        var first = await new AuthorityStateCoordinator(store, firstGuard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
+
+        Assert.AreEqual(WriteAuthorityState.Authoritative, first.State);
+        Assert.AreEqual(WriteAuthorityState.Authoritative, firstGuard.State);
+        Assert.IsTrue(await store.HasBootstrapMarkerAsync());
+        Assert.IsTrue(await store.HasBootstrapAnchorAsync());
+
+        File.Delete(Path.Combine(paths.ConfigDirectory, "authority-state.json"));
+        var secondGuard = new WriteAuthorityGuard();
+        var second = await new AuthorityStateCoordinator(store, secondGuard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
+
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, second.State);
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, secondGuard.State);
+        Assert.Throws<WriteAuthorityException>(secondGuard.RequireWriteAuthority);
+    }
+
+    [TestMethod]
+    public async Task MissingAuthorityStateWithoutLegacyEvidenceFailsClosedInsteadOfRebootstrapping()
+    {
+        using var paths = new TestAppPaths();
+        var guard = new WriteAuthorityGuard();
+        var result = await new AuthorityStateCoordinator(new JsonAuthorityStateStore(paths), guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(false);
+
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
+        Assert.IsFalse(await new JsonAuthorityStateStore(paths).HasBootstrapMarkerAsync());
+        Assert.IsFalse(await new JsonAuthorityStateStore(paths).HasBootstrapAnchorAsync());
+        Assert.Throws<WriteAuthorityException>(guard.RequireWriteAuthority);
+    }
+
+    [TestMethod]
+    public async Task EstablishedAuthorityWithoutIndependentAnchorFailsClosed()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await using (var legacyConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.LiveDatabasePath, Pooling = false }.ToString()))
+        {
+            await legacyConnection.OpenAsync();
+            await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
+        }
+
+        var store = new JsonAuthorityStateStore(paths);
+        var legacyBootstrapEvidence = await store.HasLegacyBootstrapEvidenceAsync();
+        await new AuthorityStateCoordinator(store, new WriteAuthorityGuard(), new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
+        File.Delete(Path.Combine(paths.DataDirectory, "authority-bootstrap.anchor"));
+
+        var guard = new WriteAuthorityGuard();
+        var result = await new AuthorityStateCoordinator(store, guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
+
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
+        Assert.IsNotNull(result.Error);
+        Assert.Throws<WriteAuthorityException>(guard.RequireWriteAuthority);
+    }
+
+    [TestMethod]
+    public async Task EstablishedAuthorityWithoutPreExistingLiveDatabaseIsBlockedBeforeReplacementCreation()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await using (var legacyConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.LiveDatabasePath, Pooling = false }.ToString()))
+        {
+            await legacyConnection.OpenAsync();
+            await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
+        }
+
+        var store = new JsonAuthorityStateStore(paths);
+        var legacyEvidence = await store.HasLegacyBootstrapEvidenceAsync();
+        await new AuthorityStateCoordinator(store, new WriteAuthorityGuard(), new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance)
+            .InitializeAsync(legacyEvidence);
+        File.Delete(paths.LiveDatabasePath);
+
+        await Assert.ThrowsAsync<AuthorityStartupBlockedException>(() => AuthorityStartupPreflight.CaptureAsync(paths, store));
+        Assert.IsFalse(File.Exists(paths.LiveDatabasePath));
+
+        var guard = new WriteAuthorityGuard();
+        var resolution = await new AuthorityStateCoordinator(store, guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance)
+            .InitializeAsync(legacyEvidence, preMigrationLiveDatabaseEvidence: false);
+
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, resolution.State);
+        Assert.Throws<WriteAuthorityException>(guard.RequireWriteAuthority);
+    }
+
+    [TestMethod]
+    public async Task AuthorityStartupPreflightAllowsSupportedExistingLiveDatabase()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await using (var legacyConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.LiveDatabasePath, Pooling = false }.ToString()))
+        {
+            await legacyConnection.OpenAsync();
+            await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
+        }
+
+        var evidence = await AuthorityStartupPreflight.CaptureAsync(paths, new JsonAuthorityStateStore(paths));
+
+        Assert.IsTrue(evidence.HasPreExistingLiveDatabase);
+        Assert.IsFalse(evidence.HasEstablishedAuthorityArtifacts);
+    }
+
+    [TestMethod]
+    public async Task FreshMigratedDatabaseDoesNotQualifyAsLegacyBootstrapEvidence()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        var store = new JsonAuthorityStateStore(paths);
+        var evidenceBeforeMigrations = await store.HasLegacyBootstrapEvidenceAsync();
+
+        var clock = new FixedClock();
+        await new SqliteMigrationRunner(new SqliteConnectionFactory(paths), ProductionMigrations.All, clock).InitializeAsync();
+        Assert.IsTrue(await store.HasLegacyBootstrapEvidenceAsync(), "The migrated schema is not itself pre-existing legacy evidence.");
+
+        var guard = new WriteAuthorityGuard();
+        var result = await new AuthorityStateCoordinator(store, guard, clock, NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(evidenceBeforeMigrations);
+
+        Assert.IsFalse(evidenceBeforeMigrations);
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
+        Assert.Throws<WriteAuthorityException>(guard.RequireWriteAuthority);
+    }
+
+    [TestMethod]
+    public async Task EstablishedAuthorityStatesRoundTripDurablyAcrossRestart()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await using (var legacyConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.LiveDatabasePath, Pooling = false }.ToString()))
+        {
+            await legacyConnection.OpenAsync();
+            await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
+        }
+
+        var store = new JsonAuthorityStateStore(paths);
+        var legacyBootstrapEvidence = await store.HasLegacyBootstrapEvidenceAsync();
+        await new AuthorityStateCoordinator(store, new WriteAuthorityGuard(), new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
+        foreach (var state in new[] { WriteAuthorityState.Authoritative, WriteAuthorityState.NonAuthoritativeReadOnly, WriteAuthorityState.Transitioning, WriteAuthorityState.RecoveryRequired })
+        {
+            await store.SaveAsync(new AuthorityStateDocument(1, state, DateTimeOffset.UtcNow));
+            var guard = new WriteAuthorityGuard();
+            var reloaded = await new AuthorityStateCoordinator(store, guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
+            Assert.AreEqual(state, reloaded.State);
+            Assert.AreEqual(state, guard.State);
+        }
+    }
+
+    [TestMethod]
+    public async Task MalformedOrFutureAuthorityStateFailsClosedWithoutBootstrap()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await File.WriteAllTextAsync(Path.Combine(paths.ConfigDirectory, "authority-state.json"), "{\"schemaVersion\":99,\"state\":\"Authoritative\",\"updatedAtUtc\":\"2026-08-27T12:00:00Z\"}");
+        await File.WriteAllTextAsync(Path.Combine(paths.ConfigDirectory, "authority-bootstrap.marker"), "marker");
+
+        var guard = new WriteAuthorityGuard();
+        var result = await new AuthorityStateCoordinator(new JsonAuthorityStateStore(paths), guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(false);
+
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
+        Assert.IsNotNull(result.Error);
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, guard.State);
+    }
+
+    [TestMethod]
+    public async Task DurableChangeNotifierPersistsSequenceAndCoalescesRecovery()
+    {
+        using var paths = new TestAppPaths();
+        var snapshots = new RecordingSnapshotService();
+        await using var scheduler = new DebouncedRecoveryScheduler(snapshots, TimeProvider.System, NullLogger<DebouncedRecoveryScheduler>.Instance);
+        using var notifier = await DurableChangeNotifier.CreateAsync(paths, new FixedClock(), scheduler, NullLogger<DurableChangeNotifier>.Instance);
+
+        await notifier.NotifyCommittedAsync();
+        await notifier.NotifyCommittedAsync();
+        await scheduler.FlushAsync();
+
+        Assert.HasCount(1, snapshots.Changes);
+        Assert.AreEqual(2L, snapshots.Changes[0].Sequence);
+        StringAssert.Contains(await File.ReadAllTextAsync(Path.Combine(paths.ConfigDirectory, "recovery-sequence.json")), "2");
+    }
+
+    [TestMethod]
+    public async Task DurableChangeNotifierReconcilesCorruptSequenceWithValidatedRecoveryMetadataAfterRestart()
+    {
+        using var paths = new TestAppPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var snapshots = new SqliteLocalRecoverySnapshotService(paths, factory, clock);
+        await snapshots.CreateAsync(new DurableChange(7, clock.UtcNow));
+        await File.WriteAllTextAsync(Path.Combine(paths.ConfigDirectory, "recovery-sequence.json"), "{ not-json");
+
+        var recording = new RecordingSnapshotService();
+        await using var scheduler = new DebouncedRecoveryScheduler(recording, TimeProvider.System, NullLogger<DebouncedRecoveryScheduler>.Instance);
+        using var notifier = await DurableChangeNotifier.CreateAsync(paths, clock, scheduler, NullLogger<DurableChangeNotifier>.Instance);
+        await notifier.NotifyCommittedAsync();
+
+        StringAssert.Contains(await File.ReadAllTextAsync(Path.Combine(paths.ConfigDirectory, "recovery-sequence.json")), "8");
     }
 
     [TestMethod]
@@ -385,6 +609,23 @@ public sealed class InfrastructureIntegrationTests
                 Interlocked.Decrement(ref activeCalls);
             }
         }
+    }
+
+    private sealed class ActiveSnapshotService : ILocalRecoverySnapshotService
+    {
+        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<DurableChange> Changes { get; } = [];
+
+        public async Task<RecoverySnapshotResult> CreateAsync(DurableChange change, CancellationToken cancellationToken = default)
+        {
+            Changes.Add(change);
+            Started.TrySetResult(true);
+            await release.Task.WaitAsync(cancellationToken);
+            return new RecoverySnapshotResult("synthetic.db", "synthetic.json", "checksum", change.CommittedAtUtc, change.Sequence, 1);
+        }
+
+        public void Release() => release.TrySetResult(true);
     }
 
     private sealed class FailingSnapshotService : ILocalRecoverySnapshotService

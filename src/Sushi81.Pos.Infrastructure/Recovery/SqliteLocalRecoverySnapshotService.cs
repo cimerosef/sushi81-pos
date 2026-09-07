@@ -90,6 +90,31 @@ public class SqliteLocalRecoverySnapshotService(
         return metadata;
     }
 
+    /// <summary>Returns the highest sequence in independently validated local recovery units.</summary>
+    public static async Task<long> GetHighestValidatedSequenceAsync(IAppPaths paths, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        paths.EnsureInitialized();
+        var highest = 0L;
+        foreach (var recoveryDirectory in Directory.EnumerateDirectories(paths.RecoveryDirectory, "recovery-*"))
+        {
+            try
+            {
+                var metadata = await VerifyAsync(
+                    Path.Combine(recoveryDirectory, "snapshot.db"),
+                    Path.Combine(recoveryDirectory, "metadata.json"),
+                    cancellationToken);
+                highest = Math.Max(highest, metadata.DurableChangeSequence);
+            }
+            catch (RecoverySnapshotValidationException)
+            {
+                // Corrupt/incomplete units are not evidence of a committed recovery sequence.
+            }
+        }
+
+        return highest;
+    }
+
     protected virtual async Task BackupToStagingAsync(string stagingDatabasePath, CancellationToken cancellationToken)
     {
         await using var source = await connectionFactory.OpenLiveConnectionAsync(cancellationToken);

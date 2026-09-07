@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.Data.Sqlite;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Ids;
+using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
@@ -10,6 +11,9 @@ using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Domain;
 using Sushi81.Pos.Infrastructure.Migrations;
 using Sushi81.Pos.Infrastructure.Order;
+using Sushi81.Pos.Infrastructure.Recovery;
+using Sushi81.Pos.Infrastructure.Catalogue;
+using Sushi81.Pos.Infrastructure.Settings;
 using Sushi81.Pos.Infrastructure.Sqlite;
 
 namespace Sushi81.Pos.Infrastructure.IntegrationTests;
@@ -315,6 +319,57 @@ public sealed class M05EvidenceClosureIntegrationTests
         Assert.AreEqual(3, (await store.GetOperationalSummaryAsync(BusinessDate)).FutureOrderCount);
     }
 
+    [TestMethod]
+    public async Task RealApplicationSqliteMutationNotifierSchedulerAndRecoverySnapshotShareOneSeam()
+    {
+        using var paths = new TestPaths();
+        var clock = new FixedClock();
+        var factory = await InitializeProductionAsync(paths, clock);
+        var runner = new SqliteTransactionRunner(factory);
+        var ids = new DeterministicIds();
+        var snapshotService = new SqliteLocalRecoverySnapshotService(paths, factory, clock);
+        await using var scheduler = new DebouncedRecoveryScheduler(snapshotService, TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<DebouncedRecoveryScheduler>.Instance);
+        using var notifier = await DurableChangeNotifier.CreateAsync(paths, clock, scheduler, Microsoft.Extensions.Logging.Abstractions.NullLogger<DurableChangeNotifier>.Instance);
+        var guard = new TestWriteAuthorityGuard(WriteAuthorityState.Authoritative);
+        var catalogueStore = new SqliteCatalogueStore(factory, runner, ids, clock);
+        var settingsStore = new SqliteBusinessSettingsStore(factory, runner, clock);
+        var catalogue = new CatalogueService(catalogueStore, guard, notifier);
+        var settings = new BusinessSettingsService(settingsStore, guard, notifier);
+
+        var category = (await catalogue.CreateCategoryAsync("Recovery Plats")).Value!;
+        var productId = (await catalogue.CreateProductAsync(new ProductDraft(
+            Guid.Empty, "RECOVERY-1", "Recovery Product", category.Id, Money.FromCents(1250), 10m, true, true, false, []))).Value!;
+        var orderStore = new SqliteOrderStore(factory, runner, idGenerator: ids, clock: clock);
+        var entryCatalogue = new OrderEntryCatalogueService(catalogueStore);
+        var product = (await entryCatalogue.GetActiveProductAsync(productId))!;
+        using var entry = new OrderEntryService(entryCatalogue, settingsStore, orderStore, new NoopDispatcher(), ids, clock, guard, notifier);
+        var order = await entry.ConfirmNewOrderAsync(new NewOrderDraft(
+            [new OrderLineDraft(Guid.Empty, product.Aggregate, [], [], 1, product.CategoryName)],
+            FulfilmentMode.Retrait, BusinessDate.AddDays(1), new TimeOnly(18, 0), null, null, null, false));
+        Assert.IsTrue(order.Succeeded, string.Join(";", order.Issues.Select(issue => issue.Message)));
+
+        await scheduler.FlushAsync();
+        var latest = await LatestVerifiedSnapshotAsync(paths);
+        Assert.IsNotNull(latest);
+        await using (var snapshotConnection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(latest!.Value.DatabasePath))
+        {
+            Assert.AreEqual(1L, await ScalarAsync(snapshotConnection, "SELECT COUNT(*) FROM categories WHERE name='Recovery Plats';"));
+            Assert.AreEqual(1L, await ScalarAsync(snapshotConnection, "SELECT COUNT(*) FROM products WHERE code='RECOVERY-1';"));
+            Assert.AreEqual(1L, await ScalarAsync(snapshotConnection, "SELECT COUNT(*) FROM orders WHERE order_id='" + order.CommittedOrder!.Id + "';"));
+        }
+
+        var committedSequence = latest.Value.Metadata.DurableChangeSequence;
+        guard.State = WriteAuthorityState.NonAuthoritativeReadOnly;
+        var blocked = await catalogue.CreateCategoryAsync("Must Not Persist");
+        Assert.IsFalse(blocked.Succeeded);
+        guard.State = WriteAuthorityState.Authoritative;
+        var currentSettings = await settingsStore.GetAsync();
+        Assert.IsTrue((await settings.UpdateAsync(currentSettings)).Succeeded);
+        await scheduler.FlushAsync();
+        var afterNoOpAndBlocked = await LatestVerifiedSnapshotAsync(paths);
+        Assert.AreEqual(committedSequence, afterNoOpAndBlocked!.Value.Metadata.DurableChangeSequence);
+    }
+
     private static async Task<SqliteConnectionFactory> InitializeProductionAsync(TestPaths paths, IBusinessClock clock)
     {
         var factory = new SqliteConnectionFactory(paths);
@@ -431,6 +486,30 @@ public sealed class M05EvidenceClosureIntegrationTests
         return Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture)!;
     }
 
+    private static async Task<long> ScalarAsync(SqliteConnection connection, string sql)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return Convert.ToInt64(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<(string DatabasePath, RecoverySnapshotMetadata Metadata)?> LatestVerifiedSnapshotAsync(TestPaths paths)
+    {
+        var candidates = new List<(string DatabasePath, RecoverySnapshotMetadata Metadata)>();
+        foreach (var directory in Directory.EnumerateDirectories(paths.RecoveryDirectory, "recovery-*"))
+        {
+            try
+            {
+                var databasePath = Path.Combine(directory, "snapshot.db");
+                var metadata = await SqliteLocalRecoverySnapshotService.VerifyAsync(databasePath, Path.Combine(directory, "metadata.json"));
+                candidates.Add((databasePath, metadata));
+            }
+            catch (RecoverySnapshotValidationException) { }
+        }
+
+        return candidates.OrderByDescending(candidate => candidate.Metadata.DurableChangeSequence).FirstOrDefault();
+    }
+
     private static async Task ExecuteAsync(SqliteConnectionFactory factory, string sql, params (string Name, object? Value)[] parameters)
     {
         await using var connection = await factory.OpenLiveConnectionAsync();
@@ -467,6 +546,15 @@ public sealed class M05EvidenceClosureIntegrationTests
     {
         public Task<BusinessSettings> GetAsync(CancellationToken cancellationToken = default) => Task.FromResult(current);
         public Task<OperationResult> UpdateAsync(BusinessSettings settings, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+    }
+
+    private sealed class TestWriteAuthorityGuard(WriteAuthorityState initialState) : IWriteAuthorityGuard
+    {
+        public WriteAuthorityState State { get; set; } = initialState;
+        public void RequireWriteAuthority()
+        {
+            if (State != WriteAuthorityState.Authoritative) throw new WriteAuthorityException(State);
+        }
     }
 
     private sealed class FixedClock : IBusinessClock

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Resources;
 using System.Runtime.CompilerServices;
 using Sushi81.Pos.Application.Foundation.Configuration;
+using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Application.OrderEntry;
@@ -64,17 +65,18 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private LanguageOption _selectedLanguage;
     private bool _isLanguageChangeInProgress;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
         _culture = Normalize(_cultureStore.Load());
         StartupSucceeded = startupSucceeded;
+        AuthorityState = authorityGuard?.State ?? authorityState;
         Languages = new ObservableCollection<LanguageOption>();
         RefreshResources();
         _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
-        Admin = startupSucceeded && catalogueService is not null && settingsService is not null ? new M03ShellViewModel(catalogueService, settingsService) : null;
-        Entry = startupSucceeded && orderEntryService is not null ? new OrderEntryShellViewModel(orderEntryService) : null;
-        Lifecycle = startupSucceeded && orderLifecycleService is not null ? new OrderLifecycleShellViewModel(orderLifecycleService) : null;
+        Admin = startupSucceeded && catalogueService is not null && settingsService is not null ? new M03ShellViewModel(catalogueService, settingsService, authorityGuard) : null;
+        Entry = startupSucceeded && orderEntryService is not null ? new OrderEntryShellViewModel(orderEntryService, authorityGuard) : null;
+        Lifecycle = startupSucceeded && orderLifecycleService is not null ? new OrderLifecycleShellViewModel(orderLifecycleService, authorityGuard) : null;
         Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
         Entry?.ApplyLocalization(Localized["All"], Localized["FulfilmentUnselected"], Localized["Retrait"], Localized["Livraison"], Localized["ManualTotalActive"], Localized["NewOrder"], Localized["Quantity"], Localized);
         Lifecycle?.ApplyLocalization(Localized);
@@ -86,6 +88,12 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     public ObservableCollection<LanguageOption> Languages { get; }
 
     public bool StartupSucceeded { get; }
+
+    public WriteAuthorityState AuthorityState { get; }
+
+    public bool CanWrite => StartupSucceeded && AuthorityState == WriteAuthorityState.Authoritative;
+
+    public bool IsAuthorityWarningVisible => !CanWrite;
 
     public M03ShellViewModel? Admin { get; }
 
@@ -102,6 +110,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     public string Title { get; private set; } = string.Empty;
 
     public string Status { get; private set; } = string.Empty;
+
+    public string AuthorityStatus { get; private set; } = string.Empty;
 
     public string LanguageLabel { get; private set; } = string.Empty;
 
@@ -179,16 +189,27 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     {
         Title = Read("ShellTitle");
         Status = Read(StartupSucceeded ? "FoundationReady" : "StartupFailure");
+        AuthorityStatus = Read(AuthorityState switch
+        {
+            WriteAuthorityState.NonAuthoritativeReadOnly => "AuthorityReadOnly",
+            WriteAuthorityState.Transitioning => "AuthorityTransitioning",
+            WriteAuthorityState.RecoveryRequired => "AuthorityRecoveryRequired",
+            WriteAuthorityState.Uninitialized => "AuthorityRecoveryRequired",
+            _ => "AuthorityReadOnly"
+        });
         LanguageLabel = Read("LanguageLabel");
         LanguageSaveFailure = Read("LanguageSaveFailure");
         Languages.Clear();
         Languages.Add(new LanguageOption("fr-FR", Read("FrenchLanguage")));
         Languages.Add(new LanguageOption("zh-CN", Read("ChineseLanguage")));
-        var keys = new[] { "ShellTitle", "Catalogue", "Settings", "Caisse", "Commandes", "Products", "Search", "OrderSearch", "Category", "All", "Active", "Inactive", "NewProduct", "Edit", "Save", "Cancel", "Add", "Confirm", "ReloadOrder", "Activate", "Deactivate", "BulkActivate", "BulkDeactivate", "BulkConfirm", "BulkNoChange", "BulkSuccess", "DeletePermanently", "ManageCategories", "CategoryShortCode", "CategoryShortCodeTooltip", "Code", "Name", "PriceTtc", "Vat", "DiscountEligible", "OptionsEnabled", "OptionGroups", "Options", "SelectionMode", "Required", "Optional", "Single", "Multi", "Minimum", "Maximum", "AdjustmentTtc", "MoveUp", "MoveDown", "PickupDiscount", "PickupMinimum", "DeliveryMinimum", "DeliveryFee", "DeliveryFeeEnabled", "Fulfilment", "FulfilmentUnselected", "Retrait", "Livraison", "PlannedDate", "PlannedTime", "TimeHour", "TimeMinute", "TimeUnset", "Telephone", "DeliveryAddress", "Comment", "PickupDiscountRequest", "Cart", "TotalTtc", "Quantity", "CustomAdjustments", "AddAdjustment", "AdjustmentLabel", "AdjustmentAmount", "NewOrder", "ManualTotalActive", "ReloadOrderTooltip", "ReloadedOrder", "OrderBrowser", "BrowseDate", "Browse", "OrderBrowserTime", "OrderBrowserMode", "OrderBrowserStatus", "OrderBrowserTotal", "OrderBrowserTelephone", "OrderBrowserEmptyTelephone", "OrderId", "OrderStatus", "OrderStatusOpen", "OrderStatusClosed", "OrderStatusCancelled", "OrderLines", "Unit", "PickupDiscountApplied", "TaxSnapshot", "InvalidOrderId", "OrderNotFound", "OrderSaved", "OrderSavedOutputFailed", "ProductInactive", "InvalidPlannedTime", "InvalidManualTotal", "ValidationFulfilmentRequired", "ValidationPlannedDateRequired", "ValidationPlannedDatePast", "ValidationPlannedTimeRequired", "ValidationPlannedTimeInvalid", "ValidationCartRequired", "ValidationDeliveryMinimum", "ValidationPickupDiscount", "InvalidQuantity", "InvalidOptions", "InvalidAdjustment", "EmptyCatalogue", "DeleteConfirm", "M03StartupFailure", "DeliveryFeeVatFixed", "CreateCategory", "CreateCategoryFirst", "RenameCategory", "Close", "EnterValidValues", "Saved", "ValidationGeneric", "ValidationRequired", "ValidationCategoryDuplicate", "ValidationCategoryShortCodeDuplicate", "ValidationCategoryShortCodeTooLong", "ValidationCategoryMissing", "ValidationProductMissing", "ValidationProductDuplicateCode", "ValidationPriceNegative", "ValidationVatRange", "ValidationRequiredChoices", "ValidationSettingsRange", "ValidationInvalidNumber", "ValidationBusy", "ValidationGroupStructure", "ValidationOptionStructure", "ValidationConflict", "ValidationField", "CategoryEdit", "CategoryCreateSave", "CategoryRenameSave", "CategoryEditCancel", "DirtyEditorClose", "Discard", "KeepEditing", "OptionName", "OptionActive", "OrderReference", "OrderCard", "OrderCash", "OrderPaid", "OrderDifference", "OrderSearchLive", "OrderModify", "OrderAbandon", "OrderCancel", "OrderNewFromDetails", "OrderClose", "OrderEffectiveDate", "OrderEffectiveDateEdit", "OrderEffectiveDateHint", "OrderBrowseByDate", "OrderSave", "OrderReadOnly", "OrderEdit", "OrderAdvance", "OrderSearchHint", "OrderNoSelection", "DashboardTurnover", "DashboardReceived", "DashboardReceivedCard", "DashboardReceivedCash", "DashboardFuture", "DashboardDueToday", "DashboardOverdue", "DashboardRefresh" };
+        var keys = new[] { "ShellTitle", "Catalogue", "Settings", "Caisse", "Commandes", "Products", "Search", "OrderSearch", "Category", "All", "Active", "Inactive", "NewProduct", "Edit", "Save", "Cancel", "Add", "Confirm", "ReloadOrder", "Activate", "Deactivate", "BulkActivate", "BulkDeactivate", "BulkConfirm", "BulkNoChange", "BulkSuccess", "DeletePermanently", "ManageCategories", "CategoryShortCode", "CategoryShortCodeTooltip", "Code", "Name", "PriceTtc", "Vat", "DiscountEligible", "OptionsEnabled", "OptionGroups", "Options", "SelectionMode", "Required", "Optional", "Single", "Multi", "Minimum", "Maximum", "AdjustmentTtc", "MoveUp", "MoveDown", "PickupDiscount", "PickupMinimum", "DeliveryMinimum", "DeliveryFee", "DeliveryFeeEnabled", "Fulfilment", "FulfilmentUnselected", "Retrait", "Livraison", "PlannedDate", "PlannedTime", "TimeHour", "TimeMinute", "TimeUnset", "Telephone", "DeliveryAddress", "Comment", "PickupDiscountRequest", "Cart", "TotalTtc", "Quantity", "CustomAdjustments", "AddAdjustment", "AdjustmentLabel", "AdjustmentAmount", "NewOrder", "ManualTotalActive", "ReloadOrderTooltip", "ReloadedOrder", "OrderBrowser", "BrowseDate", "Browse", "OrderBrowserTime", "OrderBrowserMode", "OrderBrowserStatus", "OrderBrowserTotal", "OrderBrowserTelephone", "OrderBrowserEmptyTelephone", "OrderId", "OrderStatus", "OrderStatusOpen", "OrderStatusClosed", "OrderStatusCancelled", "OrderLines", "Unit", "PickupDiscountApplied", "TaxSnapshot", "InvalidOrderId", "OrderNotFound", "OrderSaved", "OrderSavedOutputFailed", "ProductInactive", "InvalidPlannedTime", "InvalidManualTotal", "ValidationFulfilmentRequired", "ValidationPlannedDateRequired", "ValidationPlannedDatePast", "ValidationPlannedTimeRequired", "ValidationPlannedTimeInvalid", "ValidationCartRequired", "ValidationDeliveryMinimum", "ValidationPickupDiscount", "InvalidQuantity", "InvalidOptions", "InvalidAdjustment", "EmptyCatalogue", "DeleteConfirm", "M03StartupFailure", "DeliveryFeeVatFixed", "CreateCategory", "CreateCategoryFirst", "RenameCategory", "Close", "EnterValidValues", "Saved", "ValidationGeneric", "ValidationAuthorityBlocked", "ValidationRequired", "ValidationCategoryDuplicate", "ValidationCategoryShortCodeDuplicate", "ValidationCategoryShortCodeTooLong", "ValidationCategoryMissing", "ValidationProductMissing", "ValidationProductDuplicateCode", "ValidationPriceNegative", "ValidationVatRange", "ValidationRequiredChoices", "ValidationSettingsRange", "ValidationInvalidNumber", "ValidationBusy", "ValidationGroupStructure", "ValidationOptionStructure", "ValidationConflict", "ValidationField", "CategoryEdit", "CategoryCreateSave", "CategoryRenameSave", "CategoryEditCancel", "DirtyEditorClose", "Discard", "KeepEditing", "OptionName", "OptionActive", "OrderReference", "OrderCard", "OrderCash", "OrderPaid", "OrderDifference", "OrderSearchLive", "OrderModify", "OrderAbandon", "OrderCancel", "OrderNewFromDetails", "OrderClose", "OrderEffectiveDate", "OrderEffectiveDateEdit", "OrderEffectiveDateHint", "OrderBrowseByDate", "OrderSave", "OrderReadOnly", "OrderEdit", "OrderAdvance", "OrderSearchHint", "OrderNoSelection", "DashboardTurnover", "DashboardReceived", "DashboardReceivedCard", "DashboardReceivedCash", "DashboardFuture", "DashboardDueToday", "DashboardOverdue", "DashboardRefresh", "AuthorityReadOnly", "AuthorityTransitioning", "AuthorityRecoveryRequired" };
         keys = keys.Append("ValidationPaymentNegative").Append("OrderCloseEligible").ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(AuthorityStatus));
+        OnPropertyChanged(nameof(CanWrite));
+        OnPropertyChanged(nameof(IsAuthorityWarningVisible));
         OnPropertyChanged(nameof(LanguageLabel));
         OnPropertyChanged(nameof(LanguageSaveFailure));
         OnPropertyChanged(nameof(Localized));

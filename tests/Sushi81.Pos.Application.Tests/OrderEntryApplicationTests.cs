@@ -1,4 +1,6 @@
 using Sushi81.Pos.Application.Foundation.Ids;
+using Sushi81.Pos.Application.Foundation.Authority;
+using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.OrderEntry;
@@ -281,6 +283,31 @@ public sealed class OrderEntryApplicationTests
     }
 
     [TestMethod]
+    public async Task OrderCommitNotifiesWithNonCancellableTokenAfterCallerCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
+        var store = new RecordingOrderStore { AfterSave = cancellation.Cancel };
+        var notifier = new RecordingNotifier();
+        using var service = new OrderEntryService(
+            new FakeCatalogue(Entry(product)),
+            new FakeSettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow)),
+            store,
+            new RecordingDispatcher(),
+            new DeterministicIds(),
+            new FixedClock(),
+            new TestWriteAuthorityGuard(WriteAuthorityState.Authoritative),
+            notifier);
+
+        var result = await service.ConfirmNewOrderAsync(Draft(product), cancellation.Token);
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.IsTrue(cancellation.IsCancellationRequested);
+        Assert.AreEqual(1, notifier.Calls);
+        Assert.IsFalse(notifier.LastToken.IsCancellationRequested);
+    }
+
+    [TestMethod]
     public async Task BusyConfirmationDoesNotDispatchOrWriteTwice()
     {
         var product = Product(Guid.NewGuid(), Guid.Empty, optionsEnabled: false);
@@ -476,8 +503,9 @@ public sealed class OrderEntryApplicationTests
         public bool ThrowOnReload { get; init; }
         public OrderSnapshot? Snapshot { get; private set; }
         public IReadOnlyList<OrderBrowserRow> BrowserRows { get; init; } = [];
+        public Action? AfterSave { get; init; }
         public DateOnly? BrowserDate { get; private set; }
-        public virtual Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default) { SaveCalls++; Snapshot = snapshot; return Task.CompletedTask; }
+        public virtual Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default) { SaveCalls++; Snapshot = snapshot; AfterSave?.Invoke(); return Task.CompletedTask; }
         public virtual Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default)
         {
             if (ThrowOnReload) throw new InvalidOperationException("synthetic reload failure");
@@ -503,6 +531,27 @@ public sealed class OrderEntryApplicationTests
         public int Calls { get; private set; }
         public OrderSnapshot? LastOrder { get; private set; }
         public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) { Calls++; LastOrder = committedOrder; return Task.CompletedTask; }
+    }
+
+    private sealed class RecordingNotifier : IDurableChangeNotifier
+    {
+        public int Calls { get; private set; }
+        public CancellationToken LastToken { get; private set; }
+        public Task NotifyCommittedAsync(CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            LastToken = cancellationToken;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class TestWriteAuthorityGuard(WriteAuthorityState state) : IWriteAuthorityGuard
+    {
+        public WriteAuthorityState State { get; } = state;
+        public void RequireWriteAuthority()
+        {
+            if (State != WriteAuthorityState.Authoritative) throw new WriteAuthorityException(State);
+        }
     }
 
     private sealed class FixedClock : IBusinessClock

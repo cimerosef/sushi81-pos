@@ -1,4 +1,7 @@
 using Sushi81.Pos.Domain;
+using Sushi81.Pos.Application.Foundation;
+using Sushi81.Pos.Application.Foundation.Authority;
+using Sushi81.Pos.Application.Foundation.Recovery;
 
 namespace Sushi81.Pos.Application.Catalogue;
 
@@ -28,6 +31,7 @@ public static class ValidationCodes
     public const string NotFound = "not-found";
     public const string PaymentNegative = "payment-negative";
     public const string PaymentMismatch = "payment-mismatch";
+    public const string AuthorityBlocked = "authority-blocked";
 
     public static string Infer(string message) => message switch
     {
@@ -172,20 +176,42 @@ public interface ICatalogueStore : ICatalogueQueries
     Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default);
 }
 
-public sealed class CatalogueService(ICatalogueStore store)
+public sealed class CatalogueService
 {
-    private readonly ICatalogueStore store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly ICatalogueStore store;
+    private readonly IWriteAuthorityGuard authorityGuard;
+    private readonly IDurableChangeNotifier notifier;
+
+    public CatalogueService(
+        ICatalogueStore store,
+        IWriteAuthorityGuard authorityGuard,
+        IDurableChangeNotifier notifier)
+    {
+        this.store = store ?? throw new ArgumentNullException(nameof(store));
+        this.authorityGuard = authorityGuard ?? throw new ArgumentNullException(nameof(authorityGuard));
+        this.notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
+    }
+
+    // Test assemblies use the explicit test-only wiring supplied by the application project.
+    // Production composition has no constructor that can omit the M06 write/recovery seam.
+    internal CatalogueService(ICatalogueStore store)
+        : this(store, TestOnlyAuthoritativeGuard.Instance, TestOnlyDurableChangeNotifier.Instance) { }
 
     public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => store.ListCategoriesAsync(cancellationToken);
     public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default) => store.ListProductsAsync(search, categoryId, active, cancellationToken);
     public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => store.GetProductForEditAsync(productId, cancellationToken);
-    public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => store.CreateCategoryAsync(name, cancellationToken);
-    public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid id, string name, CancellationToken cancellationToken = default) => store.RenameCategoryAsync(id, name, cancellationToken);
+    public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => MutateAsync(() => store.CreateCategoryAsync(name, cancellationToken));
+    public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid id, string name, CancellationToken cancellationToken = default) => MutateAsync(() => store.RenameCategoryAsync(id, name, cancellationToken));
     public Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default) => ValidateAndCreateCategoryAsync(name, shortCode, cancellationToken);
     public Task<OperationResult<CategorySummary>> RenameCategoryWithCodeAsync(Guid id, string name, string? shortCode, CancellationToken cancellationToken = default) => ValidateAndRenameCategoryAsync(id, name, shortCode, cancellationToken);
     public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => ValidateAndCreateAsync(draft, cancellationToken);
     public Task<OperationResult> UpdateProductAsync(Guid id, ProductDraft draft, CancellationToken cancellationToken = default) => ValidateAndUpdateAsync(id, draft, cancellationToken);
-    public Task<OperationResult> SetProductActiveAsync(Guid id, bool active, CancellationToken cancellationToken = default) => store.SetProductActiveAsync(id, active, cancellationToken);
+    public async Task<OperationResult> SetProductActiveAsync(Guid id, bool active, CancellationToken cancellationToken = default)
+    {
+        var current = await store.GetProductForEditAsync(id, cancellationToken);
+        if (current is not null && current.IsActive == active) return OperationResult.Success();
+        return await MutateAsync(() => store.SetProductActiveAsync(id, active, cancellationToken));
+    }
     public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default)
     {
         if (request is null) return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request is invalid.", ValidationCodes.BulkRequestInvalid)));
@@ -193,37 +219,117 @@ public sealed class CatalogueService(ICatalogueStore store)
         if (items.Count == 0) return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request is empty.", ValidationCodes.BulkRequestInvalid)));
         if (items.Any(item => item.ProductId == Guid.Empty)) return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request contains an invalid product.", ValidationCodes.BulkRequestInvalid)));
         if (items.Select(item => item.ProductId).Distinct().Count() != items.Count) return Task.FromResult(OperationResult<BulkProductActiveStateResult>.Failure(new ValidationIssue("products", "The bulk catalogue request contains duplicate products.", ValidationCodes.BulkRequestInvalid)));
-        return store.BulkSetProductsActiveAsync(request with { Items = items }, cancellationToken);
+        return BulkMutateAsync(request with { Items = items }, cancellationToken);
     }
-    public Task<OperationResult> DeleteProductAsync(Guid id, CancellationToken cancellationToken = default) => store.DeleteProductAsync(id, cancellationToken);
+    public Task<OperationResult> DeleteProductAsync(Guid id, CancellationToken cancellationToken = default) => MutateAsync(() => store.DeleteProductAsync(id, cancellationToken));
 
     private async Task<OperationResult<Guid>> ValidateAndCreateAsync(ProductDraft draft, CancellationToken cancellationToken)
     {
         var validation = ValidateDraft(draft, requireId: false);
-        return validation is not null ? OperationResult<Guid>.Failure(validation) : await store.CreateProductAsync(draft, cancellationToken);
+        if (validation is not null) return OperationResult<Guid>.Failure(validation);
+        return await MutateAsync(() => store.CreateProductAsync(draft, cancellationToken));
     }
 
     private async Task<OperationResult<CategorySummary>> ValidateAndCreateCategoryAsync(string name, string? shortCode, CancellationToken cancellationToken)
     {
         var error = CatalogueValidation.ValidateCategoryShortCode(shortCode);
-        return error is not null
-            ? OperationResult<CategorySummary>.Failure(new ValidationIssue("shortCode", error, ValidationCodes.Infer(error)))
-            : await store.CreateCategoryWithCodeAsync(name, shortCode, cancellationToken);
+        if (error is not null) return OperationResult<CategorySummary>.Failure(new ValidationIssue("shortCode", error, ValidationCodes.Infer(error)));
+        return await MutateAsync(() => store.CreateCategoryWithCodeAsync(name, shortCode, cancellationToken));
     }
 
     private async Task<OperationResult<CategorySummary>> ValidateAndRenameCategoryAsync(Guid id, string name, string? shortCode, CancellationToken cancellationToken)
     {
         var error = CatalogueValidation.ValidateCategoryShortCode(shortCode);
-        return error is not null
-            ? OperationResult<CategorySummary>.Failure(new ValidationIssue("shortCode", error, ValidationCodes.Infer(error)))
-            : await store.RenameCategoryWithCodeAsync(id, name, shortCode, cancellationToken);
+        if (error is not null) return OperationResult<CategorySummary>.Failure(new ValidationIssue("shortCode", error, ValidationCodes.Infer(error)));
+        return await MutateAsync(() => store.RenameCategoryWithCodeAsync(id, name, shortCode, cancellationToken));
     }
 
     private async Task<OperationResult> ValidateAndUpdateAsync(Guid id, ProductDraft draft, CancellationToken cancellationToken)
     {
         if (id == Guid.Empty || draft.Id != Guid.Empty && draft.Id != id) return OperationResult.Failure(new ValidationIssue("product", "The product no longer exists.", ValidationCodes.ProductMissing));
         var validation = ValidateDraft(draft with { Id = id }, requireId: true);
-        return validation is not null ? OperationResult.Failure(validation) : await store.UpdateProductAsync(id, draft with { Id = id }, cancellationToken);
+        if (validation is not null) return OperationResult.Failure(validation);
+        var current = await store.GetProductForEditAsync(id, cancellationToken);
+        if (current is not null && ProductDraftsEqual(current, draft with { Id = id })) return OperationResult.Success();
+        return await MutateAsync(() => store.UpdateProductAsync(id, draft with { Id = id }, cancellationToken));
+    }
+
+    private async Task<OperationResult<T>> MutateAsync<T>(Func<Task<OperationResult<T>>> operation)
+    {
+        try
+        {
+            authorityGuard.RequireWriteAuthority();
+            var result = await operation();
+            if (result.Succeeded) await NotifySafelyAsync();
+            return result;
+        }
+        catch (WriteAuthorityException exception)
+        {
+            return OperationResult<T>.Failure(AuthorityIssue(exception));
+        }
+    }
+
+    private async Task<OperationResult> MutateAsync(Func<Task<OperationResult>> operation)
+    {
+        try
+        {
+            authorityGuard.RequireWriteAuthority();
+            var result = await operation();
+            if (result.Succeeded) await NotifySafelyAsync();
+            return result;
+        }
+        catch (WriteAuthorityException exception)
+        {
+            return OperationResult.Failure(AuthorityIssue(exception));
+        }
+    }
+
+    private async Task<OperationResult<BulkProductActiveStateResult>> BulkMutateAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken)
+    {
+        try
+        {
+            authorityGuard.RequireWriteAuthority();
+            var result = await store.BulkSetProductsActiveAsync(request, cancellationToken);
+            if (result.Succeeded && result.Value?.ChangedCount > 0) await NotifySafelyAsync();
+            return result;
+        }
+        catch (WriteAuthorityException exception)
+        {
+            return OperationResult<BulkProductActiveStateResult>.Failure(AuthorityIssue(exception));
+        }
+    }
+
+    private async Task NotifySafelyAsync()
+    {
+        try { await notifier.NotifyCommittedAsync(CancellationToken.None); }
+        catch { /* The business transaction is already durable; recovery failure is logged by its infrastructure seam. */ }
+    }
+
+    private static ValidationIssue AuthorityIssue(WriteAuthorityException exception) =>
+        new("authority", $"Local write authority is unavailable ({exception.State}).", ValidationCodes.AuthorityBlocked);
+
+    private static bool ProductDraftsEqual(ProductDraft left, ProductDraft right) =>
+        left.Id == right.Id && string.Equals(left.Code, right.Code, StringComparison.Ordinal)
+        && string.Equals(left.Name, right.Name, StringComparison.Ordinal) && left.CategoryId == right.CategoryId
+        && left.PriceTtc == right.PriceTtc && left.VatRate == right.VatRate && left.IsActive == right.IsActive
+        && left.DiscountEligible == right.DiscountEligible && left.OptionsEnabled == right.OptionsEnabled
+        && (left.Groups ?? []).OrderBy(group => group.DisplayOrder).SequenceEqual((right.Groups ?? []).OrderBy(group => group.DisplayOrder), GroupComparer.Instance);
+
+    private sealed class GroupComparer : IEqualityComparer<OptionGroupDraft>
+    {
+        public static GroupComparer Instance { get; } = new();
+        public bool Equals(OptionGroupDraft? left, OptionGroupDraft? right) => left is not null && right is not null
+            && left.Id == right.Id && left.Name == right.Name && left.SelectionMode == right.SelectionMode && left.IsRequired == right.IsRequired
+            && left.MinSelections == right.MinSelections && left.MaxSelections == right.MaxSelections && left.DisplayOrder == right.DisplayOrder
+            && (left.Options ?? []).OrderBy(option => option.DisplayOrder).SequenceEqual(right.Options ?? [], OptionComparer.Instance);
+        public int GetHashCode(OptionGroupDraft value) => value.Id.GetHashCode();
+    }
+
+    private sealed class OptionComparer : IEqualityComparer<OptionDraft>
+    {
+        public static OptionComparer Instance { get; } = new();
+        public bool Equals(OptionDraft? left, OptionDraft? right) => left is not null && right is not null && left == right;
+        public int GetHashCode(OptionDraft value) => value.Id.GetHashCode();
     }
 
     private static ValidationIssue? ValidateDraft(ProductDraft draft, bool requireId)

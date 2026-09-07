@@ -36,17 +36,35 @@ Historical M04 records remain under this directory, including:
 - `milestone-04-worklog.md`;
 - `milestone-04-final-manual-acceptance.md`.
 
-## Current M05 contract
+## Completed M05 contracts
 
-M05 — Lifecycle, payments, search and operational dashboard — is the completed controlled implementation milestone under PR #10 / branch `codex/m05-lifecycle-payments-search-dashboard`; implementation and project-owner Windows/WPF acceptance are Passed, while merge remains pending explicit owner approval.
+M05 — Lifecycle, payments, search and operational dashboard — is Passed and merged through PR #10 at merge commit `79499d7c6ed65a74f524097c1507ca648dc151c3`.
 
-Authoritative M05 preparation:
+Accepted production-code head: `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`. Final documentation/status head: `217d187dd3ef5498c11f21bc516eccc6737fa952`.
 
-- `milestone-05-lifecycle-payments-search-dashboard.md` — detailed implementation contract;
-- `milestone-05-authorization.md` — durable project-owner authorization;
-- `milestone-05-final-manual-acceptance.md` — final project-owner Windows/WPF acceptance record;
-- `../decisions/m05-lifecycle-payment-modification-clarifications.md` — approved D1/D2/D3 decision record.
+Historical M05 records remain under this directory, including:
 
-M05 inherits every cross-cutting governance file listed above. Its implementation PR must remain open/unmerged until explicit project-owner merge approval. M05 completion does not authorize M06.
+- `milestone-05-lifecycle-payments-search-dashboard.md`;
+- `milestone-05-authorization.md`;
+- `milestone-05-worklog.md`;
+- `milestone-05-final-manual-acceptance.md`;
+- related manual-acceptance findings/remediation records.
 
-Future milestone contracts M06–M13 must include a short **Parallel execution plan** section that identifies likely independent workstreams and the dependency seams that must be stabilized before concurrent delegation, and must treat `interactive-quality-gate.md` as inherited whenever the milestone includes user-visible UI/workflow behavior.
+M05 is no longer active work and does not itself authorize M06.
+
+## Current M06 contract
+
+M06 — Local recovery and authoritative/read-only enforcement — is the current controlled implementation milestone on branch `codex/m06-local-recovery-read-only`.
+
+Authoritative M06 preparation:
+
+- `milestone-06-local-recovery-read-only-enforcement.md` — detailed implementation contract and acceptance/failure-test mapping;
+- `milestone-06-authorization.md` — durable project-owner authorization;
+- `milestone-06-worklog.md` — living implementation/evidence record;
+- `milestone-06-final-manual-acceptance.md` — prepared project-owner Windows/WPF checklist, not Passed until actually executed.
+
+M06 inherits every cross-cutting governance file listed above. Its implementation PR must remain open/unmerged until explicit project-owner merge approval. M06 completion does not authorize M07.
+
+M06 specifically owns local recovery (`AC-STO-006`) and centralized persistent read-only enforcement (`AC-STO-010`) while leaving real pairing/target-directed GitHub handoff/target acquisition/disaster recovery to M07.
+
+Future milestone contracts M07–M13 must include a short **Parallel execution plan** section that identifies likely independent workstreams and the dependency seams that must be stabilized before concurrent delegation, and must treat `interactive-quality-gate.md` as inherited whenever the milestone includes user-visible UI/workflow behavior.

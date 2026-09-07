@@ -7,6 +7,9 @@
   <data name="ShellTitle" xml:space="preserve"><value>Sushi81 POS</value></data>
   <data name="FoundationReady" xml:space="preserve"><value>Fondation prête.</value></data>
   <data name="StartupFailure" xml:space="preserve"><value>Le démarrage a échoué. Consultez les diagnostics.</value></data>
+  <data name="AuthorityReadOnly" xml:space="preserve"><value>Mode lecture seule : cette instance n’est pas l’autorité locale. Les données affichées localement peuvent être obsolètes. Les recherches et consultations restent disponibles.</value></data>
+  <data name="AuthorityTransitioning" xml:space="preserve"><value>Transition d’autorité en cours : les écritures sont bloquées et les données locales peuvent être obsolètes.</value></data>
+  <data name="AuthorityRecoveryRequired" xml:space="preserve"><value>Récupération locale requise : les écritures sont bloquées et les données locales peuvent être obsolètes.</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>Langue</value></data>
   <data name="LanguageSaveFailure" xml:space="preserve"><value>Impossible d’enregistrer la préférence de langue. Réessayez.</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>Français</value></data>
@@ -62,6 +65,7 @@
   <data name="EnterValidValues" xml:space="preserve"><value>Saisissez des valeurs valides.</value></data>
   <data name="Saved" xml:space="preserve"><value>Enregistré.</value></data>
   <data name="ValidationGeneric" xml:space="preserve"><value>La saisie n’est pas valide.</value></data>
+  <data name="ValidationAuthorityBlocked" xml:space="preserve"><value>Les écritures sont bloquées : cette instance n’a pas l’autorité locale.</value></data>
   <data name="ValidationRequired" xml:space="preserve"><value>Ce champ est obligatoire.</value></data>
   <data name="ValidationCategoryDuplicate" xml:space="preserve"><value>Une catégorie portant ce nom existe déjà.</value></data>
   <data name="ValidationCategoryShortCodeDuplicate" xml:space="preserve"><value>Une catégorie portant ce code court existe déjà.</value></data>

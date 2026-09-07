@@ -44,6 +44,28 @@ public sealed class DependencyBoundaryTests
         AssertNoForbiddenPublicApiTypes(typeof(Sushi81.Pos.Application.Foundation.Paths.IAppPaths).Assembly);
     }
 
+    [TestMethod]
+    public void M06MutationServicesExposeMandatoryAuthorityAndRecoverySeams()
+    {
+        AssertMandatorySeam(typeof(Sushi81.Pos.Application.Catalogue.CatalogueService));
+        AssertMandatorySeam(typeof(Sushi81.Pos.Application.Settings.BusinessSettingsService));
+        AssertMandatorySeam(typeof(Sushi81.Pos.Application.OrderEntry.OrderEntryService));
+        AssertMandatorySeam(typeof(Sushi81.Pos.Application.OrderEntry.OrderLifecycleService));
+    }
+
+    private static void AssertMandatorySeam(Type serviceType)
+    {
+        var constructors = serviceType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
+        Assert.IsNotEmpty(constructors, $"{serviceType.Name} must expose a production constructor.");
+        Assert.IsTrue(constructors.All(constructor =>
+        {
+            var parameters = constructor.GetParameters();
+            var guard = parameters.SingleOrDefault(parameter => parameter.ParameterType == typeof(Sushi81.Pos.Application.Foundation.Authority.IWriteAuthorityGuard));
+            var notifier = parameters.SingleOrDefault(parameter => parameter.ParameterType == typeof(Sushi81.Pos.Application.Foundation.Recovery.IDurableChangeNotifier));
+            return guard is not null && notifier is not null && !guard.IsOptional && !notifier.IsOptional;
+        }), $"{serviceType.Name} must not have a public constructor that can omit the M06 guard/notifier seam.");
+    }
+
     private static void AssertProjectReferences(string relativeProjectPath, params string[] expectedFileNames)
     {
         var document = XDocument.Load(Path.Combine(RepositoryRoot, relativeProjectPath));

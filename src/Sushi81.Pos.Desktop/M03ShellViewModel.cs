@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Domain;
 
@@ -19,6 +20,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 {
     private readonly CatalogueService catalogue;
     private readonly BusinessSettingsService settings;
+    private readonly IWriteAuthorityGuard? authorityGuard;
     private ProductSummary? selectedProduct;
     private CategorySummary? selectedCategory;
     private Guid selectedCategoryId;
@@ -38,10 +40,11 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     private static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(250);
 
-    public M03ShellViewModel(CatalogueService catalogue, BusinessSettingsService settings)
+    public M03ShellViewModel(CatalogueService catalogue, BusinessSettingsService settings, IWriteAuthorityGuard? authorityGuard = null)
     {
         this.catalogue = catalogue ?? throw new ArgumentNullException(nameof(catalogue));
         this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        this.authorityGuard = authorityGuard;
         Categories = new ObservableCollection<CategorySummary>();
         Products = new ObservableCollection<ProductSummary>();
         CategoryFilters = new ObservableCollection<CategorySummary>();
@@ -182,17 +185,21 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     {
         get { lock (filterRefreshLock) return filterRefreshTask; }
     }
-    public bool CanEditProduct => SelectedProduct is not null && !IsBusy;
-    public bool CanDeleteProduct => SelectedProduct is not null && !IsBusy;
-    public bool CanToggleProduct => SelectedProduct is not null && !IsBusy;
-    public bool CanBulkActivate => !IsBusy && Products.Any(product => !product.IsActive);
-    public bool CanBulkDeactivate => !IsBusy && Products.Any(product => product.IsActive);
+    public bool CanWrite => authorityGuard is null || authorityGuard.State == WriteAuthorityState.Authoritative;
+    public bool CanCreateProduct => CanWrite && !IsBusy;
+    public bool CanManageCategories => CanWrite && !IsBusy;
+    public bool CanSaveSettings => CanWrite && !IsBusy;
+    public bool CanEditProduct => CanWrite && SelectedProduct is not null && !IsBusy;
+    public bool CanDeleteProduct => CanWrite && SelectedProduct is not null && !IsBusy;
+    public bool CanToggleProduct => CanWrite && SelectedProduct is not null && !IsBusy;
+    public bool CanBulkActivate => CanWrite && !IsBusy && Products.Any(product => !product.IsActive);
+    public bool CanBulkDeactivate => CanWrite && !IsBusy && Products.Any(product => product.IsActive);
     public int FilteredProductCount => Products.Count;
     public int FilteredProductsToActivateCount => Products.Count(product => !product.IsActive);
     public int FilteredProductsToDeactivateCount => Products.Count(product => product.IsActive);
     public string ToggleProductActionLabel => SelectedProduct?.IsActive == true ? deactivateLabel : activateLabel;
     public bool HasProducts => Products.Count > 0;
-    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanEditProduct)); OnPropertyChanged(nameof(CanDeleteProduct)); OnPropertyChanged(nameof(CanToggleProduct)); OnPropertyChanged(nameof(CanBulkActivate)); OnPropertyChanged(nameof(CanBulkDeactivate)); OnPropertyChanged(nameof(ToggleProductActionLabel)); } }
+    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanCreateProduct)); OnPropertyChanged(nameof(CanManageCategories)); OnPropertyChanged(nameof(CanSaveSettings)); OnPropertyChanged(nameof(CanEditProduct)); OnPropertyChanged(nameof(CanDeleteProduct)); OnPropertyChanged(nameof(CanToggleProduct)); OnPropertyChanged(nameof(CanBulkActivate)); OnPropertyChanged(nameof(CanBulkDeactivate)); OnPropertyChanged(nameof(ToggleProductActionLabel)); } }
 
     public string PickupDiscountRateText { get; set; } = "10";
     public string PickupDiscountMinText { get; set; } = "15.00";

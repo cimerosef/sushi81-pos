@@ -218,4 +218,4 @@ The 2026-08-28 target-directed authority-handoff amendment and the 2026-08-30 fi
 
 **Phase 5 remains complete.**
 
-Phase 6 implementation is active. M01 and M02 are complete, M03 and M04 are Passed and merged, and M04's final Windows/WPF acceptance is recorded in the implementation status/worklog documents. M05 implementation and project-owner Windows/WPF acceptance are Passed on `codex/m05-lifecycle-payments-search-dashboard` / PR #10 under its approved contract; the PR remains open/unmerged pending explicit owner merge approval. M06 and later milestones are not authorized.
+Phase 6 implementation is active. M01 and M02 are complete, M03 and M04 are Passed and merged, and M04's final Windows/WPF acceptance is recorded in the implementation status/worklog documents. M05 implementation and project-owner Windows/WPF acceptance are Passed and merged to `main` through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`. M06 is the current authorized implementation on PR #11 under `CODEX_HANDOFF_READY: M06-REVIEW-REMEDIATION-03`; its controlled remediation pass is complete pending owner Windows/WPF acceptance, and M07 and later milestones are not authorized.
