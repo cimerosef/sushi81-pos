@@ -178,6 +178,23 @@ After completing an authorized handoff, Codex must perform the following deliver
 
 The browser-notification **attempt is mandatory for every executed handoff**. It is not optional and must not be skipped merely because GitHub delivery already succeeded.
 
+### Standing project-owner authorization for completion notifications
+
+The project owner gives **standing authorization** for Codex to perform the completion-notification action described above after every authorized handoff. Codex must **not ask the project owner for an additional approval or confirmation** merely to send that completion message.
+
+This standing authorization is intentionally narrow. It authorizes Codex, after the durable matching `CODEX_DONE` has been posted, to:
+
+- switch to or focus the already-open Sushi81 POS ChatGPT browser conversation;
+- type a short completion notification containing the matching handoff ID, pushed head/evidence pointer and request for ChatGPT review;
+- submit that notification;
+- return/finish the Codex run afterward.
+
+It does **not** authorize Codex to enter credentials, expose secrets, change ChatGPT/browser/account settings, navigate unrelated sites, send unrelated messages, approve merges, or perform any other user-account action.
+
+This standing authorization is a project/workflow approval and should be treated as already granted on every future handoff. Codex must not manufacture an additional project-owner confirmation gate around this notification step.
+
+If the host platform, browser, operating system, security sandbox or tool runtime itself imposes a non-bypassable permission prompt or requires a user gesture, repository instructions cannot override that platform control. In that case Codex should make the permitted attempt, must not weaken or bypass the platform security mechanism, record `browserNotification: unavailable` or `browserNotification: failed` as appropriate, and still treat the durable GitHub `CODEX_DONE` as successful delivery.
+
 The browser-notification **success is best-effort and non-fatal**. Browser/session unavailability, navigation failure, authentication/session loss, inability to control the existing tab, or another browser-side error does not make the implementation task fail and does not authorize re-execution of the handoff. GitHub remains the durable completion record.
 
 For every `CODEX_DONE`, Codex must record the browser-notification attempt outcome in that same PR comment using one of these values:
