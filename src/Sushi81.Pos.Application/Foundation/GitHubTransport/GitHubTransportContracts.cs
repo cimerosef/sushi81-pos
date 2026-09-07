@@ -168,6 +168,13 @@ public static class GitHubHandoffAssetNames
         return snapshotName[..14] + ".grant.json";
     }
 
+    public static string CreateActivationName(Guid lineageId, long generation)
+    {
+        if (lineageId == Guid.Empty || generation < 1)
+            throw new ArgumentOutOfRangeException(nameof(generation));
+        return $"dr-{lineageId:N}-g-{generation.ToString(CultureInfo.InvariantCulture)}.activation.json";
+    }
+
     public static bool IsSupported(string? name) => IsSnapshotName(name) || IsGrantName(name) || IsActivationName(name);
 
     public static bool IsSnapshotName(string? name) => HasTimestampSuffix(name, ".snapshot.db");

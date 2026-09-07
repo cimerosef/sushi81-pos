@@ -110,11 +110,11 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 
 ### M07-WP7 — DR activation single-winner proof
 
-**Status:** Not started  
-**Commit(s):**  
-**Deterministic concurrency evidence:**  
-**Disposable real private GitHub race/retry evidence:**  
-**Result:** Must be Passed before broad DR implementation. If not provable, record `Blocked — architecture decision required` and stop.
+**Status:** Blocked — architecture decision required
+**Commit(s):** pending final blocker commit
+**Deterministic concurrency evidence:** `RecoveryActivationTests`: 4/4 Passed. The isolated proof primitive uses one deterministic `dr-<lineage>-g-<next-generation>.activation.json` name, strict immutable artifact binding, atomic fake create-once behavior, same-winner resume, loser read-only result, starter occupancy fail-closed behavior, and unknown create outcome re-observation. The primitive never changes `IWriteAuthorityGuard`.
+**Disposable real private GitHub race/retry evidence:** Not available. No authorized disposable dedicated private handoff repository/release configuration or test credential is present in the project environment. The source-code repository is explicitly rejected by the M07 transport contract and cannot be used as a substitute; no production/customer credential or data was used.
+**Result:** The mandatory real single-winner proof gate cannot be closed in this execution. Per contract, do not implement WP8 or any weaker DR takeover; await an approved disposable private-repository proof configuration/architecture decision.
 
 ### M07-WP8 — production Disaster Recovery/stale generation/reinit
 
