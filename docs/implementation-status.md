@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Last updated:** 2026-09-07  
-**Current state:** M01 through M06 are Passed and merged. M07 — Pairing, target-directed formal handoff and disaster recovery — is the next milestone and is in **implementation preparation only**. Its material product/safety decisions have been approved by the project owner, but M07 production implementation is **not yet authorized**. GitHub issue #4 remains CLOSED; there is no active M07 implementation branch, PR or executable Codex handoff. M08 and later milestones have not started.
+**Current state:** M01 through M06 are Passed and merged. M07 — Pairing, target-directed formal handoff and disaster recovery — is **Authorized / In progress** under `docs/implementation/milestone-07-authorization.md`. The dedicated branch is `codex/m07-pairing-handoff-disaster-recovery`. Codex execution may begin only after the M07 PR, Issue #4 mailbox pointer and one complete `CODEX_HANDOFF_READY` record are all created and cross-verified, then Issue #4 is reopened. M08 and later milestones have not started.
 
 > Historical implementation/evidence detail through M06 is preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). This living document intentionally contains current control state only; historical evidence must not be rewritten merely to update current milestone status.
 
@@ -29,7 +29,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M04 — Order-entry vertical slice | Passed | Merged through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a`; final Windows/WPF acceptance Passed. |
 | M05 — Lifecycle/payments/search/dashboard | Passed | Merged through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`; accepted production head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`; final Windows/WPF acceptance Passed. |
 | M06 — Local recovery/read-only enforcement | Passed | PR #11 merged at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; accepted production repair head `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`; final docs/PR head `86326d81551aa4cb5cdcbc6826b8c740317b34c4`; Release tests 364/364, build 0 warnings/errors, exact-head CI `34091370109`, project-owner Windows/WPF acceptance Passed. |
-| M07 — Pairing, target-directed formal handoff and disaster recovery | Preparation | Material decisions approved 2026-09-07; specification/implementation-contract preparation underway. **Not implementation-authorized. Execution gate CLOSED.** |
+| M07 — Pairing, target-directed formal handoff and disaster recovery | In progress | Project-owner implementation authorization recorded 2026-09-07 in `milestone-07-authorization.md`. Dedicated branch `codex/m07-pairing-handoff-disaster-recovery`; execution setup is being completed. Merge is not authorized. |
 | M08 — Printing and reprinting | Not started | Pending M07. |
 | M09 — Hiboutik paste fallback | Not started | Pending M08. |
 | M10 — Catalogue `.xlsx` | Not started | Pending M09. |
@@ -43,20 +43,20 @@ Historical criterion-by-criterion evidence through M06 remains in the archived s
 
 | Criterion | Owner | Current state | Note |
 |---|---:|---|---|
-| AC-PROD-002 | M07 | Preparation | M07 must preserve local-first authoritative operation when ordinary Internet/OneDrive services are unavailable; M08 retains the final real printer-adapter offline cross-check. |
-| AC-STO-002 | M07 | Preparation | N-device single-writer and target-directed normal transfer, including approved self-join semantics. |
-| AC-STO-003 | M07 | Preparation | Close-retain and strict source relinquishment-before-grant ordering. |
-| AC-STO-004 | M07 | Preparation | Exact-target validation/acquisition. |
-| AC-STO-005 | M07 | Preparation | No silent takeover/source rollback/target substitution; genuine loss uses explicit DR. |
+| AC-PROD-002 | M07 | In progress | M07 must preserve local-first authoritative operation when ordinary Internet/OneDrive services are unavailable; M08 retains the final real printer-adapter offline cross-check. |
+| AC-STO-002 | M07 | In progress | N-device single-writer and target-directed normal transfer, including approved self-join semantics. |
+| AC-STO-003 | M07 | In progress | Close-retain and strict source relinquishment-before-grant ordering. |
+| AC-STO-004 | M07 | In progress | Exact-target validation/acquisition. |
+| AC-STO-005 | M07 | In progress | No silent takeover/source rollback/target substitution; genuine loss uses explicit DR. |
 | AC-STO-006 | M06 | Passed | M06 local recovery generation/debounce/retention accepted with final 364-test and owner evidence. |
-| AC-STO-007 | M07 | Preparation | Newest-three complete GitHub handoff-unit retention. |
-| AC-STO-008 | M07 | Preparation | Changed-only OneDrive DR checkpoints, maximum normal frequency once per 15 minutes, newest five. |
-| AC-STO-009 | M07 | Preparation | Explicit generation-advancing DR under the 2026-09-07 approved quarantine/safe-candidate rules. |
+| AC-STO-007 | M07 | In progress | Newest-three complete GitHub handoff-unit retention. |
+| AC-STO-008 | M07 | In progress | Changed-only OneDrive DR checkpoints, maximum normal frequency once per 15 minutes, newest five. |
+| AC-STO-009 | M07 | In progress | Explicit generation-advancing DR under the 2026-09-07 approved quarantine/safe-candidate rules. |
 | AC-STO-010 | M06 | Passed foundation; M07 regression required | M06 centralized Application write guard, fail-closed startup and persistent read-only/recovery presentation are accepted. M07 must exercise them in real transfer/pending/stale/self-join states; printing remains AC-PRINT-010/M08. |
 
 ## 4. M07 approved material direction
 
-The project owner approved the following product/safety semantics on 2026-09-07. Detailed controlling wording belongs in the M07 approved decision/specification amendment.
+The project owner approved the following product/safety semantics on 2026-09-07. Detailed controlling wording is in `docs/decisions/m07-self-join-disaster-recovery.md` and the M07 acceptance amendment.
 
 1. **Self-join without authority approval.** A newly installed computer may join an existing Sushi81 POS lineage without approval from the old/current authoritative computer. Joining establishes device identity/membership only and never grants write authority. In a healthy system it remains read-only until a normal handoff is explicitly targeted to it. If the former authoritative computer is genuinely dead/unavailable, the newly joined replacement may enter explicit Disaster Recovery.
 2. **Operationally fenced exceptional Disaster Recovery.** Normal authoritative offline operation remains supported. DR requires explicit confirmation that the former authoritative/designated-target device is genuinely unavailable and will remain stopped/quarantined until reinitialized; DR itself requires online single-winner generation activation before the recovery device may become writable. Software cannot remotely revoke a still-running disconnected stale writer if the operator violates that quarantine precondition.
@@ -64,18 +64,19 @@ The project owner approved the following product/safety semantics on 2026-09-07.
 
 ## 5. M07 governance gate
 
-Until a separate explicit project-owner implementation approval is recorded, all of the following remain prohibited:
+Implementation authorization is durable in `docs/implementation/milestone-07-authorization.md`. The controller may now establish the dedicated PR/mailbox/handoff and then reopen Issue #4 only after all pointers are consistent.
 
-- reopening GitHub issue #4 as an execution gate;
-- creating an active M07 implementation branch/PR;
-- publishing an executable `CODEX_HANDOFF_READY` pointer;
-- telling Codex to start production implementation;
-- treating preparation documents as authorization;
-- starting M08.
+Codex must still fail closed unless all of the following are simultaneously true:
 
-Implementation preparation may create/align Approved specification records and prepared-but-not-authorized implementation/checklist documents on `main`.
+- Issue #4 is OPEN;
+- Issue #4 points to the exact active M07 PR and branch;
+- the M07 authorization record exists;
+- the PR contains one valid unprocessed top-level `CODEX_HANDOFF_READY` record;
+- the handoff ID, contract and branch/PR identity are unambiguous.
 
-After explicit implementation approval, follow the repository governance sequence: durable M07 authorization → worklog/manual checklist finalized → dedicated implementation branch/PR → issue #4 mailbox pointer → one complete handoff → verify prerequisites → open execution gate → Codex implementation/review/remediation → exact-head project-owner acceptance and CI → explicit merge approval.
+Authorization does not authorize merge. M07 still requires implementation evidence, ChatGPT review/remediation, exact-head project-owner Windows/WPF multi-device acceptance, green CI and separate explicit merge approval.
+
+M08 must remain Not started until M07 is Passed and merged.
 
 ## 6. Evidence preservation
 
