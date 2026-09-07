@@ -112,9 +112,13 @@ public static partial class CompositionRoot
                 NormalHandoffService? normalHandoff = null;
                 TargetAcquisitionService? targetAcquisition = null;
                 GitHubHandoffConnectionTester? connectionTester = null;
-                if (!string.IsNullOrWhiteSpace(configuration.GitHubOwner)
-                    && !string.IsNullOrWhiteSpace(configuration.GitHubRepository)
-                    && !string.IsNullOrWhiteSpace(configuration.GitHubCredentialTarget))
+                var connectionSetup = string.IsNullOrWhiteSpace(configuration.GitHubOwner)
+                    || string.IsNullOrWhiteSpace(configuration.GitHubRepository)
+                    ? GitHubConnectionSetupState.RepositoryNotConfigured
+                    : string.IsNullOrWhiteSpace(configuration.GitHubCredentialTarget)
+                        ? GitHubConnectionSetupState.CredentialNotConfigured
+                        : GitHubConnectionSetupState.Ready;
+                if (connectionSetup == GitHubConnectionSetupState.Ready)
                 {
                     var options = new GitHubHandoffRepositoryOptions(
                         configuration.GitHubOwner!,
@@ -137,7 +141,8 @@ public static partial class CompositionRoot
                     selfJoin,
                     normalHandoff,
                     targetAcquisition,
-                    connectionTester);
+                    connectionTester,
+                    connectionSetup);
             }
             LogFoundationStartupSucceeded(logger);
             startupSucceeded = true;
@@ -152,19 +157,14 @@ public static partial class CompositionRoot
         }
 
         var viewModel = new ShellViewModel(cultureStore, startupSucceeded, catalogueService, settingsService, orderEntryService, orderLifecycleService, authorityGuard, authorityResolution.State, m07Runtime);
-        var window = new MainWindow(viewModel);
+        var window = new MainWindow(
+            viewModel,
+            recoverySchedulerDisposable,
+            exception =>
+            {
+                if (startupLogger is not null) LogFoundationShutdownFailed(startupLogger, exception);
+            });
         application.MainWindow = window;
-        if (recoverySchedulerDisposable is not null)
-        {
-            var closeCoordinator = new AsyncCloseCoordinator(
-                recoverySchedulerDisposable.DisposeAsync,
-                () => application.Dispatcher.BeginInvoke(new Action(application.Shutdown)),
-                exception =>
-                {
-                    if (startupLogger is not null) LogFoundationShutdownFailed(startupLogger, exception);
-                });
-            window.Closing += (_, closing) => _ = closeCoordinator.HandleClosingAsync(closing);
-        }
         application.Exit += (_, _) =>
         {
             durableChangeNotifier?.Dispose();

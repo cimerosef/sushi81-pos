@@ -23,6 +23,24 @@
   <data name="JoinPrompt" xml:space="preserve"><value>Rejoignez le système Sushi81 configuré en mode lecture seule. Cette action ne donne pas l’autorité d’écriture.</value></data>
   <data name="JoinConfirm" xml:space="preserve"><value>Rejoindre en lecture seule</value></data>
   <data name="JoinSucceeded" xml:space="preserve"><value>Cette machine est maintenant appairée en lecture seule.</value></data>
+  <data name="M07AcquireAuthority" xml:space="preserve"><value>Vérifier et acquérir l’autorité transférée</value></data>
+  <data name="M07AcquireValidating" xml:space="preserve"><value>Validation de l’autorité transférée en cours…</value></data>
+  <data name="M07AcquireAcquired" xml:space="preserve"><value>Autorité acquise. Les écritures sont disponibles après validation locale.</value></data>
+  <data name="M07AcquireUnavailable" xml:space="preserve"><value>L’acquisition de l’autorité transférée n’est pas configurée.</value></data>
+  <data name="M07AcquireFailed" xml:space="preserve"><value>L’acquisition a échoué. Cette machine reste en lecture seule ou en récupération requise.</value></data>
+  <data name="M07ConnectionTest" xml:space="preserve"><value>Tester la connexion GitHub de transfert</value></data>
+  <data name="M07ConnectionChecking" xml:space="preserve"><value>Test de connexion GitHub en cours…</value></data>
+  <data name="M07ConnectionSuccess" xml:space="preserve"><value>Connexion GitHub de transfert disponible.</value></data>
+  <data name="M07ConnectionNotConfigured" xml:space="preserve"><value>Le dépôt GitHub de transfert n’est pas configuré.</value></data>
+  <data name="M07ConnectionCredentialMissing" xml:space="preserve"><value>Le justificatif GitHub protégé n’est pas configuré ou lisible.</value></data>
+  <data name="M07ConnectionUnauthorized" xml:space="preserve"><value>GitHub a refusé l’authentification (401).</value></data>
+  <data name="M07ConnectionForbidden" xml:space="preserve"><value>GitHub a refusé l’accès au dépôt de transfert (403).</value></data>
+  <data name="M07ConnectionNotFound" xml:space="preserve"><value>Le dépôt ou la release de transfert est introuvable (404).</value></data>
+  <data name="M07ConnectionFailed" xml:space="preserve"><value>Le test de connexion GitHub a échoué. Consultez le statut sans exposer de justificatif.</value></data>
+  <data name="AuthorityTargetTitle" xml:space="preserve"><value>Choisir la cible du transfert</value></data>
+  <data name="AuthorityTargetPrompt" xml:space="preserve"><value>Choisissez l’appareil exact de la génération courante qui recevra l’autorité.</value></data>
+  <data name="AuthorityTargetConfirm" xml:space="preserve"><value>Transférer vers cet appareil</value></data>
+  <data name="AuthorityTransferUnavailable" xml:space="preserve"><value>Le transfert ciblé n’est pas disponible.</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>Langue</value></data>
   <data name="LanguageSaveFailure" xml:space="preserve"><value>Impossible d’enregistrer la préférence de langue. Réessayez.</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>Français</value></data>

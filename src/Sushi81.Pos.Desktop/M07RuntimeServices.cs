@@ -7,6 +7,13 @@ using Sushi81.Pos.Infrastructure.GitHubTransport;
 
 namespace Sushi81.Pos.Desktop;
 
+public enum GitHubConnectionSetupState
+{
+    RepositoryNotConfigured,
+    CredentialNotConfigured,
+    Ready
+}
+
 /// <summary>Composed M07 services kept behind the desktop shell; none are authority alternatives.</summary>
 public sealed class M07RuntimeServices(
     WriteAuthorityGuard authorityGuard,
@@ -15,7 +22,8 @@ public sealed class M07RuntimeServices(
     SelfJoinService selfJoin,
     NormalHandoffService? normalHandoff,
     TargetAcquisitionService? targetAcquisition,
-    GitHubHandoffConnectionTester? connectionTester) : IAsyncDisposable
+    GitHubHandoffConnectionTester? connectionTester,
+    GitHubConnectionSetupState connectionSetup = GitHubConnectionSetupState.Ready) : IAsyncDisposable
 {
     public WriteAuthorityGuard AuthorityGuard { get; } = authorityGuard;
     public IAuthorityStateStore AuthorityStore { get; } = authorityStore;
@@ -24,6 +32,7 @@ public sealed class M07RuntimeServices(
     public NormalHandoffService? NormalHandoff { get; } = normalHandoff;
     public TargetAcquisitionService? TargetAcquisition { get; } = targetAcquisition;
     public GitHubHandoffConnectionTester? ConnectionTester { get; } = connectionTester;
+    public GitHubConnectionSetupState ConnectionSetup { get; } = connectionSetup;
 
     public async Task<IReadOnlyList<DeviceRegistrationArtifact>> GetEligibleTransferTargetsAsync(
         CancellationToken cancellationToken = default)

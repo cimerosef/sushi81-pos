@@ -20,67 +20,91 @@ public partial class MainWindow : Window
     private int commandesGridResizeInvocationCount;
     private int commandesGridWidthMutationCount;
     private IDisposable? performanceTraceProbe;
-    private bool allowM07Close;
-    private int closeDecisionInProgress;
+    private readonly MainWindowCloseCoordinator closeCoordinator;
     private readonly CatalogueHeaderSet catalogueHeaders = new();
 
-    public MainWindow(ShellViewModel viewModel)
+    public MainWindow(ShellViewModel viewModel, IAsyncDisposable? recoveryScheduler = null, Action<Exception>? closeFailureLogger = null)
     {
         InitializeComponent();
         DataContext = viewModel;
         if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
         ApplyCatalogueHeaders();
-        Closing += OnMainWindowClosing;
+        closeCoordinator = new MainWindowCloseCoordinator(
+            () => viewModel.AuthorityState == WriteAuthorityState.Authoritative
+                && viewModel.M07Runtime?.NormalHandoff is not null,
+            () => RequestCloseAsync(viewModel),
+            targetDeviceId => TransferAndCloseAsync(viewModel, targetDeviceId),
+            recoveryScheduler is null ? null : new Func<ValueTask>(recoveryScheduler.DisposeAsync),
+            () => Dispatcher.BeginInvoke(new Action(Close)),
+            exception =>
+            {
+                closeFailureLogger?.Invoke(exception);
+                ShowCloseFailure(viewModel);
+            });
+        Closing += (_, closing) => _ = closeCoordinator.HandleClosingAsync(closing);
         Closed += OnClosed;
     }
 
-    private async void OnMainWindowClosing(object? sender, CancelEventArgs e)
+    private async Task<MainWindowCloseRequest> RequestCloseAsync(ShellViewModel viewModel)
     {
-        if (allowM07Close
-            || DataContext is not ShellViewModel { M07Runtime: { NormalHandoff: not null } runtime } viewModel
-            || runtime.AuthorityGuard.State != WriteAuthorityState.Authoritative)
-            return;
+        var choiceDialog = new AuthorityCloseChoiceDialog(this, viewModel.Localized);
+        if (choiceDialog.ShowDialog() != true)
+            return new MainWindowCloseRequest(MainWindowCloseIntent.Cancel);
 
-        e.Cancel = true;
-        if (Interlocked.Exchange(ref closeDecisionInProgress, 1) != 0) return;
+        var choice = choiceDialog.Choice;
+        if (choice.Intent != MainWindowCloseIntent.Transfer)
+            return choice;
+
+        // Target enumeration is deliberately after the user selected Transfer, so
+        // Retain and Cancel never contact OneDrive/GitHub or alter authority state.
+        if (viewModel.M07Runtime is not { } runtime || runtime.NormalHandoff is null)
+        {
+            ShowCloseFailure(viewModel, LocalizedText(this, "AuthorityTransferUnavailable", "Target-directed transfer is unavailable."));
+            return new MainWindowCloseRequest(MainWindowCloseIntent.Cancel);
+        }
+
+        IReadOnlyList<DeviceRegistrationArtifact> targets;
         try
         {
-            var targets = await runtime.GetEligibleTransferTargetsAsync();
-            var choiceDialog = new AuthorityCloseChoiceDialog(this, viewModel.Localized, targets);
-            var choice = choiceDialog.ShowDialog() == true
-                ? AuthorityCloseChoiceDialog.LastChoice
-                : new AuthorityCloseChoice(AuthorityCloseIntent.Cancel, null);
-            if (choice.Intent == AuthorityCloseIntent.Cancel) return;
-
-            if (choice.Intent == AuthorityCloseIntent.Transfer)
-            {
-                if (choice.TargetDeviceId is not { } targetDeviceId)
-                {
-                    MessageBox.Show(this, LocalizedText(this, "AuthorityTargetRequired", "Choose a target device."), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                var result = await runtime.NormalHandoff!.TransferAndCloseAsync(targetDeviceId);
-                if (!result.Succeeded)
-                {
-                    MessageBox.Show(this, result.Error?.Message ?? LocalizedText(this, "AuthorityTransferFailed", "Authority transfer failed."), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-            }
-
-            // Retain is the safe default and never contacts the network. Transfer only reaches
-            // this point after the source is durably ReleasedNonAuthoritative.
-            allowM07Close = true;
-            Close();
+            targets = await runtime.GetEligibleTransferTargetsAsync();
         }
-        catch (Exception exception)
+        catch (Exception)
         {
-            MessageBox.Show(this, exception.Message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+            ShowCloseFailure(viewModel);
+            return new MainWindowCloseRequest(MainWindowCloseIntent.Cancel);
         }
-        finally
+
+        var targetDialog = new AuthorityTargetSelectionDialog(this, viewModel.Localized, targets);
+        return targetDialog.ShowDialog() == true && targetDialog.TargetDeviceId is { } target
+            ? new MainWindowCloseRequest(MainWindowCloseIntent.Transfer, target)
+            : new MainWindowCloseRequest(MainWindowCloseIntent.Cancel);
+    }
+
+    private async Task<bool> TransferAndCloseAsync(ShellViewModel viewModel, Guid targetDeviceId)
+    {
+        var runtime = viewModel.M07Runtime;
+        if (runtime?.NormalHandoff is null)
         {
-            Volatile.Write(ref closeDecisionInProgress, 0);
+            ShowCloseFailure(viewModel, LocalizedText(this, "AuthorityTransferUnavailable", "Target-directed transfer is unavailable."));
+            return false;
         }
+
+        var result = await runtime.NormalHandoff.TransferAndCloseAsync(targetDeviceId);
+        if (!result.Succeeded)
+        {
+            // A failed handoff must leave the source visible. In particular, a
+            // post-relinquishment pending state remains read-only/recovery-required.
+            ShowCloseFailure(viewModel, LocalizedText(this, "AuthorityTransferFailed", "Authority transfer failed."));
+            return false;
+        }
+
+        return true;
+    }
+
+    private void ShowCloseFailure(ShellViewModel viewModel, string? safeMessage = null)
+    {
+        var message = safeMessage ?? LocalizedText(this, "AuthorityTransferFailed", "Authority transfer failed.");
+        MessageBox.Show(this, message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -132,6 +156,37 @@ public partial class MainWindow : Window
         catch (Exception exception)
         {
             MessageBox.Show(this, exception.Message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnAcquireTransferredAuthority(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanAcquireTransferredAuthority: true } viewModel) return;
+        try
+        {
+            var result = await viewModel.AcquireTransferredAuthorityAsync();
+            if (result is { Succeeded: false })
+                MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnTestGitHubConnection(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanTestGitHubConnection: true } viewModel) return;
+        try
+        {
+            await viewModel.TestGitHubConnectionAsync();
+            MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -1102,28 +1157,18 @@ public partial class MainWindow : Window
         private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
     }
 
-    private enum AuthorityCloseIntent { Retain, Transfer, Cancel }
-
-    private readonly record struct AuthorityCloseChoice(AuthorityCloseIntent Intent, Guid? TargetDeviceId);
-
     private sealed class AuthorityCloseChoiceDialog : Window
     {
-        public static AuthorityCloseChoice LastChoice { get; private set; }
-        private readonly ComboBox targetSelector;
-        private readonly Button transfer;
-
         public AuthorityCloseChoiceDialog(
             Window owner,
-            IReadOnlyDictionary<string, string> labels,
-            IReadOnlyList<DeviceRegistrationArtifact> targets)
+            IReadOnlyDictionary<string, string> labels)
         {
             Owner = owner;
             Title = Read(labels, "AuthorityCloseTitle", "Close Sushi81 POS");
             Width = 560;
-            Height = 270;
+            Height = 220;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             ResizeMode = ResizeMode.NoResize;
-            LastChoice = new AuthorityCloseChoice(AuthorityCloseIntent.Cancel, null);
 
             var root = new StackPanel { Margin = new Thickness(18) };
             root.Children.Add(new TextBlock
@@ -1132,37 +1177,73 @@ public partial class MainWindow : Window
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 12)
             });
+            var buttons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+            var retain = new Button { Content = Read(labels, "AuthorityCloseRetain", "Close and retain authority"), Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+            retain.Click += (_, _) => Complete(new MainWindowCloseRequest(MainWindowCloseIntent.Retain));
+            var transfer = new Button { Content = Read(labels, "AuthorityTransferClose", "Transfer authority and close"), Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(0, 0, 8, 0) };
+            transfer.Click += (_, _) => Complete(new MainWindowCloseRequest(MainWindowCloseIntent.Transfer));
+            var cancel = new Button { Content = Read(labels, "AuthorityCloseCancel", "Cancel"), Padding = new Thickness(10, 5, 10, 5), IsCancel = true };
+            cancel.Click += (_, _) => Complete(new MainWindowCloseRequest(MainWindowCloseIntent.Cancel));
+            buttons.Children.Add(retain); buttons.Children.Add(transfer); buttons.Children.Add(cancel); root.Children.Add(buttons);
+            Content = root;
+        }
+
+        public MainWindowCloseRequest Choice { get; private set; } = new(MainWindowCloseIntent.Cancel);
+
+        private void Complete(MainWindowCloseRequest choice)
+        {
+            Choice = choice;
+            DialogResult = true;
+            Close();
+        }
+
+        private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private sealed class AuthorityTargetSelectionDialog : Window
+    {
+        private readonly ComboBox targetSelector;
+
+        public AuthorityTargetSelectionDialog(
+            Window owner,
+            IReadOnlyDictionary<string, string> labels,
+            IReadOnlyList<DeviceRegistrationArtifact> targets)
+        {
+            Owner = owner;
+            Title = Read(labels, "AuthorityTargetTitle", "Choose transfer target");
+            Width = 560;
+            Height = 240;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            ResizeMode = ResizeMode.NoResize;
+
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "AuthorityTargetPrompt", "Choose the exact current-generation device that will receive authority."),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+            root.Children.Add(new TextBlock { Text = Read(labels, "AuthorityTargetLabel", "Transfer target"), FontWeight = FontWeights.SemiBold });
             targetSelector = new ComboBox
             {
-                ItemsSource = targets.Select(target => new TargetChoice(target.DeviceId, $"{target.DisplayName} ({target.DeviceId.ToString("N")[..8]})")).ToArray(),
                 DisplayMemberPath = nameof(TargetChoice.Label),
                 SelectedValuePath = nameof(TargetChoice.DeviceId),
                 IsEnabled = targets.Count > 0,
                 Margin = new Thickness(0, 4, 0, 14),
                 MinWidth = 360
             };
+            targetSelector.ItemsSource = targets.Select(target => new TargetChoice(target.DeviceId, $"{target.DisplayName} ({target.DeviceId.ToString("N")[..8]})")).ToArray();
             targetSelector.SelectedIndex = targets.Count > 0 ? 0 : -1;
-            root.Children.Add(new TextBlock { Text = Read(labels, "AuthorityTargetLabel", "Transfer target"), FontWeight = FontWeights.SemiBold });
             root.Children.Add(targetSelector);
-            var buttons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
-            var retain = new Button { Content = Read(labels, "AuthorityCloseRetain", "Close and retain authority"), Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(0, 0, 8, 0) };
-            retain.Click += (_, _) => Complete(new AuthorityCloseChoice(AuthorityCloseIntent.Retain, null));
-            transfer = new Button { Content = Read(labels, "AuthorityTransferClose", "Transfer authority and close"), Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(0, 0, 8, 0), IsEnabled = targets.Count > 0 };
-            transfer.Click += (_, _) => Complete(new AuthorityCloseChoice(
-                AuthorityCloseIntent.Transfer,
-                targetSelector.SelectedValue is Guid selected ? selected : null));
-            var cancel = new Button { Content = Read(labels, "AuthorityCloseCancel", "Cancel"), Padding = new Thickness(10, 5, 10, 5) };
-            cancel.Click += (_, _) => Complete(new AuthorityCloseChoice(AuthorityCloseIntent.Cancel, null));
-            buttons.Children.Add(retain); buttons.Children.Add(transfer); buttons.Children.Add(cancel); root.Children.Add(buttons);
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var confirm = new Button { Content = Read(labels, "AuthorityTargetConfirm", "Transfer to this device"), Padding = new Thickness(10, 5, 10, 5), IsEnabled = targets.Count > 0 };
+            confirm.Click += (_, _) => { if (targetSelector.SelectedValue is Guid) DialogResult = true; };
+            var cancel = new Button { Content = Read(labels, "AuthorityCloseCancel", "Cancel"), Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+            buttons.Children.Add(confirm); buttons.Children.Add(cancel); root.Children.Add(buttons);
             Content = root;
         }
 
-        private void Complete(AuthorityCloseChoice choice)
-        {
-            LastChoice = choice;
-            DialogResult = true;
-            Close();
-        }
+        public Guid? TargetDeviceId => targetSelector.SelectedValue is Guid selected ? selected : null;
 
         private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
 

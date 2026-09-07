@@ -9,6 +9,8 @@ using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Application.Pairing.SystemMetadata;
+using Sushi81.Pos.Infrastructure.GitHubTransport;
+using Sushi81.Pos.Infrastructure.Authority;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -65,6 +67,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private CultureInfo _culture;
     private LanguageOption _selectedLanguage;
     private bool _isLanguageChangeInProgress;
+    private bool _m07OperationInProgress;
+    private string? _m07OperationStatusKey;
 
     public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null)
     {
@@ -102,6 +106,12 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     public bool CanJoinExistingLineage => M07Runtime is not null
         && AuthorityState is WriteAuthorityState.Uninitialized or WriteAuthorityState.RecoveryRequired;
 
+    public bool CanAcquireTransferredAuthority => M07Runtime is not null
+        && !CanWrite
+        && !_m07OperationInProgress;
+
+    public bool CanTestGitHubConnection => M07Runtime is not null && !_m07OperationInProgress;
+
     public M03ShellViewModel? Admin { get; }
 
     public OrderEntryShellViewModel? Entry { get; }
@@ -119,6 +129,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     public string Status { get; private set; } = string.Empty;
 
     public string AuthorityStatus { get; private set; } = string.Empty;
+
+    public string M07OperationStatus { get; private set; } = string.Empty;
 
     public string LanguageLabel { get; private set; } = string.Empty;
 
@@ -204,6 +216,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             WriteAuthorityState.Uninitialized => "AuthorityRecoveryRequired",
             _ => "AuthorityReadOnly"
         });
+        M07OperationStatus = _m07OperationStatusKey is null ? string.Empty : Read(_m07OperationStatusKey);
         LanguageLabel = Read("LanguageLabel");
         LanguageSaveFailure = Read("LanguageSaveFailure");
         Languages.Clear();
@@ -215,7 +228,15 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             .Append("AuthorityCloseRetain").Append("AuthorityTransferClose").Append("AuthorityCloseCancel")
             .Append("AuthorityTargetRequired").Append("AuthorityTransferFailed")
             .Append("JoinExistingLineage").Append("JoinDisplayName").Append("JoinPrompt")
-            .Append("JoinConfirm").Append("JoinSucceeded").ToArray();
+            .Append("JoinConfirm").Append("JoinSucceeded")
+            .Append("M07AcquireAuthority").Append("M07AcquireValidating").Append("M07AcquireAcquired")
+            .Append("M07AcquireUnavailable").Append("M07AcquireFailed")
+            .Append("M07ConnectionTest").Append("M07ConnectionChecking").Append("M07ConnectionSuccess")
+            .Append("M07ConnectionNotConfigured").Append("M07ConnectionCredentialMissing")
+            .Append("M07ConnectionUnauthorized").Append("M07ConnectionForbidden")
+            .Append("M07ConnectionNotFound").Append("M07ConnectionFailed")
+            .Append("AuthorityTargetTitle").Append("AuthorityTargetPrompt").Append("AuthorityTargetConfirm")
+            .Append("AuthorityTransferUnavailable").ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));
@@ -223,6 +244,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(CanWrite));
         OnPropertyChanged(nameof(IsAuthorityWarningVisible));
         OnPropertyChanged(nameof(CanJoinExistingLineage));
+        OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
+        OnPropertyChanged(nameof(CanTestGitHubConnection));
+        OnPropertyChanged(nameof(M07OperationStatus));
         OnPropertyChanged(nameof(LanguageLabel));
         OnPropertyChanged(nameof(LanguageSaveFailure));
         OnPropertyChanged(nameof(Localized));
@@ -239,6 +263,88 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         AuthorityState = M07Runtime.AuthorityGuard.State;
         RefreshResources();
         return result;
+    }
+
+    public async Task<TargetAcquisitionResult?> AcquireTransferredAuthorityAsync(CancellationToken cancellationToken = default)
+    {
+        if (M07Runtime is null)
+            return null;
+
+        SetM07Operation("M07AcquireValidating");
+        _m07OperationInProgress = true;
+        OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
+        OnPropertyChanged(nameof(CanTestGitHubConnection));
+        try
+        {
+            if (M07Runtime.TargetAcquisition is not { } acquisition)
+            {
+                SetM07Operation("M07AcquireUnavailable");
+                return TargetAcquisitionResult.Failure(Guid.Empty, new InvalidOperationException("Target acquisition is not configured."));
+            }
+
+            var result = await acquisition.AcquireAsync(cancellationToken);
+            AuthorityState = M07Runtime.AuthorityGuard.State;
+            SetM07Operation(result.Succeeded ? "M07AcquireAcquired" : "M07AcquireFailed");
+            RefreshResources();
+            return result;
+        }
+        finally
+        {
+            _m07OperationInProgress = false;
+            OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
+            OnPropertyChanged(nameof(CanTestGitHubConnection));
+        }
+    }
+
+    public async Task<GitHubConnectionTestResult?> TestGitHubConnectionAsync(CancellationToken cancellationToken = default)
+    {
+        if (M07Runtime is null)
+            return null;
+
+        SetM07Operation("M07ConnectionChecking");
+        _m07OperationInProgress = true;
+        OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
+        OnPropertyChanged(nameof(CanTestGitHubConnection));
+        try
+        {
+            if (M07Runtime.ConnectionSetup == GitHubConnectionSetupState.RepositoryNotConfigured)
+            {
+                var result = new GitHubConnectionTestResult(false, null, null, GitHubConnectionFailureKind.NotConfigured);
+                SetM07Operation("M07ConnectionNotConfigured");
+                return result;
+            }
+
+            if (M07Runtime.ConnectionSetup == GitHubConnectionSetupState.CredentialNotConfigured || M07Runtime.ConnectionTester is null)
+            {
+                var result = new GitHubConnectionTestResult(false, null, null, GitHubConnectionFailureKind.CredentialMissing);
+                SetM07Operation("M07ConnectionCredentialMissing");
+                return result;
+            }
+
+            var tested = await M07Runtime.ConnectionTester.TestAsync(cancellationToken);
+            SetM07Operation(tested.Succeeded ? "M07ConnectionSuccess" : tested.FailureKind switch
+            {
+                GitHubConnectionFailureKind.CredentialMissing => "M07ConnectionCredentialMissing",
+                GitHubConnectionFailureKind.Unauthorized => "M07ConnectionUnauthorized",
+                GitHubConnectionFailureKind.Forbidden => "M07ConnectionForbidden",
+                GitHubConnectionFailureKind.NotFound => "M07ConnectionNotFound",
+                _ => "M07ConnectionFailed"
+            });
+            return tested;
+        }
+        finally
+        {
+            _m07OperationInProgress = false;
+            OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
+            OnPropertyChanged(nameof(CanTestGitHubConnection));
+        }
+    }
+
+    private void SetM07Operation(string key)
+    {
+        _m07OperationStatusKey = key;
+        M07OperationStatus = Read(key);
+        OnPropertyChanged(nameof(M07OperationStatus));
     }
 
     private string Read(string key) => ResourceManager.GetString(key, _culture) ?? throw new InvalidOperationException($"Missing required localization resource '{key}'.");

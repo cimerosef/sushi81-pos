@@ -23,6 +23,24 @@
   <data name="JoinPrompt" xml:space="preserve"><value>以只读模式加入已配置的 Sushi81 系统。此操作不会授予写入权威。</value></data>
   <data name="JoinConfirm" xml:space="preserve"><value>以只读方式加入</value></data>
   <data name="JoinSucceeded" xml:space="preserve"><value>此设备现已以只读方式配对。</value></data>
+  <data name="M07AcquireAuthority" xml:space="preserve"><value>检查并获取已转移的权威</value></data>
+  <data name="M07AcquireValidating" xml:space="preserve"><value>正在验证已转移的权威…</value></data>
+  <data name="M07AcquireAcquired" xml:space="preserve"><value>已获取权威。完成本地验证后可进行写入。</value></data>
+  <data name="M07AcquireUnavailable" xml:space="preserve"><value>未配置已转移权威的获取服务。</value></data>
+  <data name="M07AcquireFailed" xml:space="preserve"><value>获取失败。此设备仍保持只读或需要恢复。</value></data>
+  <data name="M07ConnectionTest" xml:space="preserve"><value>测试 GitHub 转移连接</value></data>
+  <data name="M07ConnectionChecking" xml:space="preserve"><value>正在测试 GitHub 连接…</value></data>
+  <data name="M07ConnectionSuccess" xml:space="preserve"><value>GitHub 转移连接可用。</value></data>
+  <data name="M07ConnectionNotConfigured" xml:space="preserve"><value>未配置 GitHub 转移仓库。</value></data>
+  <data name="M07ConnectionCredentialMissing" xml:space="preserve"><value>未配置或无法读取受保护的 GitHub 凭据。</value></data>
+  <data name="M07ConnectionUnauthorized" xml:space="preserve"><value>GitHub 拒绝了身份验证（401）。</value></data>
+  <data name="M07ConnectionForbidden" xml:space="preserve"><value>GitHub 拒绝访问转移仓库（403）。</value></data>
+  <data name="M07ConnectionNotFound" xml:space="preserve"><value>找不到转移仓库或 release（404）。</value></data>
+  <data name="M07ConnectionFailed" xml:space="preserve"><value>GitHub 连接测试失败。请查看状态；不会暴露凭据。</value></data>
+  <data name="AuthorityTargetTitle" xml:space="preserve"><value>选择转移目标</value></data>
+  <data name="AuthorityTargetPrompt" xml:space="preserve"><value>请选择将接收权威的当前代际确切设备。</value></data>
+  <data name="AuthorityTargetConfirm" xml:space="preserve"><value>转移到此设备</value></data>
+  <data name="AuthorityTransferUnavailable" xml:space="preserve"><value>定向转移不可用。</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>语言</value></data>
   <data name="LanguageSaveFailure" xml:space="preserve"><value>无法保存语言偏好设置。请重试。</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>法语</value></data>

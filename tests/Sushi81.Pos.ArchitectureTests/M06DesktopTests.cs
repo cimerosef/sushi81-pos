@@ -1,5 +1,6 @@
 using System.Runtime.ExceptionServices;
 using System.Threading;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -9,10 +10,14 @@ using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.OrderEntry;
+using Sushi81.Pos.Application.Pairing.SystemMetadata;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Desktop;
 using Sushi81.Pos.Domain;
 using Sushi81.Pos.Infrastructure.Recovery;
+using Sushi81.Pos.Infrastructure.Authority;
+using Sushi81.Pos.Infrastructure.Pairing.SystemMetadata;
+using Sushi81.Pos.Infrastructure.GitHubTransport;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.ComponentModel;
 using System.Windows.Threading;
@@ -160,6 +165,205 @@ public sealed class M06DesktopTests
         });
     }
 
+    [TestMethod]
+    public void M07CloseCancelLeavesTheRealStaWindowOpenWithoutFlush()
+    {
+        RunOnSta(() =>
+        {
+            var window = new Window { Width = 320, Height = 180, ShowInTaskbar = false };
+            var flushCount = 0;
+            var finalCloseCount = 0;
+            var coordinator = new MainWindowCloseCoordinator(
+                () => true,
+                () => Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Cancel)),
+                _ => Task.FromResult(false),
+                () => { flushCount++; return ValueTask.CompletedTask; },
+                () => finalCloseCount++,
+                _ => Assert.Fail("Cancel must not report an error."));
+            var args = new CancelEventArgs();
+            coordinator.HandleClosingAsync(args).GetAwaiter().GetResult();
+
+            Assert.IsTrue(args.Cancel);
+            Assert.IsFalse(coordinator.IsFinalCloseAllowed);
+            Assert.AreEqual(0, flushCount);
+            Assert.AreEqual(0, finalCloseCount);
+            Assert.IsFalse(window.IsVisible, "The arbiter must not close a window when the user cancels before it is shown.");
+        });
+    }
+
+    [TestMethod]
+    public void M07CloseRetainUsesOneStaCloseContinuationAndFlushesOnce()
+    {
+        RunOnSta(() =>
+        {
+            var order = new List<string>();
+            var window = new Window { Width = 320, Height = 180, ShowInTaskbar = false };
+            var coordinator = new MainWindowCloseCoordinator(
+                () => true,
+                () => Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Retain)),
+                _ => Task.FromResult(false),
+                () => { order.Add("flush"); return ValueTask.CompletedTask; },
+                () => { order.Add("close"); window.Dispatcher.BeginInvoke(new Action(window.Close)); },
+                exception => Assert.Fail(exception.Message));
+            window.Closing += (_, args) => _ = coordinator.HandleClosingAsync(args);
+            window.Show();
+            window.Close();
+            PumpUntilClosed(window);
+
+            Assert.AreEqual("flush|close", string.Join("|", order));
+            Assert.IsTrue(coordinator.IsFinalCloseAllowed);
+            Assert.IsFalse(window.IsVisible);
+        });
+    }
+
+    [TestMethod]
+    public void M07CloseTransferOrdersTransferBeforeFlushAndFinalClose()
+    {
+        RunOnSta(() =>
+        {
+            var order = new List<string>();
+            var window = new Window { Width = 320, Height = 180, ShowInTaskbar = false };
+            var target = Guid.NewGuid();
+            var coordinator = new MainWindowCloseCoordinator(
+                () => true,
+                () => { order.Add("intent"); return Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Transfer, target)); },
+                id => { Assert.AreEqual(target, id); order.Add("transfer"); return Task.FromResult(true); },
+                () => { order.Add("flush"); return ValueTask.CompletedTask; },
+                () => { order.Add("close"); window.Dispatcher.BeginInvoke(new Action(window.Close)); },
+                exception => Assert.Fail(exception.Message));
+            window.Closing += (_, args) => _ = coordinator.HandleClosingAsync(args);
+            window.Show();
+            window.Close();
+            PumpUntilClosed(window);
+
+            Assert.AreEqual("intent|transfer|flush|close", string.Join("|", order));
+        });
+    }
+
+    [TestMethod]
+    public void M07CloseTransferFailureKeepsWindowOpenAndDoesNotFlush()
+    {
+        RunOnSta(() =>
+        {
+            var window = new Window { Width = 320, Height = 180, ShowInTaskbar = false };
+            var flushCount = 0;
+            var finalCloseCount = 0;
+            var coordinator = new MainWindowCloseCoordinator(
+                () => true,
+                () => Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Transfer, Guid.NewGuid())),
+                _ => Task.FromResult(false),
+                () => { flushCount++; return ValueTask.CompletedTask; },
+                () => finalCloseCount++,
+                _ => { });
+            var args = new CancelEventArgs();
+            coordinator.HandleClosingAsync(args).GetAwaiter().GetResult();
+
+            Assert.IsTrue(args.Cancel);
+            Assert.IsFalse(coordinator.IsFinalCloseAllowed);
+            Assert.AreEqual(0, flushCount);
+            Assert.AreEqual(0, finalCloseCount);
+        });
+    }
+
+    [TestMethod]
+    public void M07CloseRepeatedRequestsAreReentrantSafeWhileFlushIsPending()
+    {
+        RunOnSta(() =>
+        {
+            var flush = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var finalCloseCount = 0;
+            var coordinator = new MainWindowCloseCoordinator(
+                () => false,
+                () => Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Cancel)),
+                _ => Task.FromResult(false),
+                () => new ValueTask(flush.Task),
+                () => finalCloseCount++,
+                _ => Assert.Fail("The non-authoritative close must not report an error."));
+            var first = new CancelEventArgs();
+            var second = new CancelEventArgs();
+            var firstTask = coordinator.HandleClosingAsync(first);
+            coordinator.HandleClosingAsync(second).GetAwaiter().GetResult();
+
+            Assert.IsTrue(first.Cancel);
+            Assert.IsTrue(second.Cancel);
+            Assert.IsTrue(coordinator.IsCloseInProgress);
+            Assert.AreEqual(0, finalCloseCount);
+            flush.SetResult(null);
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (finalCloseCount == 0 && DateTime.UtcNow < deadline)
+                Dispatcher.CurrentDispatcher.Invoke(DispatcherPriority.Background, new Action(() => { }));
+            firstTask.GetAwaiter().GetResult();
+            Assert.AreEqual(1, finalCloseCount);
+        });
+    }
+
+    [TestMethod]
+    public void M07CloseFlushFailureIsReportedButDoesNotCreateASecondClosePath()
+    {
+        RunOnSta(() =>
+        {
+            var reportCount = 0;
+            var finalCloseCount = 0;
+            var coordinator = new MainWindowCloseCoordinator(
+                () => false,
+                () => Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Cancel)),
+                _ => Task.FromResult(false),
+                () => ValueTask.FromException(new IOException("synthetic flush failure")),
+                () => finalCloseCount++,
+                _ => reportCount++);
+            coordinator.HandleClosingAsync(new CancelEventArgs()).GetAwaiter().GetResult();
+
+            Assert.AreEqual(1, reportCount);
+            Assert.AreEqual(1, finalCloseCount);
+            Assert.IsTrue(coordinator.IsFinalCloseAllowed);
+        });
+    }
+
+    [TestMethod]
+    public void M07ReadOnlyShellRendersAcquisitionAndConnectionActionsInFrenchAndChineseOnSta()
+    {
+        RunOnSta(() =>
+        {
+            using var guard = new WriteAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly);
+            var store = new EmptyAuthorityStateStore();
+            var metadata = new EmptySystemMetadataStore();
+            var runtime = new M07RuntimeServices(
+                guard,
+                store,
+                metadata,
+                new SelfJoinService(store, guard, metadata, new FixedClock()),
+                null,
+                null,
+                null,
+                GitHubConnectionSetupState.RepositoryNotConfigured);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                true,
+                authorityGuard: guard,
+                authorityState: WriteAuthorityState.NonAuthoritativeReadOnly,
+                m07Runtime: runtime);
+            var window = new MainWindow(shell) { Width = 760, Height = 520, ShowInTaskbar = false };
+            window.Show();
+            window.UpdateLayout();
+            window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+            var buttons = VisualDescendants<Button>(window).Where(button => button.Visibility == Visibility.Visible).Select(button => button.Content as string).ToArray();
+            CollectionAssert.Contains(buttons, shell.Localized["M07AcquireAuthority"]);
+            CollectionAssert.Contains(buttons, shell.Localized["M07ConnectionTest"]);
+            Assert.IsTrue(shell.CanAcquireTransferredAuthority);
+            Assert.IsTrue(shell.CanTestGitHubConnection);
+
+            var connection = shell.TestGitHubConnectionAsync().GetAwaiter().GetResult();
+            Assert.IsNotNull(connection);
+            Assert.AreEqual(GitHubConnectionFailureKind.NotConfigured, connection!.FailureKind);
+            Assert.AreEqual(shell.Localized["M07ConnectionNotConfigured"], shell.M07OperationStatus);
+
+            shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+            Assert.AreEqual(shell.Localized["M07ConnectionNotConfigured"], shell.M07OperationStatus);
+            window.Close();
+        });
+    }
+
     private static IEnumerable<T> VisualDescendants<T>(DependencyObject root) where T : DependencyObject
     {
         var count = VisualTreeHelper.GetChildrenCount(root);
@@ -179,6 +383,14 @@ public sealed class M06DesktopTests
         thread.Start();
         thread.Join();
         if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private static void PumpUntilClosed(Window window)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (window.IsVisible && DateTime.UtcNow < deadline)
+            Dispatcher.CurrentDispatcher.Invoke(DispatcherPriority.Background, new Action(() => { }));
+        Assert.IsFalse(window.IsVisible, "The close continuation must complete within the bounded STA test window.");
     }
 
     private sealed class TestGuard(WriteAuthorityState state) : IWriteAuthorityGuard
@@ -245,5 +457,23 @@ public sealed class M06DesktopTests
             Changes.Add(change);
             return Task.FromResult(new RecoverySnapshotResult("synthetic.db", "synthetic.json", "checksum", change.CommittedAtUtc, change.Sequence, 1));
         }
+    }
+
+    private sealed class EmptyAuthorityStateStore : IAuthorityStateStore
+    {
+        public Task<AuthorityStateDocument?> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult<AuthorityStateDocument?>(null);
+        public Task SaveAsync(AuthorityStateDocument document, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> HasBootstrapMarkerAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task WriteBootstrapMarkerAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class EmptySystemMetadataStore : ISystemMetadataStore
+    {
+        public Task<SystemLineageMetadata> EnsureCurrentLineageAsync(Guid lineageId, long generation, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<SystemLineageMetadata> ReadLineageAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<DeviceSelfJoinResult> JoinCurrentGenerationAsync(Guid deviceId, string displayName, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<DeviceRegistrationArtifact>> ListCurrentGenerationDevicesAsync(Guid lineageId, long generation, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<DeviceRegistrationArtifact>>([]);
+        public Task<ValidatedReadOnlySeed?> FindValidatedReadOnlySeedAsync(Guid lineageId, long generation, CancellationToken cancellationToken = default) => Task.FromResult<ValidatedReadOnlySeed?>(null);
+        public Task<ReadOnlySeedPublicationResult> PublishReadOnlySeedAsync(ReadOnlySeedMetadata metadata, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }
