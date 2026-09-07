@@ -2,7 +2,7 @@
 
 Automated tests for Sushi81 POS live under this directory once implementation begins.
 
-**Current status:** M01–M04 regression tests and the M05 lifecycle/payment/search/dashboard evidence are green; the project-owner Windows/WPF acceptance for M05 is recorded separately in the final acceptance document. M02 GitHub transport tests use deterministic fake HTTP/synthetic state only.
+**Current status:** M01–M06 regression/evidence suites are green. M06 final Release verification is 364/364 Passed with project-owner Windows/WPF manual acceptance Passed; M06 was merged through PR #11 at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e`. M07 is next but is not yet implementation-authorized. M02 GitHub transport tests use deterministic fake HTTP/synthetic state only, with separate sanitized historical live evidence recorded in the M02 report.
 
 The test strategy is authoritative from `../docs/acceptance-criteria.md` and the approved V1 documents under `../docs/`.
 
@@ -21,6 +21,6 @@ bulk snapshots, localized actions/confirmation resources, filter-state preservat
 
 M04/M05 infrastructure tests also use isolated temporary SQLite databases and synthetic orders. They cover persisted order
 snapshots, migration 5 reference backfill/allocation, signed CB/Espèce deltas, same-ID modification and automatic reopen,
-Close/Cancel financial exclusions, live reference/telephone/comment search, and operational summary queries. Automated tests
-remain evidence for the automated portion only; the separate M05 Windows/WPF operator acceptance is recorded in
-`../docs/implementation/milestone-05-final-manual-acceptance.md`.
+Close/Cancel financial exclusions, live reference/telephone/comment search, and operational summary queries.
+
+M06 adds automated coverage for centralized authoritative-write rejection before business mutation, durable authority/read-only restart reconstruction, fail-closed missing/corrupt authority state, validated latest-five local-recovery retention, post-commit recovery scheduling/debounce/single-flight/shutdown flush, and real STA/WPF read-only/transition/recovery-required presentation. The separate final operator acceptance is recorded in `../docs/implementation/milestone-06-final-manual-acceptance.md`.
