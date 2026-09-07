@@ -329,7 +329,7 @@ public sealed class M05EvidenceClosureIntegrationTests
         var ids = new DeterministicIds();
         var snapshotService = new SqliteLocalRecoverySnapshotService(paths, factory, clock);
         await using var scheduler = new DebouncedRecoveryScheduler(snapshotService, TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<DebouncedRecoveryScheduler>.Instance);
-        using var notifier = new DurableChangeNotifier(paths, clock, scheduler, Microsoft.Extensions.Logging.Abstractions.NullLogger<DurableChangeNotifier>.Instance);
+        using var notifier = await DurableChangeNotifier.CreateAsync(paths, clock, scheduler, Microsoft.Extensions.Logging.Abstractions.NullLogger<DurableChangeNotifier>.Instance);
         var guard = new TestWriteAuthorityGuard(WriteAuthorityState.Authoritative);
         var catalogueStore = new SqliteCatalogueStore(factory, runner, ids, clock);
         var settingsStore = new SqliteBusinessSettingsStore(factory, runner, clock);

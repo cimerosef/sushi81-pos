@@ -317,5 +317,33 @@ open/unmerged and M07 remains unauthorized.
 
 ## Completion state
 
+## Owner startup remediation — M06-MANUAL-ACCEPTANCE-STARTUP-FIX-06
+
+The owner's launch of the reviewed `e93647b8f28cad41d02540b7feebf11d4d804670` artifact remained windowless.
+Diagnosis identified a dispatcher deadlock: synchronous notifier construction waited on asynchronous validated Recovery
+sequence discovery, whose continuation needed the blocked WPF dispatcher, before `MainWindow.Show`.
+The fix makes notifier initialization asynchronous end-to-end and exposes the same production composition as an awaitable
+startup seam with injected test paths. Preflight, migrations, authority resolution and async close ordering are unchanged.
+
+`M06StartupTests.ProductionStartupWithExistingRecoveryShowsMainWindowAndClosesOnSta` prepares an isolated synthetic SQLite
+installation and validated Recovery sequence 41, runs production composition on a real WPF Application/STA dispatcher,
+asserts the real visible writable shell and completes orderly close. Restoring the synchronous wait experimentally made
+this test fail at its bounded 20-second deadlock assertion; restoring the fix passed. No production-data launch was used.
+The previous tests covered notifier initialization off-dispatcher and separately composed WPF controls, missing their
+combination with existing Recovery. Future startup changes must exercise this composed dispatcher/Recovery seam and
+must not synchronously wait for asynchronous work. Adjacent startup/recovery audit found no remaining synchronous
+Task waits after this correction; existing authority, retention and shutdown regressions remain in the full suite.
+
+Local Windows/.NET 10.0.400 evidence: locked restore Passed; full Release build 0 warnings/0 errors; full Release tests
+364/364 Passed (Domain 33, Application 47, Infrastructure 64, Architecture 96, feasibility 32 + 92), no skips; diff check Passed.
+The fresh self-contained win-x64 publish and exact pushed-head CI identities/results are delivered in the matching PR
+completion record, along with the artifact absolute path and SHA-256. Execution was serial in this checkout.
+
+Diagnostic reads observed windowless owner processes and bootstrap authority artifacts timestamped at the first failed
+launch. The three existing Recovery directories predate that launch; no newly created Recovery unit was observed.
+No protected business rows were read/exposed, and no protected data was repaired, deleted, reset or manually migrated.
+Tests used synthetic temporary paths only. Owner A1 and the remaining manual checklist remain Pending; this automated
+regression is not project-owner acceptance. PR #11 remains open/unmerged; M07 is not started; power action NONE.
+
 Fourth remediation implementation is complete on its pushed evidence head; PR #11 must remain open/unmerged. Project-owner
 Windows/WPF acceptance is still pending and M07 is not authorized by M06 completion.

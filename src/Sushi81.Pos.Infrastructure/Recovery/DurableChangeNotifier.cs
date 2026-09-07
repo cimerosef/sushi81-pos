@@ -17,13 +17,19 @@ public sealed partial class DurableChangeNotifier : IDurableChangeNotifier, IDis
     private readonly SemaphoreSlim gate = new(1, 1);
     private long sequence;
 
-    public DurableChangeNotifier(IAppPaths paths, IBusinessClock clock, IRecoveryScheduler scheduler, ILogger logger)
+    private DurableChangeNotifier(IAppPaths paths, IBusinessClock clock, IRecoveryScheduler scheduler, ILogger logger)
     {
         this.paths = paths;
         this.clock = clock;
         this.scheduler = scheduler;
         this.logger = logger;
-        sequence = LoadSequence();
+    }
+
+    public static async Task<DurableChangeNotifier> CreateAsync(IAppPaths paths, IBusinessClock clock, IRecoveryScheduler scheduler, ILogger logger)
+    {
+        var notifier = new DurableChangeNotifier(paths, clock, scheduler, logger);
+        notifier.sequence = await notifier.LoadSequenceAsync();
+        return notifier;
     }
 
     public async Task NotifyCommittedAsync(CancellationToken cancellationToken = default)
@@ -60,7 +66,7 @@ public sealed partial class DurableChangeNotifier : IDurableChangeNotifier, IDis
         }
     }
 
-    private long LoadSequence()
+    private async Task<long> LoadSequenceAsync()
     {
         var persisted = 0L;
         try
@@ -80,10 +86,8 @@ public sealed partial class DurableChangeNotifier : IDurableChangeNotifier, IDis
 
         try
         {
-            var highestValidatedRecoverySequence = SqliteLocalRecoverySnapshotService
-                .GetHighestValidatedSequenceAsync(paths)
-                .GetAwaiter()
-                .GetResult();
+            var highestValidatedRecoverySequence = await SqliteLocalRecoverySnapshotService
+                .GetHighestValidatedSequenceAsync(paths);
             return Math.Max(persisted, highestValidatedRecoverySequence);
         }
         catch (Exception exception)

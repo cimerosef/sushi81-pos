@@ -492,7 +492,7 @@ public sealed class InfrastructureIntegrationTests
         using var paths = new TestAppPaths();
         var snapshots = new RecordingSnapshotService();
         await using var scheduler = new DebouncedRecoveryScheduler(snapshots, TimeProvider.System, NullLogger<DebouncedRecoveryScheduler>.Instance);
-        using var notifier = new DurableChangeNotifier(paths, new FixedClock(), scheduler, NullLogger<DurableChangeNotifier>.Instance);
+        using var notifier = await DurableChangeNotifier.CreateAsync(paths, new FixedClock(), scheduler, NullLogger<DurableChangeNotifier>.Instance);
 
         await notifier.NotifyCommittedAsync();
         await notifier.NotifyCommittedAsync();
@@ -516,7 +516,7 @@ public sealed class InfrastructureIntegrationTests
 
         var recording = new RecordingSnapshotService();
         await using var scheduler = new DebouncedRecoveryScheduler(recording, TimeProvider.System, NullLogger<DebouncedRecoveryScheduler>.Instance);
-        using var notifier = new DurableChangeNotifier(paths, clock, scheduler, NullLogger<DurableChangeNotifier>.Instance);
+        using var notifier = await DurableChangeNotifier.CreateAsync(paths, clock, scheduler, NullLogger<DurableChangeNotifier>.Instance);
         await notifier.NotifyCommittedAsync();
 
         StringAssert.Contains(await File.ReadAllTextAsync(Path.Combine(paths.ConfigDirectory, "recovery-sequence.json")), "8");

@@ -17,6 +17,7 @@ using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Recovery;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
+using Sushi81.Pos.Application.Foundation.Paths;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -24,11 +25,13 @@ public static partial class CompositionRoot
 {
     private static RollingFileLoggerProvider? loggerProvider;
 
-    public static async void Start(System.Windows.Application application)
+    public static Task StartAsync(System.Windows.Application application) => StartAsync(application, new WindowsAppPaths());
+
+    internal static async Task StartAsync(System.Windows.Application application, IAppPaths paths)
     {
         ArgumentNullException.ThrowIfNull(application);
 
-        var paths = new WindowsAppPaths();
+        ArgumentNullException.ThrowIfNull(paths);
         ISelectedCultureStore cultureStore = new InMemorySelectedCultureStore();
         var startupSucceeded = false;
         ILogger? startupLogger = null;
@@ -67,7 +70,7 @@ public static partial class CompositionRoot
             authorityResolution = await new AuthorityStateCoordinator(authorityStateStore, authorityGuard, clock, logger)
                 .InitializeAsync(legacyBootstrapEvidence, authorityStartupEvidence.HasPreExistingLiveDatabase);
             recoveryScheduler = new DebouncedRecoveryScheduler(snapshotService, TimeProvider.System, logger);
-            durableChangeNotifier = new DurableChangeNotifier(paths, clock, recoveryScheduler, logger);
+            durableChangeNotifier = await DurableChangeNotifier.CreateAsync(paths, clock, recoveryScheduler, logger);
             var transactionRunner = new SqliteTransactionRunner(connectionFactory);
             var idGenerator = new GuidV7IdGenerator(TimeProvider.System);
             var catalogueStore = new SqliteCatalogueStore(connectionFactory, transactionRunner, idGenerator, clock);
