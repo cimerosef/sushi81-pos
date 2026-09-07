@@ -34,3 +34,11 @@ A decision record should state, as appropriate:
 - consequences or superseded behavior.
 
 Approved decision records supplement the baseline documents. During a specification-freeze consistency pass, superseded behavior should also be folded into the affected baseline documents so implementation does not need to resolve contradictions by document chronology alone.
+
+## Current M07 authority/recovery decisions
+
+The M07 implementation must read these Approved records together:
+
+- `target-directed-authority-handoff.md` — normal source-directed transfer to exactly one target;
+- `github-handoff-transport.md` — dedicated private GitHub Release Asset normal handoff transport and acknowledgement;
+- `m07-self-service-pairing-and-disaster-recovery.md` — self-service device joining without write authority, exceptional Disaster Recovery quarantine/fencing, and freshest validated safe recovery-source selection.
