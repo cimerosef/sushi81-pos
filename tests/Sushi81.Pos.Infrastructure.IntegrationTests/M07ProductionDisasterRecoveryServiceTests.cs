@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.GitHubTransport;
 using Sushi81.Pos.Application.Foundation.Paths;
@@ -18,6 +19,7 @@ namespace Sushi81.Pos.Infrastructure.IntegrationTests;
 [TestClass]
 public sealed class M07ProductionDisasterRecoveryServiceTests
 {
+    private static readonly JsonSerializerOptions TestJsonOptions = new(JsonSerializerDefaults.Web);
     [TestMethod]
     public async Task ServiceWonCommitsPendingThenAuthoritativeAfterExactDataFirstInstall()
     {
@@ -257,6 +259,119 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
     }
 
     [TestMethod]
+    public async Task AfterAuthoritativePersistenceRestartUsesProductionStartupReconstruction()
+    {
+        using var fixture = await ServiceFixture.CreateAsync();
+        await fixture.Store.WriteBootstrapMarkerAsync();
+        await fixture.Store.WriteBootstrapAnchorAsync();
+        fixture.Faults.ThrowAt = DisasterRecoveryFaultPoint.AfterAuthoritativePersistence;
+
+        await using (var first = fixture.CreateService())
+        {
+            var result = await first.StartOrResumeAsync(fixture.Candidate.CandidateId, true, true);
+            Assert.IsFalse(result.Succeeded);
+        }
+
+        var durable = (await fixture.Store.LoadAsync())!.Protocol!;
+        Assert.AreEqual(AuthorityPhase.Authoritative, durable.Phase);
+        Assert.IsNotNull(durable.LastRecovery);
+        Assert.AreEqual(fixture.Candidate.PayloadSha256, durable.LastRecovery!.CandidateSha256);
+        Assert.AreEqual(fixture.Candidate.BusinessRevision, durable.LastRecovery.BusinessRevision);
+        Assert.AreEqual(fixture.Candidate.PayloadSha256, await HashAsync(fixture.Paths.LiveDatabasePath));
+
+        fixture.Faults.ThrowAt = null;
+        using var restartedGuard = new WriteAuthorityGuard();
+        var resolution = await new AuthorityStateCoordinator(
+            new JsonAuthorityStateStore(fixture.Paths),
+            restartedGuard,
+            fixture.Clock,
+            NullLogger<AuthorityStateCoordinator>.Instance,
+            fixture.SystemMetadata).InitializeAsync(false, true);
+
+        Assert.IsTrue(resolution.IsUsable);
+        Assert.AreEqual(WriteAuthorityState.Authoritative, resolution.State);
+        Assert.AreEqual(WriteAuthorityState.Authoritative, restartedGuard.State);
+        var restarted = (await new JsonAuthorityStateStore(fixture.Paths).LoadAsync())!.Protocol!;
+        Assert.AreEqual(durable.Revision, restarted.Revision);
+        Assert.AreEqual(durable.Generation, restarted.Generation);
+        Assert.AreEqual(durable.DeviceId, restarted.DeviceId);
+        Assert.AreEqual(durable.LineageId, restarted.LineageId);
+        Assert.AreEqual(durable.LastRecovery, restarted.LastRecovery);
+        Assert.AreEqual(fixture.Candidate.CandidateId, restarted.LastRecovery!.CandidateId);
+        Assert.AreEqual(fixture.Candidate.PayloadSha256, restarted.LastRecovery.CandidateSha256);
+        Assert.AreEqual(fixture.Candidate.BusinessRevision, await ReadBusinessRevisionAsync(fixture.Paths.LiveDatabasePath));
+        Assert.HasCount(1, fixture.Transport.ActivationAssets);
+        restartedGuard.RequireWriteAuthority();
+    }
+
+    [TestMethod]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.BeforeSeedPublication))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.AfterSeedPublication))]
+    public async Task SeedFaultRestartRemainsAuthoritativeAndRetryIsExactIdempotent(string pointName)
+    {
+        using var fixture = await ServiceFixture.CreateAsync();
+        await fixture.Store.WriteBootstrapMarkerAsync();
+        await fixture.Store.WriteBootstrapAnchorAsync();
+        fixture.Faults.ThrowAt = Enum.Parse<DisasterRecoveryFaultPoint>(pointName);
+
+        await using (var first = fixture.CreateService())
+        {
+            var result = await first.StartOrResumeAsync(fixture.Candidate.CandidateId, true, true);
+            Assert.IsTrue(result.Succeeded, result.Diagnostic);
+        }
+
+        var durable = (await fixture.Store.LoadAsync())!.Protocol!;
+        Assert.AreEqual(AuthorityPhase.Authoritative, durable.Phase);
+        Assert.AreEqual(WriteAuthorityState.Authoritative, fixture.Guard.State);
+        var seedsAfterFault = fixture.SeedFileCount;
+        Assert.AreEqual(pointName == nameof(DisasterRecoveryFaultPoint.AfterSeedPublication) ? 1 : 0, seedsAfterFault);
+
+        fixture.SystemMetadata.Unavailable = true;
+        fixture.Faults.ThrowAt = null;
+        using var restartedGuard = new WriteAuthorityGuard();
+        var resolution = await new AuthorityStateCoordinator(
+            new JsonAuthorityStateStore(fixture.Paths),
+            restartedGuard,
+            fixture.Clock,
+            NullLogger<AuthorityStateCoordinator>.Instance,
+            fixture.SystemMetadata).InitializeAsync(false, true);
+        Assert.IsTrue(resolution.IsUsable);
+        Assert.AreEqual(WriteAuthorityState.Authoritative, resolution.State);
+        Assert.AreEqual(WriteAuthorityState.Authoritative, restartedGuard.State);
+        Assert.AreEqual(seedsAfterFault, fixture.SeedFileCount);
+
+        fixture.SystemMetadata.Unavailable = false;
+        await using (var retry = new DisasterRecoveryService(
+            new JsonAuthorityStateStore(fixture.Paths),
+            restartedGuard,
+            fixture.SystemMetadata,
+            fixture.Candidates,
+            new RecoveryActivationService(fixture.Transport),
+            fixture.Transport,
+            fixture.SnapshotService,
+            fixture.Paths,
+            fixture.Clock,
+            fixture.Faults))
+        {
+            Assert.IsTrue(await retry.TryPublishCurrentGenerationSeedAsync(durable));
+            Assert.IsTrue(await retry.TryPublishCurrentGenerationSeedAsync(durable));
+        }
+
+        Assert.AreEqual(1, fixture.SeedFileCount);
+        Assert.AreEqual(1, fixture.SystemMetadata.PublishCount);
+        var seed = await fixture.SystemMetadata.Inner.FindValidatedReadOnlySeedAsync(fixture.LineageId, durable.Generation);
+        Assert.IsNotNull(seed);
+        Assert.AreEqual(durable.LineageId, seed!.Metadata.LineageId);
+        Assert.AreEqual(durable.Generation, seed.Metadata.Generation);
+        Assert.AreEqual(durable.BusinessRevision, seed.Metadata.BusinessRevision);
+        Assert.AreEqual(durable.HandoffVersion, seed.Metadata.HandoffVersion);
+        Assert.AreEqual(fixture.Candidate.PayloadSha256, seed.Metadata.PayloadSha256);
+        Assert.AreEqual(fixture.Candidate.PayloadSha256, await HashAsync(seed.PayloadPath));
+        Assert.AreEqual(WriteAuthorityState.Authoritative, restartedGuard.State);
+        restartedGuard.RequireWriteAuthority();
+    }
+
+    [TestMethod]
     public async Task StaleGenerationWithReadableNewerLineageRemainsReadOnly()
     {
         using var fixture = await ServiceFixture.CreateAsync(phase: AuthorityPhase.StaleGeneration, systemGeneration: 2);
@@ -352,6 +467,47 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
         Assert.IsFalse(retry.Succeeded);
         Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, fixture.Guard.State);
         Assert.AreEqual(AuthorityPhase.StaleGeneration, (await fixture.Store.LoadAsync())!.Protocol!.Phase);
+    }
+
+    [TestMethod]
+    public async Task StaleGenerationHistoricalGrantAndSourceRetryRemainReadOnlyAndUntouched()
+    {
+        using var fixture = await ServiceFixture.CreateAsync(phase: AuthorityPhase.StaleGeneration, systemGeneration: 2);
+        await fixture.Store.WriteBootstrapMarkerAsync();
+        await fixture.Store.WriteBootstrapAnchorAsync();
+        fixture.InstallHistoricalReplayEvidence();
+        var remoteBefore = fixture.Transport.AssetFingerprints;
+
+        await using var acquisition = new TargetAcquisitionService(
+            fixture.Store,
+            fixture.Guard,
+            fixture.SystemMetadata.Inner,
+            fixture.Transport,
+            new SqliteTransferSnapshotInstaller(fixture.Paths),
+            fixture.Clock);
+        var acquisitionResult = await acquisition.AcquireAsync();
+
+        Assert.IsFalse(acquisitionResult.Succeeded);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, fixture.Guard.State);
+        Assert.AreEqual(AuthorityPhase.StaleGeneration, (await fixture.Store.LoadAsync())!.Protocol!.Phase);
+
+        await using var handoff = new NormalHandoffService(
+            fixture.Store,
+            fixture.Guard,
+            fixture.SystemMetadata.Inner,
+            new UnsupportedSnapshotFactory(),
+            fixture.Transport,
+            fixture.Clock);
+        var retry = await handoff.ResumePendingTransferAsync();
+
+        Assert.IsFalse(retry.Succeeded);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, fixture.Guard.State);
+        Assert.AreEqual(AuthorityPhase.StaleGeneration, (await fixture.Store.LoadAsync())!.Protocol!.Phase);
+        CollectionAssert.AreEqual(remoteBefore.ToArray(), fixture.Transport.AssetFingerprints.ToArray());
+        Assert.AreEqual(0, fixture.Transport.DeleteCount);
+        Assert.AreEqual(0, fixture.Transport.UploadCount);
+        Assert.AreEqual(0, fixture.Transport.ListCalls);
+        Assert.AreEqual(0, fixture.Transport.GetCalls);
     }
 
     [TestMethod]
@@ -464,6 +620,15 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
         return Convert.ToHexString(await SHA256.HashDataAsync(stream));
     }
 
+    private static async Task<long> ReadBusinessRevisionAsync(string path)
+    {
+        await using var connection = new SqliteConnection($"Data Source={path};Mode=ReadOnly;Pooling=False");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT value FROM foundation_metadata WHERE key='business_data_revision';";
+        return long.Parse((string)(await command.ExecuteScalarAsync())!, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     private static async Task<string[]> ReadMarkersAsync(string path)
     {
         await using var connection = new SqliteConnection($"Data Source={path};Mode=ReadOnly;Pooling=False");
@@ -520,6 +685,9 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
         public bool FailCandidateValidation { get; set; }
         public RecoveryFaultProbe Faults { get; } = new();
         public SnapshotRecorder SnapshotService { get; }
+        public int SeedFileCount => Directory.Exists(Path.Combine(SystemMetadata.Inner.SystemDirectoryPath, "Seeds", "2"))
+            ? Directory.GetFiles(Path.Combine(SystemMetadata.Inner.SystemDirectoryPath, "Seeds", "2"), "*.seed.json").Length
+            : 0;
 
         public static Task<ServiceFixture> CreateAsync(AuthorityPhase phase = AuthorityPhase.NonAuthoritativeReadOnly, long systemGeneration = 1) => Task.FromResult(new ServiceFixture(phase, systemGeneration));
 
@@ -551,6 +719,67 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
         {
             Paths.EnsureInitialized();
             await File.WriteAllBytesAsync(Paths.LiveDatabasePath, CreateDatabase(revision, marker));
+        }
+
+        public void InstallHistoricalReplayEvidence()
+        {
+            var snapshotBytes = CreateDatabase(3, "historical-old-generation");
+            var transferId = Guid.NewGuid();
+            var sourceDeviceId = Guid.NewGuid();
+            var snapshotName = "20260907110000.snapshot.db";
+            var snapshotHash = Convert.ToHexString(SHA256.HashData(snapshotBytes));
+            var snapshotReceipt = Transport.AddHistoricalAsset(snapshotName, snapshotBytes);
+            var grant = new NormalHandoffGrant(
+                "M07",
+                transferId,
+                LineageId,
+                1,
+                1,
+                sourceDeviceId,
+                DeviceId,
+                3,
+                snapshotReceipt,
+                Clock.UtcNow.AddMinutes(-2),
+                Clock.UtcNow.AddMinutes(-2));
+            var grantBytes = JsonSerializer.SerializeToUtf8Bytes(grant, TestJsonOptions);
+            var grantReceipt = Transport.AddHistoricalAsset("20260907110000.grant.json", grantBytes);
+            var prior = new RecoveryPriorTransferEvidence(
+                AuthorityPhase.ReleasedNonAuthoritative,
+                transferId,
+                LineageId,
+                1,
+                1,
+                sourceDeviceId,
+                DeviceId,
+                3,
+                snapshotReceipt,
+                grantReceipt);
+            var recovery = new RecoveryActivationEvidence(
+                Guid.NewGuid(),
+                DeviceId,
+                LineageId,
+                1,
+                2,
+                "historical-recovery-candidate",
+                new string('A', 64),
+                3,
+                CandidateType: "",
+                CandidateReference: "",
+                CandidateHandoffVersion: 1,
+                CandidateCreatedAtUtc: Clock.UtcNow.AddMinutes(-1),
+                PriorTransfer: prior);
+            var current = ProbeStore.LoadAsync().GetAwaiter().GetResult()!.Protocol!;
+            var stale = current with
+            {
+                Revision = current.Revision + 1,
+                HandoffVersion = 1,
+                LastRecovery = recovery,
+                Phase = AuthorityPhase.StaleGeneration,
+                Transfer = null,
+                Recovery = null
+            };
+            stale.Validate();
+            ProbeStore.SaveAsync(new AuthorityStateDocument(2, stale.WriteState, Clock.UtcNow) { Protocol = stale }).GetAwaiter().GetResult();
         }
 
         public RecoveryCandidate CreateCandidate(long revision, string candidateId)
@@ -668,16 +897,23 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
     private sealed class FaultingSystemMetadataStore(JsonSystemMetadataStore inner, ServiceFixture fixture) : ISystemMetadataStore
     {
         public JsonSystemMetadataStore Inner { get; } = inner;
-        public Task<SystemLineageMetadata> EnsureCurrentLineageAsync(Guid lineageId, long generation, CancellationToken cancellationToken = default) => Inner.EnsureCurrentLineageAsync(lineageId, generation, cancellationToken);
-        public Task<SystemLineageMetadata> ReadLineageAsync(CancellationToken cancellationToken = default) => Inner.ReadLineageAsync(cancellationToken);
+        public bool Unavailable { get; set; }
+        public int PublishCount { get; private set; }
+        public Task<SystemLineageMetadata> EnsureCurrentLineageAsync(Guid lineageId, long generation, CancellationToken cancellationToken = default) => Unavailable ? throw new SystemMetadataUnavailableException("synthetic System outage") : Inner.EnsureCurrentLineageAsync(lineageId, generation, cancellationToken);
+        public Task<SystemLineageMetadata> ReadLineageAsync(CancellationToken cancellationToken = default) => Unavailable ? throw new SystemMetadataUnavailableException("synthetic System outage") : Inner.ReadLineageAsync(cancellationToken);
         public Task<SystemLineageMetadata> AdvanceGenerationAsync(Guid lineageId, long expectedPriorGeneration, long nextGeneration, CancellationToken cancellationToken = default) =>
-            fixture.FailSystemOperation == "advance" ? throw new IOException("synthetic generation advance crash") : Inner.AdvanceGenerationAsync(lineageId, expectedPriorGeneration, nextGeneration, cancellationToken);
+            Unavailable ? throw new SystemMetadataUnavailableException("synthetic System outage") : fixture.FailSystemOperation == "advance" ? throw new IOException("synthetic generation advance crash") : Inner.AdvanceGenerationAsync(lineageId, expectedPriorGeneration, nextGeneration, cancellationToken);
         public Task<DeviceSelfJoinResult> JoinCurrentGenerationAsync(Guid deviceId, string displayName, CancellationToken cancellationToken = default) =>
-            fixture.FailSystemOperation == "join" ? throw new IOException("synthetic membership publication crash") : Inner.JoinCurrentGenerationAsync(deviceId, displayName, cancellationToken);
-        public Task<IReadOnlyList<DeviceRegistrationArtifact>> ListCurrentGenerationDevicesAsync(Guid lineageId, long generation, CancellationToken cancellationToken = default) => Inner.ListCurrentGenerationDevicesAsync(lineageId, generation, cancellationToken);
-        public Task<ValidatedReadOnlySeed?> FindValidatedReadOnlySeedAsync(Guid lineageId, long generation, CancellationToken cancellationToken = default) => Inner.FindValidatedReadOnlySeedAsync(lineageId, generation, cancellationToken);
-        public Task<ReadOnlySeedPublicationResult> PublishReadOnlySeedAsync(ReadOnlySeedMetadata metadata, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default) =>
-            fixture.FailSystemOperation == "publish-seed" ? throw new IOException("synthetic optional seed failure") : Inner.PublishReadOnlySeedAsync(metadata, payload, cancellationToken);
+            Unavailable ? throw new SystemMetadataUnavailableException("synthetic System outage") : fixture.FailSystemOperation == "join" ? throw new IOException("synthetic membership publication crash") : Inner.JoinCurrentGenerationAsync(deviceId, displayName, cancellationToken);
+        public Task<IReadOnlyList<DeviceRegistrationArtifact>> ListCurrentGenerationDevicesAsync(Guid lineageId, long generation, CancellationToken cancellationToken = default) => Unavailable ? throw new SystemMetadataUnavailableException("synthetic System outage") : Inner.ListCurrentGenerationDevicesAsync(lineageId, generation, cancellationToken);
+        public Task<ValidatedReadOnlySeed?> FindValidatedReadOnlySeedAsync(Guid lineageId, long generation, CancellationToken cancellationToken = default) => Unavailable ? throw new SystemMetadataUnavailableException("synthetic System outage") : Inner.FindValidatedReadOnlySeedAsync(lineageId, generation, cancellationToken);
+        public async Task<ReadOnlySeedPublicationResult> PublishReadOnlySeedAsync(ReadOnlySeedMetadata metadata, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default)
+        {
+            if (Unavailable) throw new SystemMetadataUnavailableException("synthetic System outage");
+            if (fixture.FailSystemOperation == "publish-seed") throw new IOException("synthetic optional seed failure");
+            PublishCount++;
+            return await Inner.PublishReadOnlySeedAsync(metadata, payload, cancellationToken);
+        }
     }
 
     private sealed class SnapshotRecorder(ServicePaths paths) : ILocalRecoverySnapshotService
@@ -718,7 +954,13 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
         public bool UnknownOutcomeWasReobserved { get; private set; }
         public int UploadCount { get; private set; }
         public int DeleteCount { get; private set; }
-        public IReadOnlyList<GitHubRemoteAsset> ActivationAssets => assets.Where(asset => GitHubHandoffAssetNames.IsActivationName(asset.Name)).ToArray();
+        public int ListCalls { get; private set; }
+        public int GetCalls { get; private set; }
+        public GitHubRemoteAsset[] ActivationAssets => assets.Where(asset => GitHubHandoffAssetNames.IsActivationName(asset.Name)).ToArray();
+        public IReadOnlyList<string> AssetFingerprints => assets
+            .OrderBy(asset => asset.Id)
+            .Select(asset => $"{asset.Id}|{asset.Name}|{asset.Size}|{asset.State}|{asset.Digest}")
+            .ToArray();
 
         public Task<GitHubReleaseContainer> EnsureContainerAsync(bool createIfMissing, CancellationToken cancellationToken = default)
         {
@@ -750,8 +992,17 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
             return new GitHubAssetReceipt(release.Id, id, name, bytes.LongLength, "sha256:" + hash, DateTimeOffset.UtcNow, "uploaded");
         }
 
-        public Task<IReadOnlyList<GitHubRemoteAsset>> ListAssetsAsync(GitHubReleaseContainer release, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<GitHubRemoteAsset>>(assets.ToArray());
-        public Task<GitHubRemoteAsset> GetAssetAsync(long assetId, CancellationToken cancellationToken = default) => Task.FromResult(assets.Single(asset => asset.Id == assetId));
+        public Task<IReadOnlyList<GitHubRemoteAsset>> ListAssetsAsync(GitHubReleaseContainer release, CancellationToken cancellationToken = default)
+        {
+            ListCalls++;
+            return Task.FromResult<IReadOnlyList<GitHubRemoteAsset>>(assets.ToArray());
+        }
+
+        public Task<GitHubRemoteAsset> GetAssetAsync(long assetId, CancellationToken cancellationToken = default)
+        {
+            GetCalls++;
+            return Task.FromResult(assets.Single(asset => asset.Id == assetId));
+        }
         public Task<Stream> DownloadAssetAsync(long assetId, CancellationToken cancellationToken = default) => Task.FromResult<Stream>(new MemoryStream(contents[assetId], writable: false));
         public Task DeleteAssetAsync(long assetId, CancellationToken cancellationToken = default)
         {
@@ -773,6 +1024,14 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
             var artifact = new RecoveryActivationArtifact("M07", Guid.NewGuid(), lineageId, generation - 1, generation, Guid.NewGuid(), "other-candidate", new string('A', 64), 8, DateTimeOffset.UtcNow);
             var bytes = JsonSerializer.SerializeToUtf8Bytes(artifact, JsonOptions);
             AddAsset(nextId++, GitHubHandoffAssetNames.CreateActivationName(lineageId, generation), bytes, "uploaded");
+        }
+
+        public RemoteAssetEvidence AddHistoricalAsset(string name, byte[] bytes)
+        {
+            var id = nextId++;
+            AddAsset(id, name, bytes, "uploaded");
+            var hash = Convert.ToHexString(SHA256.HashData(bytes));
+            return new RemoteAssetEvidence(release.Id, id, name, bytes.LongLength, hash);
         }
 
         private void AddAsset(long id, string name, byte[] bytes, string state)

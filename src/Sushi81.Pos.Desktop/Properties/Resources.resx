@@ -276,6 +276,7 @@ Changements effectifs : {2}</value></data>
   <data name="M07CandidateSource" xml:space="preserve"><value>Source</value></data>
   <data name="M07CandidateTimestamp" xml:space="preserve"><value>Horodatage</value></data>
   <data name="M07CandidateRecommended" xml:space="preserve"><value>Sélectionné par le protocole</value></data>
+  <data name="M07CandidateReadOnlyNotice" xml:space="preserve"><value>Les métadonnées du candidat sont uniquement informatives ; elles ne peuvent pas être modifiées ni servir à réorienter la récupération.</value></data>
   <data name="M07NormalPathUnavailableConfirm" xml:space="preserve"><value>Je confirme que le chemin normal d’autorité/cible est réellement indisponible et ne peut pas être terminé.</value></data>
   <data name="M07ContextPhase" xml:space="preserve"><value>Phase</value></data>
   <data name="M07ContextLineage" xml:space="preserve"><value>Lignée</value></data>

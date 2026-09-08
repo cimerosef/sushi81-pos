@@ -1451,6 +1451,14 @@ public partial class MainWindow : Window
                 Margin = new Thickness(0, 0, 0, 12)
             });
 
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "M07CandidateReadOnlyNotice", "Candidate metadata is orientation-only; it cannot be changed or used to retarget recovery."),
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.78,
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+
             candidateSelector = new ComboBox { MinWidth = 620, IsEnabled = false, Margin = new Thickness(0, 0, 0, 12) };
             candidateSelector.ItemsSource = candidates.Select(candidate => new CandidateChoice(
                 candidate.CandidateId,

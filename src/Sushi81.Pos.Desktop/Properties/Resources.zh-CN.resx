@@ -276,6 +276,7 @@
   <data name="M07CandidateSource" xml:space="preserve"><value>来源</value></data>
   <data name="M07CandidateTimestamp" xml:space="preserve"><value>时间</value></data>
   <data name="M07CandidateRecommended" xml:space="preserve"><value>协议选定</value></data>
+  <data name="M07CandidateReadOnlyNotice" xml:space="preserve"><value>候选元数据仅用于说明，不能修改，也不能用来重新指定恢复目标。</value></data>
   <data name="M07NormalPathUnavailableConfirm" xml:space="preserve"><value>我确认正常的权威/目标路径确实不可用且无法完成。</value></data>
   <data name="M07ContextPhase" xml:space="preserve"><value>阶段</value></data>
   <data name="M07ContextLineage" xml:space="preserve"><value>谱系</value></data>

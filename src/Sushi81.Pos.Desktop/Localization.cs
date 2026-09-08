@@ -267,11 +267,11 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         });
         M07OperationStatus = _m07OperationStatusKey is not null
             ? Read(_m07OperationStatusKey)
-            : M07Runtime?.CurrentPhase is AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant
+            : CurrentAuthorityPhase is AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant
                 ? Read("M07PendingTransfer")
-                : M07Runtime?.CurrentPhase is AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending
+                : CurrentAuthorityPhase is AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending
                     ? Read("M07DisasterRecoveryPending")
-                    : M07Runtime?.CurrentPhase == AuthorityPhase.StaleGeneration
+                    : CurrentAuthorityPhase == AuthorityPhase.StaleGeneration
                         ? Read("M07StaleGeneration")
                         : string.Empty;
         LanguageLabel = Read("LanguageLabel");
@@ -315,7 +315,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("M07CandidateTypeOneDrive").Append("M07CandidateDataLossWarning")
              .Append("M07QuarantineWarning").Append("M07QuarantineConfirm").Append("M07ConfirmRecovery")
              .Append("M07CandidateRevision").Append("M07CandidateHandoffVersion").Append("M07CandidateSource")
-             .Append("M07CandidateTimestamp").Append("M07CandidateRecommended")
+             .Append("M07CandidateTimestamp").Append("M07CandidateRecommended").Append("M07CandidateReadOnlyNotice")
              .Append("M07NormalPathUnavailableConfirm").Append("M07ContextPhase")
              .Append("M07ContextLineage").Append("M07ContextGeneration")
              .Append("M07ContextSourceTarget").Append("M07ContextHandoffVersion")

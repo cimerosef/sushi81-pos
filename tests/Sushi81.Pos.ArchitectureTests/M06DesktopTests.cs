@@ -139,6 +139,117 @@ public sealed class M06DesktopTests
     }
 
     [TestMethod]
+    public void M07ShownFailClosedResultsRemainReadOnlyAcrossSafetyMatrixOnSta()
+    {
+        M07DisasterRecoveryUiTests.AssertShownFailClosedResultsAcrossTheM07SafetyMatrixOnSta();
+    }
+
+    [TestMethod]
+    public void M07ShownShellPreservesM03M04M05StateAcrossRefreshAndLocalizationOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var clock = new FixedClock();
+            var categoryId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+            var category = new CategorySummary(categoryId, "Plats", "P");
+            var summary = new ProductSummary(productId, "S81-001", "Saumon", categoryId, category.Name, Money.FromCents(1200), 10m, true, true, false);
+            var aggregate = new ProductAggregate(
+                new Product(productId, summary.Code, summary.Name, categoryId, summary.PriceTtc, summary.VatRate, true, true, false, default, default),
+                [], new Dictionary<Guid, IReadOnlyList<ProductOption>>());
+            var entryProduct = new OrderEntryProduct(aggregate, category.Name);
+            var now = clock.UtcNow;
+            var orderId = Guid.NewGuid();
+            var item = new OrderItemSnapshot(
+                Guid.NewGuid(), 1, productId, summary.Code, summary.Name, category.Name, summary.PriceTtc, summary.VatRate,
+                summary.DiscountEligible, 1, summary.PriceTtc, summary.PriceTtc, []);
+            var snapshot = new OrderSnapshot(
+                orderId, OrderSourceType.Pos, OrderStatus.Open, now, now, null, null, FulfilmentMode.Retrait,
+                clock.BusinessDate, new TimeOnly(12, 0), false, "0601020304", null, "synthetic history",
+                summary.PriceTtc, false, false, null, Money.Zero, [item], []) { Reference = "S81-0001" };
+            var catalogueStore = new ShownCatalogueStore(category, summary);
+            var settingsStore = new ShownSettingsStore();
+            var orderStore = new ShownOrderStore(snapshot);
+            using var guard = new WriteAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly);
+            var notifier = new NoOpDurableChangeNotifier();
+            var catalogue = new CatalogueService(catalogueStore, guard, notifier);
+            var settings = new BusinessSettingsService(settingsStore, guard, notifier);
+            var orderCatalogue = new ShownEntryCatalogue(category, summary, entryProduct);
+            var entryService = new OrderEntryService(orderCatalogue, settingsStore, orderStore, new NoOpOrderPrintDispatcher(), new DeterministicIds(), clock, guard, notifier);
+            var lifecycleService = new OrderLifecycleService(orderStore, new DeterministicIds(), clock, guard, notifier, orderCatalogue, settingsStore);
+            var runtime = M07DisasterRecoveryUiTests.CreateShownRuntime(guard, AuthorityPhase.NonAuthoritativeReadOnly);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true, catalogue, settings, entryService, lifecycleService,
+                guard, guard.State, runtime, authorityPhase: AuthorityPhase.NonAuthoritativeReadOnly);
+
+            shell.Admin!.Categories.Add(category);
+            shell.Admin.CategoryFilters.Add(category);
+            shell.Admin.Products.Add(summary);
+            shell.Admin.SearchText = "Saumon";
+            shell.Admin.SelectedCategoryId = categoryId;
+            shell.Admin.SelectedStatusKey = "Active";
+            shell.Admin.SelectedProduct = summary;
+
+            shell.Entry!.Categories.Add(category);
+            shell.Entry.Products.Add(summary);
+            shell.Entry.SearchText = "Saumon";
+            shell.Entry.SelectedCategoryId = categoryId;
+            shell.Entry.SelectedFulfilment = FulfilmentMode.Retrait;
+            shell.Entry.Telephone = "0601020304";
+            shell.Entry.DeliveryAddress = "Rue synthétique";
+            shell.Entry.AddConfiguredLine(entryProduct, [], [], 2);
+            shell.Entry.SelectedCartLine = shell.Entry.Cart.Single();
+
+            var row = new OrderManagementRowViewModel(new OrderBrowserRow(
+                orderId, snapshot.PlannedFulfilmentDate, snapshot.PlannedFulfilmentTime, snapshot.Fulfilment,
+                snapshot.Status, snapshot.TotalTtc, snapshot.Telephone) { Reference = snapshot.Reference, Comment = snapshot.Comment });
+            shell.Lifecycle!.Orders.Add(row);
+            shell.Lifecycle.SearchText = "S81-0001";
+            shell.Lifecycle.BrowseDate = clock.BusinessDate.ToDateTime(TimeOnly.MinValue);
+            shell.Lifecycle.SelectedRow = row;
+            Dispatcher.CurrentDispatcher.Invoke(DispatcherPriority.Background, new Action(() => { }));
+
+            var window = new MainWindow(shell)
+            {
+                Width = 980,
+                Height = 680,
+                ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = 0,
+                Top = 0
+            };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+                var beforeAdmin = (shell.Admin.SearchText, shell.Admin.SelectedCategoryId, shell.Admin.SelectedStatusKey, shell.Admin.SelectedProduct?.Id);
+                var beforeEntry = (shell.Entry.SearchText, shell.Entry.SelectedCategoryId, shell.Entry.SelectedFulfilment, shell.Entry.Telephone, shell.Entry.Cart.Single().Draft.LineId, shell.Entry.SelectedCartLine?.Draft.Quantity);
+                var beforeLifecycle = (shell.Lifecycle.SearchText, shell.Lifecycle.BrowseDate, shell.Lifecycle.SelectedRow?.Id, shell.Lifecycle.SelectedOrder?.Id);
+
+                shell.RefreshAuthorityStateAsync().GetAwaiter().GetResult();
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                window.UpdateLayout();
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.AreEqual(beforeAdmin, (shell.Admin.SearchText, shell.Admin.SelectedCategoryId, shell.Admin.SelectedStatusKey, shell.Admin.SelectedProduct?.Id));
+                Assert.AreEqual(beforeEntry, (shell.Entry.SearchText, shell.Entry.SelectedCategoryId, shell.Entry.SelectedFulfilment, shell.Entry.Telephone, shell.Entry.Cart.Single().Draft.LineId, shell.Entry.SelectedCartLine?.Draft.Quantity));
+                Assert.AreEqual(beforeLifecycle, (shell.Lifecycle.SearchText, shell.Lifecycle.BrowseDate, shell.Lifecycle.SelectedRow?.Id, shell.Lifecycle.SelectedOrder?.Id));
+                Assert.AreEqual(0, catalogueStore.MutationCount);
+                Assert.AreEqual(0, settingsStore.MutationCount);
+                Assert.AreEqual(0, orderStore.MutationCount);
+                Assert.IsFalse(shell.CanWrite);
+            }
+            finally
+            {
+                window.Hide();
+                runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [TestMethod]
     public void RealStaWindowCloseFlushesPendingRecoveryBeforeCompleting()
     {
         RunOnSta(() =>
@@ -406,6 +517,47 @@ public sealed class M06DesktopTests
         {
             if (State != WriteAuthorityState.Authoritative) throw new WriteAuthorityException(State);
         }
+    }
+
+    private sealed class ShownCatalogueStore(CategorySummary category, ProductSummary product) : ICatalogueStore
+    {
+        public int MutationCount { get; private set; }
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([category]);
+        public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([product]);
+        public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(new(product.Id, product.Code, product.Name, product.CategoryId, product.PriceTtc, product.VatRate, product.IsActive, product.DiscountEligible, product.OptionsEnabled, []));
+        public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => Mutate(OperationResult<CategorySummary>.Success(category));
+        public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) => Mutate(OperationResult<CategorySummary>.Success(category));
+        public Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default) => Mutate(OperationResult<CategorySummary>.Success(category));
+        public Task<OperationResult<CategorySummary>> RenameCategoryWithCodeAsync(Guid categoryId, string name, string? shortCode, CancellationToken cancellationToken = default) => Mutate(OperationResult<CategorySummary>.Success(category));
+        public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => Mutate(OperationResult<Guid>.Success(product.Id));
+        public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Mutate(OperationResult.Success());
+        public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Mutate(OperationResult.Success());
+        public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default) => Mutate(OperationResult<BulkProductActiveStateResult>.Success(new(request.Items.Count, 0)));
+        public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Mutate(OperationResult.Success());
+        private Task<T> Mutate<T>(T result) { MutationCount++; return Task.FromResult(result); }
+    }
+
+    private sealed class ShownEntryCatalogue(CategorySummary category, ProductSummary product, OrderEntryProduct entryProduct) : IOrderEntryCatalogueQueries
+    {
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([category]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? categoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([product]);
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(entryProduct);
+    }
+
+    private sealed class ShownSettingsStore : IBusinessSettingsStore
+    {
+        public int MutationCount { get; private set; }
+        public Task<BusinessSettings> GetAsync(CancellationToken cancellationToken = default) => Task.FromResult(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+        public Task<OperationResult> UpdateAsync(BusinessSettings settings, CancellationToken cancellationToken = default) { MutationCount++; return Task.FromResult(OperationResult.Success()); }
+    }
+
+    private sealed class ShownOrderStore(OrderSnapshot snapshot) : IOrderStore
+    {
+        public int MutationCount { get; private set; }
+        public Task SaveAsync(OrderSnapshot value, CancellationToken cancellationToken = default) { MutationCount++; return Task.CompletedTask; }
+        public Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default) => Task.FromResult<OrderSnapshot?>(snapshot.Id == orderId ? snapshot : null);
+        public Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<OrderBrowserRow>>([new OrderBrowserRow(snapshot.Id, snapshot.PlannedFulfilmentDate, snapshot.PlannedFulfilmentTime, snapshot.Fulfilment, snapshot.Status, snapshot.TotalTtc, snapshot.Telephone) { Reference = snapshot.Reference, Comment = snapshot.Comment }]);
     }
 
     private sealed class EmptyCatalogueStore : ICatalogueStore
