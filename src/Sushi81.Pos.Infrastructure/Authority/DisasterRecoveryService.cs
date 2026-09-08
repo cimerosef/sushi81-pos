@@ -34,10 +34,12 @@ public sealed class DisasterRecoveryService(
     IGitHubHandoffTransport? githubTransport,
     ILocalRecoverySnapshotService localSnapshots,
     IAppPaths paths,
-    IBusinessClock clock) : IAsyncDisposable
+    IBusinessClock clock,
+    IDisasterRecoveryFaultProbe? faultProbe = null) : IAsyncDisposable
 {
     private readonly SemaphoreSlim operationGate = new(1, 1);
-    private readonly DisasterRecoveryDatabaseInstaller installer = new(paths);
+    private readonly IDisasterRecoveryFaultProbe faultProbe = faultProbe ?? new NoOpDisasterRecoveryFaultProbe();
+    private readonly DisasterRecoveryDatabaseInstaller installer = new(paths, faultProbe);
 
     public async Task<RecoveryCandidateDiscoveryResult> DiscoverCandidatesAsync(CancellationToken cancellationToken = default)
     {
@@ -140,8 +142,10 @@ public sealed class DisasterRecoveryService(
                     Transfer = null
                 };
                 guard.SetState(WriteAuthorityState.Transitioning);
+                faultProbe.Hit(DisasterRecoveryFaultPoint.BeforePreparingPersistence);
                 try { await PersistAsync(preparing, cancellationToken); }
                 catch { guard.SetState(WriteAuthorityState.RecoveryRequired); throw; }
+                faultProbe.Hit(DisasterRecoveryFaultPoint.AfterPreparingPersistence);
                 current = preparing;
                 loadedState = current;
             }
@@ -154,11 +158,15 @@ public sealed class DisasterRecoveryService(
                 var request = new RecoveryActivationRequest(
                     recovery.RecoveryId, recovery.LineageId, recovery.PriorGeneration, recovery.NextGeneration,
                     recovery.DeviceId, recovery.CandidateId, recovery.CandidateSha256, recovery.BusinessRevision);
+                faultProbe.Hit(DisasterRecoveryFaultPoint.BeforeRemoteActivation);
                 var activationResult = await activation.TryAcquireAsync(request, cancellationToken);
+                faultProbe.Hit(DisasterRecoveryFaultPoint.AfterRemoteActivation);
                 if (activationResult.Outcome == RecoveryActivationOutcome.BlockedNoWinner
                     && await TryCleanExactStarterAsync(request, cancellationToken))
                 {
+                    faultProbe.Hit(DisasterRecoveryFaultPoint.BeforeRemoteActivation);
                     activationResult = await activation.TryAcquireAsync(request, cancellationToken);
+                    faultProbe.Hit(DisasterRecoveryFaultPoint.AfterRemoteActivation);
                 }
                 if (activationResult.Outcome == RecoveryActivationOutcome.LostToExistingWinner)
                 {
@@ -175,7 +183,9 @@ public sealed class DisasterRecoveryService(
                     Phase = AuthorityPhase.DisasterRecoveryPending,
                     Recovery = recovery
                 };
+                faultProbe.Hit(DisasterRecoveryFaultPoint.BeforePendingPersistence);
                 await PersistAsync(current, cancellationToken);
+                faultProbe.Hit(DisasterRecoveryFaultPoint.AfterPendingPersistence);
                 loadedState = current;
             }
 
@@ -276,9 +286,22 @@ public sealed class DisasterRecoveryService(
 
         await PreserveLocalDatabaseAsync(current.BusinessRevision, cancellationToken);
         var staged = await StageCandidateAsync(exact, cancellationToken);
-        await installer.InstallAndVerifyAsync(staged, exact, cancellationToken);
+        try
+        {
+            faultProbe.Hit(DisasterRecoveryFaultPoint.AfterCandidateStaging);
+            await installer.InstallAndVerifyAsync(staged, exact, cancellationToken);
+        }
+        catch
+        {
+            DisasterRecoveryDatabaseInstaller.DeleteStagingIfExists(staged);
+            throw;
+        }
+        faultProbe.Hit(DisasterRecoveryFaultPoint.BeforeGenerationAdvance);
         await systemMetadata.AdvanceGenerationAsync(recovery.LineageId, recovery.PriorGeneration, recovery.NextGeneration, cancellationToken);
+        faultProbe.Hit(DisasterRecoveryFaultPoint.AfterGenerationAdvance);
+        faultProbe.Hit(DisasterRecoveryFaultPoint.BeforeMembershipPublication);
         await systemMetadata.JoinCurrentGenerationAsync(current.DeviceId, current.DisplayName, cancellationToken);
+        faultProbe.Hit(DisasterRecoveryFaultPoint.AfterMembershipPublication);
 
         var authoritative = current with
         {
@@ -292,13 +315,16 @@ public sealed class DisasterRecoveryService(
             Recovery = null,
             LastRecovery = recovery
         };
+        faultProbe.Hit(DisasterRecoveryFaultPoint.BeforeAuthoritativePersistence);
         await PersistAsync(authoritative, cancellationToken);
+        faultProbe.Hit(DisasterRecoveryFaultPoint.AfterAuthoritativePersistence);
         await TryPublishCurrentGenerationSeedAsync(authoritative, cancellationToken);
         return DisasterRecoveryResult.Success(exact);
     }
 
     private async Task<string> StageCandidateAsync(RecoveryCandidate candidate, CancellationToken cancellationToken)
     {
+        faultProbe.Hit(DisasterRecoveryFaultPoint.BeforeCandidateStaging);
         if (candidate.Type == RecoveryCandidateType.OneDriveCheckpoint)
             return await installer.StageLocalAndValidateAsync(candidate, cancellationToken);
         if (githubTransport is null || candidate.SnapshotAssetId is not { } snapshotAssetId)
@@ -336,7 +362,9 @@ public sealed class DisasterRecoveryService(
     {
         paths.EnsureInitialized();
         if (!File.Exists(paths.LiveDatabasePath)) return;
+        faultProbe.Hit(DisasterRecoveryFaultPoint.BeforeLocalDatabasePreservation);
         await localSnapshots.CreateAsync(new DurableChange(Math.Max(0, businessRevision), clock.UtcNow), cancellationToken);
+        faultProbe.Hit(DisasterRecoveryFaultPoint.AfterLocalDatabasePreservation);
     }
 
     private async Task FenceIfNewerGenerationAsync(
@@ -395,7 +423,9 @@ public sealed class DisasterRecoveryService(
                 lineageId, state.Generation, state.DeviceId, state.BusinessRevision,
                 SystemMetadataContract.SeedPayloadFileName(seedId), payload.LongLength,
                 payloadHash, clock.UtcNow, state.HandoffVersion);
+            faultProbe.Hit(DisasterRecoveryFaultPoint.BeforeSeedPublication);
             await systemMetadata.PublishReadOnlySeedAsync(metadata, payload, cancellationToken);
+            faultProbe.Hit(DisasterRecoveryFaultPoint.AfterSeedPublication);
             return true;
         }
         catch (OperationCanceledException) { throw; }

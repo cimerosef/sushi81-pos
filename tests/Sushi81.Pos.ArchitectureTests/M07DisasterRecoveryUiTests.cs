@@ -5,6 +5,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Automation;
+using System.Windows.Threading;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Recovery;
@@ -41,7 +42,7 @@ public sealed class M07DisasterRecoveryUiTests
                     : WriteAuthorityState.NonAuthoritativeReadOnly);
                 M07RuntimeServices? runtime = null;
                 if (phase != AuthorityPhase.Authoritative)
-                    awaitableRuntime(guard, out runtime);
+                    awaitableRuntime(guard, phase, out runtime);
                 using var shell = new ShellViewModel(
                     new InMemorySelectedCultureStore(), true, authorityGuard: guard,
                     authorityState: guard.State, m07Runtime: runtime, authorityPhase: phase);
@@ -49,6 +50,70 @@ public sealed class M07DisasterRecoveryUiTests
                 Assert.AreEqual(phase is AuthorityPhase.DisasterRecoveryPending, shell.CanRetryDisasterRecovery, phase.ToString());
                 Assert.AreEqual(phase is AuthorityPhase.StaleGeneration, shell.CanReinitializeStaleDevice, phase.ToString());
                 runtime?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    internal static void AssertShownMainWindowPreservesM07ActionStateAcrossRefreshAndLocalizationOnSta()
+    {
+        RunOnSta(() =>
+        {
+            foreach (var vector in new[]
+            {
+                (AuthorityPhase.PairedUninitializedReadOnly, "Disaster Recovery", "M07DisasterRecovery"),
+                (AuthorityPhase.NonAuthoritativeReadOnly, "Disaster Recovery", "M07DisasterRecovery"),
+                (AuthorityPhase.DisasterRecoveryPending, "Retry Disaster Recovery", "M07DisasterRecoveryPending"),
+                (AuthorityPhase.StaleGeneration, "Reinitialize stale device", "M07ReinitializeStale")
+            })
+            {
+                using var guard = new WriteAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly);
+                awaitableRuntime(guard, vector.Item1, out var runtime);
+                using var shell = new ShellViewModel(
+                    new InMemorySelectedCultureStore(), true, authorityGuard: guard,
+                    authorityState: guard.State, m07Runtime: runtime, authorityPhase: vector.Item1);
+                var window = new MainWindow(shell)
+                {
+                    Width = 980,
+                    Height = 680,
+                    ShowInTaskbar = false,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = 0,
+                    Top = 0
+                };
+                try
+                {
+                    window.Show();
+                    window.UpdateLayout();
+                    window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                    var button = VisualDescendants<Button>(window)
+                        .Single(item => AutomationProperties.GetName(item) == vector.Item2);
+                    Assert.AreEqual(Visibility.Visible, button.Visibility, vector.Item1.ToString());
+                    Assert.IsTrue(button.IsEnabled, vector.Item1.ToString());
+                    Assert.AreEqual(shell.Localized[vector.Item3], button.Content);
+                    Assert.IsFalse(shell.CanWrite);
+                    Assert.IsFalse(string.IsNullOrWhiteSpace(shell.AuthorityStatus));
+
+                    if (vector.Item1 is AuthorityPhase.PairedUninitializedReadOnly or AuthorityPhase.NonAuthoritativeReadOnly)
+                    {
+                        shell.RefreshAuthorityStateAsync().GetAwaiter().GetResult();
+                        window.UpdateLayout();
+                        Assert.AreEqual(Visibility.Visible, button.Visibility, "M07 refresh changed the shown action state.");
+                        Assert.IsTrue(button.IsEnabled, "M07 refresh disabled the shown action state.");
+                    }
+
+                    shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"))
+                        .GetAwaiter().GetResult();
+                    window.UpdateLayout();
+                    Assert.AreEqual(shell.Localized[vector.Item3], button.Content, "The shown M07 surface did not localize.");
+                    Assert.AreEqual(Visibility.Visible, button.Visibility, "Localization changed the shown action visibility.");
+                    Assert.IsTrue(button.IsEnabled, "Localization changed the shown action state.");
+                }
+                finally
+                {
+                    window.Close();
+                    runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                }
             }
         });
     }
@@ -74,6 +139,8 @@ public sealed class M07DisasterRecoveryUiTests
             var dialog = (Window)constructor.Invoke([null, new Dictionary<string, string>(), context, (IReadOnlyList<RecoveryCandidate>)[candidate], candidate]);
             try
             {
+                dialog.Show();
+                dialog.UpdateLayout();
                 var text = string.Join("\n", LogicalDescendants<TextBlock>(dialog).Select(block => block.Text));
                 StringAssert.Contains(text, "ReleasedNonAuthoritative");
                 StringAssert.Contains(text, lineage.ToString("N")[..8]);
@@ -87,7 +154,7 @@ public sealed class M07DisasterRecoveryUiTests
                 Assert.AreEqual(candidate.CandidateId, selectedChoice.GetType().GetProperty("CandidateId")!.GetValue(selectedChoice));
                 StringAssert.Contains(selector.SelectedItem!.ToString()!, "Protocol-selected");
             }
-            finally { }
+            finally { dialog.Close(); }
         });
     }
 
@@ -107,6 +174,8 @@ public sealed class M07DisasterRecoveryUiTests
             var pending = (Window)constructor.Invoke([null, new Dictionary<string, string>(), context]);
             try
             {
+                pending.Show();
+                pending.UpdateLayout();
                 var text = string.Join("\n", LogicalDescendants<TextBlock>(pending).Select(block => block.Text));
                 StringAssert.Contains(text, "11111111");
                 StringAssert.Contains(text, "recommended-a");
@@ -119,7 +188,7 @@ public sealed class M07DisasterRecoveryUiTests
                 CollectionAssert.DoesNotContain(buttons, "Cancel");
                 Assert.IsFalse(LogicalDescendants<ComboBox>(pending).Any());
             }
-            finally { }
+            finally { pending.Close(); }
         });
     }
 
@@ -175,6 +244,8 @@ public sealed class M07DisasterRecoveryUiTests
             var dialog = (Window)dialogConstructor.Invoke([null, labels, context, (IReadOnlyList<RecoveryCandidate>)[candidate], candidate]);
             try
             {
+                dialog.Show();
+                dialog.UpdateLayout();
                 var selector = (ComboBox)dialogType.GetField("candidateSelector", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(dialog)!;
                 var normalPath = (CheckBox)dialogType.GetField("normalPathUnavailableCheckBox", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(dialog)!;
                 var quarantine = (CheckBox)dialogType.GetField("quarantineCheckBox", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(dialog)!;
@@ -189,7 +260,7 @@ public sealed class M07DisasterRecoveryUiTests
                 var selectedCandidateId = (string?)dialogType.GetProperty("SelectedCandidateId", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.GetValue(dialog);
                 Assert.AreEqual(candidate.CandidateId, selectedCandidateId);
             }
-            finally { }
+            finally { dialog.Close(); }
 
             var pendingType = typeof(MainWindow).GetNestedType("DisasterRecoveryPendingDialog", BindingFlags.NonPublic)!;
             var pendingConstructor = pendingType.GetConstructor(
@@ -207,6 +278,8 @@ public sealed class M07DisasterRecoveryUiTests
             }]);
             try
             {
+                pending.Show();
+                pending.UpdateLayout();
                 var quarantine = (CheckBox)pendingType.GetField("quarantineCheckBox", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(pending)!;
                 var retry = (Button)pendingType.GetField("retryButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(pending)!;
                 Assert.IsFalse(retry.IsEnabled, "Pending recovery cannot resume without quarantine confirmation.");
@@ -214,7 +287,7 @@ public sealed class M07DisasterRecoveryUiTests
                 Assert.IsTrue(retry.IsEnabled, "Pending recovery enables only exact retry after quarantine confirmation.");
                 Assert.IsFalse(VisualDescendants<ComboBox>(pending).Any(), "Pending recovery must not expose candidate retargeting.");
             }
-            finally { }
+            finally { pending.Close(); }
         });
     }
 
@@ -237,10 +310,10 @@ public sealed class M07DisasterRecoveryUiTests
         }
     }
 
-    private static void awaitableRuntime(WriteAuthorityGuard guard, out M07RuntimeServices runtime)
+    private static void awaitableRuntime(WriteAuthorityGuard guard, AuthorityPhase phase, out M07RuntimeServices runtime)
     {
         var paths = new UiPaths(Path.Combine(Path.GetTempPath(), "Sushi81.POS.M07.UI", Guid.NewGuid().ToString("N")));
-        var store = new UiAuthorityStore();
+        var store = new UiAuthorityStore(CreateRefreshDocument(phase));
         var metadata = new UiSystemMetadataStore();
         var discovery = new UiCandidateDiscovery();
         var recovery = new DisasterRecoveryService(
@@ -248,6 +321,18 @@ public sealed class M07DisasterRecoveryUiTests
         runtime = new M07RuntimeServices(
             guard, store, metadata, new SelfJoinService(store, guard, metadata, new UiClock()), null, null, null,
             GitHubConnectionSetupState.RepositoryNotConfigured, recovery, discovery);
+    }
+
+    private static AuthorityStateDocument? CreateRefreshDocument(AuthorityPhase phase)
+    {
+        if (phase is not (AuthorityPhase.PairedUninitializedReadOnly or AuthorityPhase.NonAuthoritativeReadOnly))
+            return null;
+
+        var deviceId = Guid.NewGuid();
+        var protocol = phase == AuthorityPhase.PairedUninitializedReadOnly
+            ? new AuthorityProtocolState(1, deviceId, "Shown UI", Guid.NewGuid(), 1, 0, 0, phase)
+            : new AuthorityProtocolState(1, deviceId, "Shown UI", null, 0, 0, 0, phase);
+        return new AuthorityStateDocument(1, protocol.WriteState, DateTimeOffset.UtcNow) { Protocol = protocol };
     }
 
     private sealed class UiClock : IBusinessClock
@@ -270,9 +355,9 @@ public sealed class M07DisasterRecoveryUiTests
         public void EnsureInitialized() => Directory.CreateDirectory(TempDirectory);
     }
 
-    private sealed class UiAuthorityStore : IAuthorityStateStore
+    private sealed class UiAuthorityStore(AuthorityStateDocument? document = null) : IAuthorityStateStore
     {
-        public Task<AuthorityStateDocument?> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult<AuthorityStateDocument?>(null);
+        public Task<AuthorityStateDocument?> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(document);
         public Task SaveAsync(AuthorityStateDocument document, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<bool> HasBootstrapMarkerAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
         public Task WriteBootstrapMarkerAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

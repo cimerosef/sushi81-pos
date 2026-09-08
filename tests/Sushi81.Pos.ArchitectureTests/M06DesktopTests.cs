@@ -133,6 +133,12 @@ public sealed class M06DesktopTests
     }
 
     [TestMethod]
+    public void M07ShownMainWindowPreservesActionStateAcrossRefreshAndLocalizationOnSta()
+    {
+        M07DisasterRecoveryUiTests.AssertShownMainWindowPreservesM07ActionStateAcrossRefreshAndLocalizationOnSta();
+    }
+
+    [TestMethod]
     public void RealStaWindowCloseFlushesPendingRecoveryBeforeCompleting()
     {
         RunOnSta(() =>

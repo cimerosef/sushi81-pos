@@ -259,3 +259,15 @@ Complete only after owner acceptance and exact-head green CI.
 ## 7. Governance warning
 
 M07 is authorized for implementation but this worklog is not itself a Codex execution signal. Codex execution requires the active M07 PR, Issue #4 mailbox pointer, one complete unprocessed `CODEX_HANDOFF_READY` record, prerequisite verification and Issue #4 OPEN state.
+
+### Review cycle 8 — WP8 review remediation `M07-WP8-REVIEW-REMEDIATION-11`
+
+**Reviewed head:** `9ccb487c71d4c651edd71077c5ca5c68bb980996` — ChatGPT review `5142725252`, findings `AD3` through `AD5`.
+**Status:** In progress — implementation remediation is limited to the authorized WP8 handoff; owner manual acceptance and merge remain unauthorized.
+**AD3 remediation/evidence:** Added the production `IDisasterRecoveryFaultProbe` seam and explicit crash-boundary vectors through remote activation, durable Pending, candidate staging/validation, generation advance, membership publication and durable Authoritative persistence. The real `DisasterRecoveryService` is restarted from durable disk after each injected boundary; tests assert fail-closed pre-authoritative guards, exact RecoveryId/device/candidate/hash/revision/handoff/receipt identity, generation provenance, and post-authoritative restart behavior. Preservation/replacement boundaries verify old live data remains recoverable while replacement is validated before activation.
+**AD4 remediation/evidence:** Added a real production stale-device lifecycle test: stale generation reinitialization installs and revalidates the current-generation seed, the device joins read-only, a current-generation source performs the normal target-directed handoff, and the real `TargetAcquisitionService` acquires only the exact current grant. Historical stale acquisition/transfer retry remains rejected, and old database markers are preserved across replacement.
+**AD5 remediation/evidence:** Added real shown `MainWindow` phase/action vectors and shown first-use/pending dialogs. Tests verify visible enabled controls, fail-closed read-only status, exact pending identity, no retarget/cancel surface, FR↔zh-CN shown labels, and action-state preservation across M07 refresh/localization.
+**Focused evidence:** `M07ProductionDisasterRecoveryServiceTests` `36/36` Passed; `M07ProductionStaleLifecycleTests` `1/1` Passed; `M07DisasterRecoveryUiTests` `6/6` Passed; all `0` failed and `0` skipped. Full Release/build/publish and exact-head CI evidence are pending completion of this handoff.
+**Boundaries:** WP7 proof repository was not rerun or mutated. WP9 broad integration/closure, M08 and later milestones remain not authorized/not started; owner manual acceptance and merge remain pending.
+
+**Final local verification before push:** Full Release solution `515/515` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors; self-contained `win-x64` publish succeeded to ignored `artifacts/m07-wp8-remediation-11-publish`; `git diff --check` passed. Exact-head CI and durable `CODEX_DONE` remain pending push.

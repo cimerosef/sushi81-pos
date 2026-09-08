@@ -301,8 +301,9 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
     public async Task SuccessfulStaleReinitializationPreservesOldDataInstallsSeedAndJoinsCurrentGenerationReadOnly()
     {
         using var fixture = await ServiceFixture.CreateAsync(phase: AuthorityPhase.StaleGeneration, systemGeneration: 2);
-        await fixture.CreateLiveDatabaseAsync(3);
-        var seed = await fixture.PublishSeedAsync(22);
+        await fixture.CreateLiveDatabaseAsync(3, "old-only-marker");
+        var oldHash = await HashAsync(fixture.Paths.LiveDatabasePath);
+        var seed = await fixture.PublishSeedAsync(22, "current-only-marker");
         await using var service = fixture.CreateService();
 
         var result = await service.ReinitializeStaleDeviceAsync();
@@ -314,14 +315,165 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
         Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, fixture.Guard.State);
         Assert.AreEqual(seed.Metadata.PayloadSha256, await HashAsync(fixture.Paths.LiveDatabasePath));
         Assert.AreEqual(1, fixture.SnapshotService.CreateCalls, "Old local data is preserved before replacement.");
+        Assert.AreEqual(oldHash, fixture.SnapshotService.CapturedDatabaseHash, "The old database was captured before replacement.");
+        CollectionAssert.Contains(await ReadMarkersAsync(fixture.Paths.LiveDatabasePath), "current-only-marker");
+        CollectionAssert.DoesNotContain(await ReadMarkersAsync(fixture.Paths.LiveDatabasePath), "old-only-marker");
         var devices = await fixture.SystemMetadata.ListCurrentGenerationDevicesAsync(fixture.LineageId, 2);
         Assert.IsTrue(devices.Any(device => device.DeviceId == fixture.DeviceId));
+    }
+
+    [TestMethod]
+    public async Task StaleGenerationRejectsHistoricalAcquisitionAndSourceTransferRetry()
+    {
+        using var fixture = await ServiceFixture.CreateAsync(phase: AuthorityPhase.StaleGeneration, systemGeneration: 2);
+        await fixture.Store.WriteBootstrapMarkerAsync();
+        await fixture.Store.WriteBootstrapAnchorAsync();
+        await using var acquisition = new TargetAcquisitionService(
+            fixture.Store,
+            fixture.Guard,
+            fixture.SystemMetadata.Inner,
+            fixture.Transport,
+            new SqliteTransferSnapshotInstaller(fixture.Paths),
+            fixture.Clock);
+
+        var acquisitionResult = await acquisition.AcquireAsync();
+        Assert.IsFalse(acquisitionResult.Succeeded);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, fixture.Guard.State);
+        Assert.AreEqual(AuthorityPhase.StaleGeneration, (await fixture.Store.LoadAsync())!.Protocol!.Phase);
+
+        await using var handoff = new NormalHandoffService(
+            fixture.Store,
+            fixture.Guard,
+            fixture.SystemMetadata.Inner,
+            new UnsupportedSnapshotFactory(),
+            fixture.Transport,
+            fixture.Clock);
+        var retry = await handoff.ResumePendingTransferAsync();
+        Assert.IsFalse(retry.Succeeded);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, fixture.Guard.State);
+        Assert.AreEqual(AuthorityPhase.StaleGeneration, (await fixture.Store.LoadAsync())!.Protocol!.Phase);
+    }
+
+    [TestMethod]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.BeforeRemoteActivation))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.AfterRemoteActivation))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.BeforePendingPersistence))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.AfterPendingPersistence))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.BeforeCandidateStaging))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.DuringCandidateStagingValidation))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.AfterCandidateStaging))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.BeforeGenerationAdvance))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.AfterGenerationAdvance))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.BeforeMembershipPublication))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.AfterMembershipPublication))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.BeforeAuthoritativePersistence))]
+    [DataRow(nameof(DisasterRecoveryFaultPoint.AfterAuthoritativePersistence))]
+    public async Task ProductionRecoveryCrashBoundariesRestartExactDurableIdentity(string pointName)
+    {
+        using var fixture = await ServiceFixture.CreateAsync();
+        var point = Enum.Parse<DisasterRecoveryFaultPoint>(pointName);
+        if (point is DisasterRecoveryFaultPoint.BeforeLocalDatabasePreservation
+            or DisasterRecoveryFaultPoint.AfterLocalDatabasePreservation
+            or DisasterRecoveryFaultPoint.BeforeLiveDatabaseReplacement
+            or DisasterRecoveryFaultPoint.AfterLiveDatabaseReplacement)
+            await fixture.CreateLiveDatabaseAsync(3);
+
+        fixture.Faults.ThrowAt = point;
+        await using (var first = fixture.CreateService())
+        {
+            var result = await first.StartOrResumeAsync(fixture.Candidate.CandidateId, true, true);
+            Assert.IsFalse(result.Succeeded, pointName);
+        }
+
+        var afterFailure = (await fixture.Store.LoadAsync())!.Protocol!;
+        Assert.AreNotEqual(WriteAuthorityState.Authoritative, fixture.Guard.State, pointName);
+        if (point == DisasterRecoveryFaultPoint.BeforeRemoteActivation)
+            Assert.AreEqual(AuthorityPhase.DisasterRecoveryPreparing, afterFailure.Phase, pointName);
+        else if (point == DisasterRecoveryFaultPoint.AfterAuthoritativePersistence)
+        {
+            Assert.AreEqual(AuthorityPhase.Authoritative, afterFailure.Phase, pointName);
+            using var restartedGuard = new WriteAuthorityGuard(afterFailure.WriteState);
+            restartedGuard.RequireWriteAuthority();
+            return;
+        }
+        else
+        {
+            Assert.IsTrue(afterFailure.Phase is AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending, pointName);
+            Assert.IsNotNull(afterFailure.Recovery, pointName);
+            Assert.AreEqual(fixture.Candidate.CandidateId, afterFailure.Recovery!.CandidateId, pointName);
+            Assert.AreEqual(fixture.Candidate.PayloadSha256, afterFailure.Recovery.CandidateSha256, pointName);
+            Assert.IsFalse(File.Exists(fixture.Paths.LiveDatabasePath)
+                && (point is DisasterRecoveryFaultPoint.BeforeCandidateStaging or DisasterRecoveryFaultPoint.DuringCandidateStagingValidation),
+                "A failed staging boundary must not install a live database.");
+            Assert.Throws<WriteAuthorityException>(fixture.Guard.RequireWriteAuthority, pointName);
+        }
+
+        var newer = fixture.CreateCandidate(99, "checkpoint-newer-after-crash");
+        fixture.Candidates.Add(newer);
+        fixture.Faults.ThrowAt = null;
+        await using var restart = fixture.CreateService();
+        var resumed = await restart.RetryAsync(true);
+
+        Assert.IsTrue(resumed.Succeeded, resumed.Diagnostic);
+        var final = (await fixture.Store.LoadAsync())!.Protocol!;
+        Assert.AreEqual(AuthorityPhase.Authoritative, final.Phase);
+        Assert.AreEqual(fixture.Candidate.CandidateId, final.LastRecovery!.CandidateId, "Restart must not substitute the newer candidate.");
+        Assert.AreEqual(fixture.Candidate.PayloadSha256, final.LastRecovery.CandidateSha256);
+        Assert.AreEqual(fixture.Candidate.PayloadSha256, await HashAsync(fixture.Paths.LiveDatabasePath));
+        Assert.AreEqual(fixture.Candidate.BusinessRevision, final.LastRecovery.BusinessRevision);
+    }
+
+    [TestMethod]
+    public async Task ProductionRecoveryPreservationAndReplacementBoundariesKeepOldDataRecoverable()
+    {
+        foreach (var point in new[]
+        {
+            DisasterRecoveryFaultPoint.BeforeLocalDatabasePreservation,
+            DisasterRecoveryFaultPoint.AfterLocalDatabasePreservation,
+            DisasterRecoveryFaultPoint.BeforeLiveDatabaseReplacement,
+            DisasterRecoveryFaultPoint.AfterLiveDatabaseReplacement
+        })
+        {
+            using var fixture = await ServiceFixture.CreateAsync();
+            await fixture.CreateLiveDatabaseAsync(3);
+            var oldHash = await HashAsync(fixture.Paths.LiveDatabasePath);
+            fixture.Faults.ThrowAt = point;
+            await using (var first = fixture.CreateService())
+                Assert.IsFalse((await first.StartOrResumeAsync(fixture.Candidate.CandidateId, true, true)).Succeeded, point.ToString());
+
+            var afterFailure = (await fixture.Store.LoadAsync())!.Protocol!;
+            Assert.AreEqual(AuthorityPhase.DisasterRecoveryPending, afterFailure.Phase, point.ToString());
+            Assert.Throws<WriteAuthorityException>(fixture.Guard.RequireWriteAuthority, point.ToString());
+            if (point is DisasterRecoveryFaultPoint.BeforeLocalDatabasePreservation
+                or DisasterRecoveryFaultPoint.AfterLocalDatabasePreservation
+                or DisasterRecoveryFaultPoint.BeforeLiveDatabaseReplacement)
+                Assert.AreEqual(oldHash, await HashAsync(fixture.Paths.LiveDatabasePath), point.ToString());
+            else
+                Assert.AreEqual(fixture.Candidate.PayloadSha256, await HashAsync(fixture.Paths.LiveDatabasePath), point.ToString());
+
+            fixture.Faults.ThrowAt = null;
+            await using var restart = fixture.CreateService();
+            Assert.IsTrue((await restart.RetryAsync(true)).Succeeded, point.ToString());
+            Assert.AreEqual(AuthorityPhase.Authoritative, (await fixture.Store.LoadAsync())!.Protocol!.Phase);
+        }
     }
 
     private static async Task<string> HashAsync(string path)
     {
         await using var stream = File.OpenRead(path);
         return Convert.ToHexString(await SHA256.HashDataAsync(stream));
+    }
+
+    private static async Task<string[]> ReadMarkersAsync(string path)
+    {
+        await using var connection = new SqliteConnection($"Data Source={path};Mode=ReadOnly;Pooling=False");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT marker FROM synthetic_markers ORDER BY marker";
+        var markers = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync()) markers.Add(reader.GetString(0));
+        return markers.ToArray();
     }
 
     private sealed class ServiceFixture : IDisposable
@@ -331,6 +483,7 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
             Root = Path.Combine(Path.GetTempPath(), "Sushi81.POS.M07.Service", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Root);
             Paths = new ServicePaths(Root);
+            SnapshotService = new SnapshotRecorder(Paths);
             LineageId = Guid.NewGuid();
             DeviceId = Guid.NewGuid();
             Clock = new FixedClock();
@@ -365,7 +518,8 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
         public int SaveNumber { get; private set; }
         public string? FailSystemOperation { get; set; }
         public bool FailCandidateValidation { get; set; }
-        public SnapshotRecorder SnapshotService { get; } = new();
+        public RecoveryFaultProbe Faults { get; } = new();
+        public SnapshotRecorder SnapshotService { get; }
 
         public static Task<ServiceFixture> CreateAsync(AuthorityPhase phase = AuthorityPhase.NonAuthoritativeReadOnly, long systemGeneration = 1) => Task.FromResult(new ServiceFixture(phase, systemGeneration));
 
@@ -378,11 +532,12 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
             Transport,
             SnapshotService,
             Paths,
-            Clock);
+            Clock,
+            Faults);
 
-        public async Task<SeedVector> PublishSeedAsync(long revision)
+        public async Task<SeedVector> PublishSeedAsync(long revision, string? marker = null)
         {
-            var bytes = CreateDatabase(revision);
+            var bytes = CreateDatabase(revision, marker);
             var seedId = Guid.NewGuid();
             var metadata = new ReadOnlySeedMetadata(
                 1, "M07", SystemMetadataContract.ReadOnlySeedArtifactKind, seedId, LineageId, 2,
@@ -392,19 +547,21 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
             return new SeedVector(metadata, Path.Combine(SystemMetadata.Inner.SystemDirectoryPath, "Seeds", "2", metadata.PayloadFileName));
         }
 
-        public async Task CreateLiveDatabaseAsync(long revision)
+        public async Task CreateLiveDatabaseAsync(long revision, string? marker = null)
         {
             Paths.EnsureInitialized();
-            await File.WriteAllBytesAsync(Paths.LiveDatabasePath, CreateDatabase(revision));
+            await File.WriteAllBytesAsync(Paths.LiveDatabasePath, CreateDatabase(revision, marker));
         }
 
-        private RecoveryCandidate CreateCandidate()
+        public RecoveryCandidate CreateCandidate(long revision, string candidateId)
         {
-            var path = Path.Combine(Root, "candidate.db");
-            var bytes = CreateDatabase(8);
+            var path = Path.Combine(Root, $"{candidateId}.db");
+            var bytes = CreateDatabase(revision);
             File.WriteAllBytes(path, bytes);
-            return new RecoveryCandidate(RecoveryCandidateType.OneDriveCheckpoint, "checkpoint-exact-a", LineageId, 1, Guid.NewGuid(), 8, 4, Clock.UtcNow, bytes.LongLength, Convert.ToHexString(SHA256.HashData(bytes)), path);
+            return new RecoveryCandidate(RecoveryCandidateType.OneDriveCheckpoint, candidateId, LineageId, 1, Guid.NewGuid(), revision, 4, Clock.UtcNow, bytes.LongLength, Convert.ToHexString(SHA256.HashData(bytes)), path);
         }
+
+        private RecoveryCandidate CreateCandidate() => CreateCandidate(8, "checkpoint-exact-a");
 
         private void Probe(string eventName)
         {
@@ -421,7 +578,7 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
             if (Directory.Exists(Root)) Directory.Delete(Root, recursive: true);
         }
 
-        private static byte[] CreateDatabase(long revision)
+        private static byte[] CreateDatabase(long revision, string? marker = null)
         {
             var path = Path.Combine(Path.GetTempPath(), $"m07-service-db-{Guid.NewGuid():N}.db");
             try
@@ -430,8 +587,15 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
                 {
                     connection.Open();
                     using var command = connection.CreateCommand();
-                    command.CommandText = $"CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES (5); CREATE TABLE foundation_metadata(key TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL); INSERT INTO foundation_metadata(key,value) VALUES ('business_data_revision','{revision}');";
+                    command.CommandText = $"CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES (5); CREATE TABLE foundation_metadata(key TEXT NOT NULL PRIMARY KEY, value TEXT NOT NULL); INSERT INTO foundation_metadata(key,value) VALUES ('business_data_revision','{revision}'); CREATE TABLE synthetic_markers(marker TEXT NOT NULL PRIMARY KEY);";
                     command.ExecuteNonQuery();
+                    if (marker is not null)
+                    {
+                        using var markerCommand = connection.CreateCommand();
+                        markerCommand.CommandText = "INSERT INTO synthetic_markers(marker) VALUES ($marker);";
+                        markerCommand.Parameters.AddWithValue("$marker", marker);
+                        markerCommand.ExecuteNonQuery();
+                    }
                 }
                 return File.ReadAllBytes(path);
             }
@@ -451,18 +615,37 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
 
     private sealed class ServiceCandidateDiscovery(ServiceFixture fixture) : IRecoveryCandidateDiscovery
     {
-        private RecoveryCandidate? candidate;
-        public void Set(RecoveryCandidate value) => candidate = value;
+        private readonly List<RecoveryCandidate> candidates = [];
+        public void Set(RecoveryCandidate value)
+        {
+            candidates.Clear();
+            candidates.Add(value);
+        }
+
+        public void Add(RecoveryCandidate value) => candidates.Add(value);
+
         public Task<RecoveryCandidateDiscoveryResult> DiscoverAsync(AuthorityProtocolState localState, CancellationToken cancellationToken = default)
         {
-            var value = fixture.FailCandidateValidation ? candidate! with { PayloadSha256 = new string('F', 64) } : candidate!;
-            return Task.FromResult(new RecoveryCandidateDiscoveryResult([value], "synthetic production-service candidate"));
+            var values = candidates.Select(value => fixture.FailCandidateValidation ? value with { PayloadSha256 = new string('F', 64) } : value).ToArray();
+            return Task.FromResult(new RecoveryCandidateDiscoveryResult(values, "synthetic production-service candidate"));
         }
 
         public Task<RecoveryCandidate?> FindExactAsync(AuthorityProtocolState localState, string candidateId, CancellationToken cancellationToken = default)
         {
-            if (candidate is not { } value || value.CandidateId != candidateId) return Task.FromResult<RecoveryCandidate?>(null);
+            var value = candidates.SingleOrDefault(candidate => candidate.CandidateId == candidateId);
+            if (value is null) return Task.FromResult<RecoveryCandidate?>(null);
             return Task.FromResult<RecoveryCandidate?>(fixture.FailCandidateValidation ? value with { PayloadSha256 = new string('F', 64) } : value);
+        }
+    }
+
+    private sealed class RecoveryFaultProbe : IDisasterRecoveryFaultProbe
+    {
+        public DisasterRecoveryFaultPoint? ThrowAt { get; set; }
+
+        public void Hit(DisasterRecoveryFaultPoint point)
+        {
+            if (ThrowAt == point)
+                throw new IOException($"synthetic recovery fault at {point}");
         }
     }
 
@@ -497,14 +680,28 @@ public sealed class M07ProductionDisasterRecoveryServiceTests
             fixture.FailSystemOperation == "publish-seed" ? throw new IOException("synthetic optional seed failure") : Inner.PublishReadOnlySeedAsync(metadata, payload, cancellationToken);
     }
 
-    private sealed class SnapshotRecorder : ILocalRecoverySnapshotService
+    private sealed class SnapshotRecorder(ServicePaths paths) : ILocalRecoverySnapshotService
     {
         public int CreateCalls { get; private set; }
+        public string? CapturedDatabaseHash { get; private set; }
         public Task<RecoverySnapshotResult> CreateAsync(DurableChange change, CancellationToken cancellationToken = default)
         {
             CreateCalls++;
-            return Task.FromResult(new RecoverySnapshotResult(string.Empty, string.Empty, new string('A', 64), change.CommittedAtUtc, change.Sequence, 1));
+            return CaptureAsync(change, cancellationToken);
         }
+
+        private async Task<RecoverySnapshotResult> CaptureAsync(DurableChange change, CancellationToken cancellationToken)
+        {
+            if (File.Exists(paths.LiveDatabasePath))
+                CapturedDatabaseHash = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(paths.LiveDatabasePath, cancellationToken)));
+            return new RecoverySnapshotResult(string.Empty, string.Empty, new string('A', 64), change.CommittedAtUtc, change.Sequence, 1);
+        }
+    }
+
+    private sealed class UnsupportedSnapshotFactory : ITransferSnapshotFactory
+    {
+        public Task<TransferSnapshot> CreateAsync(AuthorityProtocolState source, Guid transferId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("The stale device must never start a source transfer.");
     }
 
     private sealed class ActivationTransport : IGitHubHandoffTransport

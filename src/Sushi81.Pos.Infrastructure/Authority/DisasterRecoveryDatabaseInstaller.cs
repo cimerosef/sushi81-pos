@@ -8,8 +8,12 @@ using Sushi81.Pos.Infrastructure.Recovery;
 namespace Sushi81.Pos.Infrastructure.Authority;
 
 /// <summary>Data-first staging/install boundary for an exact validated DR candidate.</summary>
-public sealed class DisasterRecoveryDatabaseInstaller(IAppPaths paths)
+public sealed class DisasterRecoveryDatabaseInstaller(
+    IAppPaths paths,
+    IDisasterRecoveryFaultProbe? faultProbe = null)
 {
+    private readonly IDisasterRecoveryFaultProbe faultProbe = faultProbe ?? new NoOpDisasterRecoveryFaultProbe();
+
     public async Task<string> StageAndValidateAsync(
         RecoveryCandidate candidate,
         Stream content,
@@ -28,6 +32,7 @@ public sealed class DisasterRecoveryDatabaseInstaller(IAppPaths paths)
                 await output.FlushAsync(cancellationToken);
                 output.Flush(flushToDisk: true);
             }
+            faultProbe.Hit(DisasterRecoveryFaultPoint.DuringCandidateStagingValidation);
             await ValidateExactAsync(stagingPath, candidate, cancellationToken);
             return stagingPath;
         }
@@ -65,9 +70,16 @@ public sealed class DisasterRecoveryDatabaseInstaller(IAppPaths paths)
         try
         {
             if (File.Exists(livePath))
+            {
+                faultProbe.Hit(DisasterRecoveryFaultPoint.BeforeLiveDatabaseReplacement);
                 File.Replace(stagingPath, livePath, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            }
             else
+            {
+                faultProbe.Hit(DisasterRecoveryFaultPoint.BeforeLiveDatabaseReplacement);
                 File.Move(stagingPath, livePath, overwrite: false);
+            }
+            faultProbe.Hit(DisasterRecoveryFaultPoint.AfterLiveDatabaseReplacement);
             await ValidateExactAsync(livePath, candidate, cancellationToken);
         }
         finally
@@ -126,4 +138,6 @@ public sealed class DisasterRecoveryDatabaseInstaller(IAppPaths paths)
     {
         if (File.Exists(path)) File.Delete(path);
     }
+
+    public static void DeleteStagingIfExists(string path) => DeleteIfExists(path);
 }
