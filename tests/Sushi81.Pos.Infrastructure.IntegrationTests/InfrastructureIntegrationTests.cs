@@ -673,20 +673,25 @@ public sealed class InfrastructureIntegrationTests
     [TestMethod]
     public void RedactorExcludesRepresentativeSensitiveValues()
     {
+        const string usernameOnlyUrl = "https://synthetic-user@example.test/path";
         var output = SensitiveDataRedactor.Redact(
-            "phone 0612345678 email client@example.test Authorization: Bearer header-secret "
+            "phone 0612345678 email client@example.test "
             + "Bearer standalone-secret ghp_abcdefghijklmnopqrstuvwxyz "
             + "https://user:password@example.test/api?access_token=query-secret&next=1 token=field-secret "
+            + usernameOnlyUrl + " "
             + "{\"token\":\"json-token\", \"access_token\": \"json-access\", "
             + "\"refresh_token\":\"json-refresh\", \"secret\": \"json-secret\", "
             + "\"password\":\"json-password\", \"client_secret\": \"json-client\", "
-            + "\"authorization\": \"json-authorization\"}");
+            + "\"authorization\": \"json-authorization\"} Authorization: Bearer header-secret");
         Assert.IsFalse(output.Contains("0612345678", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("client@example.test", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("header-secret", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("standalone-secret", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("ghp_abcdefghijklmnopqrstuvwxyz", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("user:password@", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("synthetic-user@", StringComparison.Ordinal));
+        StringAssert.Contains(output, "https://[redacted-userinfo]@example.test/path");
+        StringAssert.Contains(output, "https://[redacted-userinfo]@example.test/api");
         Assert.IsFalse(output.Contains("query-secret", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("field-secret", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("json-token", StringComparison.Ordinal));
@@ -708,9 +713,14 @@ public sealed class InfrastructureIntegrationTests
             logger.Log(
                 LogLevel.Error,
                 new EventId(9001, "SyntheticSecret"),
-                "transport failed https://user:password@example.test/api?token=query-secret ghp_abcdefghijklmnopqrstuvwxyz "
+                "transport failed https://user:password@example.test/api?token=query-secret "
+                    + "https://synthetic-user@example.test/message ghp_abcdefghijklmnopqrstuvwxyz "
                     + "{\"token\":\"json-token\", \"password\": \"json-password\"}",
-                new InvalidOperationException("Authorization: Bearer exception-secret"),
+                new InvalidOperationException(
+                    "https://exception-user:exception-password@example.test/exception "
+                    + "https://exception-synthetic-user@example.test/exception-user "
+                    + "?access_token=exception-query {\"secret\":\"exception-json\", \"client_secret\": \"exception-client\"} "
+                    + "ghp_exception_abcdefghijklmnopqrstuvwxyz Authorization: Bearer exception-secret"),
                 static (state, exception) => state);
         }
 
@@ -718,6 +728,13 @@ public sealed class InfrastructureIntegrationTests
             Directory.EnumerateFiles(paths.LogsDirectory, "sushi81-*.log").Select(File.ReadAllText));
         Assert.IsFalse(output.Contains("exception-secret", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("user:password@", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("synthetic-user@", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("exception-user:exception-password@", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("exception-synthetic-user@", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("exception-query", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("exception-json", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("exception-client", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("ghp_exception_abcdefghijklmnopqrstuvwxyz", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("query-secret", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("ghp_abcdefghijklmnopqrstuvwxyz", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("json-token", StringComparison.Ordinal));

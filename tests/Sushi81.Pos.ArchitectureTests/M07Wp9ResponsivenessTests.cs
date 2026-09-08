@@ -52,6 +52,10 @@ public sealed class M07Wp9ResponsivenessTests
         Assert.AreEqual(shell.Localized["M07ConnectionChecking"], shell.M07OperationStatus);
         PumpUntil(transport.Entered.Task);
         AssertDispatcherPulse(operation);
+        Assert.IsFalse(shell.CanTestGitHubConnection);
+        Assert.IsFalse(shell.CanWrite);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, guard.State);
+        Assert.AreEqual(shell.Localized["M07ConnectionChecking"], shell.M07OperationStatus);
         transport.Release.TrySetResult(true);
         operation.GetAwaiter().GetResult();
         Assert.IsFalse(shell.CanWrite);
@@ -73,6 +77,14 @@ public sealed class M07Wp9ResponsivenessTests
         var operation = shell.JoinExistingLineageAsync("Replacement PC");
         PumpUntil(metadata.LineageReadEntered.Task);
         AssertDispatcherPulse(operation);
+        Assert.IsFalse(shell.CanJoinExistingLineage);
+        Assert.IsFalse(shell.CanWrite);
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, guard.State);
+        Assert.IsNotNull(store.Document);
+        Assert.AreEqual(WriteAuthorityState.RecoveryRequired, store.Document!.State);
+        Assert.AreEqual(AuthorityPhase.Uninitialized, store.Document.Protocol!.Phase);
+        Assert.IsNull(store.Document.Protocol.LineageId);
+        Assert.AreEqual(0, store.Document.Protocol.Generation);
         metadata.ReleaseLineage.TrySetResult(true);
         operation.GetAwaiter().GetResult();
         Assert.IsFalse(shell.CanWrite);
@@ -98,6 +110,10 @@ public sealed class M07Wp9ResponsivenessTests
         var operation = shell.DiscoverRecoveryCandidatesAsync();
         PumpUntil(discovery.DiscoverEntered.Task);
         AssertDispatcherPulse(operation);
+        Assert.IsFalse(shell.CanStartDisasterRecovery);
+        Assert.IsFalse(shell.CanWrite);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, guard.State);
+        Assert.AreEqual(AuthorityPhase.NonAuthoritativeReadOnly, store.Document!.Protocol!.Phase);
         discovery.Release.TrySetResult(true);
         operation.GetAwaiter().GetResult();
         Assert.IsEmpty(shell.RecoveryCandidates);
@@ -124,6 +140,10 @@ public sealed class M07Wp9ResponsivenessTests
         var operation = shell.ReinitializeStaleDeviceAsync();
         PumpUntil(metadata.LineageReadEntered.Task);
         AssertDispatcherPulse(operation);
+        Assert.IsFalse(shell.CanReinitializeStaleDevice);
+        Assert.IsFalse(shell.CanWrite);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, guard.State);
+        Assert.AreEqual(AuthorityPhase.StaleGeneration, store.Document!.Protocol!.Phase);
         metadata.ReleaseLineage.TrySetResult(true);
         operation.GetAwaiter().GetResult();
         Assert.IsFalse(shell.CanWrite);
