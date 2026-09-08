@@ -196,6 +196,65 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void OnStartDisasterRecovery(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanStartDisasterRecovery: true } viewModel) return;
+        try
+        {
+            var discovered = await viewModel.DiscoverRecoveryCandidatesAsync();
+            if (discovered is null || discovered.Candidates.Count == 0)
+            {
+                MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var dialog = new DisasterRecoveryDialog(this, viewModel.Localized, discovered.Candidates, discovered.Recommended);
+            if (dialog.ShowDialog() != true) return;
+            var result = await viewModel.StartDisasterRecoveryAsync(dialog.SelectedCandidateId!, dialog.QuarantineConfirmed);
+            if (result is { Succeeded: false })
+                MessageBox.Show(this, result.Diagnostic, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnRetryDisasterRecovery(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanRetryDisasterRecovery: true } viewModel) return;
+        var dialog = new DisasterRecoveryDialog(this, viewModel.Localized, Array.Empty<RecoveryCandidate>(), null);
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            var result = await viewModel.RetryDisasterRecoveryAsync(dialog.QuarantineConfirmed);
+            if (result is { Succeeded: false })
+                MessageBox.Show(this, result.Diagnostic, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnReinitializeStaleDevice(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanReinitializeStaleDevice: true } viewModel) return;
+        try
+        {
+            var result = await viewModel.ReinitializeStaleDeviceAsync();
+            if (result is not null)
+                MessageBox.Show(this, result.Diagnostic, viewModel.Title, MessageBoxButton.OK,
+                    result.Succeeded ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async void OnTestGitHubConnection(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { CanTestGitHubConnection: true } viewModel) return;
@@ -1346,6 +1405,106 @@ public partial class MainWindow : Window
         public string DisplayName => displayNameBox.Text.Trim();
 
         private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private sealed class DisasterRecoveryDialog : Window
+    {
+        private readonly ComboBox candidateSelector;
+        private readonly CheckBox quarantineCheckBox;
+        private readonly Button confirmButton;
+
+        public DisasterRecoveryDialog(
+            Window owner,
+            IReadOnlyDictionary<string, string> labels,
+            IReadOnlyList<RecoveryCandidate> candidates,
+            RecoveryCandidate? recommended)
+        {
+            Owner = owner;
+            Title = Read(labels, "M07DisasterRecovery", "Disaster Recovery");
+            Width = 700;
+            Height = candidates.Count > 0 ? 500 : 300;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            MinWidth = 560;
+
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "M07QuarantineWarning", "The old authority/target must be stopped and quarantined before recovery."),
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = Brushes.DarkRed,
+                Margin = new Thickness(0, 0, 0, 10)
+            });
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "M07CandidateDataLossWarning", "Disaster Recovery creates a new generation and may lose changes after the selected candidate."),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+
+            candidateSelector = new ComboBox { MinWidth = 620, IsEnabled = candidates.Count > 0, Margin = new Thickness(0, 0, 0, 12) };
+            candidateSelector.ItemsSource = candidates.Select(candidate => new CandidateChoice(
+                candidate.CandidateId,
+                $"{TypeLabel(labels, candidate)} | {Read(labels, "M07CandidateRevision", "Revision")}: {candidate.BusinessRevision} | "
+                + $"{Read(labels, "M07CandidateHandoffVersion", "Handoff")}: {candidate.HandoffVersion} | "
+                + $"{Read(labels, "M07CandidateSource", "Source")}: {candidate.SourceDeviceId.ToString("N")[..8]} | "
+                + $"{Read(labels, "M07CandidateTimestamp", "Timestamp")}: {candidate.CreatedAtUtc:yyyy-MM-dd HH:mm:ss} UTC")).ToArray();
+            var recommendedId = recommended?.CandidateId;
+            candidateSelector.SelectedItem = candidateSelector.Items.OfType<CandidateChoice>().FirstOrDefault(choice => choice.CandidateId == recommendedId)
+                ?? candidateSelector.Items.OfType<CandidateChoice>().FirstOrDefault();
+            root.Children.Add(candidateSelector);
+
+            quarantineCheckBox = new CheckBox
+            {
+                Content = Read(labels, "M07QuarantineConfirm", "I confirm the old device is unavailable and quarantined."),
+                IsThreeState = false,
+                Margin = new Thickness(0, 4, 0, 14)
+            };
+            quarantineCheckBox.Checked += (_, _) => UpdateConfirmation();
+            quarantineCheckBox.Unchecked += (_, _) => UpdateConfirmation();
+            root.Children.Add(quarantineCheckBox);
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            confirmButton = new Button
+            {
+                Content = Read(labels, "M07ConfirmRecovery", "Confirm Disaster Recovery"),
+                Padding = new Thickness(10, 5, 10, 5),
+                IsDefault = true,
+                IsEnabled = false
+            };
+            confirmButton.Click += (_, _) =>
+            {
+                if (QuarantineConfirmed && (candidateSelector.SelectedItem is CandidateChoice || candidates.Count == 0))
+                    DialogResult = true;
+            };
+            var cancel = new Button
+            {
+                Content = Read(labels, "AuthorityCloseCancel", "Cancel"),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(8, 0, 0, 0),
+                IsCancel = true
+            };
+            buttons.Children.Add(confirmButton);
+            buttons.Children.Add(cancel);
+            root.Children.Add(buttons);
+            Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = root };
+        }
+
+        public string? SelectedCandidateId => (candidateSelector.SelectedItem as CandidateChoice)?.CandidateId;
+
+        public bool QuarantineConfirmed => quarantineCheckBox.IsChecked == true;
+
+        private void UpdateConfirmation() => confirmButton.IsEnabled = QuarantineConfirmed &&
+            (candidateSelector.Items.Count == 0 || candidateSelector.SelectedItem is CandidateChoice);
+
+        private static string TypeLabel(IReadOnlyDictionary<string, string> labels, RecoveryCandidate candidate) =>
+            Read(labels, candidate.Type == RecoveryCandidateType.GitHubHandoff ? "M07CandidateTypeGitHub" : "M07CandidateTypeOneDrive", candidate.TypeName);
+
+        private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
+
+        private sealed record CandidateChoice(string CandidateId, string Label)
+        {
+            public override string ToString() => Label;
+        }
     }
 
     private sealed class M07SetupDialog : Window

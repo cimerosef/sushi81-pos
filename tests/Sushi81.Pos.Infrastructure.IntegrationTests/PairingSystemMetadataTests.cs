@@ -16,6 +16,50 @@ namespace Sushi81.Pos.Infrastructure.IntegrationTests;
 public sealed class PairingSystemMetadataTests
 {
     [TestMethod]
+    public async Task GenerationAdvanceIsExactAndIdempotent()
+    {
+        using var fixture = new SystemMetadataFixture();
+        var lineage = fixture.CreateLineage();
+        await fixture.WriteLineageAsync(lineage);
+        var store = fixture.CreateStore();
+
+        var advanced = await store.AdvanceGenerationAsync(lineage.LineageId, 1, 2);
+        var retry = await store.AdvanceGenerationAsync(lineage.LineageId, 1, 2);
+
+        Assert.AreEqual(2L, advanced.CurrentGeneration);
+        Assert.AreEqual(advanced, retry);
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.AdvanceGenerationAsync(lineage.LineageId, 1, 3));
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.AdvanceGenerationAsync(Guid.NewGuid(), 2, 3));
+    }
+
+    [TestMethod]
+    public async Task StartupObservingNewerSystemGenerationPersistsStaleReadOnlyFence()
+    {
+        using var fixture = new SystemMetadataFixture();
+        var lineage = fixture.CreateLineage() with { CurrentGeneration = 2 };
+        await fixture.WriteLineageAsync(lineage);
+        var paths = new TestPaths(fixture.Root);
+        var authorityStore = new JsonAuthorityStateStore(paths);
+        var local = new AuthorityProtocolState(
+            1, Guid.NewGuid(), "Old device", lineage.LineageId, 1, 4, 12, AuthorityPhase.Authoritative);
+        await authorityStore.SaveAsync(new AuthorityStateDocument(2, local.WriteState, fixture.Now) { Protocol = local });
+        await authorityStore.WriteBootstrapMarkerAsync();
+        await authorityStore.WriteBootstrapAnchorAsync();
+        using var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+
+        var result = await new AuthorityStateCoordinator(
+            authorityStore,
+            guard,
+            new FixedBusinessClock(fixture.Now),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<AuthorityStateCoordinator>.Instance,
+            fixture.CreateStore()).InitializeAsync(true, true);
+
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, result.State);
+        Assert.AreEqual(AuthorityPhase.StaleGeneration, (await authorityStore.LoadAsync())!.Protocol!.Phase);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, guard.State);
+    }
+
+    [TestMethod]
     public async Task SelfJoinIsIdempotentAndAlwaysReadOnly()
     {
         using var fixture = new SystemMetadataFixture();

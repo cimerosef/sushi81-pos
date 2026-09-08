@@ -13,6 +13,7 @@ public enum AuthorityPhase
     TargetAcquisitionPending,
     NonAuthoritativeReadOnly,
     StaleGeneration,
+    DisasterRecoveryPreparing,
     DisasterRecoveryPending,
     RecoveryRequired
 }
@@ -57,19 +58,25 @@ public sealed record TransferEvidence(
 public sealed record RecoveryActivationEvidence(
     Guid RecoveryId, Guid DeviceId, Guid LineageId, long PriorGeneration, long NextGeneration,
     string CandidateId, string CandidateSha256, long BusinessRevision,
-    RemoteAssetEvidence? Receipt = null);
+    RemoteAssetEvidence? Receipt = null,
+    string CandidateType = "",
+    string CandidateReference = "",
+    long CandidateHandoffVersion = 0,
+    DateTimeOffset? CandidateCreatedAtUtc = null);
 
 /// <summary>Canonical identity and protocol state, embedded in authority-state.json only.</summary>
 public sealed record AuthorityProtocolState(
     long Revision, Guid DeviceId, string DisplayName, Guid? LineageId, long Generation,
     long HandoffVersion, long BusinessRevision, AuthorityPhase Phase,
-    TransferEvidence? Transfer = null, RecoveryActivationEvidence? Recovery = null)
+    TransferEvidence? Transfer = null, RecoveryActivationEvidence? Recovery = null,
+    RecoveryActivationEvidence? LastRecovery = null)
 {
     public WriteAuthorityState WriteState => Phase switch
     {
         AuthorityPhase.Authoritative or AuthorityPhase.ClosedRetainedAuthority => WriteAuthorityState.Authoritative,
         AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant
-            or AuthorityPhase.TargetAcquisitionPending or AuthorityPhase.DisasterRecoveryPending => WriteAuthorityState.Transitioning,
+            or AuthorityPhase.TargetAcquisitionPending or AuthorityPhase.DisasterRecoveryPreparing
+            or AuthorityPhase.DisasterRecoveryPending => WriteAuthorityState.Transitioning,
         AuthorityPhase.Uninitialized or AuthorityPhase.RecoveryRequired => WriteAuthorityState.RecoveryRequired,
         _ => WriteAuthorityState.NonAuthoritativeReadOnly
     };
@@ -85,7 +92,7 @@ public sealed record AuthorityProtocolState(
             throw new InvalidDataException("An established protocol phase requires lineage and generation.");
         if (Phase == AuthorityPhase.Uninitialized
             && (LineageId is not null || Generation != 0 || HandoffVersion != 0 || BusinessRevision != 0
-                || Transfer is not null || Recovery is not null))
+                || Transfer is not null || Recovery is not null || LastRecovery is not null))
             throw new InvalidDataException("Uninitialized authority cannot carry established identity or evidence.");
         if (Phase == AuthorityPhase.NonAuthoritativeReadOnly
             && ((LineageId is null && Generation != 0) || (LineageId is not null && Generation < 1)))
@@ -111,12 +118,14 @@ public sealed record AuthorityProtocolState(
             if (Phase == AuthorityPhase.TransferPreparing && transfer.GrantReceipt is not null)
                 throw new InvalidDataException("A grant cannot exist before durable relinquishment.");
         }
-        if (Phase == AuthorityPhase.DisasterRecoveryPending
-            && (Recovery is not { Receipt: not null } recovery || recovery.DeviceId != DeviceId
+        if (Phase is AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending
+            && (Recovery is not { } recovery || recovery.DeviceId != DeviceId
                 || recovery.LineageId != LineageId || recovery.NextGeneration != recovery.PriorGeneration + 1
                 || recovery.RecoveryId == Guid.Empty))
+            throw new InvalidDataException("Recovery preparation requires exact local activation identity.");
+        if (Phase == AuthorityPhase.DisasterRecoveryPending && Recovery!.Receipt is null)
             throw new InvalidDataException("Recovery pending requires exact server activation evidence.");
-        if (Phase == AuthorityPhase.DisasterRecoveryPending)
+        if (Phase is AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending)
             Recovery!.Validate();
         if (Phase is AuthorityPhase.Authoritative or AuthorityPhase.ClosedRetainedAuthority
             or AuthorityPhase.PairedUninitializedReadOnly or AuthorityPhase.NonAuthoritativeReadOnly
@@ -125,6 +134,7 @@ public sealed record AuthorityProtocolState(
             if (Transfer is not null || Recovery is not null)
                 throw new InvalidDataException("A settled authority phase cannot carry active transfer or recovery evidence.");
         }
+        LastRecovery?.Validate();
     }
 
     internal static bool IsSha256(string? value)
@@ -175,8 +185,14 @@ public static class AuthorityProtocolValidationExtensions
         if (recovery.RecoveryId == Guid.Empty || recovery.DeviceId == Guid.Empty || recovery.LineageId == Guid.Empty
             || recovery.PriorGeneration < 1 || recovery.NextGeneration != recovery.PriorGeneration + 1
             || string.IsNullOrWhiteSpace(recovery.CandidateId) || !AuthorityProtocolState.IsSha256(recovery.CandidateSha256)
-            || recovery.BusinessRevision < 0)
+            || recovery.BusinessRevision < 0
+            || (!string.IsNullOrWhiteSpace(recovery.CandidateType)
+                && recovery.CandidateType is not ("GitHubHandoff" or "OneDriveCheckpoint"))
+            || recovery.CandidateHandoffVersion < 0)
             throw new InvalidDataException("The recovery activation evidence is incomplete or contradictory.");
+        if (!string.IsNullOrWhiteSpace(recovery.CandidateType)
+            && (string.IsNullOrWhiteSpace(recovery.CandidateReference) || recovery.CandidateCreatedAtUtc is null))
+            throw new InvalidDataException("Recovery candidate evidence is incomplete.");
         recovery.Receipt?.Validate();
     }
 }

@@ -23,7 +23,9 @@ public sealed class M07RuntimeServices(
     NormalHandoffService? normalHandoff,
     TargetAcquisitionService? targetAcquisition,
     GitHubHandoffConnectionTester? connectionTester,
-    GitHubConnectionSetupState connectionSetup = GitHubConnectionSetupState.Ready) : IAsyncDisposable
+    GitHubConnectionSetupState connectionSetup = GitHubConnectionSetupState.Ready,
+    DisasterRecoveryService? disasterRecovery = null,
+    IRecoveryCandidateDiscovery? recoveryCandidates = null) : IAsyncDisposable
 {
     public WriteAuthorityGuard AuthorityGuard { get; } = authorityGuard;
     public IAuthorityStateStore AuthorityStore { get; } = authorityStore;
@@ -33,6 +35,8 @@ public sealed class M07RuntimeServices(
     public TargetAcquisitionService? TargetAcquisition { get; } = targetAcquisition;
     public GitHubHandoffConnectionTester? ConnectionTester { get; } = connectionTester;
     public GitHubConnectionSetupState ConnectionSetup { get; } = connectionSetup;
+    public DisasterRecoveryService? DisasterRecovery { get; } = disasterRecovery;
+    public IRecoveryCandidateDiscovery? RecoveryCandidates { get; } = recoveryCandidates;
     public AuthorityPhase? CurrentPhase { get; private set; }
     public bool CanSelfJoin { get; private set; }
 
@@ -74,5 +78,6 @@ public sealed class M07RuntimeServices(
     {
         if (TargetAcquisition is not null) await TargetAcquisition.DisposeAsync();
         if (NormalHandoff is not null) await NormalHandoff.DisposeAsync();
+        if (DisasterRecovery is not null) await DisasterRecovery.DisposeAsync();
     }
 }

@@ -256,4 +256,23 @@ Changements effectifs : {2}</value></data>
   <data name="DashboardDueToday" xml:space="preserve"><value>Anticipées à servir</value></data>
   <data name="DashboardOverdue" xml:space="preserve"><value>En retard non réglées</value></data>
   <data name="DashboardRefresh" xml:space="preserve"><value>Actualiser</value></data>
+  <data name="M07DisasterRecovery" xml:space="preserve"><value>Disaster Recovery : rechercher les candidats validés…</value></data>
+  <data name="M07DisasterRecoveryPending" xml:space="preserve"><value>Disaster Recovery est en attente : l’appareil reste en lecture seule. Réessayez avec la même identité.</value></data>
+  <data name="M07DisasterRecoveryNoCandidate" xml:space="preserve"><value>Aucun candidat de récupération validé n’est disponible.</value></data>
+  <data name="M07DisasterRecoveryFailed" xml:space="preserve"><value>Disaster Recovery n’a pas abouti. L’appareil reste en lecture seule.</value></data>
+  <data name="M07DisasterRecoverySucceeded" xml:space="preserve"><value>Disaster Recovery terminé : cet appareil est maintenant autoritaire.</value></data>
+  <data name="M07StaleGeneration" xml:space="preserve"><value>Une génération plus récente a été observée. Cet appareil est en lecture seule et doit être réinitialisé.</value></data>
+  <data name="M07ReinitializeStale" xml:space="preserve"><value>Réinitialiser cet appareil dans la génération actuelle</value></data>
+  <data name="M07ReinitializeNoSeed" xml:space="preserve"><value>Aucun seed validé de la génération actuelle n’est disponible. L’appareil reste en lecture seule.</value></data>
+  <data name="M07ReinitializeSucceeded" xml:space="preserve"><value>Réinitialisation terminée. L’appareil reste en lecture seule jusqu’à un handoff normal.</value></data>
+  <data name="M07CandidateTypeGitHub" xml:space="preserve"><value>Handoff GitHub complet</value></data>
+  <data name="M07CandidateTypeOneDrive" xml:space="preserve"><value>Checkpoint OneDrive</value></data>
+  <data name="M07CandidateDataLossWarning" xml:space="preserve"><value>Cette action crée une nouvelle génération. Les écritures de l’ancien appareil doivent rester arrêtées ; une perte depuis le dernier candidat est possible.</value></data>
+  <data name="M07QuarantineWarning" xml:space="preserve"><value>Confirmez que l’ancien appareil autoritaire ou cible est réellement indisponible, arrêté/quarantiné et ne sera pas utilisé pour écrire avant sa réinitialisation.</value></data>
+  <data name="M07QuarantineConfirm" xml:space="preserve"><value>Je confirme l’indisponibilité et la mise en quarantaine de l’ancien appareil.</value></data>
+  <data name="M07ConfirmRecovery" xml:space="preserve"><value>Confirmer Disaster Recovery</value></data>
+  <data name="M07CandidateRevision" xml:space="preserve"><value>Révision des données</value></data>
+  <data name="M07CandidateHandoffVersion" xml:space="preserve"><value>Version de handoff</value></data>
+  <data name="M07CandidateSource" xml:space="preserve"><value>Source</value></data>
+  <data name="M07CandidateTimestamp" xml:space="preserve"><value>Horodatage</value></data>
 </root>

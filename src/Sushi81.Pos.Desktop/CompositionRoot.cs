@@ -120,6 +120,8 @@ public static partial class CompositionRoot
                 NormalHandoffService? normalHandoff = null;
                 TargetAcquisitionService? targetAcquisition = null;
                 GitHubHandoffConnectionTester? connectionTester = null;
+                DisasterRecoveryService? disasterRecovery = null;
+                IRecoveryCandidateDiscovery? recoveryCandidates = null;
                 var connectionSetup = string.IsNullOrWhiteSpace(configuration.GitHubOwner)
                     || string.IsNullOrWhiteSpace(configuration.GitHubRepository)
                     ? GitHubConnectionSetupState.RepositoryNotConfigured
@@ -141,6 +143,17 @@ public static partial class CompositionRoot
                     targetAcquisition = new TargetAcquisitionService(
                         authorityStateStore, authorityGuard, systemMetadata, transport, new SqliteTransferSnapshotInstaller(paths), clock);
                     connectionTester = new GitHubHandoffConnectionTester(transport);
+                    recoveryCandidates = new RecoveryCandidateDiscovery(paths, transport, configuration.OneDriveRoot);
+                    disasterRecovery = new DisasterRecoveryService(
+                        authorityStateStore,
+                        authorityGuard,
+                        systemMetadata,
+                        recoveryCandidates,
+                        new RecoveryActivationService(transport),
+                        transport,
+                        snapshotService,
+                        paths,
+                        clock);
                 }
                 m07Runtime = new M07RuntimeServices(
                     authorityGuard,
@@ -150,7 +163,9 @@ public static partial class CompositionRoot
                     normalHandoff,
                     targetAcquisition,
                     connectionTester,
-                    connectionSetup);
+                    connectionSetup,
+                    disasterRecovery,
+                    recoveryCandidates);
                 await m07Runtime.RefreshAuthorityStateAsync();
             }
             LogFoundationStartupSucceeded(logger);

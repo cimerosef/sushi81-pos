@@ -256,4 +256,23 @@
   <data name="DashboardDueToday" xml:space="preserve"><value>今日待处理预订</value></data>
   <data name="DashboardOverdue" xml:space="preserve"><value>逾期未结算</value></data>
   <data name="DashboardRefresh" xml:space="preserve"><value>刷新</value></data>
+  <data name="M07DisasterRecovery" xml:space="preserve"><value>灾难恢复：正在查找已验证候选项…</value></data>
+  <data name="M07DisasterRecoveryPending" xml:space="preserve"><value>灾难恢复等待中：设备保持只读。请使用同一身份重试。</value></data>
+  <data name="M07DisasterRecoveryNoCandidate" xml:space="preserve"><value>没有可用的已验证恢复候选项。</value></data>
+  <data name="M07DisasterRecoveryFailed" xml:space="preserve"><value>灾难恢复未完成。设备保持只读。</value></data>
+  <data name="M07DisasterRecoverySucceeded" xml:space="preserve"><value>灾难恢复完成：此设备现在拥有权威写入权限。</value></data>
+  <data name="M07StaleGeneration" xml:space="preserve"><value>已发现更新的代。此设备保持只读，必须重新初始化。</value></data>
+  <data name="M07ReinitializeStale" xml:space="preserve"><value>将设备重新初始化到当前代</value></data>
+  <data name="M07ReinitializeNoSeed" xml:space="preserve"><value>没有可用的当前代已验证 seed。设备保持只读。</value></data>
+  <data name="M07ReinitializeSucceeded" xml:space="preserve"><value>重新初始化完成。直到正常交接前，设备保持只读。</value></data>
+  <data name="M07CandidateTypeGitHub" xml:space="preserve"><value>完整 GitHub 交接</value></data>
+  <data name="M07CandidateTypeOneDrive" xml:space="preserve"><value>OneDrive checkpoint</value></data>
+  <data name="M07CandidateDataLossWarning" xml:space="preserve"><value>此操作会创建新代。旧设备必须停止写入；自最近候选项以来的数据可能丢失。</value></data>
+  <data name="M07QuarantineWarning" xml:space="preserve"><value>请确认旧权威设备或目标设备确实不可用、已停止/隔离，并且在重新初始化前不会用于业务写入。</value></data>
+  <data name="M07QuarantineConfirm" xml:space="preserve"><value>我确认旧设备不可用且已隔离。</value></data>
+  <data name="M07ConfirmRecovery" xml:space="preserve"><value>确认灾难恢复</value></data>
+  <data name="M07CandidateRevision" xml:space="preserve"><value>数据修订号</value></data>
+  <data name="M07CandidateHandoffVersion" xml:space="preserve"><value>交接版本</value></data>
+  <data name="M07CandidateSource" xml:space="preserve"><value>来源</value></data>
+  <data name="M07CandidateTimestamp" xml:space="preserve"><value>时间</value></data>
 </root>

@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Data.Sqlite;
 using Sushi81.Pos.Application.Pairing.SystemMetadata;
+using Sushi81.Pos.Infrastructure.Recovery;
 
 namespace Sushi81.Pos.Infrastructure.Pairing.SystemMetadata;
 
@@ -75,6 +76,38 @@ public sealed class JsonSystemMetadataStore : ISystemMetadataStore
         var lineage = await ReadJsonAsync<SystemLineageMetadata>(path, cancellationToken);
         lineage.Validate();
         return lineage;
+    }
+
+    public async Task<SystemLineageMetadata> AdvanceGenerationAsync(
+        Guid lineageId,
+        long expectedPriorGeneration,
+        long nextGeneration,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateBinding(lineageId, expectedPriorGeneration);
+        if (nextGeneration != expectedPriorGeneration + 1)
+            throw new InvalidDataException("Generation advancement must be exactly one step.");
+
+        var path = Path.Combine(
+            SystemDirectoryPath,
+            SystemMetadataContract.LineageDirectoryName,
+            SystemMetadataContract.LineageFileName);
+        var current = await ReadJsonAsync<SystemLineageMetadata>(path, cancellationToken);
+        current.Validate();
+        if (current.LineageId != lineageId)
+            throw new InvalidDataException("The shared System lineage contradicts the requested recovery lineage.");
+        if (current.CurrentGeneration == nextGeneration) return current;
+        if (current.CurrentGeneration != expectedPriorGeneration)
+            throw new InvalidDataException("The shared System generation is not the expected prior or next generation.");
+
+        var advanced = current with { CurrentGeneration = nextGeneration };
+        advanced.Validate();
+        await ReplaceJsonAsync(path, advanced, cancellationToken);
+        var persisted = await ReadJsonAsync<SystemLineageMetadata>(path, cancellationToken);
+        persisted.Validate();
+        if (persisted != advanced)
+            throw new InvalidDataException("The shared System generation replacement failed read-back validation.");
+        return persisted;
     }
 
     public async Task<DeviceSelfJoinResult> JoinCurrentGenerationAsync(
@@ -188,7 +221,7 @@ public sealed class JsonSystemMetadataStore : ISystemMetadataStore
 
         return candidates
             .OrderByDescending(seed => seed.Metadata.BusinessRevision)
-            .ThenByDescending(seed => seed.Metadata.CreatedAtUtc)
+            .ThenByDescending(seed => seed.Metadata.HandoffVersion)
             .ThenBy(seed => seed.Metadata.SeedId)
             .FirstOrDefault();
     }
@@ -258,6 +291,17 @@ public sealed class JsonSystemMetadataStore : ISystemMetadataStore
             throw new InvalidDataException($"The read-only seed payload '{payloadPath}' failed size or SHA-256 validation.");
 
         await ValidateSqlitePayloadAsync(payloadPath, cancellationToken);
+        try
+        {
+            if (await SqliteBusinessRevisionStore.ReadFromDatabaseAsync(payloadPath, cancellationToken) != metadata.BusinessRevision)
+                throw new InvalidDataException($"The read-only seed payload '{payloadPath}' carries a contradictory business-data revision.");
+        }
+        catch (InvalidDataException exception) when (exception.Message.Contains("lacks the canonical foundation metadata table", StringComparison.Ordinal))
+        {
+            // Seeds created before the M07 business-revision amendment remain valid optional
+            // pairing seeds. They are not eligible DR candidates unless their revision is
+            // independently present and validated by the DR candidate discovery path.
+        }
     }
 
     private static async Task ValidateSqlitePayloadAsync(string payloadPath, CancellationToken cancellationToken)
@@ -424,6 +468,27 @@ public sealed class JsonSystemMetadataStore : ISystemMetadataStore
         catch (JsonException exception)
         {
             throw new InvalidDataException($"The metadata artifact '{path}' is malformed.", exception);
+        }
+    }
+
+    private static async Task ReplaceJsonAsync<T>(string path, T value, CancellationToken cancellationToken)
+    {
+        var directory = Path.GetDirectoryName(path)!;
+        Directory.CreateDirectory(directory);
+        var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await JsonSerializer.SerializeAsync(stream, value, SerializerOptions, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
+            }
+            File.Move(temporaryPath, path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
     }
 }

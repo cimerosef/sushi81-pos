@@ -79,6 +79,14 @@ public sealed partial class AuthorityStateCoordinator(
                     document = new AuthorityStateDocument(CanonicalSchemaVersion, protocol.WriteState, clock.UtcNow) { Protocol = protocol };
                     await store.SaveAsync(document, cancellationToken);
                 }
+                if (document.Protocol is { } observedProtocol
+                    && await ObserveNewerGenerationAsync(observedProtocol, cancellationToken))
+                {
+                    var staleDocument = await store.LoadAsync(cancellationToken)
+                        ?? throw new InvalidDataException("The stale-generation authority state disappeared after persistence.");
+                    guard.SetState(staleDocument.EffectiveState);
+                    return new(staleDocument.EffectiveState, null);
+                }
                 if (document.Protocol is { Phase: AuthorityPhase.Authoritative or AuthorityPhase.ClosedRetainedAuthority } existingProtocol)
                 {
                     try
@@ -151,6 +159,45 @@ public sealed partial class AuthorityStateCoordinator(
         await systemMetadata.JoinCurrentGenerationAsync(protocol.DeviceId, protocol.DisplayName, cancellationToken);
     }
 
+    private async Task<bool> ObserveNewerGenerationAsync(
+        AuthorityProtocolState protocol,
+        CancellationToken cancellationToken)
+    {
+        if (systemMetadata is null || protocol.LineageId is not { } lineageId || protocol.Generation < 1
+            || protocol.Phase is AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending)
+            return false;
+
+        SystemLineageMetadata lineage;
+        try
+        {
+            lineage = await systemMetadata.ReadLineageAsync(cancellationToken);
+        }
+        catch (Exception exception) when (IsUnavailableSystemMetadata(exception))
+        {
+            return false;
+        }
+
+        if (lineage.LineageId != lineageId)
+            throw new InvalidDataException("The readable System lineage contradicts the local authority lineage.");
+        if (lineage.CurrentGeneration < protocol.Generation)
+            throw new InvalidDataException("The readable System generation regressed behind local authority state.");
+        if (lineage.CurrentGeneration == protocol.Generation)
+            return false;
+
+        var stale = protocol with
+        {
+            Revision = checked(protocol.Revision + 1),
+            Phase = AuthorityPhase.StaleGeneration,
+            Transfer = null,
+            Recovery = null
+        };
+        stale.Validate();
+        await store.SaveAsync(new AuthorityStateDocument(CanonicalSchemaVersion, stale.WriteState, clock.UtcNow) { Protocol = stale }, cancellationToken);
+        guard.SetState(stale.WriteState);
+        LogStaleGeneration(logger, protocol.Generation, lineage.CurrentGeneration);
+        return true;
+    }
+
     private AuthorityResolution FailClosed(Exception exception)
     {
         guard.SetState(WriteAuthorityState.RecoveryRequired);
@@ -173,4 +220,7 @@ public sealed partial class AuthorityStateCoordinator(
 
     [LoggerMessage(EventId = 1202, Level = LogLevel.Warning, Message = "Shared System metadata is unavailable; retaining valid local authority and deferring membership publication.")]
     private static partial void LogSystemMetadataUnavailable(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 1203, Level = LogLevel.Warning, Message = "A newer shared System generation {currentGeneration} was observed over local generation {localGeneration}; local business writes are fenced until reinitialization.")]
+    private static partial void LogStaleGeneration(ILogger logger, long localGeneration, long currentGeneration);
 }

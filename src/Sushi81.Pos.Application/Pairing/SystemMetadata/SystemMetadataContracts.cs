@@ -104,7 +104,8 @@ public sealed record ReadOnlySeedMetadata(
     string PayloadFileName,
     long PayloadSize,
     string PayloadSha256,
-    DateTimeOffset CreatedAtUtc)
+    DateTimeOffset CreatedAtUtc,
+    long HandoffVersion = 0)
 {
     public void Validate()
     {
@@ -119,7 +120,7 @@ public sealed record ReadOnlySeedMetadata(
             || !string.Equals(PayloadFileName, SystemMetadataContract.SeedPayloadFileName(SeedId), StringComparison.Ordinal)
             || PayloadSize < 0
             || !SystemMetadataContract.IsSha256(PayloadSha256)
-            || CreatedAtUtc == default)
+            || CreatedAtUtc == default || HandoffVersion < 0)
         {
             throw new InvalidDataException("The read-only seed metadata is unsupported or contradictory.");
         }
@@ -169,6 +170,13 @@ public interface ISystemMetadataStore
         CancellationToken cancellationToken = default);
 
     Task<SystemLineageMetadata> ReadLineageAsync(CancellationToken cancellationToken = default);
+
+    Task<SystemLineageMetadata> AdvanceGenerationAsync(
+        Guid lineageId,
+        long expectedPriorGeneration,
+        long nextGeneration,
+        CancellationToken cancellationToken = default)
+        => Task.FromException<SystemLineageMetadata>(new NotSupportedException("This System metadata store does not support generation advancement."));
 
     Task<DeviceSelfJoinResult> JoinCurrentGenerationAsync(
         Guid deviceId,

@@ -91,6 +91,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         M07Runtime = m07Runtime;
         _authorityPhase = authorityPhase;
         Languages = new ObservableCollection<LanguageOption>();
+        RecoveryCandidates = new ObservableCollection<RecoveryCandidate>();
         RefreshResources();
         _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
         Admin = startupSucceeded && catalogueService is not null && settingsService is not null ? new M03ShellViewModel(catalogueService, settingsService, authorityGuard) : null;
@@ -112,6 +113,10 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public M07RuntimeServices? M07Runtime { get; }
 
+    public ObservableCollection<RecoveryCandidate> RecoveryCandidates { get; }
+
+    public RecoveryCandidate? RecommendedRecoveryCandidate { get; private set; }
+
     public LocalConfiguration Configuration => _configuration;
 
     public bool CanWrite => StartupSucceeded && AuthorityState == WriteAuthorityState.Authoritative;
@@ -123,7 +128,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public bool CanAcquireTransferredAuthority => M07Runtime is not null
         && !CanWrite
-        && M07Runtime.CurrentPhase is not (AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant)
+        && M07Runtime.CurrentPhase is not (AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant
+            or AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending
+            or AuthorityPhase.StaleGeneration)
         && !_m07OperationInProgress;
 
     public bool CanResumePendingTransfer => M07Runtime?.NormalHandoff is not null
@@ -135,6 +142,22 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     public bool CanConfigureM07 => _m07Setup is not null
         && !_m07OperationInProgress
         && !IsConfigurationLocked(CurrentAuthorityPhase);
+
+    public bool CanStartDisasterRecovery => M07Runtime?.DisasterRecovery is not null
+        && !CanWrite
+        && !_m07OperationInProgress
+        && CurrentAuthorityPhase is AuthorityPhase.PairedUninitializedReadOnly
+            or AuthorityPhase.NonAuthoritativeReadOnly
+            or AuthorityPhase.ReleasedNonAuthoritative
+            or AuthorityPhase.RelinquishedPendingGrant;
+
+    public bool CanRetryDisasterRecovery => M07Runtime?.DisasterRecovery is not null
+        && !_m07OperationInProgress
+        && CurrentAuthorityPhase is AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending;
+
+    public bool CanReinitializeStaleDevice => M07Runtime?.DisasterRecovery is not null
+        && !_m07OperationInProgress
+        && CurrentAuthorityPhase == AuthorityPhase.StaleGeneration;
 
     public M03ShellViewModel? Admin { get; }
 
@@ -244,7 +267,11 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             ? Read(_m07OperationStatusKey)
             : M07Runtime?.CurrentPhase is AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant
                 ? Read("M07PendingTransfer")
-                : string.Empty;
+                : M07Runtime?.CurrentPhase is AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending
+                    ? Read("M07DisasterRecoveryPending")
+                    : M07Runtime?.CurrentPhase == AuthorityPhase.StaleGeneration
+                        ? Read("M07StaleGeneration")
+                        : string.Empty;
         LanguageLabel = Read("LanguageLabel");
         LanguageSaveFailure = Read("LanguageSaveFailure");
         Languages.Clear();
@@ -277,7 +304,16 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("M07SetupRootUnavailable").Append("M07SetupLineageUnavailable")
              .Append("M07SetupLineageInvalid").Append("M07SetupLineageRequired")
              .Append("M07SetupPhaseLocked").Append("M07SetupAuthorityStateUnavailable")
-             .Append("M07SetupPersistenceFailed").ToArray();
+             .Append("M07SetupPersistenceFailed")
+             .Append("M07DisasterRecovery").Append("M07DisasterRecoveryPending")
+             .Append("M07DisasterRecoveryNoCandidate").Append("M07DisasterRecoveryFailed")
+             .Append("M07DisasterRecoverySucceeded").Append("M07StaleGeneration")
+             .Append("M07ReinitializeStale").Append("M07ReinitializeNoSeed")
+             .Append("M07ReinitializeSucceeded").Append("M07CandidateTypeGitHub")
+             .Append("M07CandidateTypeOneDrive").Append("M07CandidateDataLossWarning")
+             .Append("M07QuarantineWarning").Append("M07QuarantineConfirm").Append("M07ConfirmRecovery")
+             .Append("M07CandidateRevision").Append("M07CandidateHandoffVersion").Append("M07CandidateSource")
+             .Append("M07CandidateTimestamp").ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));
@@ -289,6 +325,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(CanResumePendingTransfer));
         OnPropertyChanged(nameof(CanTestGitHubConnection));
         OnPropertyChanged(nameof(CanConfigureM07));
+        OnPropertyChanged(nameof(CanStartDisasterRecovery));
+        OnPropertyChanged(nameof(CanRetryDisasterRecovery));
+        OnPropertyChanged(nameof(CanReinitializeStaleDevice));
         OnPropertyChanged(nameof(M07OperationStatus));
         OnPropertyChanged(nameof(LanguageLabel));
         OnPropertyChanged(nameof(LanguageSaveFailure));
@@ -448,6 +487,91 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         RefreshResources();
     }
 
+    public async Task<RecoveryCandidateDiscoveryResult?> DiscoverRecoveryCandidatesAsync(CancellationToken cancellationToken = default)
+    {
+        if (M07Runtime?.DisasterRecovery is not { } recovery) return null;
+        SetM07Operation("M07DisasterRecovery");
+        _m07OperationInProgress = true;
+        RefreshResources();
+        try
+        {
+            var result = await recovery.DiscoverCandidatesAsync(cancellationToken);
+            RecoveryCandidates.Clear();
+            foreach (var candidate in result.Candidates) RecoveryCandidates.Add(candidate);
+            RecommendedRecoveryCandidate = result.Recommended;
+            SetM07Operation(result.Recommended is null ? "M07DisasterRecoveryNoCandidate" : "M07DisasterRecovery");
+            return result;
+        }
+        finally
+        {
+            _m07OperationInProgress = false;
+            RefreshResources();
+        }
+    }
+
+    public async Task<DisasterRecoveryResult?> StartDisasterRecoveryAsync(
+        string candidateId,
+        bool quarantineConfirmed,
+        CancellationToken cancellationToken = default)
+    {
+        if (M07Runtime?.DisasterRecovery is not { } recovery) return null;
+        _m07OperationInProgress = true;
+        SetM07Operation("M07DisasterRecovery");
+        RefreshResources();
+        try
+        {
+            var result = await recovery.StartOrResumeAsync(candidateId, quarantineConfirmed, cancellationToken: cancellationToken);
+            await RefreshAuthorityStateAsync(cancellationToken);
+            SetM07Operation(result.Succeeded ? "M07DisasterRecoverySucceeded" : "M07DisasterRecoveryFailed");
+            return result;
+        }
+        finally
+        {
+            _m07OperationInProgress = false;
+            RefreshResources();
+        }
+    }
+
+    public async Task<DisasterRecoveryResult?> RetryDisasterRecoveryAsync(bool quarantineConfirmed, CancellationToken cancellationToken = default)
+    {
+        if (M07Runtime?.DisasterRecovery is not { } recovery) return null;
+        _m07OperationInProgress = true;
+        SetM07Operation("M07DisasterRecoveryPending");
+        RefreshResources();
+        try
+        {
+            var result = await recovery.RetryAsync(quarantineConfirmed, cancellationToken);
+            await RefreshAuthorityStateAsync(cancellationToken);
+            SetM07Operation(result.Succeeded ? "M07DisasterRecoverySucceeded" : "M07DisasterRecoveryFailed");
+            return result;
+        }
+        finally
+        {
+            _m07OperationInProgress = false;
+            RefreshResources();
+        }
+    }
+
+    public async Task<DisasterRecoveryResult?> ReinitializeStaleDeviceAsync(CancellationToken cancellationToken = default)
+    {
+        if (M07Runtime?.DisasterRecovery is not { } recovery) return null;
+        _m07OperationInProgress = true;
+        SetM07Operation("M07ReinitializeStale");
+        RefreshResources();
+        try
+        {
+            var result = await recovery.ReinitializeStaleDeviceAsync(cancellationToken);
+            await RefreshAuthorityStateAsync(cancellationToken);
+            SetM07Operation(result.Succeeded ? "M07ReinitializeSucceeded" : "M07ReinitializeNoSeed");
+            return result;
+        }
+        finally
+        {
+            _m07OperationInProgress = false;
+            RefreshResources();
+        }
+    }
+
     public async Task<GitHubConnectionTestResult?> TestGitHubConnectionAsync(CancellationToken cancellationToken = default)
     {
         if (M07Runtime is null)
@@ -513,6 +637,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         AuthorityPhase.TransferPreparing
         or AuthorityPhase.RelinquishedPendingGrant
         or AuthorityPhase.TargetAcquisitionPending
+        or AuthorityPhase.DisasterRecoveryPreparing
         or AuthorityPhase.DisasterRecoveryPending
         or AuthorityPhase.RecoveryRequired
         or AuthorityPhase.StaleGeneration;

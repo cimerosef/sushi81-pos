@@ -130,7 +130,7 @@ public sealed class OneDriveRecoveryCheckpointPublisher(
 
             foreach (var obsolete in valid
                 .OrderByDescending(item => item.Metadata.BusinessRevision)
-                .ThenByDescending(item => item.Metadata.CreatedAtUtc)
+                .ThenByDescending(item => item.Metadata.HandoffVersion)
                 .ThenByDescending(item => item.Metadata.CheckpointId)
                 .Skip(5))
             {

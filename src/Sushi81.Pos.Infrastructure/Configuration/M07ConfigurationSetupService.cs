@@ -237,6 +237,7 @@ public sealed class M07ConfigurationSetupService(
         AuthorityPhase.TransferPreparing
         or AuthorityPhase.RelinquishedPendingGrant
         or AuthorityPhase.TargetAcquisitionPending
+        or AuthorityPhase.DisasterRecoveryPreparing
         or AuthorityPhase.DisasterRecoveryPending
         or AuthorityPhase.RecoveryRequired
         or AuthorityPhase.StaleGeneration;
