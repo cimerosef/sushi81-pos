@@ -676,7 +676,11 @@ public sealed class InfrastructureIntegrationTests
         var output = SensitiveDataRedactor.Redact(
             "phone 0612345678 email client@example.test Authorization: Bearer header-secret "
             + "Bearer standalone-secret ghp_abcdefghijklmnopqrstuvwxyz "
-            + "https://user:password@example.test/api?access_token=query-secret&next=1 token=field-secret");
+            + "https://user:password@example.test/api?access_token=query-secret&next=1 token=field-secret "
+            + "{\"token\":\"json-token\", \"access_token\": \"json-access\", "
+            + "\"refresh_token\":\"json-refresh\", \"secret\": \"json-secret\", "
+            + "\"password\":\"json-password\", \"client_secret\": \"json-client\", "
+            + "\"authorization\": \"json-authorization\"}");
         Assert.IsFalse(output.Contains("0612345678", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("client@example.test", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("header-secret", StringComparison.Ordinal));
@@ -685,6 +689,13 @@ public sealed class InfrastructureIntegrationTests
         Assert.IsFalse(output.Contains("user:password@", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("query-secret", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("field-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-token", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-access", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-refresh", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-password", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-client", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-authorization", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -697,7 +708,8 @@ public sealed class InfrastructureIntegrationTests
             logger.Log(
                 LogLevel.Error,
                 new EventId(9001, "SyntheticSecret"),
-                "transport failed https://user:password@example.test/api?token=query-secret ghp_abcdefghijklmnopqrstuvwxyz",
+                "transport failed https://user:password@example.test/api?token=query-secret ghp_abcdefghijklmnopqrstuvwxyz "
+                    + "{\"token\":\"json-token\", \"password\": \"json-password\"}",
                 new InvalidOperationException("Authorization: Bearer exception-secret"),
                 static (state, exception) => state);
         }
@@ -708,6 +720,8 @@ public sealed class InfrastructureIntegrationTests
         Assert.IsFalse(output.Contains("user:password@", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("query-secret", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("ghp_abcdefghijklmnopqrstuvwxyz", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-token", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-password", StringComparison.Ordinal));
     }
 
     private static async Task ExecuteAsync(SqliteConnection connection, string sql, SqliteTransaction? transaction = null, CancellationToken cancellationToken = default)

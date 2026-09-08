@@ -1,6 +1,7 @@
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -27,13 +28,6 @@ namespace Sushi81.Pos.ArchitectureTests;
 [TestClass]
 public sealed class M06DesktopTests
 {
-    private static readonly string[] M07Wp9LocalizedKeys =
-    [
-        "M07AcquireAuthority", "M07ResumeTransfer", "M07ConnectionTest", "M07Setup",
-        "M07DisasterRecovery", "M07DisasterRecoveryPending", "M07ReinitializeStale",
-        "M07CandidateReadOnlyNotice", "M07PendingResumeWarning", "M07RetrySameRecovery"
-    ];
-
     private static readonly string[] M07Wp9MutationKeys =
     [
         "NewProduct", "Edit", "Save", "Confirm", "Add", "NewOrder", "OrderModify", "OrderSave",
@@ -263,6 +257,32 @@ public sealed class M06DesktopTests
     }
 
     [TestMethod]
+    public void M07LocalizedResourcesAreDerivedFromActualDesktopConsumptionInFrenchAndChineseOnSta()
+    {
+        var keys = DeriveM07DesktopResourceKeys();
+        CollectionAssert.Contains(keys, "JoinSucceeded");
+        CollectionAssert.Contains(keys, "AuthorityTransferUnavailable");
+        CollectionAssert.Contains(keys, "AuthorityTransferFailed");
+        CollectionAssert.Contains(keys, "M07SetupRestartRequired");
+        CollectionAssert.Contains(keys, "M07CandidateReadOnlyNotice");
+        CollectionAssert.Contains(keys, "M07PendingResumeWarning");
+
+        RunOnSta(() =>
+        {
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+            foreach (var key in keys)
+                Assert.IsFalse(string.IsNullOrWhiteSpace(shell.Localized[key]), $"Missing FR value for {key}");
+
+            shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"))
+                .GetAwaiter().GetResult();
+            foreach (var key in keys)
+                Assert.IsFalse(string.IsNullOrWhiteSpace(shell.Localized[key]), $"Missing zh-CN value for {key}");
+
+            Assert.AreNotEqual(shell.Localized["M07Setup"], shell.Localized["AuthorityTransferFailed"]);
+        });
+    }
+
+    [TestMethod]
     public void M07DetailedPhaseMatrixKeepsShownBusinessControlsFailClosedAndLocalizesM07SurfaceOnSta()
     {
         RunOnSta(() =>
@@ -308,7 +328,7 @@ public sealed class M06DesktopTests
                     window.UpdateLayout();
                     window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
 
-                    foreach (var key in M07Wp9LocalizedKeys)
+                    foreach (var key in DeriveM07DesktopResourceKeys())
                         Assert.IsFalse(string.IsNullOrWhiteSpace(shell.Localized[key]), $"{phase}: missing FR key {key}");
 
                     var mutationButtons = VisualDescendants<Button>(window)
@@ -328,7 +348,7 @@ public sealed class M06DesktopTests
 
                     var frenchCreate = shell.Localized["NewProduct"];
                     shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
-                    foreach (var key in M07Wp9LocalizedKeys)
+                    foreach (var key in DeriveM07DesktopResourceKeys())
                         Assert.IsFalse(string.IsNullOrWhiteSpace(shell.Localized[key]), $"{phase}: missing zh-CN key {key}");
                     Assert.AreNotEqual(frenchCreate, shell.Localized["NewProduct"], phase.ToString());
                     Assert.IsTrue(VisualDescendants<Button>(window).Any(button => Equals(button.Content, shell.Localized["NewProduct"])), phase.ToString());
@@ -584,6 +604,59 @@ public sealed class M06DesktopTests
             if (child is T match) yield return match;
             foreach (var descendant in VisualDescendants<T>(child)) yield return descendant;
         }
+    }
+
+    private static string[] DeriveM07DesktopResourceKeys()
+    {
+        var root = FindRepositoryRoot();
+        var sourceFiles = new[]
+        {
+            Path.Combine(root, "src", "Sushi81.Pos.Desktop", "Localization.cs"),
+            Path.Combine(root, "src", "Sushi81.Pos.Desktop", "MainWindow.xaml"),
+            Path.Combine(root, "src", "Sushi81.Pos.Desktop", "MainWindow.xaml.cs")
+        };
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var file in sourceFiles)
+        {
+            var content = File.ReadAllText(file);
+            if (Path.GetFileName(file).Equals("Localization.cs", StringComparison.Ordinal))
+            {
+                // The runtime dictionary's explicit registration block is not a source of
+                // consumption. Remove it so this contract cannot pass from that manual list.
+                var registryStart = content.IndexOf("var keys = new[]", StringComparison.Ordinal);
+                var registryEnd = content.IndexOf("Localized = keys.ToDictionary", StringComparison.Ordinal);
+                if (registryStart >= 0 && registryEnd > registryStart)
+                    content = content[..registryStart] + content[registryEnd..];
+            }
+            foreach (Match match in Regex.Matches(content, @"Localized\[(?<key>[A-Za-z][A-Za-z0-9_]*)\]"))
+                AddIfM07SurfaceKey(keys, match.Groups["key"].Value);
+            foreach (Match match in Regex.Matches(content, @"""(?<key>(?:M07|Authority|Join)[A-Za-z0-9_]*)"""))
+                AddIfM07SurfaceKey(keys, match.Groups["key"].Value);
+        }
+
+        return keys.OrderBy(key => key, StringComparer.Ordinal).ToArray();
+    }
+
+    private static void AddIfM07SurfaceKey(HashSet<string> keys, string key)
+    {
+        if (key.StartsWith("M07", StringComparison.Ordinal)
+            || key.StartsWith("Authority", StringComparison.Ordinal)
+            || key.StartsWith("Join", StringComparison.Ordinal))
+            keys.Add(key);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Sushi81.Pos.sln")))
+                return directory.FullName;
+            directory = directory.Parent;
+        }
+
+        Assert.Fail("The Sushi81 POS repository root was not found from the test output directory.");
+        return string.Empty;
     }
 
     private static void RunOnSta(Action action)

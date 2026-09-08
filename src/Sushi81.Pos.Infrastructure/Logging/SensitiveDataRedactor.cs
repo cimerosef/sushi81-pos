@@ -12,10 +12,12 @@ public static partial class SensitiveDataRedactor
             return string.Empty;
         }
 
-        var withoutPhones = FrenchTelephonePattern().Replace(value, "[redacted-phone]");
+        // URL userinfo must be removed before email redaction: otherwise an email-shaped
+        // password@host suffix can be replaced first and hide the full credential span.
+        var withoutUrlCredentials = UrlCredentialsPattern().Replace(value, "$1[redacted-userinfo]@");
+        var withoutPhones = FrenchTelephonePattern().Replace(withoutUrlCredentials, "[redacted-phone]");
         var withoutEmails = EmailPattern().Replace(withoutPhones, "[redacted-email]");
-        var withoutUrlCredentials = UrlCredentialsPattern().Replace(withoutEmails, "$1[redacted-userinfo]@");
-        var withoutAuthorization = AuthorizationHeaderPattern().Replace(withoutUrlCredentials, "$1[redacted-authorization]");
+        var withoutAuthorization = AuthorizationHeaderPattern().Replace(withoutEmails, "$1[redacted-authorization]");
         var withoutBearer = BearerPattern().Replace(withoutAuthorization, "Bearer [redacted-token]");
         var withoutGithubTokens = GithubTokenPattern().Replace(withoutBearer, "[redacted-github-token]");
         var withoutQuerySecrets = QuerySecretPattern().Replace(withoutGithubTokens, "$1[redacted-secret]");
@@ -43,6 +45,6 @@ public static partial class SensitiveDataRedactor
     [GeneratedRegex(@"(?<prefix>[?&](?:access[_-]?token|refresh[_-]?token|token|secret|password|client[_-]?secret|authorization)=)[^&#\s]+", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex QuerySecretPattern();
 
-    [GeneratedRegex(@"(?<prefix>\b(?:access[_-]?token|refresh[_-]?token|token|secret|password|client[_-]?secret|authorization)\b\s*[:=]\s*[""']?)[^,\s;""']+", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?<prefix>[""']?\b(?:access[_-]?token|refresh[_-]?token|token|secret|password|client[_-]?secret|authorization)\b[""']?\s*[:=]\s*[""']?)[^,\s;""'}]+", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex SecretFieldPattern();
 }

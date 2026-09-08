@@ -1,5 +1,6 @@
 using System.Runtime.ExceptionServices;
 using System.IO;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Windows.Threading;
 using Sushi81.Pos.Application.Foundation.Authority;
@@ -131,29 +132,63 @@ public sealed class M07Wp9ResponsivenessTests
 
     private static void TargetDirectedCloseRemainsResponsive()
     {
-        var entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var paths = new TestPaths();
+        using var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+        var sourceDeviceId = Guid.NewGuid();
+        var targetDeviceId = Guid.NewGuid();
+        var lineageId = Guid.NewGuid();
+        var store = new TestAuthorityStateStore(new AuthorityStateDocument(2, WriteAuthorityState.Authoritative, Now)
+        {
+            Protocol = new AuthorityProtocolState(1, sourceDeviceId, "Synthetic source", lineageId, 1, 0, 12, AuthorityPhase.Authoritative)
+        });
+        var metadata = new TestSystemMetadataStore(lineageId, 1)
+        {
+            CurrentDevices =
+            [
+                new DeviceRegistrationArtifact(1, "M07", SystemMetadataContract.DeviceArtifactKind, sourceDeviceId, "Source", lineageId, 1, Now),
+                new DeviceRegistrationArtifact(1, "M07", SystemMetadataContract.DeviceArtifactKind, targetDeviceId, "Target", lineageId, 1, Now)
+            ]
+        };
+        var transport = new DelayedHandoffTransport();
+        var snapshots = new HandoffSnapshotFactory(paths.RootDirectory);
+        var service = new NormalHandoffService(store, guard, metadata, snapshots, transport, new FixedClock());
+        var runtime = new M07RuntimeServices(
+            guard, store, metadata, new SelfJoinService(store, guard, metadata, new FixedClock()),
+            service, null, null, GitHubConnectionSetupState.Ready);
+        using var shell = new ShellViewModel(
+            new InMemorySelectedCultureStore(), true, authorityGuard: guard, authorityState: guard.State,
+            m07Runtime: runtime, authorityPhase: AuthorityPhase.Authoritative);
+        var finalCloseCount = 0;
         var coordinator = new MainWindowCloseCoordinator(
-            () => true,
-            () => Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Transfer, Guid.NewGuid())),
-            async _ =>
-            {
-                entered.TrySetResult(true);
-                await release.Task;
-                return true;
-            },
+            () => shell.CanWrite,
+            () => Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Transfer, targetDeviceId)),
+            async target => (await service.TransferAndCloseAsync(target)).Succeeded,
             null,
-            () => { },
+            () => finalCloseCount++,
             exception => Assert.Fail(exception.Message));
         var closing = new System.ComponentModel.CancelEventArgs();
 
         var operation = coordinator.HandleClosingAsync(closing);
-        PumpUntil(entered.Task);
+        PumpUntil(transport.Entered.Task);
         AssertDispatcherPulse(operation);
-        release.TrySetResult(true);
-        operation.GetAwaiter().GetResult();
+        Assert.IsTrue(coordinator.IsCloseInProgress);
         Assert.IsTrue(closing.Cancel);
+        Assert.AreEqual(WriteAuthorityState.Transitioning, guard.State);
+        Assert.Throws<WriteAuthorityException>(() => guard.RequireWriteAuthority());
+        shell.RefreshAuthorityStateAsync().GetAwaiter().GetResult();
+        Assert.IsFalse(shell.CanWrite);
+        Assert.IsFalse(coordinator.IsFinalCloseAllowed);
+        Assert.AreEqual(0, finalCloseCount);
+
+        transport.Release.TrySetResult(true);
+        operation.GetAwaiter().GetResult();
+
         Assert.IsTrue(coordinator.IsFinalCloseAllowed);
+        Assert.AreEqual(1, finalCloseCount);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, guard.State);
+        Assert.AreEqual(AuthorityPhase.ReleasedNonAuthoritative, store.Document!.Protocol!.Phase);
+        Assert.AreEqual(targetDeviceId, store.Document.Protocol.Transfer!.TargetDeviceId);
+        runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
     private static void AssertDispatcherPulse(Task operation)
@@ -213,6 +248,76 @@ public sealed class M07Wp9ResponsivenessTests
         public Task DeleteAssetAsync(long assetId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
+    private sealed class DelayedHandoffTransport : IGitHubHandoffTransport
+    {
+        private readonly List<GitHubRemoteAsset> assets = [];
+        private long nextAssetId = 1;
+        private int delayedEnsure;
+
+        public TaskCompletionSource<bool> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<GitHubReleaseContainer> EnsureContainerAsync(bool createIfMissing, CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Exchange(ref delayedEnsure, 1) == 0)
+            {
+                Entered.TrySetResult(true);
+                await Release.Task.WaitAsync(cancellationToken);
+            }
+
+            return new GitHubReleaseContainer(1, "synthetic", "https://uploads.example.test/release", false, false);
+        }
+
+        public async Task<GitHubAssetReceipt> UploadAssetAsync(
+            GitHubReleaseContainer release,
+            string name,
+            Stream content,
+            long contentLength,
+            string localSha256,
+            CancellationToken cancellationToken = default)
+        {
+            using var memory = new MemoryStream();
+            await content.CopyToAsync(memory, cancellationToken);
+            var bytes = memory.ToArray();
+            var digest = "sha256:" + Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            var asset = new GitHubRemoteAsset(nextAssetId++, name, bytes.LongLength, "uploaded", digest, Now);
+            assets.Add(asset);
+            return new GitHubAssetReceipt(release.Id, asset.Id, name, bytes.LongLength, digest, Now, "uploaded");
+        }
+
+        public Task<IReadOnlyList<GitHubRemoteAsset>> ListAssetsAsync(GitHubReleaseContainer release, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<GitHubRemoteAsset>>(assets.ToArray());
+
+        public Task<GitHubRemoteAsset> GetAssetAsync(long assetId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(assets.Single(asset => asset.Id == assetId));
+
+        public Task<Stream> DownloadAssetAsync(long assetId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task DeleteAssetAsync(long assetId, CancellationToken cancellationToken = default)
+        {
+            assets.RemoveAll(asset => asset.Id == assetId);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class HandoffSnapshotFactory(string root) : ITransferSnapshotFactory
+    {
+        public async Task<TransferSnapshot> CreateAsync(AuthorityProtocolState source, Guid transferId, CancellationToken cancellationToken = default)
+        {
+            Directory.CreateDirectory(root);
+            var path = Path.Combine(root, $"snapshot-{transferId:N}.db");
+            var bytes = new byte[] { 7, 8, 9, 10 };
+            await File.WriteAllBytesAsync(path, bytes, cancellationToken);
+            return new TransferSnapshot(
+                "20260908120000.snapshot.db",
+                path,
+                bytes.LongLength,
+                Convert.ToHexString(SHA256.HashData(bytes)),
+                source.BusinessRevision);
+        }
+    }
+
     private sealed class DelayedDiscovery : IRecoveryCandidateDiscovery
     {
         public TaskCompletionSource<bool> DiscoverEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -243,6 +348,7 @@ public sealed class M07Wp9ResponsivenessTests
     private sealed class TestSystemMetadataStore(Guid lineageId, long generation) : ISystemMetadataStore
     {
         public bool DelayReadLineage { get; init; }
+        public IReadOnlyList<DeviceRegistrationArtifact> CurrentDevices { get; init; } = [];
         public TaskCompletionSource<bool> LineageReadEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> ReleaseLineage { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private SystemLineageMetadata Lineage => new(1, "M07", lineageId, generation, Now);
@@ -261,7 +367,7 @@ public sealed class M07Wp9ResponsivenessTests
             new DeviceSelfJoinResult(
                 new DeviceRegistrationArtifact(1, "M07", SystemMetadataContract.DeviceArtifactKind, deviceId, displayName, lineageId, generation, Now),
                 true, null));
-        public Task<IReadOnlyList<DeviceRegistrationArtifact>> ListCurrentGenerationDevicesAsync(Guid requestedLineageId, long requestedGeneration, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<DeviceRegistrationArtifact>>([]);
+        public Task<IReadOnlyList<DeviceRegistrationArtifact>> ListCurrentGenerationDevicesAsync(Guid requestedLineageId, long requestedGeneration, CancellationToken cancellationToken = default) => Task.FromResult(CurrentDevices);
         public Task<ValidatedReadOnlySeed?> FindValidatedReadOnlySeedAsync(Guid requestedLineageId, long requestedGeneration, CancellationToken cancellationToken = default) => Task.FromResult<ValidatedReadOnlySeed?>(null);
         public Task<ReadOnlySeedPublicationResult> PublishReadOnlySeedAsync(ReadOnlySeedMetadata metadata, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
