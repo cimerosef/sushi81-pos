@@ -275,4 +275,20 @@
   <data name="M07CandidateHandoffVersion" xml:space="preserve"><value>交接版本</value></data>
   <data name="M07CandidateSource" xml:space="preserve"><value>来源</value></data>
   <data name="M07CandidateTimestamp" xml:space="preserve"><value>时间</value></data>
+  <data name="M07CandidateRecommended" xml:space="preserve"><value>协议选定</value></data>
+  <data name="M07NormalPathUnavailableConfirm" xml:space="preserve"><value>我确认正常的权威/目标路径确实不可用且无法完成。</value></data>
+  <data name="M07ContextPhase" xml:space="preserve"><value>阶段</value></data>
+  <data name="M07ContextLineage" xml:space="preserve"><value>谱系</value></data>
+  <data name="M07ContextGeneration" xml:space="preserve"><value>代</value></data>
+  <data name="M07ContextSourceTarget" xml:space="preserve"><value>之前的源/目标</value></data>
+  <data name="M07ContextHandoffVersion" xml:space="preserve"><value>交接版本</value></data>
+  <data name="M07ReasonPairedReplacement" xml:space="preserve"><value>已配对替换设备，且没有可用权威设备</value></data>
+  <data name="M07ReasonNormalAuthorityUnavailable" xml:space="preserve"><value>正常权威路径被声明不可用</value></data>
+  <data name="M07ReasonReleasedTargetUnavailable" xml:space="preserve"><value>已释放交接目标被声明不可用</value></data>
+  <data name="M07ReasonRelinquishedTargetUnavailable" xml:space="preserve"><value>不可逆交接的指定目标被声明不可用</value></data>
+  <data name="M07PendingResumeWarning" xml:space="preserve"><value>已持久化的精确恢复仍保持只读。只能重试同一次恢复。</value></data>
+  <data name="M07PendingRecoveryId" xml:space="preserve"><value>恢复</value></data>
+  <data name="M07PendingCandidateId" xml:space="preserve"><value>精确候选项</value></data>
+  <data name="M07PendingCandidateType" xml:space="preserve"><value>精确类型</value></data>
+  <data name="M07RetrySameRecovery" xml:space="preserve"><value>重试同一次恢复</value></data>
 </root>

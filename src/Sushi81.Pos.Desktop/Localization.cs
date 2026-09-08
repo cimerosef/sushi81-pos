@@ -117,6 +117,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public RecoveryCandidate? RecommendedRecoveryCandidate { get; private set; }
 
+    public DisasterRecoveryEntryContext? RecoveryEntryContext { get; private set; }
+
     public LocalConfiguration Configuration => _configuration;
 
     public bool CanWrite => StartupSucceeded && AuthorityState == WriteAuthorityState.Authoritative;
@@ -313,7 +315,15 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("M07CandidateTypeOneDrive").Append("M07CandidateDataLossWarning")
              .Append("M07QuarantineWarning").Append("M07QuarantineConfirm").Append("M07ConfirmRecovery")
              .Append("M07CandidateRevision").Append("M07CandidateHandoffVersion").Append("M07CandidateSource")
-             .Append("M07CandidateTimestamp").ToArray();
+             .Append("M07CandidateTimestamp").Append("M07CandidateRecommended")
+             .Append("M07NormalPathUnavailableConfirm").Append("M07ContextPhase")
+             .Append("M07ContextLineage").Append("M07ContextGeneration")
+             .Append("M07ContextSourceTarget").Append("M07ContextHandoffVersion")
+             .Append("M07ReasonPairedReplacement").Append("M07ReasonNormalAuthorityUnavailable")
+             .Append("M07ReasonReleasedTargetUnavailable").Append("M07ReasonRelinquishedTargetUnavailable")
+             .Append("M07PendingResumeWarning").Append("M07PendingRecoveryId")
+             .Append("M07PendingCandidateId").Append("M07PendingCandidateType")
+             .Append("M07RetrySameRecovery").ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));
@@ -481,6 +491,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     {
         if (M07Runtime is null) return;
         await M07Runtime.RefreshAuthorityStateAsync(cancellationToken);
+        if (M07Runtime.DisasterRecovery is { } recovery)
+            RecoveryEntryContext = await recovery.GetEntryContextAsync(cancellationToken);
         AuthorityState = M07Runtime.AuthorityGuard.State;
         _authorityPhase = M07Runtime.CurrentPhase;
         RefreshChildAuthorityCommands();
@@ -495,6 +507,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         RefreshResources();
         try
         {
+            RecoveryEntryContext = await recovery.GetEntryContextAsync(cancellationToken);
             var result = await recovery.DiscoverCandidatesAsync(cancellationToken);
             RecoveryCandidates.Clear();
             foreach (var candidate in result.Candidates) RecoveryCandidates.Add(candidate);
@@ -511,6 +524,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public async Task<DisasterRecoveryResult?> StartDisasterRecoveryAsync(
         string candidateId,
+        bool normalPathUnavailableConfirmed,
         bool quarantineConfirmed,
         CancellationToken cancellationToken = default)
     {
@@ -520,7 +534,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         RefreshResources();
         try
         {
-            var result = await recovery.StartOrResumeAsync(candidateId, quarantineConfirmed, cancellationToken: cancellationToken);
+            var result = await recovery.StartOrResumeAsync(
+                candidateId, normalPathUnavailableConfirmed, quarantineConfirmed, cancellationToken);
             await RefreshAuthorityStateAsync(cancellationToken);
             SetM07Operation(result.Succeeded ? "M07DisasterRecoverySucceeded" : "M07DisasterRecoveryFailed");
             return result;

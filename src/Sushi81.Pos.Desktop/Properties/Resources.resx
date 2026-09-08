@@ -275,4 +275,20 @@ Changements effectifs : {2}</value></data>
   <data name="M07CandidateHandoffVersion" xml:space="preserve"><value>Version de handoff</value></data>
   <data name="M07CandidateSource" xml:space="preserve"><value>Source</value></data>
   <data name="M07CandidateTimestamp" xml:space="preserve"><value>Horodatage</value></data>
+  <data name="M07CandidateRecommended" xml:space="preserve"><value>Sélectionné par le protocole</value></data>
+  <data name="M07NormalPathUnavailableConfirm" xml:space="preserve"><value>Je confirme que le chemin normal d’autorité/cible est réellement indisponible et ne peut pas être terminé.</value></data>
+  <data name="M07ContextPhase" xml:space="preserve"><value>Phase</value></data>
+  <data name="M07ContextLineage" xml:space="preserve"><value>Lignée</value></data>
+  <data name="M07ContextGeneration" xml:space="preserve"><value>Génération</value></data>
+  <data name="M07ContextSourceTarget" xml:space="preserve"><value>Source/cible précédente</value></data>
+  <data name="M07ContextHandoffVersion" xml:space="preserve"><value>Version de transfert</value></data>
+  <data name="M07ReasonPairedReplacement" xml:space="preserve"><value>remplacement apparié sans autorité disponible</value></data>
+  <data name="M07ReasonNormalAuthorityUnavailable" xml:space="preserve"><value>le chemin normal d’autorité est déclaré indisponible</value></data>
+  <data name="M07ReasonReleasedTargetUnavailable" xml:space="preserve"><value>la cible du transfert libéré est déclarée indisponible</value></data>
+  <data name="M07ReasonRelinquishedTargetUnavailable" xml:space="preserve"><value>la cible désignée du transfert irréversible est déclarée indisponible</value></data>
+  <data name="M07PendingResumeWarning" xml:space="preserve"><value>La récupération persistée exacte reste en lecture seule. Seule cette même récupération peut être réessayée.</value></data>
+  <data name="M07PendingRecoveryId" xml:space="preserve"><value>Récupération</value></data>
+  <data name="M07PendingCandidateId" xml:space="preserve"><value>Candidat exact</value></data>
+  <data name="M07PendingCandidateType" xml:space="preserve"><value>Type exact</value></data>
+  <data name="M07RetrySameRecovery" xml:space="preserve"><value>Réessayer la même récupération</value></data>
 </root>

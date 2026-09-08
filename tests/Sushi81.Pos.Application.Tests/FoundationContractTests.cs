@@ -58,6 +58,41 @@ public sealed class FoundationContractTests
         Assert.AreEqual(21L, result.Recommended.BusinessRevision);
     }
 
+    [TestMethod]
+    public void RecoveryHistoricalTransferEvidenceIsBoundToTheExactPriorGeneration()
+    {
+        var lineage = Guid.NewGuid();
+        var source = Guid.NewGuid();
+        var target = Guid.NewGuid();
+        var snapshot = new RemoteAssetEvidence(11, 12, "snapshot.db", 10, new string('A', 64));
+        var prior = new RecoveryPriorTransferEvidence(
+            AuthorityPhase.ReleasedNonAuthoritative,
+            Guid.NewGuid(), lineage, 3, 9, source, target, 42, snapshot,
+            new RemoteAssetEvidence(11, 13, "snapshot.db.grant.json", 12, new string('B', 64)));
+        var recovery = new RecoveryActivationEvidence(
+            Guid.NewGuid(), target, lineage, 3, 4, "candidate", new string('C', 64), 45,
+            CandidateType: "OneDriveCheckpoint", CandidateReference: "seed.db", CandidateHandoffVersion: 9,
+            CandidateCreatedAtUtc: DateTimeOffset.UtcNow, PriorTransfer: prior);
+
+        recovery.Validate();
+
+        var mismatched = recovery with { PriorTransfer = prior with { Generation = 2 } };
+        Assert.Throws<InvalidDataException>(() => mismatched.Validate());
+    }
+
+    [TestMethod]
+    public void DisasterRecoveryEntryContextRequiresASeparateNormalPathConfirmation()
+    {
+        var context = new DisasterRecoveryEntryContext(
+            AuthorityPhase.NonAuthoritativeReadOnly,
+            Guid.NewGuid(), 3, Guid.NewGuid(), null, null, null, null,
+            DisasterRecoveryEntryReason.NormalAuthorityUnavailable,
+            NormalPathUnavailableConfirmationRequired: true);
+
+        Assert.IsTrue(context.IsEligibleForNewRecovery);
+        Assert.IsTrue(context.NormalPathUnavailableConfirmationRequired);
+    }
+
     private sealed class FixedClock(DateTimeOffset utcNow, TimeZoneInfo timeZone) : IBusinessClock
     {
         public DateTimeOffset UtcNow => utcNow;

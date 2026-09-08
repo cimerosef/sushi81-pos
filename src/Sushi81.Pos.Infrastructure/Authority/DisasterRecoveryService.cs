@@ -45,31 +45,52 @@ public sealed class DisasterRecoveryService(
         return await candidates.DiscoverAsync(state, cancellationToken);
     }
 
+    public async Task<DisasterRecoveryEntryContext> GetEntryContextAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var state = await LoadProtocolAsync(cancellationToken);
+        return CreateEntryContext(state);
+    }
+
     public async Task<DisasterRecoveryResult> StartOrResumeAsync(
         string? selectedCandidateId,
+        bool normalPathUnavailableConfirmed,
         bool quarantineConfirmed,
-        bool designatedTargetUnavailable = true,
         CancellationToken cancellationToken = default)
     {
         await operationGate.WaitAsync(cancellationToken);
         AuthorityProtocolState? loadedState = null;
         try
         {
-            if (!quarantineConfirmed)
-                return DisasterRecoveryResult.Failure("Explicit old-device quarantine confirmation is required before Disaster Recovery.");
-
             var current = await LoadProtocolAsync(cancellationToken);
             loadedState = current;
             var resuming = current.Phase is AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending;
             if (resuming)
             {
+                if (!quarantineConfirmed)
+                    return DisasterRecoveryResult.Failure("Explicit old-device quarantine confirmation is required before Disaster Recovery.");
                 if (current.Recovery is not { } existing)
                     return DisasterRecoveryResult.Failure("The durable Disaster Recovery state is incomplete.");
                 selectedCandidateId = existing.CandidateId;
             }
-            else if (!IsEligibleEntryPhase(current, designatedTargetUnavailable))
+            else
             {
-                return DisasterRecoveryResult.Failure($"Disaster Recovery is unavailable during authority phase {current.Phase}.");
+                var context = CreateEntryContext(current);
+                if (!context.IsEligibleForNewRecovery)
+                    return DisasterRecoveryResult.Failure($"Disaster Recovery is unavailable during authority phase {current.Phase}.");
+                if (!normalPathUnavailableConfirmed)
+                    return DisasterRecoveryResult.Failure("An explicit normal-path-unavailable confirmation is required before Disaster Recovery.");
+                if (!quarantineConfirmed)
+                    return DisasterRecoveryResult.Failure("Explicit old-device quarantine confirmation is required before Disaster Recovery.");
+
+                // Candidate freshness is a protocol invariant, not a presentation choice.
+                // Rediscover immediately before durable Preparing and allow only the single
+                // deterministic recommendation for this new recovery identity.
+                var latest = await candidates.DiscoverAsync(current, cancellationToken);
+                if (latest.Recommended is null || !latest.Contains(selectedCandidateId ?? string.Empty))
+                    return DisasterRecoveryResult.Failure("No deterministic freshest validated recovery candidate is available.");
+                if (!string.Equals(latest.Recommended.CandidateId, selectedCandidateId, StringComparison.Ordinal))
+                    return DisasterRecoveryResult.Failure("The selected recovery candidate is not the deterministic freshest validated candidate.");
             }
 
             if (string.IsNullOrWhiteSpace(selectedCandidateId))
@@ -101,7 +122,8 @@ public sealed class DisasterRecoveryService(
                     CandidateType: candidate.TypeName,
                     CandidateReference: candidate.StorageReference,
                     CandidateHandoffVersion: candidate.HandoffVersion,
-                    CandidateCreatedAtUtc: candidate.CreatedAtUtc);
+                    CandidateCreatedAtUtc: candidate.CreatedAtUtc,
+                    PriorTransfer: CreatePriorTransferEvidence(current));
                 var preparing = current with
                 {
                     Revision = checked(current.Revision + 1),
@@ -168,7 +190,7 @@ public sealed class DisasterRecoveryService(
     public Task<DisasterRecoveryResult> RetryAsync(
         bool quarantineConfirmed,
         CancellationToken cancellationToken = default) =>
-        StartOrResumeAsync(null, quarantineConfirmed, designatedTargetUnavailable: true, cancellationToken);
+        StartOrResumeAsync(null, normalPathUnavailableConfirmed: false, quarantineConfirmed, cancellationToken);
 
     public async Task<DisasterRecoveryResult> ReinitializeStaleDeviceAsync(CancellationToken cancellationToken = default)
     {
@@ -263,7 +285,7 @@ public sealed class DisasterRecoveryService(
             LastRecovery = recovery
         };
         await PersistAsync(authoritative, cancellationToken);
-        await TryPublishReadOnlySeedAsync(authoritative, cancellationToken);
+        await TryPublishCurrentGenerationSeedAsync(authoritative, cancellationToken);
         return DisasterRecoveryResult.Success(exact);
     }
 
@@ -333,21 +355,43 @@ public sealed class DisasterRecoveryService(
         catch (SystemMetadataUnavailableException) { }
     }
 
-    private async Task TryPublishReadOnlySeedAsync(AuthorityProtocolState state, CancellationToken cancellationToken)
+    /// <summary>
+    /// Reconstructible non-authority retry for the current authoritative data state. A failed
+    /// publication is deliberately forgotten locally; a later authoritative refresh calls this
+    /// method again and recognizes an already-valid equivalent seed before publishing.
+    /// </summary>
+    public async Task<bool> TryPublishCurrentGenerationSeedAsync(
+        AuthorityProtocolState? state = null,
+        CancellationToken cancellationToken = default)
     {
         try
         {
+            state ??= await LoadProtocolAsync(cancellationToken);
+            if (state.Phase is not (AuthorityPhase.Authoritative or AuthorityPhase.ClosedRetainedAuthority)
+                || state.LineageId is not { } lineageId || state.Generation < 1)
+                return false;
             paths.EnsureInitialized();
             var payload = await File.ReadAllBytesAsync(paths.LiveDatabasePath, cancellationToken);
+            var payloadHash = Convert.ToHexString(SHA256.HashData(payload));
+            var existing = await systemMetadata.FindValidatedReadOnlySeedAsync(lineageId, state.Generation, cancellationToken);
+            if (existing is not null
+                && existing.Metadata.BusinessRevision == state.BusinessRevision
+                && existing.Metadata.HandoffVersion == state.HandoffVersion
+                && existing.Metadata.PayloadSize == payload.LongLength
+                && string.Equals(existing.Metadata.PayloadSha256, payloadHash, StringComparison.OrdinalIgnoreCase))
+                return true;
+
             var seedId = Guid.NewGuid();
             var metadata = new ReadOnlySeedMetadata(
                 1, "M07", SystemMetadataContract.ReadOnlySeedArtifactKind, seedId,
-                state.LineageId!.Value, state.Generation, state.DeviceId, state.BusinessRevision,
+                lineageId, state.Generation, state.DeviceId, state.BusinessRevision,
                 SystemMetadataContract.SeedPayloadFileName(seedId), payload.LongLength,
-                Convert.ToHexString(SHA256.HashData(payload)), clock.UtcNow, state.HandoffVersion);
+                payloadHash, clock.UtcNow, state.HandoffVersion);
             await systemMetadata.PublishReadOnlySeedAsync(metadata, payload, cancellationToken);
+            return true;
         }
-        catch { }
+        catch (OperationCanceledException) { throw; }
+        catch { return false; }
     }
 
     private async Task<AuthorityProtocolState> LoadProtocolAsync(CancellationToken cancellationToken)
@@ -366,11 +410,51 @@ public sealed class DisasterRecoveryService(
         guard.SetState(state.WriteState);
     }
 
-    private static bool IsEligibleEntryPhase(AuthorityProtocolState state, bool designatedTargetUnavailable) =>
-        state.Phase is AuthorityPhase.PairedUninitializedReadOnly
-            or AuthorityPhase.NonAuthoritativeReadOnly
-            or AuthorityPhase.ReleasedNonAuthoritative
-            || state.Phase == AuthorityPhase.RelinquishedPendingGrant && designatedTargetUnavailable;
+    private static DisasterRecoveryEntryContext CreateEntryContext(AuthorityProtocolState state)
+    {
+        var transfer = state.Transfer;
+        var reason = state.Phase switch
+        {
+            AuthorityPhase.PairedUninitializedReadOnly => DisasterRecoveryEntryReason.PairedReplacement,
+            AuthorityPhase.NonAuthoritativeReadOnly => DisasterRecoveryEntryReason.NormalAuthorityUnavailable,
+            AuthorityPhase.ReleasedNonAuthoritative => DisasterRecoveryEntryReason.ReleasedTargetUnavailable,
+            AuthorityPhase.RelinquishedPendingGrant => DisasterRecoveryEntryReason.RelinquishedTransferTargetUnavailable,
+            _ => DisasterRecoveryEntryReason.NormalAuthorityUnavailable
+        };
+        return new DisasterRecoveryEntryContext(
+            state.Phase,
+            state.LineageId,
+            state.Generation,
+            state.DeviceId,
+            transfer?.SourceDeviceId,
+            transfer?.TargetDeviceId,
+            transfer?.TransferId,
+            transfer?.Version,
+            reason,
+            NormalPathUnavailableConfirmationRequired: true,
+            state.Recovery?.RecoveryId,
+            state.Recovery?.CandidateId,
+            state.Recovery?.CandidateType,
+            state.Recovery?.BusinessRevision,
+            state.Recovery?.CandidateHandoffVersion);
+    }
+
+    private static RecoveryPriorTransferEvidence? CreatePriorTransferEvidence(AuthorityProtocolState state) =>
+        state.Phase is AuthorityPhase.RelinquishedPendingGrant or AuthorityPhase.ReleasedNonAuthoritative
+            && state.Transfer is { } transfer
+            && transfer.SnapshotReceipt is not null
+            ? new RecoveryPriorTransferEvidence(
+                state.Phase,
+                transfer.TransferId,
+                transfer.LineageId,
+                transfer.Generation,
+                transfer.Version,
+                transfer.SourceDeviceId,
+                transfer.TargetDeviceId,
+                transfer.BusinessRevision,
+                transfer.SnapshotReceipt,
+                transfer.GrantReceipt)
+            : null;
 
     private static bool Matches(RecoveryActivationEvidence evidence, RecoveryCandidate candidate) =>
         string.Equals(evidence.CandidateId, candidate.CandidateId, StringComparison.Ordinal)

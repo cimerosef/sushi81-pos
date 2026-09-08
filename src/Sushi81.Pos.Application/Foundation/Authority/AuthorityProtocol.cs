@@ -55,6 +55,36 @@ public sealed record TransferEvidence(
             string.Empty, string.Empty, 0, string.Empty, SnapshotReady: false);
 }
 
+/// <summary>
+/// Historical, local-only provenance for an irreversible normal transfer abandoned by DR.
+/// It is evidence only and can never recreate a transfer or grant write authority.
+/// </summary>
+public sealed record RecoveryPriorTransferEvidence(
+    AuthorityPhase PriorPhase,
+    Guid TransferId,
+    Guid LineageId,
+    long Generation,
+    long HandoffVersion,
+    Guid SourceDeviceId,
+    Guid TargetDeviceId,
+    long BusinessRevision,
+    RemoteAssetEvidence? SnapshotReceipt,
+    RemoteAssetEvidence? GrantReceipt)
+{
+    public void Validate()
+    {
+        if (PriorPhase is not (AuthorityPhase.RelinquishedPendingGrant or AuthorityPhase.ReleasedNonAuthoritative)
+            || TransferId == Guid.Empty || LineageId == Guid.Empty || Generation < 1 || HandoffVersion < 1
+            || SourceDeviceId == Guid.Empty || TargetDeviceId == Guid.Empty || SourceDeviceId == TargetDeviceId
+            || BusinessRevision < 0 || SnapshotReceipt is null)
+            throw new InvalidDataException("Historical recovery transfer provenance is incomplete or contradictory.");
+        SnapshotReceipt.Validate();
+        GrantReceipt?.Validate();
+        if (PriorPhase == AuthorityPhase.ReleasedNonAuthoritative && GrantReceipt is null)
+            throw new InvalidDataException("Released transfer provenance requires its grant receipt.");
+    }
+}
+
 public sealed record RecoveryActivationEvidence(
     Guid RecoveryId, Guid DeviceId, Guid LineageId, long PriorGeneration, long NextGeneration,
     string CandidateId, string CandidateSha256, long BusinessRevision,
@@ -62,7 +92,8 @@ public sealed record RecoveryActivationEvidence(
     string CandidateType = "",
     string CandidateReference = "",
     long CandidateHandoffVersion = 0,
-    DateTimeOffset? CandidateCreatedAtUtc = null);
+    DateTimeOffset? CandidateCreatedAtUtc = null,
+    RecoveryPriorTransferEvidence? PriorTransfer = null);
 
 /// <summary>Canonical identity and protocol state, embedded in authority-state.json only.</summary>
 public sealed record AuthorityProtocolState(
@@ -193,6 +224,10 @@ public static class AuthorityProtocolValidationExtensions
         if (!string.IsNullOrWhiteSpace(recovery.CandidateType)
             && (string.IsNullOrWhiteSpace(recovery.CandidateReference) || recovery.CandidateCreatedAtUtc is null))
             throw new InvalidDataException("Recovery candidate evidence is incomplete.");
+        recovery.PriorTransfer?.Validate();
+        if (recovery.PriorTransfer is { } prior
+            && (prior.LineageId != recovery.LineageId || prior.Generation != recovery.PriorGeneration))
+            throw new InvalidDataException("Historical recovery transfer provenance is not bound to the recovery generation.");
         recovery.Receipt?.Validate();
     }
 }

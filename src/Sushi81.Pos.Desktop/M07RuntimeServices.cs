@@ -47,6 +47,9 @@ public sealed class M07RuntimeServices(
         var protocol = document?.Protocol;
         protocol?.Validate();
         CurrentPhase = protocol?.Phase;
+        if (protocol is not null && DisasterRecovery is not null
+            && protocol.Phase is AuthorityPhase.Authoritative or AuthorityPhase.ClosedRetainedAuthority)
+            await DisasterRecovery.TryPublishCurrentGenerationSeedAsync(protocol, cancellationToken);
         CanSelfJoin = protocol is null
             || protocol.Phase == AuthorityPhase.Uninitialized
             || protocol.Phase == AuthorityPhase.NonAuthoritativeReadOnly
