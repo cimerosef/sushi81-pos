@@ -271,3 +271,5 @@ M07 is authorized for implementation but this worklog is not itself a Codex exec
 **Boundaries:** WP7 proof repository was not rerun or mutated. WP9 broad integration/closure, M08 and later milestones remain not authorized/not started; owner manual acceptance and merge remain pending.
 
 **Final local verification before push:** Full Release solution `515/515` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors; self-contained `win-x64` publish succeeded to ignored `artifacts/m07-wp8-remediation-11-publish`; `git diff --check` passed. Exact-head CI and durable `CODEX_DONE` remain pending push.
+
+**Exact-head CI verification:** Commit `a485ba2d755fd1f4a37fd4f90701f577700191aa`, Continuous integration run #608 (`34239470323`) completed `success`; the `build-and-test` job Build and Test steps both completed `success`. This evidence-only worklog update is followed by a new exact-head CI run before final delivery.
