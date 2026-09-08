@@ -1,6 +1,6 @@
 # M07 worklog — pairing, target-directed handoff and disaster recovery
 
-**Status:** Authorized / In progress — WP0–WP6 executed; WP7 hard-stop gate pending
+**Status:** Authorized / In progress — WP0–WP7 executed; owner acceptance pending
 **Prepared:** 2026-09-07  
 **Authorized:** 2026-09-07  
 **Execution gate:** OPEN — verified against GitHub Issue #4 on 2026-09-07
@@ -116,6 +116,16 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 **Disposable real private GitHub race/retry evidence:** Not run at the earlier WP7 boundary. The owner has since separately authorized disposable private repository `cimerosef/sushi81-pos-handoff-m07-proof` on `main`; no production/customer credential or data was used, and the real proof remains pending its separate handoff.
 **Result:** The isolated proof environment is now separately owner-authorized, but the real private-repository proof has not been executed. The mandatory stop/go gate remains open; do not implement WP8 or any weaker DR takeover until the separate proof handoff completes.
 
+#### WP7 execution update — `M07-WP7-REAL-PROOF-07` — 2026-09-08
+
+**Status:** Passed — real private GitHub proof completed.
+**Implementation/evidence:** `9023250` adds the explicit proof tool; the durable report is `docs/implementation/m07-wp7-real-github-proof.md`.
+**Proof repository/release:** Private `cimerosef/sushi81-pos-handoff-m07-proof`, release `m07-wp7-proof-v1`, release id `384571289`. Synthetic disposable assets are retained for review; no production/customer data or credential was persisted.
+**Concurrent race:** Selected deterministic asset `dr-9d1713f59d41430f87187b0aa5e19037-g-8.activation.json`, remote asset id `550176057`; one accepted contender, one fail-closed `BlockedNoWinner` observation, one remote asset, same-winner retry `ResumedSameWinner`, different-device retry `LostToExistingWinner`, loser not accepted, server/local SHA-256 equal `bdc5ef0e59a762560af654507c620c45b4d0dcb4006cefbb226b9823c1809926`, strict artifact validation passed.
+**Unknown create outcome:** Selected deterministic asset `dr-7049af930fa443008153e992eba6b2e5-g-12.activation.json`, remote asset id `550176156`; first and exact retry `ResumedSameWinner`, different-device retry `LostToExistingWinner`, one remote asset, server/local SHA-256 equal `59c58321ba95edf30c0cb09be023ae8badb1a9afe11008786c50fbd25e2e3d5e`, strict artifact validation passed.
+**Verification:** Full Release solution tests `444/444` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors. Detailed evidence is in `docs/implementation/m07-wp7-real-github-proof.md`.
+**Boundary:** WP8 remains not started/forbidden; M08 and later milestones remain not started/unauthorized. Owner manual acceptance and merge remain pending.
+
 ### M07-WP8 — production Disaster Recovery/stale generation/reinit
 
 **Status:** Not started  
@@ -136,13 +146,13 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 
 ### M07-WP10 — automated/CI closure before owner acceptance
 
-**Status:** In progress — cycle-5 T/U/V remediation complete; exact-head CI, WP7 and owner acceptance remain pending
+**Status:** In progress — cycle-5 T/U/V remediation and WP7 complete; exact-head CI and owner acceptance remain pending
 **Accepted production-code head candidate:** `21e078185608b7f7edb86a19c36dba3ec08b2dfb` — exact-head CI passed; owner acceptance remains pending
 **Release tests:** local full solution `444/444` Passed, `0` failed, `0` skipped (Domain 33; Application 47; Infrastructure integration 134; test OneDrive feasibility 32; tool OneDrive feasibility 92; Architecture/WPF 106). The prior exact-head repository-wide CI count remains `439/439` Passed.
 **Release build warnings/errors:** `0/0`
 **Self-contained win-x64 publish:** Not run; not required by this remediation handoff
 **Exact-head CI run:** prior exact head `cb1db0c38993687e9b9546f80f4586ef23647de0` — `34166501154` (run #584) success, CI Release build `0` warnings / `0` errors and Release tests `439/439` Passed, `0` failed, `0` skipped. Current remediation/evidence head `e12b4092239b052baf4f0e8c4ec619fd2b3c90ed` — `34168357623` (run #586) success, CI Release build `0` warnings / `0` errors and Release tests `444/444` Passed, `0` failed, `0` skipped.
-**Known carry-over:** WP7 proof environment is authorized but real proof remains pending; WP8 and M08 remain not started.
+**Latest WP7 evidence:** `M07-WP7-REAL-PROOF-07` passed with the selected real private GitHub race/unknown-outcome evidence recorded above. Exact-head CI for the new proof/evidence head remains pending after push; WP8 and M08 remain not started.
 
 ## 4. Review/remediation log
 
