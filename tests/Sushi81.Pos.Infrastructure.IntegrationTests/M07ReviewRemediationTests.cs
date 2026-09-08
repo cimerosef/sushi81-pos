@@ -140,6 +140,42 @@ public sealed class M07ReviewRemediationTests
     }
 
     [TestMethod]
+    public async Task NewRecoveryUsesTheRankedSnapshotWhenAHigherRevisionAppearsDuringLookup()
+    {
+        using var fixture = await DisasterRecoveryFixture.CreateAsync(AuthorityPhase.NonAuthoritativeReadOnly);
+        var a = fixture.Candidate("a-ranked", 5, 7);
+        var b = fixture.Candidate("b-newer", 6, 1);
+        fixture.Candidates.SetSnapshots(new[] { a }, new[] { b });
+
+        await using var service = fixture.CreateService();
+        var result = await service.StartOrResumeAsync(a.CandidateId, true, true);
+
+        Assert.IsFalse(result.Succeeded);
+        StringAssert.Contains(result.Diagnostic, "activation");
+        Assert.AreEqual(1, fixture.Candidates.DiscoverCalls);
+        Assert.AreEqual(0, fixture.Candidates.FindExactCalls);
+        Assert.AreEqual(AuthorityPhase.NonAuthoritativeReadOnly, (await fixture.Store.LoadAsync())!.Protocol!.Phase);
+    }
+
+    [TestMethod]
+    public async Task NewRecoveryUsesTheRankedSnapshotWhenAHigherHandoffAppearsDuringLookup()
+    {
+        using var fixture = await DisasterRecoveryFixture.CreateAsync(AuthorityPhase.NonAuthoritativeReadOnly);
+        var a = fixture.Candidate("a-ranked-equal", 5, 7);
+        var b = fixture.Candidate("b-newer-handoff", 5, 8);
+        fixture.Candidates.SetSnapshots(new[] { a }, new[] { b });
+
+        await using var service = fixture.CreateService();
+        var result = await service.StartOrResumeAsync(a.CandidateId, true, true);
+
+        Assert.IsFalse(result.Succeeded);
+        StringAssert.Contains(result.Diagnostic, "activation");
+        Assert.AreEqual(1, fixture.Candidates.DiscoverCalls);
+        Assert.AreEqual(0, fixture.Candidates.FindExactCalls);
+        Assert.AreEqual(AuthorityPhase.NonAuthoritativeReadOnly, (await fixture.Store.LoadAsync())!.Protocol!.Phase);
+    }
+
+    [TestMethod]
     public async Task DisasterRecoveryPendingRestartUsesOnlyThePersistedCandidateIdentity()
     {
         using var fixture = await DisasterRecoveryFixture.CreateAsync(AuthorityPhase.NonAuthoritativeReadOnly);
@@ -484,13 +520,31 @@ public sealed class M07ReviewRemediationTests
     private sealed class CandidateDiscoveryFake : IRecoveryCandidateDiscovery
     {
         private IReadOnlyList<RecoveryCandidate> candidates = Array.Empty<RecoveryCandidate>();
+        private IReadOnlyList<RecoveryCandidate>[]? snapshots;
         public int FindExactCalls { get; private set; }
-        public void Set(params RecoveryCandidate[] values) => candidates = values;
+        public int DiscoverCalls { get; private set; }
+        public void Set(params RecoveryCandidate[] values)
+        {
+            candidates = values;
+            snapshots = null;
+        }
 
-        public Task<RecoveryCandidateDiscoveryResult> DiscoverAsync(AuthorityProtocolState localState, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new RecoveryCandidateDiscoveryResult(
-                candidates.OrderByDescending(c => c.BusinessRevision).ThenByDescending(c => c.HandoffVersion).ThenBy(c => c.CandidateId, StringComparer.Ordinal).ToArray(),
+        public void SetSnapshots(params IReadOnlyList<RecoveryCandidate>[] values)
+        {
+            snapshots = values;
+            candidates = values.Length == 0 ? Array.Empty<RecoveryCandidate>() : values[0];
+        }
+
+        public Task<RecoveryCandidateDiscoveryResult> DiscoverAsync(AuthorityProtocolState localState, CancellationToken cancellationToken = default)
+        {
+            DiscoverCalls++;
+            var current = snapshots is { Length: > 0 }
+                ? snapshots[Math.Min(DiscoverCalls - 1, snapshots.Length - 1)]
+                : candidates;
+            return Task.FromResult(new RecoveryCandidateDiscoveryResult(
+                current.OrderByDescending(c => c.BusinessRevision).ThenByDescending(c => c.HandoffVersion).ThenBy(c => c.CandidateId, StringComparer.Ordinal).ToArray(),
                 "synthetic"));
+        }
 
         public Task<RecoveryCandidate?> FindExactAsync(AuthorityProtocolState localState, string candidateId, CancellationToken cancellationToken = default)
         {

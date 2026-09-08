@@ -65,6 +65,7 @@ public sealed class DisasterRecoveryService(
             var current = await LoadProtocolAsync(cancellationToken);
             loadedState = current;
             var resuming = current.Phase is AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending;
+            RecoveryCandidateDiscoveryResult? latest = null;
             if (resuming)
             {
                 if (!quarantineConfirmed)
@@ -86,7 +87,7 @@ public sealed class DisasterRecoveryService(
                 // Candidate freshness is a protocol invariant, not a presentation choice.
                 // Rediscover immediately before durable Preparing and allow only the single
                 // deterministic recommendation for this new recovery identity.
-                var latest = await candidates.DiscoverAsync(current, cancellationToken);
+                latest = await candidates.DiscoverAsync(current, cancellationToken);
                 if (latest.Recommended is null || !latest.Contains(selectedCandidateId ?? string.Empty))
                     return DisasterRecoveryResult.Failure("No deterministic freshest validated recovery candidate is available.");
                 if (!string.Equals(latest.Recommended.CandidateId, selectedCandidateId, StringComparison.Ordinal))
@@ -96,7 +97,14 @@ public sealed class DisasterRecoveryService(
             if (string.IsNullOrWhiteSpace(selectedCandidateId))
                 return DisasterRecoveryResult.Failure("A validated recovery candidate must be selected.");
 
-            var candidate = await candidates.FindExactAsync(current, selectedCandidateId, cancellationToken);
+            // A new attempt must carry forward the exact validated object from the same
+            // discovery snapshot that produced Recommended. A second loose lookup here
+            // would create a Discover -> FindExact freshness TOCTOU window. Resumes are
+            // different: their durable Recovery identity is authoritative and must be
+            // revalidated by exact identity without switching to a newly newer candidate.
+            var candidate = resuming
+                ? await candidates.FindExactAsync(current, selectedCandidateId, cancellationToken)
+                : latest!.Recommended!;
             if (candidate is null)
                 return DisasterRecoveryResult.Failure("The selected recovery candidate is no longer available or valid.");
             if (candidate.LineageId != current.LineageId || candidate.Generation != current.Generation)
