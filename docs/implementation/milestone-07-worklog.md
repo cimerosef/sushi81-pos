@@ -1,9 +1,9 @@
 # M07 worklog — pairing, target-directed handoff and disaster recovery
 
-**Status:** Authorized / In progress — WP0–WP7 executed; owner acceptance pending
+**Status:** Authorized / In progress — WP8 review remediation; owner acceptance pending
 **Prepared:** 2026-09-07  
 **Authorized:** 2026-09-07  
-**Execution gate:** OPEN — verified against GitHub Issue #4 on 2026-09-07
+**Execution gate:** OPEN — verified against GitHub Issue #4 on 2026-09-08
 **Contract:** `docs/implementation/milestone-07-pairing-handoff-disaster-recovery.md`  
 **Authorization:** `docs/implementation/milestone-07-authorization.md`
 
@@ -200,6 +200,15 @@ Append each ChatGPT review/remediation cycle with exact head SHA, findings, seve
 **Disposition:** `21e0781` makes the existing M07 setup service and desktop entry point phase-aware. TransferPreparing, RelinquishedPendingGrant, TargetAcquisitionPending, DisasterRecoveryPending, RecoveryRequired and StaleGeneration reject setup before any root or persistence work, and FR/zh-CN UI hides the action. A stable bound Authoritative/ClosedRetainedAuthority device may bind an empty/new root without creating lineage; the existing startup coordinator subsequently publishes the exact local lineage/generation and device membership. Existing lineage must match the local bound identity/generation, while fresh/uninitialized and non-authoritative empty-root setup fails closed. No authority, transfer, recovery, database, marker, anchor or shared metadata mutation is performed by setup.
 **Remediation commit:** `21e0781`.
 **Tests/evidence:** Focused setup infrastructure tests `7/7` Passed; unsafe-phase/FR/zh-CN WPF tests `3/3` Passed; full local Release solution `444/444` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors; exact-head CI run `34168357623` succeeded with the same `444/444` result and `0/0` build warnings/errors. WP7 real disposable private-repository proof was not run; WP8 and M08 remain not started; manual acceptance and merge remain unauthorized.
+
+### Review cycle 6 — WP8 review remediation
+
+**Reviewed head:** `e28efff765f650fdb24b88334c82a98430ae63e2` — review `5141523616`, findings `W` through `AC`; the historical WP8 CI #596 / `34213557391` evidence was verified as `448/448`, `0` skipped, build `0` warnings / `0` errors.
+**Remediation commit:** `92fc66a89fd8b40155ccd9aeed6a695679d1b17f`.
+**W/X:** The main-owned DR service now re-discovers immediately before new Preparing, enforces the deterministic freshest candidate at the service boundary, preserves exact candidate identity on Preparing/Pending restart, and exposes phase-derived context with separate normal-path-unavailable and quarantine confirmations. The UI shows read-only diagnostic candidates, the protocol-selected candidate, lineage/generation, transfer provenance and truthful warnings; the pending surface permits only exact retry.
+**Y:** Added deterministic lower-revision/lower-handoff/retarget/restart/confirmation/provenance/seed-retry coverage plus a real STA/WPF dialog test. Existing candidate discovery, activation, stale/reinitialization and crash-boundary suites remain in the full Release run; WP7 proof was not rerun or mutated.
+**Z/AA/AB:** Current-generation seed publication is reconstructibly retryable and recognizes an equivalent validated seed without revoking authority; abandoned irreversible transfer provenance is retained as local-only `LastRecovery` history; Preparing/Pending uses a dedicated exact-resume surface.
+**AC/status:** Full local Release solution `457/457` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors; self-contained `win-x64` publish passed. Exact-head CI is pending after this push. WP8 remains **In progress pending ChatGPT re-review**; WP9 broad integration/closure is **not authorized / not started under this handoff**; project-owner manual acceptance remains Pending; M08 is not started; merge is not authorized.
 
 ## 5. Project-owner manual acceptance
 
