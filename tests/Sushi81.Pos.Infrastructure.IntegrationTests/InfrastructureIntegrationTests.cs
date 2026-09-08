@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Paths;
@@ -672,9 +673,41 @@ public sealed class InfrastructureIntegrationTests
     [TestMethod]
     public void RedactorExcludesRepresentativeSensitiveValues()
     {
-        var output = SensitiveDataRedactor.Redact("phone 0612345678 email client@example.test");
+        var output = SensitiveDataRedactor.Redact(
+            "phone 0612345678 email client@example.test Authorization: Bearer header-secret "
+            + "Bearer standalone-secret ghp_abcdefghijklmnopqrstuvwxyz "
+            + "https://user:password@example.test/api?access_token=query-secret&next=1 token=field-secret");
         Assert.IsFalse(output.Contains("0612345678", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("client@example.test", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("header-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("standalone-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("ghp_abcdefghijklmnopqrstuvwxyz", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("user:password@", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("query-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("field-secret", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void RollingFileLoggerRedactsMessageAndExceptionSecretsBeforeWriting()
+    {
+        using var paths = new TestAppPaths();
+        using (var provider = new RollingFileLoggerProvider(paths, TimeProvider.System))
+        {
+            var logger = provider.CreateLogger("synthetic");
+            logger.Log(
+                LogLevel.Error,
+                new EventId(9001, "SyntheticSecret"),
+                "transport failed https://user:password@example.test/api?token=query-secret ghp_abcdefghijklmnopqrstuvwxyz",
+                new InvalidOperationException("Authorization: Bearer exception-secret"),
+                static (state, exception) => state);
+        }
+
+        var output = string.Join(Environment.NewLine,
+            Directory.EnumerateFiles(paths.LogsDirectory, "sushi81-*.log").Select(File.ReadAllText));
+        Assert.IsFalse(output.Contains("exception-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("user:password@", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("query-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("ghp_abcdefghijklmnopqrstuvwxyz", StringComparison.Ordinal));
     }
 
     private static async Task ExecuteAsync(SqliteConnection connection, string sql, SqliteTransaction? transaction = null, CancellationToken cancellationToken = default)

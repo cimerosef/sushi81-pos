@@ -27,6 +27,19 @@ namespace Sushi81.Pos.ArchitectureTests;
 [TestClass]
 public sealed class M06DesktopTests
 {
+    private static readonly string[] M07Wp9LocalizedKeys =
+    [
+        "M07AcquireAuthority", "M07ResumeTransfer", "M07ConnectionTest", "M07Setup",
+        "M07DisasterRecovery", "M07DisasterRecoveryPending", "M07ReinitializeStale",
+        "M07CandidateReadOnlyNotice", "M07PendingResumeWarning", "M07RetrySameRecovery"
+    ];
+
+    private static readonly string[] M07Wp9MutationKeys =
+    [
+        "NewProduct", "Edit", "Save", "Confirm", "Add", "NewOrder", "OrderModify", "OrderSave",
+        "OrderClose", "OrderCancel", "OrderNewFromDetails", "Activate", "Deactivate", "BulkActivate", "BulkDeactivate"
+    ];
+
     [TestMethod]
     public void RealShellShowsStaleReadOnlySafetyBoundaryAcrossStatesAndSupportedSizesOnSta()
     {
@@ -245,6 +258,87 @@ public sealed class M06DesktopTests
             {
                 window.Hide();
                 runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [TestMethod]
+    public void M07DetailedPhaseMatrixKeepsShownBusinessControlsFailClosedAndLocalizesM07SurfaceOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var phases = Enum.GetValues<AuthorityPhase>();
+            foreach (var phase in phases)
+            {
+                var writable = phase is AuthorityPhase.Authoritative or AuthorityPhase.ClosedRetainedAuthority;
+                var guard = new WriteAuthorityGuard(writable
+                    ? WriteAuthorityState.Authoritative
+                    : phase is AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant
+                        or AuthorityPhase.TargetAcquisitionPending or AuthorityPhase.DisasterRecoveryPreparing
+                        or AuthorityPhase.DisasterRecoveryPending
+                        ? WriteAuthorityState.Transitioning
+                        : phase is AuthorityPhase.Uninitialized or AuthorityPhase.RecoveryRequired
+                            ? WriteAuthorityState.RecoveryRequired
+                            : WriteAuthorityState.NonAuthoritativeReadOnly);
+                var runtime = M07DisasterRecoveryUiTests.CreateShownRuntime(guard, phase);
+                var catalogueStore = new EmptyCatalogueStore();
+                var settingsStore = new EmptySettingsStore();
+                var catalogue = new CatalogueService(catalogueStore, guard, new NoOpDurableChangeNotifier());
+                var settings = new BusinessSettingsService(settingsStore, guard, new NoOpDurableChangeNotifier());
+                var orderCatalogue = new OrderEntryCatalogueService(catalogueStore);
+                var orderStore = new EmptyOrderStore();
+                var clock = new FixedClock();
+                var ids = new DeterministicIds();
+                using var entry = new OrderEntryService(orderCatalogue, settingsStore, orderStore, new NoOpOrderPrintDispatcher(), ids, clock, guard, new NoOpDurableChangeNotifier());
+                using var lifecycle = new OrderLifecycleService(orderStore, ids, clock, guard, new NoOpDurableChangeNotifier(), orderCatalogue, settingsStore);
+                using var shell = new ShellViewModel(
+                    new InMemorySelectedCultureStore(), true, catalogue, settings, entry, lifecycle, guard, guard.State, runtime, authorityPhase: phase);
+                var window = new MainWindow(shell)
+                {
+                    Width = 980,
+                    Height = 680,
+                    ShowInTaskbar = false,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = 0,
+                    Top = 0
+                };
+                try
+                {
+                    window.Show();
+                    window.UpdateLayout();
+                    window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                    foreach (var key in M07Wp9LocalizedKeys)
+                        Assert.IsFalse(string.IsNullOrWhiteSpace(shell.Localized[key]), $"{phase}: missing FR key {key}");
+
+                    var mutationButtons = VisualDescendants<Button>(window)
+                        .Where(button => button.Content is string content && M07Wp9MutationKeys.Select(key => shell.Localized[key]).Contains(content, StringComparer.Ordinal))
+                        .ToArray();
+                    Assert.IsNotEmpty(mutationButtons, phase.ToString());
+                    if (writable)
+                    {
+                        Assert.IsTrue(shell.CanWrite, phase.ToString());
+                        Assert.IsTrue(mutationButtons.Any(button => Equals(button.Content, shell.Localized["NewProduct"]) && button.IsEnabled), phase.ToString());
+                    }
+                    else
+                    {
+                        Assert.IsFalse(shell.CanWrite, phase.ToString());
+                        Assert.IsTrue(mutationButtons.All(button => !button.IsEnabled), phase.ToString());
+                    }
+
+                    var frenchCreate = shell.Localized["NewProduct"];
+                    shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                    foreach (var key in M07Wp9LocalizedKeys)
+                        Assert.IsFalse(string.IsNullOrWhiteSpace(shell.Localized[key]), $"{phase}: missing zh-CN key {key}");
+                    Assert.AreNotEqual(frenchCreate, shell.Localized["NewProduct"], phase.ToString());
+                    Assert.IsTrue(VisualDescendants<Button>(window).Any(button => Equals(button.Content, shell.Localized["NewProduct"])), phase.ToString());
+                }
+                finally
+                {
+                    window.Hide();
+                    runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    guard.Dispose();
+                }
             }
         });
     }

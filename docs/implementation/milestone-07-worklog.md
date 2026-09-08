@@ -289,3 +289,25 @@ M07 is authorized for implementation but this worklog is not itself a Codex exec
 **Final local evidence for implementation head:** Commit `9b78dda2d0dcf040c149998148ef76a3829ed792`; full Release solution `523/523` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors; self-contained `win-x64` publish to ignored `artifacts/m07-wp8-remediation-12-publish` succeeded; `git diff --check` passed.
 **Exact-head CI for implementation head:** Continuous integration run #616 (`34245779234`) completed `success`; `build-and-test` Restore, Build and Test all completed `success`.
 **Delivery boundary:** This evidence-only worklog update is followed by a fresh exact-head CI run before the matching `CODEX_DONE`. WP8 remains limited to this authorized remediation; owner manual acceptance, WP9, M08 and merge remain unauthorized.
+
+### Review cycle 10 — WP9 integration/observability `M07-WP9-INTEGRATION-OBSERVABILITY-14`
+
+**Entry baseline:** WP8 was accepted by ChatGPT review `5144819467` at head `46f6ba1338e7856b4a5812737e9af7b8dc9a2096`. The required governance-only CI optimization head `07154548cf96cd3f8f7f41260dbfeaaa0af4e649` was verified as the implementation starting point; it changes only CI trigger/concurrency policy and does not change product behavior.
+
+**Scope:** This cycle is limited to the authorized WP9 integration, localization, dispatcher-responsiveness and observability audit. It does not redesign target-directed authority, add lease/election/claim/takeover semantics, mutate the disposable WP7 proof repository, implement WP10/M08 or later milestones, perform owner manual acceptance, or merge the PR.
+
+**WP9.1 application mutation guard evidence:** Added deterministic application-boundary coverage for all current Catalogue, Business Settings, new-order confirmation and existing-order lifecycle mutation families. Every M07 non-writable phase maps to a non-authoritative guard state and rejects before store mutation; no durable notifier/revision signal occurs. An Authoritative vector confirms valid mutations remain enabled and notify after commit.
+
+**WP9.2 shown WPF control matrix:** Extended the real STA `MainWindow` evidence across every declared M07 `AuthorityPhase`. All representative M03/M04/M05 mutation controls remain disabled when the central guard is non-authoritative or transitioning; authoritative and closed-retained-authority surfaces retain the valid create path.
+
+**WP9.3 localization:** The actual shown shell verifies representative M07 action, setup, connection, DR, stale-device and pending-retry keys in both `fr-FR` and `zh-CN`, including a visible control content refresh without changing its authority state.
+
+**WP9.4 responsiveness:** Added real STA dispatcher-pump vectors with delayed `TaskCompletionSource` gates for GitHub connection testing, self-join/System metadata, DR candidate discovery, stale reinitialization/System metadata and target-directed close transfer. The UI/event path processes a dispatcher pulse while each awaited I/O remains incomplete; no blocking sleep or dispatcher wait was introduced.
+
+**WP9.5 observability/dependency boundary:** Extended the last-line diagnostic redactor to cover URL userinfo, Authorization headers, Bearer values, GitHub PAT forms, secret query parameters and common secret fields. Integration tests prove message and exception secrets do not reach rolling logs. Architecture source scans reject proof-repository identifiers, `SUSHI81_GITHUB_HANDOFF_TOKEN` and M02 OneDrive-feasibility runtime markers from production `src`; synthetic secret literals exist only in tests.
+
+**WP9.6 composition/recovery audit:** Added a composition assertion for one central `WriteAuthorityGuard` injected into all mutation services, plus the existing startup/recovery and local-first authority tests remain in the full suite. No second authority/recovery system or proof composition was introduced.
+
+**Local evidence before push:** Full Release solution `530/530` Passed, `0` failed, `0` skipped (Domain 33; Application 53; Infrastructure integration 200; Architecture/WPF 120; OneDrive feasibility 32; OneDrive tools 92). Release build passed with `0` warnings / `0` errors. Self-contained `win-x64` publish succeeded to ignored `artifacts/m07-wp9-publish`; `git diff --check` passed. Exact-head PR CI remains pending until the implementation head is pushed.
+
+**Boundaries:** WP7 proof repository was not rerun or mutated. Project-owner M07 manual acceptance remains pending and must not be inferred from automated evidence. WP10, M08 and later milestones remain not started/unauthorized; merge remains unauthorized.

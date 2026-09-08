@@ -53,6 +53,38 @@ public sealed class DependencyBoundaryTests
         AssertMandatorySeam(typeof(Sushi81.Pos.Application.OrderEntry.OrderLifecycleService));
     }
 
+    [TestMethod]
+    public void ProductionSourceDoesNotCarryProofRepositoryOrM02RuntimeDependencies()
+    {
+        var forbidden = new[]
+        {
+            "SUSHI81_GITHUB_HANDOFF_TOKEN",
+            "M07Wp7Proof",
+            "sushi81-pos-handoff-m07-proof",
+            "OneDriveFeasibility"
+        };
+
+        foreach (var file in Directory.EnumerateFiles(Path.Combine(RepositoryRoot, "src"), "*.*", SearchOption.AllDirectories)
+                     .Where(path => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
+                         || path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
+        {
+            var source = File.ReadAllText(file);
+            foreach (var marker in forbidden)
+                Assert.IsFalse(source.Contains(marker, StringComparison.OrdinalIgnoreCase), $"Production source {file} contains forbidden marker {marker}.");
+        }
+    }
+
+    [TestMethod]
+    public void DesktopCompositionCreatesOneCentralGuardAndInjectsItIntoMutationServices()
+    {
+        var compositionPath = Path.Combine(RepositoryRoot, "src", "Sushi81.Pos.Desktop", "CompositionRoot.cs");
+        var source = File.ReadAllText(compositionPath);
+        Assert.AreEqual(1, source.Split("new WriteAuthorityGuard(", StringSplitOptions.None).Length - 1);
+        Assert.IsTrue(source.Contains("new CatalogueService(catalogueStore, authorityGuard, durableChangeNotifier)", StringComparison.Ordinal));
+        Assert.IsTrue(source.Contains("new BusinessSettingsService(settingsStore, authorityGuard, durableChangeNotifier)", StringComparison.Ordinal));
+        Assert.IsTrue(source.Contains("authorityGuard, durableChangeNotifier, orderCatalogueQueries, settingsStore", StringComparison.Ordinal));
+    }
+
     private static void AssertMandatorySeam(Type serviceType)
     {
         var constructors = serviceType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
