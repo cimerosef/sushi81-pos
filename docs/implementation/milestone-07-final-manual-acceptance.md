@@ -1,10 +1,20 @@
 # M07 final Windows/WPF manual acceptance
 
-**Status:** Prepared checklist — NOT EXECUTED / NOT PASSED  
+**Status:** Ready for project-owner execution — NOT EXECUTED / NOT PASSED
 **Prepared:** 2026-09-07  
 **Milestone:** M07 — Pairing, target-directed formal handoff and disaster recovery  
 **Execution gate:** CLOSED at preparation time  
 **Implementation contract:** `milestone-07-pairing-handoff-disaster-recovery.md`
+
+## Automated closure candidate (Codex evidence; not owner acceptance)
+
+- Accepted production-code candidate: `79db4bb8a92f401fbc40d464a2f7792d269cdb83`.
+- WP7, WP8 and WP9 including AL/AM: accepted by ChatGPT review `5147243664`.
+- Final local Release evidence: `531/531` Passed, `0` failed, `0` skipped; build `0` warnings / `0` errors.
+- Focused final M07 safety sweep: infrastructure `163/163`, application guard `2/2`, Architecture/WPF `37/37`, all `0` failed / `0` skipped.
+- Fresh self-contained `win-x64` publish candidate: `artifacts/m07-wp10-final-publish`; primary executable `Sushi81.Pos.Desktop.exe`, `162816` bytes, SHA-256 `D9310D527BF2D64D60B3CEA65EDA04274366289576B485F08C7B02C78E826F0D`.
+- Prior accepted production-head CI: #623 / run `34280672910`, Restore/Build/Test successful. The final WP10 documentation head requires its own exact-head CI before delivery.
+- Project-owner Windows/WPF multi-device acceptance: **NOT EXECUTED / NOT PASSED**.
 
 This checklist is executed by the project owner only after ChatGPT review/remediation is complete and an exact candidate production head/artifact is identified. Codex must not mark these scenarios Passed on the owner's behalf.
 
