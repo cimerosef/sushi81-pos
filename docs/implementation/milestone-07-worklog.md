@@ -128,12 +128,12 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 
 ### M07-WP8 — production Disaster Recovery/stale generation/reinit
 
-**Status:** In progress — authorized handoff `M07-WP8-PRODUCTION-DR-08`; owner manual acceptance and merge remain unauthorized
-**Commit(s):** Pending exact implementation head
-**Tests/evidence:** Focused contract/integration verification is being extended; no real WP7 proof repository was rerun or mutated.
-**Replacement-PC evidence:** Production candidate discovery, quarantine confirmation, data-first restore and current-generation reinitialization paths are implemented; Windows/project-owner acceptance remains pending.
-**Generation/fencing evidence:** Canonical DR preparing/pending evidence, exact `System` generation advance, startup stale fencing and read-only reinitialization are implemented; final Release/CI evidence is pending.
-**Next:** Complete focused/full Release verification, self-contained publish, exact-head CI and durable handoff completion report.
+**Status:** In progress — implementation pushed for authorized handoff `M07-WP8-PRODUCTION-DR-08`; owner manual acceptance and merge remain unauthorized
+**Commit(s):** `ae211e3` — production WP8 implementation, tests and integration wiring
+**Tests/evidence:** Local full Release solution `448/448` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors; self-contained `win-x64` publish succeeded. No real WP7 proof repository was rerun or mutated.
+**Replacement-PC evidence:** Production candidate discovery/order, explicit quarantine confirmation, online activation, data-first restore and current-generation read-only reinitialization paths are implemented; Windows/project-owner acceptance remains pending.
+**Generation/fencing evidence:** Canonical DR preparing/pending evidence, exact `System` generation advance, startup stale fencing and read-only reinitialization are implemented; exact-head CI evidence is pending.
+**Next:** Publish the final documentation/evidence head, obtain exact-head CI, then post the matching durable handoff completion report.
 
 ### M07-WP9 — WPF/localization/observability/integration
 
@@ -147,11 +147,11 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 ### M07-WP10 — automated/CI closure before owner acceptance
 
 **Status:** Pending WP8 completion — exact-head CI, publish evidence and owner acceptance remain pending
-**Accepted production-code head candidate:** `21e078185608b7f7edb86a19c36dba3ec08b2dfb` — exact-head CI passed; owner acceptance remains pending
-**Release tests:** local full solution `444/444` Passed, `0` failed, `0` skipped (Domain 33; Application 47; Infrastructure integration 134; test OneDrive feasibility 32; tool OneDrive feasibility 92; Architecture/WPF 106). The prior exact-head repository-wide CI count remains `439/439` Passed.
+**Accepted production-code head candidate:** `ae211e3` — local exact candidate; exact-head CI and owner acceptance remain pending
+**Release tests:** local full solution `448/448` Passed, `0` failed, `0` skipped (Domain 33; Application 49; Infrastructure integration 136; test OneDrive feasibility 32; tool OneDrive feasibility 92; Architecture/WPF 106). The prior exact-head repository-wide CI count remains historical evidence.
 **Release build warnings/errors:** `0/0`
-**Self-contained win-x64 publish:** Not run; not required by this remediation handoff
-**Exact-head CI run:** prior exact head `cb1db0c38993687e9b9546f80f4586ef23647de0` — `34166501154` (run #584) success, CI Release build `0` warnings / `0` errors and Release tests `439/439` Passed, `0` failed, `0` skipped. Current remediation/evidence head `e12b4092239b052baf4f0e8c4ec619fd2b3c90ed` — `34168357623` (run #586) success, CI Release build `0` warnings / `0` errors and Release tests `444/444` Passed, `0` failed, `0` skipped.
+**Self-contained win-x64 publish:** Succeeded locally for the WP8 implementation candidate.
+**Exact-head CI run:** Pending for the pushed WP8 implementation head.
 **Latest WP7 evidence:** `M07-WP7-REAL-PROOF-07` passed with the selected real private GitHub race/unknown-outcome evidence recorded above. Final accepted WP7 implementation/documentation head before WP8 is `188f24c9ce94da86fbb2b86830fcd0568a1bdf5b`; exact-head GitHub Actions Continuous integration run #594 (`34208178930`) succeeded. WP8 is authorized/in progress; M08 and later milestones remain not started/unauthorized.
 
 ## 4. Review/remediation log
