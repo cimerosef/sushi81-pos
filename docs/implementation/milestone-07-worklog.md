@@ -152,7 +152,7 @@ Codex/governance controller appends entries below. Never rewrite earlier executi
 **Release build warnings/errors:** `0/0`
 **Self-contained win-x64 publish:** Not run; not required by this remediation handoff
 **Exact-head CI run:** prior exact head `cb1db0c38993687e9b9546f80f4586ef23647de0` — `34166501154` (run #584) success, CI Release build `0` warnings / `0` errors and Release tests `439/439` Passed, `0` failed, `0` skipped. Current remediation/evidence head `e12b4092239b052baf4f0e8c4ec619fd2b3c90ed` — `34168357623` (run #586) success, CI Release build `0` warnings / `0` errors and Release tests `444/444` Passed, `0` failed, `0` skipped.
-**Latest WP7 evidence:** `M07-WP7-REAL-PROOF-07` passed with the selected real private GitHub race/unknown-outcome evidence recorded above. Exact-head CI for the new proof/evidence head remains pending after push; WP8 and M08 remain not started.
+**Latest WP7 evidence:** `M07-WP7-REAL-PROOF-07` passed with the selected real private GitHub race/unknown-outcome evidence recorded above. Final pushed head `48cba1594855f34cd2c2978b98c35b9837129c13`; exact-head GitHub Actions Continuous integration run #592 (`34207849997`) succeeded. WP8 and M08 remain not started.
 
 ## 4. Review/remediation log
 
