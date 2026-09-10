@@ -15,6 +15,9 @@
 - Fresh self-contained `win-x64` publish candidate: `artifacts/m07-wp10-final-publish`; primary executable `Sushi81.Pos.Desktop.exe`, `162816` bytes, SHA-256 `D9310D527BF2D64D60B3CEA65EDA04274366289576B485F08C7B02C78E826F0D`.
 - Prior accepted production-head CI: #623 / run `34280672910`, Restore/Build/Test successful. The final WP10 documentation head requires its own exact-head CI before delivery.
 - Project-owner Windows/WPF multi-device acceptance: **NOT EXECUTED / NOT PASSED**.
+- Replacement remediation production-code head: `b58c264` (`b58c26473e3f4158bcafb16be07a8f8c7ea40c8f`, pending exact-head CI verification).
+- Replacement self-contained `win-x64` artifact: `artifacts/m07-manual-remediation-18-publish`; primary executable `Sushi81.Pos.Desktop.exe`, `162816` bytes, SHA-256 `C8C6B7F2420B016FEA9AE079E6B1E4D7FCB981313B2F213D9FDDD2AAED90A45C`.
+- Replacement local Release evidence: `532/532` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors. Exact-head CI and owner retest remain pending.
 
 ## Remediation finding carried into owner retest
 
@@ -42,13 +45,13 @@ This checklist is executed by the project owner only after ChatGPT review/remedi
 
 Fill before testing:
 
-- exact production-code head SHA:
-- exact docs/evidence head SHA:
-- PR number:
-- artifact/publish location:
-- Release test result:
-- Release build warnings/errors:
-- exact-head CI run:
+- exact production-code head SHA: `b58c26473e3f4158bcafb16be07a8f8c7ea40c8f`
+- exact docs/evidence head SHA: see the final evidence-bookkeeping head on PR #13
+- PR number: `#13`
+- artifact/publish location: `artifacts/m07-manual-remediation-18-publish`
+- Release test result: `532/532` Passed, `0` failed, `0` skipped
+- Release build warnings/errors: `0 / 0`
+- exact-head CI run: pending delivery verification
 - Windows PC A identity/display name:
 - Windows PC B identity/display name:
 - device C (physical/VM/Sandbox) identity/display name:

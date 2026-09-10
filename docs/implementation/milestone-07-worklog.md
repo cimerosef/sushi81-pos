@@ -398,3 +398,12 @@ recorded only after verification below.
 Scenario A must be rerun on the replacement production artifact. WP7 proof repository/assets
 were not rerun or mutated. M08 and later milestones remain unauthorized/not started; merge remains
 unauthorized.
+
+**Local remediation evidence:** Production/evidence commit `b58c26473e3f4158bcafb16be07a8f8c7ea40c8f`.
+Focused Infrastructure provenance tests and the production M06/R18 STA sequence passed. Full
+Release solution passed `532/532`, `0` failed, `0` skipped; Release build passed with `0` warnings
+and `0` errors. Fresh self-contained `win-x64` publish succeeded at
+`artifacts/m07-manual-remediation-18-publish`; primary `Sushi81.Pos.Desktop.exe` is `162816` bytes,
+SHA-256 `C8C6B7F2420B016FEA9AE079E6B1E4D7FCB981313B2F213D9FDDD2AAED90A45C`. Exact-head CI,
+project-owner retest and merge approval remain pending; these automated results do not claim M07
+manual acceptance.
