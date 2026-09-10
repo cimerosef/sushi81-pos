@@ -448,18 +448,41 @@ public sealed class InfrastructureIntegrationTests
         using var paths = new TestAppPaths();
         paths.EnsureInitialized();
         var store = new JsonAuthorityStateStore(paths);
+        var preflight = await AuthorityStartupPreflight.CaptureAsync(paths, store);
         var evidenceBeforeMigrations = await store.HasLegacyBootstrapEvidenceAsync();
 
         var clock = new FixedClock();
         await new SqliteMigrationRunner(new SqliteConnectionFactory(paths), ProductionMigrations.All, clock).InitializeAsync();
-        Assert.IsTrue(await store.HasLegacyBootstrapEvidenceAsync(), "The migrated schema is not itself pre-existing legacy evidence.");
+        Assert.IsFalse(await store.HasLegacyBootstrapEvidenceAsync(), "Fresh-install provenance must override migrated schema history.");
 
         var guard = new WriteAuthorityGuard();
-        var result = await new AuthorityStateCoordinator(store, guard, clock, NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(evidenceBeforeMigrations);
+        var result = await new AuthorityStateCoordinator(store, guard, clock, NullLogger<AuthorityStateCoordinator>.Instance)
+            .InitializeAsync(evidenceBeforeMigrations, preflight.HasPreExistingLiveDatabase);
 
         Assert.IsFalse(evidenceBeforeMigrations);
         Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
         Assert.Throws<WriteAuthorityException>(guard.RequireWriteAuthority);
+    }
+
+    [TestMethod]
+    public async Task FreshInstallProvenancePartialOrCorruptEvidenceAlwaysFailsClosed()
+    {
+        foreach (var mutate in new Action<TestAppPaths>[]
+        {
+            paths => File.Delete(Path.Combine(paths.ConfigDirectory, "m07-fresh-install.marker")),
+            paths => File.Delete(Path.Combine(paths.DataDirectory, "m07-fresh-install.anchor")),
+            paths => File.WriteAllText(Path.Combine(paths.ConfigDirectory, "m07-fresh-install.marker"), "corrupt"),
+            paths => File.WriteAllText(Path.Combine(paths.DataDirectory, "m07-fresh-install.anchor"), "crash-shaped-partial")
+        })
+        {
+            using var paths = new TestAppPaths();
+            var store = new JsonAuthorityStateStore(paths);
+            await AuthorityStartupPreflight.CaptureAsync(paths, store);
+            mutate(paths);
+
+            await Assert.ThrowsAsync<InvalidDataException>(() => AuthorityStartupPreflight.CaptureAsync(paths, store));
+            await Assert.ThrowsAsync<InvalidDataException>(() => store.HasLegacyBootstrapEvidenceAsync());
+        }
     }
 
     [TestMethod]

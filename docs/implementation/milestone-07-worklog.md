@@ -354,3 +354,47 @@ M07 is authorized for implementation but this worklog is not itself a Codex exec
 **WP10-D publish candidate:** Fresh self-contained `win-x64` Release publish succeeded at ignored `artifacts/m07-wp10-final-publish`. Primary executable: `Sushi81.Pos.Desktop.exe`, `162816` bytes, SHA-256 `D9310D527BF2D64D60B3CEA65EDA04274366289576B485F08C7B02C78E826F0D`. The publish contains no customer database, authority-state file, credential file or business-data directory. Static launchability sanity passed: the native executable is present with the managed `Sushi81.Pos.Desktop.dll`, `.deps.json` and `.runtimeconfig.json` payload; this is not owner manual acceptance and no user-facing run was claimed.
 
 **Boundaries/status:** WP7 proof repository/release/assets were not rerun, mutated or deleted. WP10 automated closure is **complete pending ChatGPT review / owner manual acceptance**. The manual checklist remains **NOT EXECUTED / NOT PASSED**; M07 is not marked Passed. M08 and later milestones were not started/authorized; merge remains unauthorized. Exact-head CI for the final closure commit and matching `CODEX_DONE` remain pending push.
+
+### Review cycle 14 — manual-acceptance remediation `M07-MANUAL-ACCEPTANCE-REMEDIATION-18`
+
+**Entry finding:** The project-owner review of Scenario A on the prior WP10 production candidate
+`79db4bb8a92f401fbc40d464a2f7792d269cdb83` found that a genuinely fresh install could become a
+new local Authoritative lineage on a later restart. Review reference: `5167820845`. The local
+state was ultimately fenced by shared-lineage contradiction, but creating that local authority
+before the fence was unsafe. Scenario A remains **Blocked / failed on the old candidate**.
+
+**Scope:** This remediation is limited to the fresh-install provenance/legacy-bootstrap boundary
+already authorized under M07. It does not redesign target-directed handoff, target acquisition,
+disaster-recovery generation, single-winner rules, GitHub/OneDrive transport, business data,
+WP7 proof assets, WP9 behavior, M08 or merge authorization.
+
+**Root-cause remediation:** Startup preflight now creates a versioned non-authority pair only when
+the beginning-of-startup evidence proves that no `live.db` and no established authority artifacts
+existed: `Config/m07-fresh-install.marker` and `Data/m07-fresh-install.anchor`. Each is create-only,
+write-through and flushed. A valid pair makes legacy bootstrap false regardless of migrated
+`schema_migrations`; a missing half or corrupt content fails closed. Existing supported legacy
+databases without the pair retain one-time bootstrap, and existing M06 authority state/marker/
+anchor upgrades remain unchanged.
+
+**Automated evidence added:**
+
+- `InfrastructureIntegrationTests.FreshMigratedDatabaseDoesNotQualifyAsLegacyBootstrapEvidence`
+  now captures pre-migration fresh provenance and proves repeated migration history cannot qualify
+  as legacy evidence.
+- `InfrastructureIntegrationTests.FreshInstallProvenancePartialOrCorruptEvidenceAlwaysFailsClosed`
+  covers Config-only, Data-only, corrupt and crash-shaped partial provenance.
+- `M06StartupTests.ProductionStartupWithExistingRecoveryShowsMainWindowAndClosesOnSta`
+  exercises production `CompositionRoot` on a real STA dispatcher for repeated fresh restarts,
+  shared-lineage setup, no-grant acquisition rejection, explicit self-join, exact identity/
+  lineage/generation persistence and read-only restart behavior.
+
+**Documentation:** The finding and owner boundary are recorded in
+`docs/implementation/milestone-07-manual-acceptance-findings-01.md`; the final manual acceptance
+checklist explicitly records Scenario A as blocked on the old candidate and requiring retest on
+the replacement candidate. Exact replacement head/artifact and full Release/CI evidence are
+recorded only after verification below.
+
+**Status/boundaries:** Project-owner manual acceptance remains **not executed / not passed**;
+Scenario A must be rerun on the replacement production artifact. WP7 proof repository/assets
+were not rerun or mutated. M08 and later milestones remain unauthorized/not started; merge remains
+unauthorized.

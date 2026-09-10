@@ -7,9 +7,12 @@ using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Configuration;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Recovery;
+using Sushi81.Pos.Application.Pairing.SystemMetadata;
 using Sushi81.Pos.Desktop;
 using Sushi81.Pos.Infrastructure.Configuration;
+using Sushi81.Pos.Infrastructure.Authority;
 using Sushi81.Pos.Infrastructure.Migrations;
+using Sushi81.Pos.Infrastructure.Pairing.SystemMetadata;
 using Sushi81.Pos.Infrastructure.Recovery;
 using Sushi81.Pos.Infrastructure.Sqlite;
 using Sushi81.Pos.Infrastructure.Time;
@@ -99,49 +102,149 @@ public sealed class M06StartupTests
     public async Task ProductionStartupWithExistingRecoveryShowsMainWindowAndClosesOnSta()
     {
         var paths = new TestPaths();
-        paths.EnsureInitialized();
-        var clock = new TimeProviderBusinessClock(TimeProvider.System, TimeZoneInfo.Utc);
-        var connections = new SqliteConnectionFactory(paths);
-        await new SqliteMigrationRunner(connections, ProductionMigrations.All, clock).InitializeAsync();
-        var snapshots = new SqliteLocalRecoverySnapshotService(paths, connections, clock);
-        await snapshots.CreateAsync(new DurableChange(41, clock.UtcNow));
-
-        Exception? failure = null;
-        bool realWindow = false, visible = false, startupSucceeded = false, canWrite = false;
-        var thread = new Thread(() =>
+        var freshPaths = new TestPaths();
+        var setupPaths = new TestPaths();
+        var joinPaths = new TestPaths();
+        try
         {
-            var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
-            app.Startup += async (_, _) =>
+            paths.EnsureInitialized();
+            var clock = new TimeProviderBusinessClock(TimeProvider.System, TimeZoneInfo.Utc);
+            var connections = new SqliteConnectionFactory(paths);
+            await new SqliteMigrationRunner(connections, ProductionMigrations.All, clock).InitializeAsync();
+            var snapshots = new SqliteLocalRecoverySnapshotService(paths, connections, clock);
+            await snapshots.CreateAsync(new DurableChange(41, clock.UtcNow));
+
+            var setupSharedRoot = Path.Combine(setupPaths.RootDirectory, "Shared OneDrive");
+            var joinSharedRoot = Path.Combine(joinPaths.RootDirectory, "Shared OneDrive");
+            Directory.CreateDirectory(setupSharedRoot);
+            Directory.CreateDirectory(joinSharedRoot);
+            var setupLineage = Guid.NewGuid();
+            var joinLineage = Guid.NewGuid();
+            await new JsonSystemMetadataStore(setupSharedRoot).EnsureCurrentLineageAsync(setupLineage, 1);
+            await new JsonSystemMetadataStore(joinSharedRoot).EnsureCurrentLineageAsync(joinLineage, 1);
+            await ConfigureSharedRootAsync(setupPaths, setupSharedRoot);
+            await ConfigureSharedRootAsync(joinPaths, joinSharedRoot);
+
+            Exception? failure = null;
+            bool realWindow = false, visible = false, startupSucceeded = false, canWrite = false;
+            var thread = new Thread(() =>
             {
-                try
+                var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+                app.Startup += async (_, _) =>
                 {
-                    await CompositionRoot.StartAsync(app, paths);
-                    realWindow = app.MainWindow is MainWindow;
-                    visible = app.MainWindow.IsVisible;
-                    var shell = (ShellViewModel)app.MainWindow.DataContext;
-                    startupSucceeded = shell.StartupSucceeded;
-                    canWrite = shell.CanWrite;
-                    app.MainWindow.Close();
-                }
-                catch (Exception exception)
-                {
-                    failure = exception;
-                    app.Shutdown();
-                }
-            };
-            try { app.Run(); }
-            catch (Exception exception) { failure = exception; }
-        }) { IsBackground = true };
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(20)), "Production WPF startup/close deadlocked with existing Recovery. Bounded background thread prevents hanging CI.");
-        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
-        Assert.IsTrue(realWindow);
-        Assert.IsTrue(visible, "The production startup must show the real main window.");
-        Assert.IsTrue(startupSucceeded);
-        Assert.IsTrue(canWrite, "A supported existing installation must bootstrap normally.");
-        Assert.AreEqual(41L, await SqliteLocalRecoverySnapshotService.GetHighestValidatedSequenceAsync(paths));
-        Directory.Delete(paths.RootDirectory, recursive: true);
+                    try
+                    {
+                        // Existing M06 recovery startup remains the production baseline.
+                        await CompositionRoot.StartAsync(app, paths);
+                        realWindow = app.MainWindow is MainWindow;
+                        visible = app.MainWindow.IsVisible;
+                        var shell = (ShellViewModel)app.MainWindow.DataContext;
+                        startupSucceeded = shell.StartupSucceeded;
+                        canWrite = shell.CanWrite;
+                        app.MainWindow.Close();
+                        await Task.Yield();
+
+                        // R18-A: first production startup creates the DB but remains read-only;
+                        // repeated full production restarts cannot bootstrap a new lineage.
+                        for (var restart = 0; restart < 3; restart++)
+                        {
+                            await CompositionRoot.StartAsync(app, freshPaths);
+                            var freshShell = (ShellViewModel)app.MainWindow.DataContext;
+                            Require(freshShell.StartupSucceeded, "Fresh production startup did not succeed.");
+                            Require(!freshShell.CanWrite, "Fresh production startup became writable.");
+                            app.MainWindow.Close();
+                            await Task.Yield();
+                        }
+                        var freshStore = new JsonAuthorityStateStore(freshPaths);
+                        Require(File.Exists(Path.Combine(freshPaths.ConfigDirectory, "m07-fresh-install.marker")), "Fresh Config provenance is missing.");
+                        Require(File.Exists(Path.Combine(freshPaths.DataDirectory, "m07-fresh-install.anchor")), "Fresh Data provenance is missing.");
+                        Require(!File.Exists(Path.Combine(freshPaths.ConfigDirectory, "authority-state.json")), "Fresh startup created authority state.");
+                        Require(!await freshStore.HasLegacyBootstrapEvidenceAsync(), "Fresh startup qualified as legacy bootstrap evidence.");
+
+                        // R18-B/F: setup against existing shared metadata offers self-join while
+                        // leaving business writes and no-grant acquisition unavailable.
+                        await CompositionRoot.StartAsync(app, setupPaths);
+                        var setupShell = (ShellViewModel)app.MainWindow.DataContext;
+                        Require(!setupShell.CanWrite, "Fresh setup became writable.");
+                        Require(setupShell.CanJoinExistingLineage, "Fresh setup did not expose self-join.");
+                        var noGrant = await setupShell.AcquireTransferredAuthorityAsync();
+                        Require(noGrant is not null, "No-grant acquisition returned no result.");
+                        Require(!noGrant!.Succeeded, "No-grant acquisition unexpectedly succeeded.");
+                        Require(!setupShell.CanWrite, "No-grant acquisition changed write authority.");
+                        Require(!File.Exists(Path.Combine(setupPaths.ConfigDirectory, "authority-state.json")), "No-grant acquisition created authority state.");
+                        app.MainWindow.Close();
+                        await Task.Yield();
+
+                        // R18-C: explicit self-join persists exact identity/lineage/generation
+                        // and production restart reconstructs the same read-only state.
+                        await CompositionRoot.StartAsync(app, joinPaths);
+                        var joinShell = (ShellViewModel)app.MainWindow.DataContext;
+                        Require(joinShell.CanJoinExistingLineage, "Production self-join was not exposed.");
+                        var joined = await joinShell.JoinExistingLineageAsync("Fresh B");
+                        Require(joined.Readiness == PairingReadiness.PairedUninitializedReadOnly, "Self-join did not remain paired/read-only.");
+                        Require(!joinShell.CanWrite, "Self-join became writable.");
+                        app.MainWindow.Close();
+                        await Task.Yield();
+
+                        var joinStore = new JsonAuthorityStateStore(joinPaths);
+                        var joinedDocument = await joinStore.LoadAsync();
+                        var joinedProtocol = joinedDocument?.Protocol;
+                        Require(joinedProtocol is not null, "Self-join did not persist protocol state.");
+                        Require(joinedProtocol!.LineageId == joinLineage, "Self-join persisted a different lineage.");
+                        Require(joinedProtocol.Generation == 1, "Self-join persisted a different generation.");
+                        var joinedDeviceId = joinedProtocol.DeviceId;
+
+                        await CompositionRoot.StartAsync(app, joinPaths);
+                        var restartedJoinShell = (ShellViewModel)app.MainWindow.DataContext;
+                        var restartedDocument = await joinStore.LoadAsync();
+                        Require(restartedDocument?.Protocol?.DeviceId == joinedDeviceId, "Self-join device identity changed after restart.");
+                        Require(restartedDocument?.Protocol?.LineageId == joinLineage, "Self-join lineage changed after restart.");
+                        Require(restartedDocument?.Protocol?.Generation == 1, "Self-join generation changed after restart.");
+                        Require(!restartedJoinShell.CanWrite, "Self-join restart became writable.");
+                        Require(!restartedJoinShell.CanJoinExistingLineage, "Paired self-join incorrectly remained joinable.");
+                        app.MainWindow.Close();
+                        await Task.Yield();
+                        app.Shutdown();
+                    }
+                    catch (Exception exception)
+                    {
+                        failure = exception;
+                        app.Shutdown();
+                    }
+                };
+                try { app.Run(); }
+                catch (Exception exception) { failure = exception; }
+            }) { IsBackground = true };
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(45)), "Production M06/R18 startup sequence did not close on a bounded STA thread.");
+            if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+            Assert.IsTrue(realWindow);
+            Assert.IsTrue(visible, "The production startup must show the real main window.");
+            Assert.IsTrue(startupSucceeded);
+            Assert.IsTrue(canWrite, "A supported existing installation must bootstrap normally.");
+            Assert.AreEqual(41L, await SqliteLocalRecoverySnapshotService.GetHighestValidatedSequenceAsync(paths));
+        }
+        finally
+        {
+            foreach (var testPaths in new[] { paths, freshPaths, setupPaths, joinPaths })
+            {
+                if (Directory.Exists(testPaths.RootDirectory)) Directory.Delete(testPaths.RootDirectory, recursive: true);
+            }
+        }
+    }
+
+    private static async Task ConfigureSharedRootAsync(TestPaths paths, string sharedRoot)
+    {
+        var configurationService = new JsonLocalConfigurationService(paths);
+        var result = await new M07ConfigurationSetupService(configurationService, new JsonAuthorityStateStore(paths))
+            .ValidateAndPersistAsync(await configurationService.LoadAsync(), new(sharedRoot, null, null, null, null, null));
+        Assert.IsTrue(result.Succeeded);
+    }
+
+    private static void Require(bool condition, string message)
+    {
+        if (!condition) throw new InvalidOperationException(message);
     }
 
     private static string[] VisibleButtonLabels(Window window) =>

@@ -34,7 +34,12 @@ public static class AuthorityStartupPreflight
                 "Established local authority evidence exists, but the pre-existing live database is missing. Startup is blocked to prevent a replacement database from becoming authoritative.");
         }
 
-        return new(hasPreExistingLiveDatabase, hasEstablishedAuthorityArtifacts);
+        var evidence = new AuthorityStartupEvidence(hasPreExistingLiveDatabase, hasEstablishedAuthorityArtifacts);
+        await store.EnsureFreshInstallProvenanceAsync(
+            evidence.HasPreExistingLiveDatabase,
+            evidence.HasEstablishedAuthorityArtifacts,
+            cancellationToken);
+        return evidence;
     }
 }
 

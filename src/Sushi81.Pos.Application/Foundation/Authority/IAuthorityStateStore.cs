@@ -38,4 +38,17 @@ public interface IAuthorityStateStore
     /// accepted as the authoritative local database.
     /// </summary>
     Task<bool> HasEstablishedAuthorityArtifactsAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
+
+    /// <summary>
+    /// Persists non-authority provenance for an installation that was genuinely empty at the
+    /// beginning of its first M07-capable startup. The provenance can only make legacy
+    /// bootstrap ineligible; it can never grant authority or lineage.
+    /// </summary>
+    Task EnsureFreshInstallProvenanceAsync(
+        bool hasPreExistingLiveDatabase,
+        bool hasEstablishedAuthorityArtifacts,
+        CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    /// <summary>Reports valid fresh-install provenance; malformed or partial provenance must fail closed.</summary>
+    Task<bool> HasFreshInstallProvenanceAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
 }

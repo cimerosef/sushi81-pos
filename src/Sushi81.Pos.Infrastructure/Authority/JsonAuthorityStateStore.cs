@@ -13,8 +13,11 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths, Action<string>? dur
     private const string StateFileName = "authority-state.json";
     private const string BootstrapMarkerFileName = "authority-bootstrap.marker";
     private const string BootstrapAnchorFileName = "authority-bootstrap.anchor";
+    private const string FreshInstallMarkerFileName = "m07-fresh-install.marker";
+    private const string FreshInstallAnchorFileName = "m07-fresh-install.anchor";
     private static readonly byte[] BootstrapMarkerContents = "Sushi81 POS local authority bootstrap completed\n"u8.ToArray();
     private static readonly byte[] BootstrapAnchorContents = "Sushi81 POS M06 bootstrap completed\n"u8.ToArray();
+    private static readonly byte[] FreshInstallProvenanceContents = "Sushi81 POS M07 fresh-install provenance v1\n"u8.ToArray();
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -126,6 +129,7 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths, Action<string>? dur
     public async Task<bool> HasLegacyBootstrapEvidenceAsync(CancellationToken cancellationToken = default)
     {
         paths.EnsureInitialized();
+        if (await HasFreshInstallProvenanceAsync(cancellationToken)) return false;
         if (!File.Exists(paths.LiveDatabasePath)) return false;
 
         try
@@ -165,6 +169,50 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths, Action<string>? dur
             || File.Exists(Path.Combine(paths.DataDirectory, BootstrapAnchorFileName)));
     }
 
+    public async Task EnsureFreshInstallProvenanceAsync(
+        bool hasPreExistingLiveDatabase,
+        bool hasEstablishedAuthorityArtifacts,
+        CancellationToken cancellationToken = default)
+    {
+        paths.EnsureInitialized();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Always validate any observed provenance, including on an established installation.
+        // A partial or corrupt pair is ambiguous evidence and must never be ignored.
+        var hasProvenance = await HasFreshInstallProvenanceAsync(cancellationToken);
+        if (hasProvenance || hasPreExistingLiveDatabase || hasEstablishedAuthorityArtifacts) return;
+
+        // This is the only point where fresh provenance may be created. Both preflight facts
+        // were captured before migrations, so a newly created/migrated DB cannot become legacy
+        // evidence on a later restart.
+        await WriteCreateOnlyAsync(
+            Path.Combine(paths.ConfigDirectory, FreshInstallMarkerFileName),
+            FreshInstallProvenanceContents,
+            cancellationToken);
+        await WriteCreateOnlyAsync(
+            Path.Combine(paths.DataDirectory, FreshInstallAnchorFileName),
+            FreshInstallProvenanceContents,
+            cancellationToken);
+    }
+
+    public async Task<bool> HasFreshInstallProvenanceAsync(CancellationToken cancellationToken = default)
+    {
+        paths.EnsureInitialized();
+        var markerPath = Path.Combine(paths.ConfigDirectory, FreshInstallMarkerFileName);
+        var anchorPath = Path.Combine(paths.DataDirectory, FreshInstallAnchorFileName);
+        var hasMarker = File.Exists(markerPath);
+        var hasAnchor = File.Exists(anchorPath);
+        if (!hasMarker && !hasAnchor) return false;
+        if (!hasMarker || !hasAnchor)
+            throw new InvalidDataException("Fresh-install provenance is partial; startup is blocked.");
+
+        var markerMatches = await HasExpectedEvidenceAsync(markerPath, FreshInstallProvenanceContents, cancellationToken);
+        var anchorMatches = await HasExpectedEvidenceAsync(anchorPath, FreshInstallProvenanceContents, cancellationToken);
+        if (!markerMatches || !anchorMatches)
+            throw new InvalidDataException("Fresh-install provenance is corrupt; startup is blocked.");
+        return true;
+    }
+
     public async Task WriteBootstrapAnchorAsync(CancellationToken cancellationToken = default)
     {
         paths.EnsureInitialized();
@@ -201,6 +249,34 @@ public sealed class JsonAuthorityStateStore(IAppPaths paths, Action<string>? dur
         if (!File.Exists(path)) return false;
         var actual = await File.ReadAllBytesAsync(path, cancellationToken);
         return actual.AsSpan().SequenceEqual(expected.Span);
+    }
+
+    private static async Task WriteCreateOnlyAsync(
+        string path,
+        ReadOnlyMemory<byte> contents,
+        CancellationToken cancellationToken)
+    {
+        var temporaryPath = Path.Combine(Path.GetDirectoryName(path)!, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await using (var stream = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                4096,
+                FileOptions.Asynchronous | FileOptions.WriteThrough))
+            {
+                await stream.WriteAsync(contents, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
+            }
+            File.Move(temporaryPath, path, overwrite: false);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+        }
     }
 
     private async Task WriteAtomicallyAsync<T>(string path, T value, CancellationToken cancellationToken)

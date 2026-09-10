@@ -1,6 +1,6 @@
 # M07 final Windows/WPF manual acceptance
 
-**Status:** Ready for project-owner execution — NOT EXECUTED / NOT PASSED
+**Status:** Remediation candidate prepared — old candidate Scenario A BLOCKED; owner retest required — NOT EXECUTED / NOT PASSED
 **Prepared:** 2026-09-07  
 **Milestone:** M07 — Pairing, target-directed formal handoff and disaster recovery  
 **Execution gate:** CLOSED at preparation time  
@@ -15,6 +15,26 @@
 - Fresh self-contained `win-x64` publish candidate: `artifacts/m07-wp10-final-publish`; primary executable `Sushi81.Pos.Desktop.exe`, `162816` bytes, SHA-256 `D9310D527BF2D64D60B3CEA65EDA04274366289576B485F08C7B02C78E826F0D`.
 - Prior accepted production-head CI: #623 / run `34280672910`, Restore/Build/Test successful. The final WP10 documentation head requires its own exact-head CI before delivery.
 - Project-owner Windows/WPF multi-device acceptance: **NOT EXECUTED / NOT PASSED**.
+
+## Remediation finding carried into owner retest
+
+The first owner review of Scenario A found a blocking defect on the prior WP10 candidate
+(`79db4bb8a92f401fbc40d464a2f7792d269cdb83`): after a genuinely fresh first launch created and
+migrated `Data\live.db`, a later restart could mistake `schema_migrations` for pre-M07 legacy
+evidence and create a new local Authoritative lineage. The UI ultimately remained Recovery
+Required because shared metadata contradicted that local lineage, but the local authority
+creation itself was unsafe and Scenario A is **Blocked / failed on the old candidate**.
+
+The remediation adds paired non-authority fresh-install provenance under Config and Data,
+captured before migrations with create-new/write-through/flush semantics. A valid pair permanently
+disqualifies legacy bootstrap; a missing or corrupt half fails closed. The automated regression
+also covers repeated fresh restarts, fresh setup against existing shared lineage, explicit
+self-join, stable identity/generation and read-only restart reconstruction.
+
+This finding is recorded in [`milestone-07-manual-acceptance-findings-01.md`](milestone-07-manual-acceptance-findings-01.md).
+The replacement production artifact and exact head must be filled below after delivery, and
+Scenario A plus any dependent owner checks must be rerun. No scenario or overall M07 acceptance
+is Passed by this remediation.
 
 This checklist is executed by the project owner only after ChatGPT review/remediation is complete and an exact candidate production head/artifact is identified. Codex must not mark these scenarios Passed on the owner's behalf.
 
@@ -63,7 +83,7 @@ Steps/result:
 - [ ] A can see/select B as an eligible normal current-generation target after metadata converges.
 - [ ] Restart B and verify the same immutable device identity/membership persists.
 
-Result: Pending
+Result: **Blocked / failed on prior WP10 candidate; retest required on remediation candidate**
 
 ## 4. Scenario B — third device and target identity
 
