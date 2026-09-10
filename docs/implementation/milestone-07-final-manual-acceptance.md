@@ -1,7 +1,7 @@
 # M07 final Windows/WPF manual acceptance
 
-**Status:** Remediation candidate prepared — old candidate Scenario A BLOCKED; owner retest required — NOT EXECUTED / NOT PASSED
-**Prepared:** 2026-09-07  
+**Status:** Remediation-20 candidate prepared — old candidates Scenario A and H BLOCKED; owner retest required — NOT EXECUTED / NOT PASSED
+**Prepared:** 2026-09-10
 **Milestone:** M07 — Pairing, target-directed formal handoff and disaster recovery  
 **Execution gate:** CLOSED at preparation time  
 **Implementation contract:** `milestone-07-pairing-handoff-disaster-recovery.md`
@@ -18,6 +18,19 @@
 - Replacement remediation production-code head: `b58c264` (`b58c26473e3f4158bcafb16be07a8f8c7ea40c8f`, pending exact-head CI verification).
 - Replacement self-contained `win-x64` artifact: `artifacts/m07-manual-remediation-18-publish`; primary executable `Sushi81.Pos.Desktop.exe`, `162816` bytes, SHA-256 `C8C6B7F2420B016FEA9AE079E6B1E4D7FCB981313B2F213D9FDDD2AAED90A45C`.
 - Replacement local Release evidence: `532/532` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors. Exact-head CI and owner retest remain pending.
+
+### Latest remediation candidate — M07-MANUAL-ACCEPTANCE-REMEDIATION-20
+
+- The prior R19 owner review (`e2fdcacdc2d1837ebe27478569ce3d66209e57b6`) found Scenario H retention blocked by non-converging legacy/incompatible grant evidence and found successful target acquisition could leave running WPF business views stale until restart.
+- Production/evidence implementation head: `c74693c5f4a79c69878b59a9df88231ea083835c`.
+- Full local Release evidence: `539/539` Passed, `0` failed, `0` skipped; Release build `0` warnings / `0` errors.
+- Focused remediation evidence: `NormalHandoffTests` `4/4` and `M07PresentationRefreshTests` `2/2`, all passed.
+- Fresh self-contained `win-x64` artifact: `artifacts/m07-manual-remediation-20-publish`; primary executable `Sushi81.Pos.Desktop.exe`, `162816` bytes, SHA-256 `DF4C312903B35B856830D4218A776E421AE7EE617BA717AFFA81779ED64DBE86`.
+- Exact-head CI status for the final pushed docs/evidence head is recorded in the matching `CODEX_DONE` delivery comment.
+- Project-owner Windows/WPF multi-device acceptance: **NOT EXECUTED / NOT PASSED**.
+- Detailed finding and owner rerun scope: [`milestone-07-manual-acceptance-findings-02.md`](milestone-07-manual-acceptance-findings-02.md).
+
+The M20 owner rerun must cover Scenario H retention convergence, Scenario D/E target acquisition without process restart, and the successful DR/stale-generation database-replacement paths where applicable. Scenario A remains a required retest because it was blocked on the earlier candidate. No scenario or overall M07 acceptance is Passed by M20 automated evidence.
 
 ## Remediation finding carried into owner retest
 
@@ -128,7 +141,7 @@ Reconnect services and use a small synthetic dataset with an obvious final commi
 - [ ] The exact final synthetic change from A is present.
 - [ ] C sees/observes the same environment but cannot acquire the B-targeted grant and remains read-only.
 
-Result: Pending
+Result: Pending — remediation-20 no-restart target-acquisition refresh must be rerun by the owner
 
 ## 7. Scenario E — B → A round trip
 
@@ -138,7 +151,7 @@ Result: Pending
 - [ ] B/C cannot acquire A's grant.
 - [ ] Data continuity remains intact across the round trip.
 
-Result: Pending
+Result: Pending — remediation-20 round-trip target refresh must be rerun by the owner
 
 ## 8. Scenario F — failure before source relinquishment
 
@@ -177,7 +190,7 @@ Perform enough complete alternating transfers with synthetic data to create at l
 - [ ] Incomplete/starter/stray assets are not counted as complete retention units.
 - [ ] Current authority remains correct even if a cleanup retry is needed.
 
-Result: Pending
+Result: Blocked / failed on old R19 candidate; retest required on remediation-20 artifact
 
 ## 11. Scenario I — real OneDrive DR checkpoint publication
 

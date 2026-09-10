@@ -415,3 +415,52 @@ and `0` errors. Fresh self-contained `win-x64` publish succeeded at
 SHA-256 `C8C6B7F2420B016FEA9AE079E6B1E4D7FCB981313B2F213D9FDDD2AAED90A45C`. Exact-head CI,
 project-owner retest and merge approval remain pending; these automated results do not claim M07
 manual acceptance.
+
+### Review cycle 15 — manual-acceptance remediation `M07-MANUAL-ACCEPTANCE-REMEDIATION-20`
+
+**Entry findings:** The project-owner review of the prior R19 production candidate
+`e2fdcacdc2d1837ebe27478569ce3d66209e57b6` found two blockers. Scenario H retention could fail
+to converge when a legacy/incompatible grant caused a `JsonException` before valid current-lineage
+units. After successful target acquisition, already-running WPF business views could remain stale
+until process restart. Scenario H remains blocked on the old R19 candidate; the affected owner
+rerun scope is recorded in `docs/implementation/milestone-07-manual-acceptance-findings-02.md`.
+
+**Scope:** This remediation is limited to the two observed M07 manual-acceptance defects: normal
+handoff retention evidence isolation and same-process business-presentation refresh after a durable
+database replacement. It does not redesign target-directed authority, introduce claim/election/
+takeover behavior, alter single-writer invariants, mutate WP7, implement M08 or later milestones,
+or authorize merge.
+
+**Retention remediation:** `NormalHandoffService.CleanupNewestThreeAsync` now isolates every
+candidate unit. Cancellation still propagates; legacy, foreign, unsupported, malformed, partial
+and contradictory units remain untouched diagnostics. Only strictly validated, unambiguous,
+exact current-lineage snapshot+grant pairs count toward newest-three retention, and deletion is
+performed by exact snapshot/grant asset IDs. Cleanup remains best-effort and authority-neutral.
+
+**Presentation remediation:** Target acquisition, successful Disaster Recovery and successful
+stale-generation reinitialization now use one ShellViewModel database-replacement refresh seam.
+It refreshes M03 catalogue/settings, M04 catalogue/order browser and M05 lifecycle/dashboard in
+the same process. A propagated barrier disables shell and child business writes until all refreshes
+complete; if refresh fails after durable authority, no rollback is attempted and the surfaces stay
+fail-closed.
+
+**Automated evidence:** Added `NormalHandoffTests.RetentionSkipsLegacyGrantAndConvergesValidCurrentUnits`
+and the STA `M07PresentationRefreshTests` class. Focused retention tests passed `4/4`; focused WPF
+refresh tests passed `2/2`. Full local Release solution passed `539/539`, `0` failed, `0` skipped;
+Release build passed with `0` warnings / `0` errors. Fresh self-contained `win-x64` publish
+succeeded at `artifacts/m07-manual-remediation-20-publish`; primary `Sushi81.Pos.Desktop.exe` is
+`162816` bytes, SHA-256 `DF4C312903B35B856830D4218A776E421AE7EE617BA717AFFA81779ED64DBE86`.
+
+**Implementation head:** `c74693c5f4a79c69878b59a9df88231ea083835c`. The final pushed
+docs/evidence head receives exact-head CI verification before delivery; its run and result are
+recorded in the matching `CODEX_DONE` comment.
+
+**Documentation:** The detailed finding and owner boundary are recorded in
+`docs/implementation/milestone-07-manual-acceptance-findings-02.md`. The final manual-acceptance
+checklist marks Scenario H as blocked on the old R19 candidate and records the affected no-restart
+owner rerun scope. No owner acceptance is claimed.
+
+**Status/boundaries:** Project-owner Windows/WPF multi-device acceptance remains **not executed / not
+passed**. WP7 proof repository/release/assets were not opened, rerun, mutated or deleted. M08 and
+later milestones remain unauthorized/not started; merge remains unauthorized. Exact-head CI, push of
+the final docs head and matching `CODEX_DONE` remain pending delivery.
