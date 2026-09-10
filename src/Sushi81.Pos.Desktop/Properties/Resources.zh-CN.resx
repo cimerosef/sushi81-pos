@@ -28,6 +28,7 @@
   <data name="M07AcquireAcquired" xml:space="preserve"><value>已获取权威。完成本地验证后可进行写入。</value></data>
   <data name="M07AcquireUnavailable" xml:space="preserve"><value>未配置已转移权威的获取服务。</value></data>
   <data name="M07AcquireFailed" xml:space="preserve"><value>获取失败。此设备仍保持只读或需要恢复。</value></data>
+  <data name="M07AcquireRefreshFailed" xml:space="preserve"><value>权威状态已持久化，但界面刷新失败。刷新成功前将继续禁止写入。</value></data>
   <data name="M07ResumeTransfer" xml:space="preserve"><value>继续待处理的转移</value></data>
   <data name="M07ResumeValidating" xml:space="preserve"><value>正在继续权威转移…</value></data>
   <data name="M07ResumeSucceeded" xml:space="preserve"><value>同一转移已完成。目标获取前，此设备仍保持只读。</value></data>

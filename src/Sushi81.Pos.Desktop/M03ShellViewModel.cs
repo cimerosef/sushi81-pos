@@ -27,6 +27,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     private string searchText = string.Empty;
     private string activeFilter = "All";
     private bool isBusy;
+    private bool businessPresentationRefreshBlocked;
     private bool mutationBusy;
     private BusinessSettings? loadedSettings;
     private string activateLabel = "Activate";
@@ -185,7 +186,8 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     {
         get { lock (filterRefreshLock) return filterRefreshTask; }
     }
-    public bool CanWrite => authorityGuard is null || authorityGuard.State == WriteAuthorityState.Authoritative;
+    public bool CanWrite => !businessPresentationRefreshBlocked
+        && (authorityGuard is null || authorityGuard.State == WriteAuthorityState.Authoritative);
     public bool CanCreateProduct => CanWrite && !IsBusy;
     public bool CanManageCategories => CanWrite && !IsBusy;
     public bool CanSaveSettings => CanWrite && !IsBusy;
@@ -207,6 +209,13 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CanBulkActivate));
         OnPropertyChanged(nameof(CanBulkDeactivate));
         OnPropertyChanged(nameof(ToggleProductActionLabel));
+    }
+
+    public void SetBusinessPresentationRefreshBlocked(bool blocked)
+    {
+        if (businessPresentationRefreshBlocked == blocked) return;
+        businessPresentationRefreshBlocked = blocked;
+        RefreshAuthorityState();
     }
     public int FilteredProductCount => Products.Count;
     public int FilteredProductsToActivateCount => Products.Count(product => !product.IsActive);
@@ -257,7 +266,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         PerformanceTrace.Log("m03.refresh.request.full");
         var request = BeginRefreshRequest(isFullRefresh: true, cancellationToken);
         IsBusy = true;
-        var task = ExecuteRefreshAsync(request, cancellationToken);
+        var task = ExecuteRefreshAsync(request, throwOnFailure: false, cancellationToken: cancellationToken);
         lock (filterRefreshLock)
         {
             if (request.Version == filterRefreshVersion && ReferenceEquals(filterRefreshCancellation, request.Cancellation))
@@ -266,7 +275,24 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         return task;
     }
 
-    private async Task ExecuteRefreshAsync(RefreshRequest request, CancellationToken cancellationToken)
+    public Task RefreshAfterLiveDatabaseReplacementAsync(CancellationToken cancellationToken = default)
+    {
+        PerformanceTrace.Log("m03.refresh.replacement.request");
+        var request = BeginRefreshRequest(isFullRefresh: true, cancellationToken);
+        IsBusy = true;
+        var task = ExecuteRefreshAsync(request, throwOnFailure: true, cancellationToken: cancellationToken);
+        lock (filterRefreshLock)
+        {
+            if (request.Version == filterRefreshVersion && ReferenceEquals(filterRefreshCancellation, request.Cancellation))
+                filterRefreshTask = task;
+        }
+        return task;
+    }
+
+    private async Task ExecuteRefreshAsync(
+        RefreshRequest request,
+        bool throwOnFailure,
+        CancellationToken cancellationToken)
     {
         PerformanceTrace.Log("m03.refresh.full.start");
         try
@@ -303,8 +329,13 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
+            if (throwOnFailure) throw;
             // A newer manual or automatic request superseded this one. Its task is complete
             // without committing stale categories or products.
+        }
+        catch (Exception) when (throwOnFailure)
+        {
+            throw;
         }
         finally
         {

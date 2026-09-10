@@ -28,6 +28,7 @@
   <data name="M07AcquireAcquired" xml:space="preserve"><value>Autorité acquise. Les écritures sont disponibles après validation locale.</value></data>
   <data name="M07AcquireUnavailable" xml:space="preserve"><value>L’acquisition de l’autorité transférée n’est pas configurée.</value></data>
   <data name="M07AcquireFailed" xml:space="preserve"><value>L’acquisition a échoué. Cette machine reste en lecture seule ou en récupération requise.</value></data>
+  <data name="M07AcquireRefreshFailed" xml:space="preserve"><value>L’autorité est durable mais l’actualisation des écrans a échoué. Les écritures restent bloquées jusqu’à une actualisation sûre.</value></data>
   <data name="M07ResumeTransfer" xml:space="preserve"><value>Reprendre le transfert en attente</value></data>
   <data name="M07ResumeValidating" xml:space="preserve"><value>Reprise du transfert d’autorité en cours…</value></data>
   <data name="M07ResumeSucceeded" xml:space="preserve"><value>Le même transfert est terminé. Cette machine reste en lecture seule jusqu’à acquisition par la cible.</value></data>

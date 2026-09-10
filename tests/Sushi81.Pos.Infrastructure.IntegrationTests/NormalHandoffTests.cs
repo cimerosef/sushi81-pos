@@ -90,6 +90,38 @@ public sealed class NormalHandoffTests
         Assert.AreEqual(result.TransferId, persisted.Protocol.Transfer.TransferId);
     }
 
+    [TestMethod]
+    public async Task RetentionSkipsLegacyGrantAndConvergesValidCurrentUnits()
+    {
+        using var fixture = new HandoffFixture();
+        var source = Guid.NewGuid();
+        var target = Guid.NewGuid();
+        await fixture.WriteMembershipAsync(source, target);
+        var store = fixture.CreateStateStore();
+        var authoritative = fixture.AuthoritativeDocument(source);
+        authoritative = authoritative with
+        {
+            Protocol = authoritative.Protocol! with { HandoffVersion = 4 }
+        };
+        await store.SaveAsync(authoritative);
+
+        var transport = new RetentionTransport(fixture);
+        await using var service = new NormalHandoffService(
+            store, fixture.Guard, fixture.SystemStore, new RetentionSnapshotFactory(fixture.Root), transport, fixture.Clock);
+
+        var result = await service.TransferAndCloseAsync(target);
+
+        Assert.IsTrue(result.Succeeded, result.Error?.ToString());
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, fixture.Guard.State);
+        CollectionAssert.AreEquivalent(
+            transport.ValidUnits.Where(pair => pair.Key <= 2).SelectMany(pair => new[] { pair.Value.SnapshotId, pair.Value.GrantId }).ToArray(),
+            transport.DeletedAssetIds.ToArray());
+        Assert.IsTrue(transport.Assets.Any(asset => asset.Id == transport.LegacySnapshotId));
+        Assert.IsTrue(transport.Assets.Any(asset => asset.Id == transport.LegacyGrantId));
+        Assert.AreEqual(4, transport.Assets.Count(asset => GitHubHandoffAssetNames.IsSnapshotName(asset.Name)));
+        Assert.AreEqual(4, transport.Assets.Count(asset => GitHubHandoffAssetNames.IsGrantName(asset.Name)));
+    }
+
     private sealed class HandoffFixture : IDisposable
     {
         public HandoffFixture()
@@ -156,6 +188,19 @@ public sealed class NormalHandoffTests
         }
     }
 
+    private sealed class RetentionSnapshotFactory(string root) : ITransferSnapshotFactory
+    {
+        public async Task<TransferSnapshot> CreateAsync(AuthorityProtocolState source, Guid transferId, CancellationToken cancellationToken = default)
+        {
+            var path = Path.Combine(root, $"retention-{transferId:N}.db");
+            var bytes = new byte[] { 4, 5, 6, 7 };
+            await File.WriteAllBytesAsync(path, bytes, cancellationToken);
+            return new TransferSnapshot(
+                "20260907120000.snapshot.db", path, bytes.Length,
+                Convert.ToHexString(SHA256.HashData(bytes)), source.BusinessRevision);
+        }
+    }
+
     private sealed class RecordingTransport(HandoffFixture fixture, JsonAuthorityStateStore store) : IGitHubHandoffTransport
     {
         public List<(string Kind, string Name)> Uploads { get; } = [];
@@ -195,6 +240,93 @@ public sealed class NormalHandoffTests
         {
             assets.RemoveAll(asset => asset.Id == assetId);
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RetentionTransport : IGitHubHandoffTransport
+    {
+        private static readonly JsonSerializerOptions GrantOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        private readonly HandoffFixture fixture;
+        private readonly Dictionary<long, byte[]> content = [];
+        private readonly List<GitHubRemoteAsset> assets = [];
+        private long nextId = 100;
+
+        public RetentionTransport(HandoffFixture fixture)
+        {
+            this.fixture = fixture;
+            for (var version = 1; version <= 4; version++)
+                AddValidUnit(version);
+
+            var snapshotName = GitHubHandoffAssetNames.CreateSnapshotName(fixture.Clock.UtcNow.AddSeconds(-10));
+            var snapshotBytes = new byte[] { 1, 2, 3 };
+            LegacySnapshotId = 90;
+            LegacyGrantId = 91;
+            AddAsset(LegacySnapshotId, snapshotName, snapshotBytes);
+            AddAsset(LegacyGrantId, GitHubHandoffAssetNames.CreateGrantName(snapshotName),
+                System.Text.Encoding.UTF8.GetBytes("{\"legacy\":"));
+        }
+
+        public Dictionary<int, (long SnapshotId, long GrantId)> ValidUnits { get; } = [];
+        public List<long> DeletedAssetIds { get; } = [];
+        public long LegacySnapshotId { get; }
+        public long LegacyGrantId { get; }
+        public IReadOnlyList<GitHubRemoteAsset> Assets => assets;
+
+        public Task<GitHubReleaseContainer> EnsureContainerAsync(bool createIfMissing, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new GitHubReleaseContainer(1, "sushi81-handoff-v1", "https://uploads.example/releases/1/assets{?name}", false, false));
+
+        public async Task<GitHubAssetReceipt> UploadAssetAsync(
+            GitHubReleaseContainer release, string name, Stream stream, long contentLength, string localSha256,
+            CancellationToken cancellationToken = default)
+        {
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory, cancellationToken);
+            var id = nextId++;
+            AddAsset(id, name, memory.ToArray());
+            var digest = "sha256:" + Convert.ToHexString(SHA256.HashData(memory.ToArray())).ToLowerInvariant();
+            return new GitHubAssetReceipt(release.Id, id, name, contentLength, digest, fixture.Clock.UtcNow, "uploaded");
+        }
+
+        public Task<IReadOnlyList<GitHubRemoteAsset>> ListAssetsAsync(GitHubReleaseContainer release, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<GitHubRemoteAsset>>(assets.ToArray());
+
+        public Task<GitHubRemoteAsset> GetAssetAsync(long assetId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(assets.Single(asset => asset.Id == assetId));
+
+        public Task<Stream> DownloadAssetAsync(long assetId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<Stream>(new MemoryStream(content[assetId], writable: false));
+
+        public Task DeleteAssetAsync(long assetId, CancellationToken cancellationToken = default)
+        {
+            DeletedAssetIds.Add(assetId);
+            assets.RemoveAll(asset => asset.Id == assetId);
+            content.Remove(assetId);
+            return Task.CompletedTask;
+        }
+
+        private void AddValidUnit(int version)
+        {
+            var snapshotId = version * 2L;
+            var grantId = snapshotId + 1;
+            var snapshotName = GitHubHandoffAssetNames.CreateSnapshotName(fixture.Clock.UtcNow.AddSeconds(version - 5));
+            var snapshotBytes = new byte[] { (byte)version, 20, 30 };
+            var snapshotHash = Convert.ToHexString(SHA256.HashData(snapshotBytes));
+            var receipt = new RemoteAssetEvidence(1, snapshotId, snapshotName, snapshotBytes.Length, snapshotHash);
+            var grant = new NormalHandoffGrant(
+                "M07", Guid.NewGuid(), fixture.LineageId, 1, version, Guid.NewGuid(), Guid.NewGuid(), 12,
+                receipt, fixture.Clock.UtcNow.AddMinutes(-1), fixture.Clock.UtcNow.AddSeconds(version));
+            var grantBytes = JsonSerializer.SerializeToUtf8Bytes(grant, GrantOptions);
+            AddAsset(snapshotId, snapshotName, snapshotBytes);
+            AddAsset(grantId, GitHubHandoffAssetNames.CreateGrantName(snapshotName), grantBytes);
+            ValidUnits[version] = (snapshotId, grantId);
+        }
+
+        private void AddAsset(long id, string name, byte[] bytes)
+        {
+            content[id] = bytes;
+            assets.Add(new GitHubRemoteAsset(
+                id, name, bytes.LongLength, "uploaded",
+                "sha256:" + Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(), fixture.Clock.UtcNow));
         }
     }
 

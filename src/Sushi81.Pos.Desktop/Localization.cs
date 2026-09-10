@@ -75,6 +75,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private LanguageOption _selectedLanguage;
     private bool _isLanguageChangeInProgress;
     private bool _m07OperationInProgress;
+    private bool _businessPresentationRefreshBlocked;
     private string? _m07OperationStatusKey;
     private LocalConfiguration _configuration;
     private readonly M07ConfigurationSetupService? _m07Setup;
@@ -121,7 +122,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public LocalConfiguration Configuration => _configuration;
 
-    public bool CanWrite => StartupSucceeded && AuthorityState == WriteAuthorityState.Authoritative;
+    public bool CanWrite => StartupSucceeded
+        && !_businessPresentationRefreshBlocked
+        && AuthorityState == WriteAuthorityState.Authoritative;
 
     public bool IsAuthorityWarningVisible => !CanWrite;
 
@@ -130,6 +133,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public bool CanAcquireTransferredAuthority => M07Runtime is not null
         && !CanWrite
+        && !_businessPresentationRefreshBlocked
         && M07Runtime.CurrentPhase is not (AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant
             or AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending
             or AuthorityPhase.StaleGeneration)
@@ -137,16 +141,21 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public bool CanResumePendingTransfer => M07Runtime?.NormalHandoff is not null
         && M07Runtime.CurrentPhase is AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant
+        && !_businessPresentationRefreshBlocked
         && !_m07OperationInProgress;
 
-    public bool CanTestGitHubConnection => M07Runtime is not null && !_m07OperationInProgress;
+    public bool CanTestGitHubConnection => M07Runtime is not null
+        && !_businessPresentationRefreshBlocked
+        && !_m07OperationInProgress;
 
     public bool CanConfigureM07 => _m07Setup is not null
+        && !_businessPresentationRefreshBlocked
         && !_m07OperationInProgress
         && !IsConfigurationLocked(CurrentAuthorityPhase);
 
     public bool CanStartDisasterRecovery => M07Runtime?.DisasterRecovery is not null
         && !CanWrite
+        && !_businessPresentationRefreshBlocked
         && !_m07OperationInProgress
         && CurrentAuthorityPhase is AuthorityPhase.PairedUninitializedReadOnly
             or AuthorityPhase.NonAuthoritativeReadOnly
@@ -154,10 +163,12 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             or AuthorityPhase.RelinquishedPendingGrant;
 
     public bool CanRetryDisasterRecovery => M07Runtime?.DisasterRecovery is not null
+        && !_businessPresentationRefreshBlocked
         && !_m07OperationInProgress
         && CurrentAuthorityPhase is AuthorityPhase.DisasterRecoveryPreparing or AuthorityPhase.DisasterRecoveryPending;
 
     public bool CanReinitializeStaleDevice => M07Runtime?.DisasterRecovery is not null
+        && !_businessPresentationRefreshBlocked
         && !_m07OperationInProgress
         && CurrentAuthorityPhase == AuthorityPhase.StaleGeneration;
 
@@ -287,7 +298,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             .Append("JoinExistingLineage").Append("JoinDisplayName").Append("JoinPrompt")
             .Append("JoinConfirm").Append("JoinSucceeded")
             .Append("M07AcquireAuthority").Append("M07AcquireValidating").Append("M07AcquireAcquired")
-            .Append("M07AcquireUnavailable").Append("M07AcquireFailed")
+            .Append("M07AcquireUnavailable").Append("M07AcquireFailed").Append("M07AcquireRefreshFailed")
             .Append("M07ResumeTransfer").Append("M07ResumeValidating").Append("M07ResumeSucceeded")
             .Append("M07ResumeFailed").Append("M07PendingTransfer")
             .Append("M07ConnectionTest").Append("M07ConnectionChecking").Append("M07ConnectionSuccess")
@@ -428,6 +439,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             return null;
 
         SetM07Operation("M07AcquireValidating");
+        SetBusinessPresentationRefreshBlocked(true);
         _m07OperationInProgress = true;
         OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
         OnPropertyChanged(nameof(CanTestGitHubConnection));
@@ -436,6 +448,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         {
             if (M07Runtime.TargetAcquisition is not { } acquisition)
             {
+                SetBusinessPresentationRefreshBlocked(false);
                 SetM07Operation("M07AcquireUnavailable");
                 return TargetAcquisitionResult.Failure(Guid.Empty, new InvalidOperationException("Target acquisition is not configured."));
             }
@@ -443,10 +456,36 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             var result = await acquisition.AcquireAsync(cancellationToken);
             AuthorityState = M07Runtime.AuthorityGuard.State;
             await M07Runtime.RefreshAuthorityStateAsync(cancellationToken);
-            SetM07Operation(result.Succeeded ? "M07AcquireAcquired" : "M07AcquireFailed");
+            _authorityPhase = M07Runtime.CurrentPhase;
             RefreshChildAuthorityCommands();
-            RefreshResources();
-            return result;
+
+            if (!result.Succeeded)
+            {
+                SetBusinessPresentationRefreshBlocked(false);
+                SetM07Operation("M07AcquireFailed");
+                RefreshResources();
+                return result;
+            }
+
+            try
+            {
+                await RefreshBusinessPresentationAfterDatabaseReplacementAsync(cancellationToken);
+                SetM07Operation("M07AcquireAcquired");
+                RefreshResources();
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                // The durable authority transition has already succeeded. Keep every
+                // business surface fail-closed until a later explicit refresh/restart.
+                SetM07Operation("M07AcquireRefreshFailed");
+                RefreshResources();
+                return TargetAcquisitionResult.Failure(result.TransferId, exception);
+            }
         }
         finally
         {
@@ -530,6 +569,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     {
         if (M07Runtime?.DisasterRecovery is not { } recovery) return null;
         _m07OperationInProgress = true;
+        SetBusinessPresentationRefreshBlocked(true);
         SetM07Operation("M07DisasterRecovery");
         RefreshResources();
         try
@@ -537,6 +577,24 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             var result = await recovery.StartOrResumeAsync(
                 candidateId, normalPathUnavailableConfirmed, quarantineConfirmed, cancellationToken);
             await RefreshAuthorityStateAsync(cancellationToken);
+            if (result.Succeeded)
+            {
+                try
+                {
+                    await RefreshBusinessPresentationAfterDatabaseReplacementAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception exception)
+                {
+                    SetM07Operation("M07AcquireRefreshFailed");
+                    RefreshResources();
+                    return DisasterRecoveryResult.Failure($"Business presentation refresh failed after Disaster Recovery: {exception.Message}", result.Candidate);
+                }
+            }
+            else
+            {
+                SetBusinessPresentationRefreshBlocked(false);
+            }
             SetM07Operation(result.Succeeded ? "M07DisasterRecoverySucceeded" : "M07DisasterRecoveryFailed");
             return result;
         }
@@ -551,12 +609,31 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     {
         if (M07Runtime?.DisasterRecovery is not { } recovery) return null;
         _m07OperationInProgress = true;
+        SetBusinessPresentationRefreshBlocked(true);
         SetM07Operation("M07DisasterRecoveryPending");
         RefreshResources();
         try
         {
             var result = await recovery.RetryAsync(quarantineConfirmed, cancellationToken);
             await RefreshAuthorityStateAsync(cancellationToken);
+            if (result.Succeeded)
+            {
+                try
+                {
+                    await RefreshBusinessPresentationAfterDatabaseReplacementAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception exception)
+                {
+                    SetM07Operation("M07AcquireRefreshFailed");
+                    RefreshResources();
+                    return DisasterRecoveryResult.Failure($"Business presentation refresh failed after Disaster Recovery retry: {exception.Message}", result.Candidate);
+                }
+            }
+            else
+            {
+                SetBusinessPresentationRefreshBlocked(false);
+            }
             SetM07Operation(result.Succeeded ? "M07DisasterRecoverySucceeded" : "M07DisasterRecoveryFailed");
             return result;
         }
@@ -571,12 +648,31 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     {
         if (M07Runtime?.DisasterRecovery is not { } recovery) return null;
         _m07OperationInProgress = true;
+        SetBusinessPresentationRefreshBlocked(true);
         SetM07Operation("M07ReinitializeStale");
         RefreshResources();
         try
         {
             var result = await recovery.ReinitializeStaleDeviceAsync(cancellationToken);
             await RefreshAuthorityStateAsync(cancellationToken);
+            if (result.Succeeded)
+            {
+                try
+                {
+                    await RefreshBusinessPresentationAfterDatabaseReplacementAsync(cancellationToken);
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception exception)
+                {
+                    SetM07Operation("M07AcquireRefreshFailed");
+                    RefreshResources();
+                    return DisasterRecoveryResult.Failure($"Business presentation refresh failed after stale-generation reinitialization: {exception.Message}", result.Candidate);
+                }
+            }
+            else
+            {
+                SetBusinessPresentationRefreshBlocked(false);
+            }
             SetM07Operation(result.Succeeded ? "M07ReinitializeSucceeded" : "M07ReinitializeNoSeed");
             return result;
         }
@@ -632,6 +728,42 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    /// <summary>
+    /// Rebinds every business-facing view after an operation has replaced or restored the
+    /// live database. The refresh barrier remains active until all reads complete, so a
+    /// durable authority transition cannot expose stale writable controls.
+    /// </summary>
+    public async Task RefreshBusinessPresentationAfterDatabaseReplacementAsync(
+        CancellationToken cancellationToken = default)
+    {
+        SetBusinessPresentationRefreshBlocked(true);
+        try
+        {
+            if (Admin is { } admin)
+            {
+                await admin.RefreshAfterLiveDatabaseReplacementAsync(cancellationToken);
+                await admin.LoadSettingsAsync(cancellationToken);
+            }
+
+            if (Entry is { } entry)
+                await entry.RefreshAfterLiveDatabaseReplacementAsync(cancellationToken);
+
+            if (Lifecycle is { } lifecycle)
+                await lifecycle.RefreshAfterLiveDatabaseReplacementAsync(cancellationToken);
+
+            SetBusinessPresentationRefreshBlocked(false);
+            RefreshResources();
+        }
+        catch
+        {
+            // A refresh failure after durable authority acquisition is not reversible here.
+            // Leave the barrier engaged so no stale business surface remains actionable.
+            RefreshChildAuthorityCommands();
+            RefreshResources();
+            throw;
+        }
+    }
+
     private void SetM07Operation(string key)
     {
         _m07OperationStatusKey = key;
@@ -644,6 +776,24 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         Admin?.RefreshAuthorityState();
         Entry?.RefreshAuthorityState();
         Lifecycle?.RefreshAuthorityState();
+    }
+
+    private void SetBusinessPresentationRefreshBlocked(bool blocked)
+    {
+        if (_businessPresentationRefreshBlocked == blocked) return;
+        _businessPresentationRefreshBlocked = blocked;
+        OnPropertyChanged(nameof(CanWrite));
+        OnPropertyChanged(nameof(IsAuthorityWarningVisible));
+        OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
+        OnPropertyChanged(nameof(CanResumePendingTransfer));
+        OnPropertyChanged(nameof(CanTestGitHubConnection));
+        OnPropertyChanged(nameof(CanConfigureM07));
+        OnPropertyChanged(nameof(CanStartDisasterRecovery));
+        OnPropertyChanged(nameof(CanRetryDisasterRecovery));
+        OnPropertyChanged(nameof(CanReinitializeStaleDevice));
+        Admin?.SetBusinessPresentationRefreshBlocked(blocked);
+        Entry?.SetBusinessPresentationRefreshBlocked(blocked);
+        Lifecycle?.SetBusinessPresentationRefreshBlocked(blocked);
     }
 
     private AuthorityPhase? CurrentAuthorityPhase => M07Runtime?.CurrentPhase ?? _authorityPhase;

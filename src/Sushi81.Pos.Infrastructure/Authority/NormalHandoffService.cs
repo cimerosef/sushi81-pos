@@ -463,10 +463,16 @@ public sealed class NormalHandoffService(
                         continue;
                     units.Add(new RetentionUnit(snapshot, grantAsset, grant));
                 }
-                catch (InvalidDataException)
+                catch (OperationCanceledException)
                 {
-                    // Invalid, incomplete or contradictory units remain diagnostics and
-                    // are never counted for destructive retention.
+                    throw;
+                }
+                catch (Exception)
+                {
+                    // Invalid, legacy, unsupported, incomplete or contradictory units
+                    // remain diagnostics and are never counted for destructive retention.
+                    // Evidence isolation is per unit: one incompatible grant must not
+                    // prevent later valid current-lineage units from converging.
                 }
             }
 
