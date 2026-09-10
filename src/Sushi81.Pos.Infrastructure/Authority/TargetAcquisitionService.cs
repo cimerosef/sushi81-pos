@@ -151,14 +151,24 @@ public sealed class TargetAcquisitionService(
         foreach (var asset in await transport.ListAssetsAsync(release, cancellationToken))
         {
             if (!asset.IsComplete || !GitHubHandoffAssetNames.IsGrantName(asset.Name)) continue;
-            var discovered = await ReadGrantAsync(release, asset, cancellationToken);
-            if (discovered.Grant.TargetDeviceId != local.DeviceId) continue;
-            // Historical grants can legitimately target this surviving device ID. They are
-            // evidence of an older protocol generation, not a discovery failure; only the
-            // current lineage/generation is eligible for acquisition.
-            if (discovered.Grant.LineageId != local.LineageId || discovered.Grant.Generation != local.Generation)
+            var downloaded = await DownloadGrantAsync(release, asset, cancellationToken);
+            if (!TryReadGrantEnvelope(downloaded.Bytes, out var envelope)
+                || envelope is null
+                || !string.Equals(envelope.ProtocolVersion, "M07", StringComparison.Ordinal))
                 continue;
-            if (discovered.Grant.HandoffVersion <= local.HandoffVersion) continue;
+
+            // Classify identity before strict current-grant validation. Long-lived releases
+            // can contain old or foreign grant shapes which are irrelevant to this target;
+            // those assets must not poison discovery. Once the envelope identifies the
+            // current local lineage/generation/target, strict parsing remains fail-closed.
+            if (envelope.LineageId != local.LineageId
+                || envelope.Generation != local.Generation
+                || envelope.TargetDeviceId != local.DeviceId)
+                continue;
+            if (envelope.HandoffVersion is { } handoffVersion && handoffVersion <= local.HandoffVersion)
+                continue;
+
+            var discovered = ParseGrant(release, downloaded);
             candidates.Add(discovered);
         }
 
@@ -219,6 +229,15 @@ public sealed class TargetAcquisitionService(
         GitHubRemoteAsset remote,
         CancellationToken cancellationToken)
     {
+        var downloaded = await DownloadGrantAsync(release, remote, cancellationToken);
+        return ParseGrant(release, downloaded);
+    }
+
+    private async Task<DownloadedGrant> DownloadGrantAsync(
+        GitHubReleaseContainer release,
+        GitHubRemoteAsset remote,
+        CancellationToken cancellationToken)
+    {
         var remoteReceipt = ToRemoteEvidence(release.Id, remote);
         await using var stream = await transport.DownloadAssetAsync(remote.Id, cancellationToken);
         using var memory = new MemoryStream();
@@ -229,13 +248,86 @@ public sealed class TargetAcquisitionService(
         var digest = Convert.ToHexString(SHA256.HashData(bytes));
         if (!string.Equals(digest, remoteReceipt.Sha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The downloaded grant digest does not match the server receipt.");
-        var grant = JsonSerializer.Deserialize<NormalHandoffGrant>(bytes, JsonOptions)
+        return new DownloadedGrant(bytes, remoteReceipt);
+    }
+
+    private static DiscoveredGrant ParseGrant(
+        GitHubReleaseContainer release,
+        DownloadedGrant downloaded)
+    {
+        var grant = JsonSerializer.Deserialize<NormalHandoffGrant>(downloaded.Bytes, JsonOptions)
             ?? throw new InvalidDataException("The target-bound grant is empty.");
         grant.Validate();
         if (grant.SnapshotReceipt.ReleaseId != release.Id)
             throw new InvalidDataException("The target-bound grant references a different release.");
-        return new DiscoveredGrant(grant, remoteReceipt);
+        return new DiscoveredGrant(grant, downloaded.Receipt);
     }
+
+    private static bool TryReadGrantEnvelope(byte[] bytes, out GrantEnvelope? envelope)
+    {
+        envelope = null;
+        try
+        {
+            using var document = JsonDocument.Parse(bytes);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                return false;
+
+            envelope = new GrantEnvelope(
+                ReadString(root, "protocolVersion"),
+                ReadGuid(root, "lineageId"),
+                ReadInt64(root, "generation"),
+                ReadInt64(root, "handoffVersion"),
+                ReadGuid(root, "targetDeviceId"));
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static string? ReadString(JsonElement root, string propertyName) =>
+        TryGetProperty(root, propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static Guid? ReadGuid(JsonElement root, string propertyName)
+    {
+        var value = ReadString(root, propertyName);
+        return Guid.TryParse(value, out var parsed) ? parsed : null;
+    }
+
+    private static long? ReadInt64(JsonElement root, string propertyName) =>
+        TryGetProperty(root, propertyName, out var value) && value.TryGetInt64(out var parsed)
+            ? parsed
+            : null;
+
+    private static bool TryGetProperty(JsonElement root, string propertyName, out JsonElement value)
+    {
+        if (root.TryGetProperty(propertyName, out value))
+            return true;
+        foreach (var property in root.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private sealed record GrantEnvelope(
+        string? ProtocolVersion,
+        Guid? LineageId,
+        long? Generation,
+        long? HandoffVersion,
+        Guid? TargetDeviceId);
+
+    private sealed record DownloadedGrant(byte[] Bytes, RemoteAssetEvidence Receipt);
 
     private static void ValidateRemoteSnapshot(
         GitHubRemoteAsset remote,

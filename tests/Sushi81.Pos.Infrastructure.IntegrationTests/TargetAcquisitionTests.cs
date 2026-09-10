@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Sushi81.Pos.Application.Foundation.Authority;
@@ -88,6 +89,106 @@ public sealed class TargetAcquisitionTests
         Assert.IsTrue(result.Succeeded, result.Error?.ToString());
         Assert.AreEqual(current.Grant.TransferId, result.TransferId);
         Assert.AreEqual(WriteAuthorityState.Authoritative, fixture.Guard.State);
+    }
+
+    [TestMethod]
+    public async Task LegacyIncompatibleGrantBeforeCurrentGrantIsIgnored()
+    {
+        using var fixture = new AcquisitionFixture();
+        var current = await fixture.CreateGrantAsync(fixture.DeviceId);
+        var legacy = CreateLegacyRawGrant(fixture, 90);
+        var store = fixture.CreateStateStore();
+        await store.SaveAsync(fixture.PairedDocument());
+        await using var service = new TargetAcquisitionService(
+            store,
+            fixture.Guard,
+            fixture.SystemStore,
+            AcquisitionTransport.WithRawGrants(fixture, [legacy], current),
+            new RecordingInstaller(fixture, store),
+            fixture.Clock);
+
+        var result = await service.AcquireAsync();
+
+        Assert.IsTrue(result.Succeeded, result.Error?.ToString());
+        Assert.AreEqual(current.Grant.TransferId, result.TransferId);
+        Assert.AreEqual(WriteAuthorityState.Authoritative, fixture.Guard.State);
+    }
+
+    [TestMethod]
+    public async Task ForeignCurrentEnvelopeBeforeCurrentGrantIsIgnored()
+    {
+        using var fixture = new AcquisitionFixture();
+        var current = await fixture.CreateGrantAsync(fixture.DeviceId);
+        var foreign = CreateCurrentEnvelopeGrant(fixture, 91, Guid.NewGuid());
+        var store = fixture.CreateStateStore();
+        await store.SaveAsync(fixture.PairedDocument());
+        await using var service = new TargetAcquisitionService(
+            store,
+            fixture.Guard,
+            fixture.SystemStore,
+            AcquisitionTransport.WithRawGrants(fixture, [foreign], current),
+            new RecordingInstaller(fixture, store),
+            fixture.Clock);
+
+        var result = await service.AcquireAsync();
+
+        Assert.IsTrue(result.Succeeded, result.Error?.ToString());
+        Assert.AreEqual(current.Grant.TransferId, result.TransferId);
+        Assert.AreEqual(WriteAuthorityState.Authoritative, fixture.Guard.State);
+    }
+
+    [TestMethod]
+    public async Task MalformedCurrentRelevantGrantFailsClosed()
+    {
+        using var fixture = new AcquisitionFixture();
+        await fixture.CreateGrantAsync(fixture.DeviceId);
+        var malformed = CreateCurrentEnvelopeGrant(fixture, 92, fixture.DeviceId, malformed: true);
+        var store = fixture.CreateStateStore();
+        await store.SaveAsync(fixture.PairedDocument());
+        var installer = new RecordingInstaller(fixture, store);
+        await using var service = new TargetAcquisitionService(
+            store,
+            fixture.Guard,
+            fixture.SystemStore,
+            AcquisitionTransport.WithRawGrants(fixture, [malformed]),
+            installer,
+            fixture.Clock);
+
+        var result = await service.AcquireAsync();
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.IsNotNull(result.Error);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, fixture.Guard.State);
+        Assert.AreEqual(AuthorityPhase.PairedUninitializedReadOnly, (await store.LoadAsync())!.Protocol!.Phase);
+        CollectionAssert.AreEqual(Array.Empty<string>(), installer.Events);
+    }
+
+    [TestMethod]
+    public async Task HistoricalMalformedAndLegacyGrantsOnlyYieldCleanReadOnlyFailure()
+    {
+        using var fixture = new AcquisitionFixture();
+        await fixture.CreateGrantAsync(fixture.DeviceId);
+        var legacy = CreateLegacyRawGrant(fixture, 93);
+        var malformed = new RawGrantFixture(
+            94,
+            GitHubHandoffAssetNames.CreateGrantName("20260829104436.snapshot.db"),
+            Encoding.UTF8.GetBytes("not-json"));
+        var store = fixture.CreateStateStore();
+        await store.SaveAsync(fixture.PairedDocument());
+        await using var service = new TargetAcquisitionService(
+            store,
+            fixture.Guard,
+            fixture.SystemStore,
+            AcquisitionTransport.WithRawGrants(fixture, [legacy, malformed]),
+            new RecordingInstaller(fixture, store),
+            fixture.Clock);
+
+        var result = await service.AcquireAsync();
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.IsNotNull(result.Error);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, fixture.Guard.State);
+        Assert.AreEqual(AuthorityPhase.PairedUninitializedReadOnly, (await store.LoadAsync())!.Protocol!.Phase);
     }
 
     [TestMethod]
@@ -210,9 +311,35 @@ public sealed class TargetAcquisitionTests
         long GrantAssetId,
         long SnapshotAssetId);
 
-    private sealed class AcquisitionTransport(AcquisitionFixture fixture, params GrantFixture[] grants) : IGitHubHandoffTransport
+    private sealed record RawGrantFixture(long AssetId, string Name, byte[] Bytes)
     {
+        public string Sha256 => Convert.ToHexString(SHA256.HashData(Bytes));
+    }
+
+    private sealed class AcquisitionTransport : IGitHubHandoffTransport
+    {
+        private readonly AcquisitionFixture fixture;
+        private readonly GrantFixture[] grants;
+        private readonly RawGrantFixture[] rawGrants;
         private readonly GitHubReleaseContainer release = new(1, "sushi81-handoff-v1", "https://uploads.example/releases/1/assets{?name}", false, false);
+
+        public AcquisitionTransport(AcquisitionFixture fixture, params GrantFixture[] grants)
+            : this(fixture, [], grants) { }
+
+        private AcquisitionTransport(
+            AcquisitionFixture fixture,
+            RawGrantFixture[] rawGrants,
+            GrantFixture[] grants)
+        {
+            this.fixture = fixture;
+            this.rawGrants = rawGrants;
+            this.grants = grants;
+        }
+
+        public static AcquisitionTransport WithRawGrants(
+            AcquisitionFixture fixture,
+            RawGrantFixture[] rawGrants,
+            params GrantFixture[] grants) => new(fixture, rawGrants, grants);
 
         public Task<GitHubReleaseContainer> EnsureContainerAsync(bool createIfMissing, CancellationToken cancellationToken = default) => Task.FromResult(release);
 
@@ -220,6 +347,13 @@ public sealed class TargetAcquisitionTests
 
         public Task<IReadOnlyList<GitHubRemoteAsset>> ListAssetsAsync(GitHubReleaseContainer release, CancellationToken cancellationToken = default)
         {
+            var rawAssets = rawGrants.Select(raw => new GitHubRemoteAsset(
+                raw.AssetId,
+                raw.Name,
+                raw.Bytes.Length,
+                "uploaded",
+                "sha256:" + raw.Sha256.ToLowerInvariant(),
+                fixture.Clock.UtcNow));
             var grantAssets = grants.Select(grant => new GitHubRemoteAsset(
                 grant.GrantAssetId,
                 GitHubHandoffAssetNames.CreateGrantName(grant.Grant.SnapshotReceipt.Name),
@@ -227,11 +361,14 @@ public sealed class TargetAcquisitionTests
                 "uploaded",
                 "sha256:" + grant.GrantHash.ToLowerInvariant(),
                 fixture.Clock.UtcNow)).ToArray();
-            return Task.FromResult<IReadOnlyList<GitHubRemoteAsset>>(grantAssets);
+            return Task.FromResult<IReadOnlyList<GitHubRemoteAsset>>(rawAssets.Concat(grantAssets).ToArray());
         }
 
         public Task<GitHubRemoteAsset> GetAssetAsync(long assetId, CancellationToken cancellationToken = default)
         {
+            var raw = rawGrants.SingleOrDefault(candidate => candidate.AssetId == assetId);
+            if (raw is not null)
+                return Task.FromResult(new GitHubRemoteAsset(raw.AssetId, raw.Name, raw.Bytes.Length, "uploaded", "sha256:" + raw.Sha256.ToLowerInvariant(), fixture.Clock.UtcNow));
             var grant = grants.Single(candidate => candidate.GrantAssetId == assetId || candidate.SnapshotAssetId == assetId);
             if (assetId == grant.SnapshotAssetId)
                 return Task.FromResult(new GitHubRemoteAsset(grant.SnapshotAssetId, grant.Grant.SnapshotReceipt.Name, grant.SnapshotBytes.Length, "uploaded", "sha256:" + grant.SnapshotHash.ToLowerInvariant(), fixture.Clock.UtcNow));
@@ -239,13 +376,61 @@ public sealed class TargetAcquisitionTests
         }
 
         public Task<Stream> DownloadAssetAsync(long assetId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<Stream>(new MemoryStream(
-                grants.Single(candidate => candidate.GrantAssetId == assetId || candidate.SnapshotAssetId == assetId) is var grant
-                    ? assetId == grant.SnapshotAssetId ? grant.SnapshotBytes : grant.GrantBytes
-                    : Array.Empty<byte>(),
-                writable: false));
+            Task.FromResult<Stream>(DownloadBytes(assetId));
+
+        private MemoryStream DownloadBytes(long assetId)
+        {
+            var raw = rawGrants.SingleOrDefault(candidate => candidate.AssetId == assetId);
+            if (raw is not null)
+                return new MemoryStream(raw.Bytes, writable: false);
+            var grant = grants.Single(candidate => candidate.GrantAssetId == assetId || candidate.SnapshotAssetId == assetId);
+            return new MemoryStream(assetId == grant.SnapshotAssetId ? grant.SnapshotBytes : grant.GrantBytes, writable: false);
+        }
 
         public Task DeleteAssetAsync(long assetId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private static RawGrantFixture CreateLegacyRawGrant(AcquisitionFixture fixture, long assetId)
+    {
+        const string snapshotName = "20260829104435.snapshot.db";
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            protocolVersion = 1,
+            transferId = Guid.NewGuid(),
+            lineageId = Guid.NewGuid(),
+            generation = 1,
+            handoffVersion = 1,
+            sourceDeviceId = fixture.SourceDeviceId,
+            targetDeviceId = fixture.DeviceId,
+            snapshotReleaseId = 1L,
+            snapshotAssetId = 999L,
+            snapshotAssetName = snapshotName,
+            snapshotByteLength = 5L,
+            snapshotSha256 = Convert.ToHexString(SHA256.HashData(new byte[] { 9, 8, 7, 6, 5 })),
+            snapshotCreatedAtUtc = fixture.Clock.UtcNow
+        }, JsonOptions);
+        return new RawGrantFixture(assetId, GitHubHandoffAssetNames.CreateGrantName(snapshotName), bytes);
+    }
+
+    private static RawGrantFixture CreateCurrentEnvelopeGrant(
+        AcquisitionFixture fixture,
+        long assetId,
+        Guid targetDeviceId,
+        bool malformed = false)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            protocolVersion = "M07",
+            lineageId = fixture.LineageId,
+            generation = 1,
+            handoffVersion = 1,
+            targetDeviceId,
+            businessRevision = malformed ? -1 : 4
+        }, JsonOptions);
+        return new RawGrantFixture(
+            assetId,
+            GitHubHandoffAssetNames.CreateGrantName($"202609071200{assetId:00}.snapshot.db"),
+            bytes);
     }
 
     private sealed class RecordingInstaller(AcquisitionFixture fixture, JsonAuthorityStateStore store) : ITransferSnapshotInstaller
