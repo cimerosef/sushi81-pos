@@ -464,3 +464,53 @@ owner rerun scope. No owner acceptance is claimed.
 passed**. WP7 proof repository/release/assets were not opened, rerun, mutated or deleted. M08 and
 later milestones remain unauthorized/not started; merge remains unauthorized. Exact-head CI, push of
 the final docs head and matching `CODEX_DONE` remain pending delivery.
+
+### Review cycle 16 — manual-acceptance remediation `M07-MANUAL-ACCEPTANCE-REMEDIATION-21`
+
+**Entry evidence:** R20 owner retest passed Scenario D A→B same-process presentation refresh,
+Scenario E B→A same-process presentation refresh and Scenario H current-lineage newest-three
+retention convergence. Scenario G was blocked only because the published artifact had no
+deterministic, operator-safe way to fail after durable source relinquishment and before grant
+creation. The current Issue #4 gate was OPEN and the expected branch head was the accepted M20
+docs/evidence head `d124b9169f248a1043bfa2d00b99bd73e809a05e`.
+
+**Scope:** Add only a manual-acceptance-only normal-handoff fault probe at the exact boundary after
+durable `RelinquishedPendingGrant` persistence/revalidation and before any target-releasing grant
+creation/upload. Preserve target-directed authority, single-writer fail-closed behavior, M06
+guard/persistence/recovery, R20 retention isolation and same-process presentation refresh. WP7
+proof assets were not rerun or mutated; M08+ and merge remain unauthorized.
+
+**Implementation:** Added `INormalHandoffFaultProbe` with a no-op default and production
+`EnvironmentNormalHandoffFaultProbe`. The explicit process environment variable
+`SUSHI81_M07_MANUAL_FAULT_AFTER_RELINQUISH=1` is the only activation mechanism. The probe is
+crossed only while entering the newly durable pending phase, so restart/resume from an already
+pending transfer does not repeatedly inject the fault. The injected exception leaves the exact
+pending transfer and non-writable guard intact; no rollback, retarget, cancellation or second
+transfer identity is possible. Desktop composition wires the probe without changing secret or
+authority persistence.
+
+**Automated evidence:** Added
+`NormalHandoffTests.ManualPostRelinquishmentProbeFailsClosedAndExactRetryCannotRetarget`. It
+proves the durable boundary precedes the fault and grant upload, rejects business writes while
+pending, reconstructs the same transfer on restart, resumes the exact target despite a different
+requested target, and creates one matching target-bound grant on retry. Existing exact-target and
+non-target acquisition tests remain in force. Focused `NormalHandoffTests` passed `5/5`; full
+Release solution passed `540/540`, `0` failed, `0` skipped. Release build passed with `0` warnings
+and `0` errors; `git diff --check` passed.
+
+**Implementation commit:** `ae4e9b38ebd66e8b898fb0e4ad569bab024f0be4` (deterministic post-relinquishment fault probe).
+Fresh self-contained `win-x64` publish succeeded at
+`artifacts/m07-manual-remediation-21-publish`; primary executable is `143364771` bytes,
+SHA-256 `52619B649E4651C59E6F2B73051191DD6B0433B656B3EFD9369DB8463B866472`.
+
+**Owner procedure:** On authoritative A, start the R21 artifact with the process-scoped variable,
+perform the exact A→B normal handoff, verify A is pending/read-only and B has no grant, clear the
+variable, restart/resume A through the existing pending-transfer UX, and verify the same target
+and transfer complete normally. The variable is not persisted anywhere. Do not use random timing
+or network unplugging as the fault mechanism.
+
+**Status/boundaries:** R20 D/E/H evidence remains Passed. R21 makes G executable but project-owner
+Windows/WPF acceptance remains **not executed / not passed**. Scenario A, F, I, J, K, L, M and N
+remain pending as applicable. Exact-head CI, push and matching `CODEX_DONE` remain pending. WP7
+proof repository/release/assets were not opened, rerun, mutated or deleted; M08+ and merge remain
+unauthorized.

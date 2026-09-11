@@ -1,7 +1,7 @@
 # M07 final Windows/WPF manual acceptance
 
-**Status:** Remediation-20 candidate prepared — old candidates Scenario A and H BLOCKED; owner retest required — NOT EXECUTED / NOT PASSED
-**Prepared:** 2026-09-10
+**Status:** Remediation-21 candidate prepared — M20 owner D/E/H passed; Scenario G now executable; owner retest required — NOT EXECUTED / NOT PASSED
+**Prepared:** 2026-09-11
 **Milestone:** M07 — Pairing, target-directed formal handoff and disaster recovery  
 **Execution gate:** CLOSED at preparation time  
 **Implementation contract:** `milestone-07-pairing-handoff-disaster-recovery.md`
@@ -32,6 +32,45 @@
 
 The M20 owner rerun must cover Scenario H retention convergence, Scenario D/E target acquisition without process restart, and the successful DR/stale-generation database-replacement paths where applicable. Scenario A remains a required retest because it was blocked on the earlier candidate. No scenario or overall M07 acceptance is Passed by M20 automated evidence.
 
+### Latest remediation candidate — M07-MANUAL-ACCEPTANCE-REMEDIATION-21
+
+R20 owner retest evidence is preserved: Scenario D A→B same-process refresh passed, Scenario E B→A
+same-process refresh passed, and Scenario H newest-three retention convergence passed by direct
+inspection of the operational handoff Release. Scenario G remained blocked on R20 solely because
+the owner had no deterministic way to stop the source after durable relinquishment and before
+grant creation. R21 adds that manual-acceptance-only seam without changing the authority protocol.
+
+- Production implementation head: `ae4e9b38ebd66e8b898fb0e4ad569bab024f0be4` (exact final docs/evidence head follows).
+- Full local Release evidence: `540/540` Passed, `0` failed, `0` skipped; build `0` warnings / `0` errors.
+- Focused normal-handoff evidence: `NormalHandoffTests` `5/5` Passed; existing exact-target and
+  non-target acquisition coverage remains in `TargetAcquisitionTests`.
+- Fresh self-contained `win-x64` artifact: `artifacts/m07-manual-remediation-21-publish`;
+  `Sushi81.Pos.Desktop.exe`, `143364771` bytes, SHA-256
+  `52619B649E4651C59E6F2B73051191DD6B0433B656B3EFD9369DB8463B866472`.
+- Exact-head CI and project-owner Windows/WPF retest remain pending; these automated results do
+  not claim Scenario G or overall M07 acceptance.
+
+#### Scenario G owner procedure on R21
+
+1. On authoritative A, launch the R21 artifact with a process-scoped environment variable
+   `SUSHI81_M07_MANUAL_FAULT_AFTER_RELINQUISH=1`. Do not set it permanently at user/system scope.
+2. Start the normal exact A→B target-directed handoff. The source must first persist
+   `RelinquishedPendingGrant`; the probe then fails before any target-releasing grant upload.
+3. Confirm A shows the existing pending-transfer/read-only state, cannot perform business writes,
+   and identifies the immutable target B. Confirm B has not acquired authority.
+4. Clear the variable before restarting/retrying A. Restarting while it remains set is safe because
+   the probe is crossed only while entering the durable pending phase, but clearing it makes the
+   operator intent explicit.
+5. Use the existing pending-transfer resume action on A. It must reuse the same transfer ID,
+   target B, handoff version, business revision and snapshot receipt; no retarget/cancel/rollback
+   action is allowed.
+6. Confirm the retry creates exactly the B-bound grant, A becomes released/read-only, and B can
+   acquire and become writable. Any non-target device remains read-only.
+
+R21 does not mark Scenario G, Scenario A, Scenario F, Scenario I, Scenario J, Scenario K,
+Scenario L, Scenario M, Scenario N or overall M07 Passed. The project owner must record the
+manual result on the same accepted artifact/head.
+
 ## Remediation finding carried into owner retest
 
 The first owner review of Scenario A found a blocking defect on the prior WP10 candidate
@@ -58,11 +97,11 @@ This checklist is executed by the project owner only after ChatGPT review/remedi
 
 Fill before testing:
 
-- exact production-code head SHA: `b58c26473e3f4158bcafb16be07a8f8c7ea40c8f`
+- exact production-code head SHA: `ae4e9b38ebd66e8b898fb0e4ad569bab024f0be4`
 - exact docs/evidence head SHA: see the final evidence-bookkeeping head on PR #13
 - PR number: `#13`
-- artifact/publish location: `artifacts/m07-manual-remediation-18-publish`
-- Release test result: `532/532` Passed, `0` failed, `0` skipped
+- artifact/publish location: `artifacts/m07-manual-remediation-21-publish`
+- Release test result: `540/540` Passed, `0` failed, `0` skipped
 - Release build warnings/errors: `0 / 0`
 - exact-head CI run: pending delivery verification
 - Windows PC A identity/display name:
