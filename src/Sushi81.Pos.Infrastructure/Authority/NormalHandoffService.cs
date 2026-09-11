@@ -27,7 +27,8 @@ public sealed class NormalHandoffService(
     ITransferSnapshotFactory snapshots,
     IGitHubHandoffTransport transport,
     IBusinessClock clock,
-    IBusinessRevisionReader? revisionReader = null) : IAsyncDisposable
+    IBusinessRevisionReader? revisionReader = null,
+    INormalHandoffFaultProbe? faultProbe = null) : IAsyncDisposable
 {
     private static readonly JsonSerializerOptions GrantJsonOptions = new()
     {
@@ -239,6 +240,8 @@ public sealed class NormalHandoffService(
                 await PersistAsync(relinquishedState, cancellationToken);
                 current = relinquishedState;
                 relinquished = true;
+                await (faultProbe ?? NoOpNormalHandoffFaultProbe.Instance)
+                    .BeforeTargetReleasingGrantAsync(current, cancellationToken);
             }
 
             if (current.Phase == AuthorityPhase.RelinquishedPendingGrant)

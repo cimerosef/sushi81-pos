@@ -34,6 +34,17 @@ public interface ITransferSnapshotFactory
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Manual-acceptance-only seam at the irreversible normal-handoff boundary.
+/// Implementations must not change authority state or perform remote I/O.
+/// </summary>
+public interface INormalHandoffFaultProbe
+{
+    Task BeforeTargetReleasingGrantAsync(
+        AuthorityProtocolState pendingState,
+        CancellationToken cancellationToken = default);
+}
+
 /// <summary>Immutable target-bound grant bytes emitted only after source relinquishment is durable.</summary>
 public sealed record NormalHandoffGrant(
     string ProtocolVersion,

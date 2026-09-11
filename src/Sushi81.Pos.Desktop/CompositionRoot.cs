@@ -138,8 +138,9 @@ public static partial class CompositionRoot
                     var credentialProvider = new WindowsCredentialManagerGitHubCredentialProvider(configuration.GitHubCredentialTarget!);
                     var transport = new GitHubReleaseAssetTransport(options, credentialProvider);
                     var snapshotFactory = new LocalRecoveryTransferSnapshotFactory(snapshotService, clock, businessRevisionReader);
+                    var faultProbe = new EnvironmentNormalHandoffFaultProbe();
                     normalHandoff = new NormalHandoffService(
-                        authorityStateStore, authorityGuard, systemMetadata, snapshotFactory, transport, clock, businessRevisionReader);
+                        authorityStateStore, authorityGuard, systemMetadata, snapshotFactory, transport, clock, businessRevisionReader, faultProbe);
                     targetAcquisition = new TargetAcquisitionService(
                         authorityStateStore, authorityGuard, systemMetadata, transport, new SqliteTransferSnapshotInstaller(paths), clock);
                     connectionTester = new GitHubHandoffConnectionTester(transport);

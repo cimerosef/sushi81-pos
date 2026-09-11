@@ -91,6 +91,85 @@ public sealed class NormalHandoffTests
     }
 
     [TestMethod]
+    public async Task ManualPostRelinquishmentProbeFailsClosedAndExactRetryCannotRetarget()
+    {
+        using var fixture = new HandoffFixture();
+        var source = Guid.NewGuid();
+        var target = Guid.NewGuid();
+        await fixture.WriteMembershipAsync(source, target);
+        var store = fixture.CreateStateStore();
+        await store.SaveAsync(fixture.AuthoritativeDocument(source));
+        var transport = new RecordingTransport(fixture, store);
+
+        await using (var firstAttempt = new NormalHandoffService(
+            store,
+            fixture.Guard,
+            fixture.SystemStore,
+            new RecordingSnapshotFactory(fixture.Root),
+            transport,
+            fixture.Clock,
+            faultProbe: new EnvironmentNormalHandoffFaultProbe(() => "1")))
+        {
+            var result = await firstAttempt.TransferAndCloseAsync(target);
+
+            Assert.IsFalse(result.Succeeded);
+            Assert.IsInstanceOfType<NormalHandoffFaultInjectedException>(result.Error);
+        }
+
+        var pendingDocument = await store.LoadAsync();
+        Assert.IsNotNull(pendingDocument?.Protocol?.Transfer);
+        var pending = pendingDocument!.Protocol!;
+        var transfer = pending.Transfer!;
+        Assert.AreEqual(AuthorityPhase.RelinquishedPendingGrant, pending.Phase);
+        Assert.AreEqual(WriteAuthorityState.Transitioning, fixture.Guard.State);
+        Assert.HasCount(1, transport.Uploads, "The injected boundary must precede grant creation/upload.");
+        Assert.AreEqual("snapshot", transport.Uploads[0].Kind);
+        Assert.IsNull(transfer.GrantReceipt);
+        Assert.Throws<WriteAuthorityException>(fixture.Guard.RequireWriteAuthority);
+
+        var transferId = transfer.TransferId;
+        var handoffVersion = transfer.Version;
+        var businessRevision = transfer.BusinessRevision;
+        var snapshotReceipt = transfer.SnapshotReceipt;
+
+        // A fresh service instance represents restart. The environment trigger may still be
+        // present, but the durable pending phase must resume without crossing the probe again.
+        await using (var retry = new NormalHandoffService(
+            store,
+            fixture.Guard,
+            fixture.SystemStore,
+            new RecordingSnapshotFactory(fixture.Root),
+            transport,
+            fixture.Clock,
+            faultProbe: new EnvironmentNormalHandoffFaultProbe(() => "1")))
+        {
+            var result = await retry.TransferAndCloseAsync(Guid.NewGuid());
+
+            Assert.IsTrue(result.Succeeded, result.Error?.ToString());
+            Assert.AreEqual(transferId, result.TransferId);
+        }
+
+        var released = (await store.LoadAsync())!.Protocol!;
+        Assert.AreEqual(AuthorityPhase.ReleasedNonAuthoritative, released.Phase);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, fixture.Guard.State);
+        Assert.AreEqual(transferId, released.Transfer!.TransferId);
+        Assert.AreEqual(target, released.Transfer.TargetDeviceId, "Pending retry cannot retarget another joined device.");
+        Assert.AreEqual(handoffVersion, released.Transfer.Version);
+        Assert.AreEqual(businessRevision, released.Transfer.BusinessRevision);
+        Assert.AreEqual(snapshotReceipt, released.Transfer.SnapshotReceipt);
+        Assert.IsNotNull(released.Transfer.GrantReceipt);
+        Assert.HasCount(2, transport.Uploads);
+        Assert.AreEqual("grant", transport.Uploads[1].Kind);
+
+        var grantBytes = transport.UploadedContent[transport.Uploads[1].Name];
+        var grant = JsonSerializer.Deserialize<NormalHandoffGrant>(grantBytes, JsonOptions)!;
+        Assert.AreEqual(transferId, grant.TransferId);
+        Assert.AreEqual(target, grant.TargetDeviceId);
+        Assert.AreEqual(handoffVersion, grant.HandoffVersion);
+        Assert.AreEqual(businessRevision, grant.BusinessRevision);
+    }
+
+    [TestMethod]
     public async Task RetentionSkipsLegacyGrantAndConvergesValidCurrentUnits()
     {
         using var fixture = new HandoffFixture();
@@ -204,6 +283,7 @@ public sealed class NormalHandoffTests
     private sealed class RecordingTransport(HandoffFixture fixture, JsonAuthorityStateStore store) : IGitHubHandoffTransport
     {
         public List<(string Kind, string Name)> Uploads { get; } = [];
+        public Dictionary<string, byte[]> UploadedContent { get; } = new(StringComparer.Ordinal);
         public AuthorityPhase? PhaseObservedBeforeGrantUpload { get; private set; }
         public bool ThrowOnGrantUpload { get; init; }
         private readonly List<GitHubRemoteAsset> assets = [];
@@ -223,6 +303,7 @@ public sealed class NormalHandoffTests
                 PhaseObservedBeforeGrantUpload = (await store.LoadAsync(cancellationToken))!.Protocol!.Phase;
                 if (ThrowOnGrantUpload) throw new IOException("synthetic grant failure");
             }
+            UploadedContent[name] = bytes;
             var id = nextId++;
             var digest = "sha256:" + Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
             assets.Add(new GitHubRemoteAsset(id, name, bytes.Length, "uploaded", digest, fixture.Clock.UtcNow));
