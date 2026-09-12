@@ -1,13 +1,15 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **AUTHORIZED / execution setup in progress**  
+**Status:** **AUTHORIZED / implementation mailbox setup**  
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
-**Preparation entry baseline:** `main@9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`  
+**Authorized governance/execution baseline:** `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`  
+**Implementation branch:** `codex/m08-printing-reprinting`  
+**Implementation PR:** pending creation  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** CLOSED until branch/PR/handoff cross-check completes
+**Execution gate:** CLOSED until PR/mailbox/handoff cross-check completes
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -19,6 +21,10 @@ This worklog records M08 preparation, authorization, implementation and evidence
 - Accepted M07 production implementation head: `e971580ef43d3b50366d51733ca9431ca0997e8d`.
 - Final M07 closure docs/evidence head: `d586c847f2dd541815b8c00565c58b3685a3e4be`.
 - Final accepted M07 CI: #631 / run `34698627867`, success; 541/541 tests Passed; build 0 warnings / 0 errors.
+- M08 exact authorized preparation head: `b983efa7ef4e2591575fa662f9d433652b97e4aa`.
+- M08 governance/execution baseline after authorization/current-state bookkeeping: `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`.
+- Dedicated branch created: `codex/m08-printing-reprinting`.
+- Issue #4 remains CLOSED during mailbox setup.
 - M09+: not authorized.
 
 ## 2. Preparation audit — complete
@@ -100,13 +106,13 @@ Implementation must preserve:
 
 Controller sequence after authorization:
 
-1. advance governance-only `main` with authorization/current-state records;
-2. create dedicated branch `codex/m08-printing-reprinting` from the resulting execution baseline;
-3. create the dedicated M08 implementation PR targeting `main`;
-4. update Issue #4 pointer while keeping it CLOSED;
-5. publish exactly one top-level executable handoff `CODEX_HANDOFF_READY: M08-IMPLEMENTATION-01` with `POST_TASK_POWER_ACTION: NONE`;
-6. cross-check branch/PR/comment/authorization pointers;
-7. only then reopen Issue #4.
+1. [x] advance governance-only `main` with authorization/current-state records;
+2. [x] create dedicated branch `codex/m08-printing-reprinting` from `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`;
+3. [ ] create the dedicated M08 implementation PR targeting `main`;
+4. [ ] update Issue #4 pointer while keeping it CLOSED;
+5. [ ] publish exactly one top-level executable handoff `CODEX_HANDOFF_READY: M08-IMPLEMENTATION-01` with `POST_TASK_POWER_ACTION: NONE`;
+6. [ ] cross-check branch/PR/comment/authorization pointers;
+7. [ ] only then reopen Issue #4.
 
 ## 7. Implementation evidence
 
