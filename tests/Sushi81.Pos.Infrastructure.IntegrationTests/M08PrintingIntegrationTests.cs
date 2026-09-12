@@ -69,6 +69,53 @@ public sealed class M08PrintingIntegrationTests
     }
 
     [TestMethod]
+    public async Task SemanticReceiptRendererOwnsAlignmentAndKeepsAtomicHeaderTogether()
+    {
+        var content = new PrintReceiptContent([
+            new(PrintReceiptBlockKind.Heading, "*** CUISINE ***", AtomicGroup: "header"),
+            new(PrintReceiptBlockKind.LabelValue, "Cmd", "20260912-001", AtomicGroup: "header"),
+            new(PrintReceiptBlockKind.LabelValue, "Heure", "10:15", AtomicGroup: "header"),
+            new(PrintReceiptBlockKind.Separator, "-"),
+            new(PrintReceiptBlockKind.LabelValue, "Adresse", "12 rue très longue à Nemours qui doit être enroulée sans perdre de texte"),
+            new(PrintReceiptBlockKind.Total, "TOTAL", "12.50 EUR", AtomicGroup: "total")
+        ]);
+
+        var pages = await StaPrintThread.RunAsync(
+            () => ThermalPrintLayout.Paginate(content, new PrintImageableSurface(220, 120, 5, 5, 210, 60)),
+            CancellationToken.None);
+
+        Assert.IsGreaterThan(1, pages.Count);
+        StringAssert.Contains(pages[0], "*** CUISINE ***");
+        StringAssert.Contains(pages[0], "Cmd : 20260912-001");
+        StringAssert.Contains(pages[0], "Heure : 10:15");
+        Assert.IsTrue(pages.SelectMany(page => page.Split(Environment.NewLine)).Any(line => line.Contains("TOTAL : 12.50 EUR", StringComparison.Ordinal)));
+        Assert.IsTrue(pages.Any(page => page.Contains("12 rue très longue", StringComparison.Ordinal)));
+        Assert.IsFalse(pages.Any(page => page.Contains("Catalogue actuel", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task SemanticReceiptRendererUsesNarrowImageableWidthWithoutFixedWidthFragments()
+    {
+        var content = new PrintReceiptContent([
+            new(PrintReceiptBlockKind.Identity, "Sushi 81", AtomicGroup: "identity"),
+            new(PrintReceiptBlockKind.Identity, "SIRET", "90805211100014", AtomicGroup: "identity"),
+            new(PrintReceiptBlockKind.Item, "1x P-001", "Un nom de produit volontairement très long pour tester le rendu thermique")
+        ]);
+
+        var pages = await StaPrintThread.RunAsync(
+            () => ThermalPrintLayout.Paginate(content, new PrintImageableSurface(100, 240, 2, 2, 60, 180)),
+            CancellationToken.None);
+
+        var rendered = string.Join(Environment.NewLine, pages);
+        StringAssert.Contains(rendered, "Sushi 81");
+        StringAssert.Contains(rendered, "908052111000");
+        StringAssert.Contains(rendered, "14");
+        StringAssert.Contains(rendered, "nom de");
+        StringAssert.Contains(rendered, "volontaireme");
+        Assert.IsFalse(rendered.Contains(new string(' ', 20), StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void ThermalLayoutUsesNormalAndNarrowDriverGeometryWithoutFallback()
     {
         var normal = ThermalPrintLayout.FromGeometry(new PrintImageableGeometry(5, 5, 210, 30));

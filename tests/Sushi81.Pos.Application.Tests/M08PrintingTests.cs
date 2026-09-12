@@ -20,15 +20,15 @@ public sealed class M08PrintingTests
 
         var document = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Kitchen, PrintIntent.ExplicitReprint);
 
-        StringAssert.Contains(document.Text, "*** CUISINE ***");
-        StringAssert.Contains(document.Text, "RÉIMPRESSION");
-        StringAssert.Contains(document.Text, "FUTURE : 14/09/2026 18:30");
-        StringAssert.Contains(document.Text, "1x P-001 Plat historique");
-        StringAssert.Contains(document.Text, "Option sauvegardée");
-        StringAssert.Contains(document.Text, "Note persistée");
-        StringAssert.Contains(document.Text, "TOTAL : 12.50 EUR");
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Heading && block.Text == "*** CUISINE ***"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "RÉIMPRESSION"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.LabelValue && block.Text == "FUTURE" && block.SecondaryText == "14/09/2026 18:30"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Item && block.Text == "1x P-001" && block.SecondaryText == "Plat historique"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Option && block.Text == "Option sauvegardée"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.LabelValue && block.Text == "Note" && block.SecondaryText == "Note persistée"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Total && block.Text == "TOTAL" && block.SecondaryText == "12.50 EUR"));
         Assert.IsTrue(document.IsFuture);
-        Assert.IsFalse(document.Text.Contains("Catalogue actuel", StringComparison.Ordinal));
+        Assert.IsFalse(document.Content.ToDiagnosticText().Contains("Catalogue actuel", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -43,13 +43,13 @@ public sealed class M08PrintingTests
 
         var document = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.ExplicitReprint);
 
-        StringAssert.Contains(document.Text, "Sushi 81");
-        StringAssert.Contains(document.Text, "90805211100014");
-        StringAssert.Contains(document.Text, "FR03908052111");
-        StringAssert.Contains(document.Text, "DUPLICATA");
-        StringAssert.Contains(document.Text, "CB       7.00 EUR");
-        StringAssert.Contains(document.Text, "Espèce   5.50 EUR");
-        StringAssert.Contains(document.Text, "TVA 10%");
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Identity && block.Text == "Sushi 81"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Identity && block.Text == "SIRET" && block.SecondaryText == "90805211100014"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Identity && block.Text == "TVA" && block.SecondaryText == "FR03908052111"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "DUPLICATA"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Payment && block.Text == "CB" && block.SecondaryText == "7.00 EUR"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Payment && block.Text == "Espèce" && block.SecondaryText == "5.50 EUR"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Tax && block.Text == "TVA 10%"));
     }
 
     [TestMethod]
@@ -61,11 +61,11 @@ public sealed class M08PrintingTests
         var kitchen = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Kitchen, PrintIntent.ExplicitReprint);
         var customer = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.ExplicitReprint);
 
-        StringAssert.Contains(kitchen.Text, "ANNULÉ");
-        StringAssert.Contains(kitchen.Text, "RÉIMPRESSION");
-        StringAssert.Contains(customer.Text, "ANNULÉ");
-        StringAssert.Contains(customer.Text, "DUPLICATA");
-        Assert.AreEqual(1, customer.Text.Split("ANNULÉ", StringSplitOptions.None).Length - 1);
+        Assert.IsTrue(kitchen.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "ANNULÉ"));
+        Assert.IsTrue(kitchen.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "RÉIMPRESSION"));
+        Assert.IsTrue(customer.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "ANNULÉ"));
+        Assert.IsTrue(customer.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "DUPLICATA"));
+        Assert.AreEqual(1, customer.Content.Blocks.Count(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "ANNULÉ"));
     }
 
     [TestMethod]
@@ -77,8 +77,8 @@ public sealed class M08PrintingTests
         var initialRetry = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.InitialRetry);
         var explicitReprint = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.ExplicitReprint);
 
-        Assert.IsFalse(initialRetry.Text.Contains("DUPLICATA", StringComparison.Ordinal));
-        StringAssert.Contains(explicitReprint.Text, "DUPLICATA");
+        Assert.IsFalse(initialRetry.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "DUPLICATA"));
+        Assert.IsTrue(explicitReprint.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "DUPLICATA"));
     }
 
     [TestMethod]

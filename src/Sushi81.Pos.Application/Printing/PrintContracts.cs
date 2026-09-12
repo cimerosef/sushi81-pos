@@ -31,6 +31,50 @@ public enum PrintOutcomeStatus
     Unsupported
 }
 
+public enum PrintReceiptBlockKind
+{
+    LegacyText,
+    Identity,
+    Heading,
+    Reference,
+    Timestamp,
+    Marker,
+    Separator,
+    LabelValue,
+    Item,
+    Option,
+    ItemAmount,
+    Tax,
+    Total,
+    Payment,
+    Footer
+}
+
+/// <summary>
+/// Printer-independent receipt content. Text is kept as semantic values; alignment,
+/// wrapping, font choice and pagination belong to the infrastructure print boundary.
+/// </summary>
+public sealed record PrintReceiptBlock(
+    PrintReceiptBlockKind Kind,
+    string Text,
+    string? SecondaryText = null,
+    string? TertiaryText = null,
+    string? AtomicGroup = null);
+
+public sealed record PrintReceiptContent(IReadOnlyList<PrintReceiptBlock> Blocks)
+{
+    public static PrintReceiptContent FromLegacyText(string text) =>
+        new([new(PrintReceiptBlockKind.LegacyText, text ?? string.Empty)]);
+
+    public string ToDiagnosticText() => string.Join(
+        Environment.NewLine,
+        Blocks.Select(block => block.Kind == PrintReceiptBlockKind.Separator
+            ? block.Text
+            : string.Join(" ", new[] { block.Text, block.SecondaryText, block.TertiaryText }
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value!.Trim()))));
+}
+
 public sealed record OrderPrintDocument(
     PrintDocumentKind Kind,
     PrintIntent Intent,
@@ -40,6 +84,9 @@ public sealed record OrderPrintDocument(
     bool IsFuture,
     bool IsCancelled)
 {
+    /// <summary>Structured content used by the physical printer renderer.</summary>
+    public PrintReceiptContent Content { get; init; } = PrintReceiptContent.FromLegacyText(Text);
+
     public string QueueRole => Kind == PrintDocumentKind.Kitchen ? "Kitchen" : "Customer";
 }
 
@@ -102,8 +149,6 @@ public interface IPrintQueueCatalog
 
 public sealed class OrderPrintDocumentFactory(IBusinessClock clock)
 {
-    private const int KitchenWidth = 42;
-    private const int CustomerWidth = 32;
     private readonly IBusinessClock clock = clock ?? throw new ArgumentNullException(nameof(clock));
 
     public OrderPrintDocument Create(OrderSnapshot order, ReceiptIdentity identity, PrintDocumentKind kind, PrintIntent intent)
@@ -111,134 +156,104 @@ public sealed class OrderPrintDocumentFactory(IBusinessClock clock)
         ArgumentNullException.ThrowIfNull(order);
         ArgumentNullException.ThrowIfNull(identity);
         if (!identity.IsComplete) throw new ArgumentException("Receipt identity is incomplete.", nameof(identity));
-        return kind == PrintDocumentKind.Kitchen
-            ? new(kind, intent, order.Id, Reference(order), RenderKitchen(order, intent), IsFuture(order), order.Status == OrderStatus.Cancelled)
-            : new(kind, intent, order.Id, Reference(order), RenderCustomer(order, identity, intent), IsFuture(order), order.Status == OrderStatus.Cancelled);
+        var content = kind == PrintDocumentKind.Kitchen
+            ? BuildKitchen(order, intent)
+            : BuildCustomer(order, identity, intent);
+        return new(kind, intent, order.Id, Reference(order), content.ToDiagnosticText(), IsFuture(order), order.Status == OrderStatus.Cancelled)
+        {
+            Content = content
+        };
     }
 
     private bool IsFuture(OrderSnapshot order) => order.PlannedFulfilmentDate > clock.BusinessDate;
 
     private static string Reference(OrderSnapshot order) => string.IsNullOrWhiteSpace(order.Reference) ? order.Id.ToString("N")[..8] : order.Reference;
 
-    private string RenderKitchen(OrderSnapshot order, PrintIntent intent)
+    private PrintReceiptContent BuildKitchen(OrderSnapshot order, PrintIntent intent)
     {
-        var lines = new List<string> { Center("*** CUISINE ***", KitchenWidth), Center(Reference(order), KitchenWidth), $"Heure : {FormatDateTime(order.CreatedAt)}" };
-        AddMarkings(lines, order, intent, KitchenWidth);
-        lines.Add(Dashes(KitchenWidth));
-        AddOptional(lines, $"Mode : {(order.Fulfilment == FulfilmentMode.Retrait ? "Retrait" : "Livraison")}", KitchenWidth);
-        if (IsFuture(order)) AddOptional(lines, $"FUTURE : {FormatDate(order.PlannedFulfilmentDate)} {FormatTime(order.PlannedFulfilmentTime)}", KitchenWidth);
-        else AddOptional(lines, $"Prévu : {FormatDate(order.PlannedFulfilmentDate)} {FormatTime(order.PlannedFulfilmentTime)}", KitchenWidth);
-        AddWrapped(lines, "Tél : ", order.Telephone, KitchenWidth);
-        AddWrapped(lines, "Adresse : ", order.DeliveryAddress, KitchenWidth);
-        AddWrapped(lines, "Note : ", order.Comment, KitchenWidth);
-        lines.Add(Dashes(KitchenWidth));
+        var blocks = new List<PrintReceiptBlock>
+        {
+            new(PrintReceiptBlockKind.Heading, "*** CUISINE ***", AtomicGroup: "kitchen-header"),
+            new(PrintReceiptBlockKind.LabelValue, "Cmd", Reference(order), AtomicGroup: "kitchen-header"),
+            new(PrintReceiptBlockKind.LabelValue, "Heure", FormatTime(order.CreatedAt), AtomicGroup: "kitchen-header")
+        };
+        AddMarkings(blocks, order, PrintDocumentKind.Kitchen, intent);
+        blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
+        AddLabelValue(blocks, "Mode", order.Fulfilment == FulfilmentMode.Retrait ? "Retrait" : "Livraison");
+        AddLabelValue(blocks, IsFuture(order) ? "FUTURE" : "Prévu", $"{FormatDate(order.PlannedFulfilmentDate)} {FormatTime(order.PlannedFulfilmentTime)}");
+        AddLabelValue(blocks, "Tél", order.Telephone);
+        AddLabelValue(blocks, "Adresse", order.DeliveryAddress);
+        AddLabelValue(blocks, "Note", order.Comment);
+        blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
         foreach (var item in order.Items.OrderBy(item => item.Position))
         {
-            AddWrapped(lines, string.Empty, $"{item.Quantity}x {item.ProductCode} {item.ProductName}", KitchenWidth);
+            blocks.Add(new(PrintReceiptBlockKind.Item, $"{item.Quantity}x {item.ProductCode}", item.ProductName));
             foreach (var adjustment in item.Adjustments.OrderBy(adjustment => adjustment.DisplayOrder))
-                AddWrapped(lines, "  - ", $"{adjustment.Label} ({FormatMoney(adjustment.AdjustmentTtcPerUnit)})", KitchenWidth);
+                blocks.Add(new(PrintReceiptBlockKind.Option, adjustment.Label, FormatMoney(adjustment.AdjustmentTtcPerUnit)));
         }
-        lines.Add(Dashes(KitchenWidth));
-        lines.Add(Center($"TOTAL : {FormatMoney(order.TotalTtc)} EUR", KitchenWidth));
-        return string.Join(Environment.NewLine, lines) + Environment.NewLine;
+        blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
+        blocks.Add(new(PrintReceiptBlockKind.Total, "TOTAL", $"{FormatMoney(order.TotalTtc)} EUR", AtomicGroup: "kitchen-total"));
+        return new(blocks);
     }
 
-    private string RenderCustomer(OrderSnapshot order, ReceiptIdentity identity, PrintIntent intent)
+    private PrintReceiptContent BuildCustomer(OrderSnapshot order, ReceiptIdentity identity, PrintIntent intent)
     {
-        var lines = new List<string>
+        var blocks = new List<PrintReceiptBlock>
         {
-            Center(identity.BusinessName, CustomerWidth),
-            Center(identity.AddressLine1, CustomerWidth),
-            Center(identity.AddressLine2, CustomerWidth),
-            Center($"SIRET {identity.Siret}", CustomerWidth),
-            Center($"TVA {identity.VatNumber}", CustomerWidth),
-            Center($"APE {identity.ActivityCode}", CustomerWidth),
-            string.Empty,
-            Center(Reference(order), CustomerWidth),
-            Center(FormatDateTime(order.CreatedAt), CustomerWidth)
+            new(PrintReceiptBlockKind.Identity, identity.BusinessName, AtomicGroup: "customer-identity"),
+            new(PrintReceiptBlockKind.Identity, identity.AddressLine1, AtomicGroup: "customer-identity"),
+            new(PrintReceiptBlockKind.Identity, identity.AddressLine2, AtomicGroup: "customer-identity"),
+            new(PrintReceiptBlockKind.Identity, "SIRET", identity.Siret, AtomicGroup: "customer-identity"),
+            new(PrintReceiptBlockKind.Identity, "TVA", identity.VatNumber, AtomicGroup: "customer-identity"),
+            new(PrintReceiptBlockKind.Identity, "APE", identity.ActivityCode, AtomicGroup: "customer-identity"),
+            new(PrintReceiptBlockKind.Reference, Reference(order), AtomicGroup: "customer-ticket"),
+            new(PrintReceiptBlockKind.Timestamp, FormatDateTime(order.CreatedAt), AtomicGroup: "customer-ticket")
         };
-        AddMarkings(lines, order, intent, CustomerWidth);
-        lines.Add(Dashes(CustomerWidth));
-        AddOptional(lines, $"Mode : {(order.Fulfilment == FulfilmentMode.Retrait ? "Retrait" : "Livraison")}", CustomerWidth);
-        AddOptional(lines, $"{(IsFuture(order) ? "FUTURE" : "Prévu")} : {FormatDate(order.PlannedFulfilmentDate)} {FormatTime(order.PlannedFulfilmentTime)}", CustomerWidth);
-        AddWrapped(lines, "Tél : ", order.Telephone, CustomerWidth);
-        AddWrapped(lines, "Adresse : ", order.DeliveryAddress, CustomerWidth);
-        lines.Add(Dashes(CustomerWidth));
+        AddMarkings(blocks, order, PrintDocumentKind.Customer, intent);
+        blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
+        AddLabelValue(blocks, "Mode", order.Fulfilment == FulfilmentMode.Retrait ? "Retrait" : "Livraison");
+        AddLabelValue(blocks, IsFuture(order) ? "FUTURE" : "Prévu", $"{FormatDate(order.PlannedFulfilmentDate)} {FormatTime(order.PlannedFulfilmentTime)}");
+        AddLabelValue(blocks, "Tél", order.Telephone);
+        AddLabelValue(blocks, "Adresse", order.DeliveryAddress);
+        blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
         foreach (var item in order.Items.OrderBy(item => item.Position))
         {
-            AddWrapped(lines, string.Empty, $"{item.Quantity} x {item.ProductCode} {item.ProductName}", CustomerWidth);
-            AddWrapped(lines, "  ", FormatMoney(item.CalculatedLineTotalTtc) + " EUR", CustomerWidth);
+            blocks.Add(new(PrintReceiptBlockKind.Item, $"{item.Quantity} x {item.ProductCode}", item.ProductName));
+            blocks.Add(new(PrintReceiptBlockKind.ItemAmount, $"{FormatMoney(item.CalculatedLineTotalTtc)} EUR"));
             foreach (var adjustment in item.Adjustments.OrderBy(adjustment => adjustment.DisplayOrder))
-                AddWrapped(lines, "  - ", $"{adjustment.Label} {FormatMoney(adjustment.AdjustmentTtcPerUnit)}", CustomerWidth);
+                blocks.Add(new(PrintReceiptBlockKind.Option, adjustment.Label, FormatMoney(adjustment.AdjustmentTtcPerUnit)));
         }
-        lines.Add(Dashes(CustomerWidth));
+        blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
         foreach (var tax in order.TaxBreakdown.OrderBy(tax => tax.VatRate))
         {
             var net = tax.TaxableTtc - tax.IncludedVatTtc;
-            lines.Add($"HT {tax.VatRate:0.#}% {FormatMoney(net)} EUR");
-            lines.Add($"TVA {tax.VatRate:0.#}% {FormatMoney(tax.IncludedVatTtc)} EUR");
+            blocks.Add(new(PrintReceiptBlockKind.Tax, $"HT {tax.VatRate:0.#}%", $"{FormatMoney(net)} EUR"));
+            blocks.Add(new(PrintReceiptBlockKind.Tax, $"TVA {tax.VatRate:0.#}%", $"{FormatMoney(tax.IncludedVatTtc)} EUR"));
         }
-        lines.Add(Dashes(CustomerWidth));
-        lines.Add(Center($"Total EUR {FormatMoney(order.TotalTtc)}", CustomerWidth));
-        lines.Add($"CB       {FormatMoney(order.CardPaymentTtc)} EUR");
-        lines.Add($"Espèce   {FormatMoney(order.CashPaymentTtc)} EUR");
-        lines.Add(string.Empty);
-        lines.Add(Center("Sushi81 POS", CustomerWidth));
-        return string.Join(Environment.NewLine, lines) + Environment.NewLine;
+        blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
+        blocks.Add(new(PrintReceiptBlockKind.Total, "Total EUR", FormatMoney(order.TotalTtc), AtomicGroup: "customer-total"));
+        blocks.Add(new(PrintReceiptBlockKind.Payment, "CB", $"{FormatMoney(order.CardPaymentTtc)} EUR", AtomicGroup: "customer-payment"));
+        blocks.Add(new(PrintReceiptBlockKind.Payment, "Espèce", $"{FormatMoney(order.CashPaymentTtc)} EUR", AtomicGroup: "customer-payment"));
+        blocks.Add(new(PrintReceiptBlockKind.Footer, identity.BusinessName, AtomicGroup: "customer-footer"));
+        return new(blocks);
     }
 
-    private static void AddMarkings(List<string> lines, OrderSnapshot order, PrintIntent intent, int width)
+    private static void AddMarkings(List<PrintReceiptBlock> blocks, OrderSnapshot order, PrintDocumentKind kind, PrintIntent intent)
     {
-        if (order.Status == OrderStatus.Cancelled) lines.Add(Center("ANNULÉ", width));
+        if (order.Status == OrderStatus.Cancelled) blocks.Add(new(PrintReceiptBlockKind.Marker, "ANNULÉ"));
         if (intent == PrintIntent.ExplicitReprint)
-            lines.Add(Center(width == KitchenWidth ? "RÉIMPRESSION" : "DUPLICATA", width));
+            blocks.Add(new(PrintReceiptBlockKind.Marker, kind == PrintDocumentKind.Kitchen ? "RÉIMPRESSION" : "DUPLICATA"));
     }
 
-    private static void AddOptional(List<string> lines, string value, int width) => AddWrapped(lines, string.Empty, value, width);
-
-    private static void AddWrapped(List<string> lines, string prefix, string? value, int width)
+    private static void AddLabelValue(List<PrintReceiptBlock> blocks, string label, string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return;
-        var firstPrefix = prefix ?? string.Empty;
-        var available = Math.Max(1, width - firstPrefix.Length);
-        var chunks = Wrap(value.Trim(), available);
-        if (chunks.Count == 0) return;
-        lines.Add(firstPrefix + chunks[0]);
-        var continuation = new string(' ', firstPrefix.Length);
-        foreach (var chunk in chunks.Skip(1)) lines.Add(continuation + chunk);
+        if (!string.IsNullOrWhiteSpace(value)) blocks.Add(new(PrintReceiptBlockKind.LabelValue, label, value.Trim()));
     }
 
-    public static IReadOnlyList<string> Wrap(string value, int width)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
-        var result = new List<string>();
-        foreach (var paragraph in value.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'))
-        {
-            var remaining = paragraph.Trim();
-            if (remaining.Length == 0) { result.Add(string.Empty); continue; }
-            while (remaining.Length > width)
-            {
-                var cut = remaining.LastIndexOf(' ', width - 1);
-                if (cut <= 0) cut = width;
-                result.Add(remaining[..cut].TrimEnd());
-                remaining = remaining[cut..].TrimStart();
-            }
-            result.Add(remaining);
-        }
-        return result;
-    }
-
-    private static string Center(string value, int width)
-    {
-        if (value.Length >= width) return value;
-        var left = (width - value.Length) / 2;
-        return new string(' ', left) + value;
-    }
-
-    private static string Dashes(int width) => new('-', width);
     private static string FormatMoney(Money money) => money.Euros.ToString("0.00", CultureInfo.InvariantCulture);
     private static string FormatDate(DateOnly value) => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
     private static string FormatTime(TimeOnly? value) => value?.ToString("HH\\:mm", CultureInfo.InvariantCulture) ?? "—";
+    private static string FormatTime(DateTimeOffset value) => value.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture);
     private static string FormatDateTime(DateTimeOffset value) => value.ToLocalTime().ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
 }
 
