@@ -23,6 +23,8 @@
   <data name="JoinPrompt" xml:space="preserve"><value>Rejoignez le système Sushi81 configuré en mode lecture seule. Cette action ne donne pas l’autorité d’écriture.</value></data>
   <data name="JoinConfirm" xml:space="preserve"><value>Rejoindre en lecture seule</value></data>
   <data name="JoinSucceeded" xml:space="preserve"><value>Cette machine est maintenant appairée en lecture seule.</value></data>
+  <data name="M07JoinFailed" xml:space="preserve"><value>L’appairage n’a pas abouti. Cette machine reste en lecture seule.</value></data>
+  <data name="M07OperationFailed" xml:space="preserve"><value>L’opération M07 n’a pas abouti. Consultez l’état affiché ; les écritures restent bloquées.</value></data>
   <data name="M07AcquireAuthority" xml:space="preserve"><value>Vérifier et acquérir l’autorité transférée</value></data>
   <data name="M07AcquireValidating" xml:space="preserve"><value>Validation de l’autorité transférée en cours…</value></data>
   <data name="M07AcquireAcquired" xml:space="preserve"><value>Autorité acquise. Les écritures sont disponibles après validation locale.</value></data>
@@ -262,10 +264,13 @@ Changements effectifs : {2}</value></data>
   <data name="M07DisasterRecoveryNoCandidate" xml:space="preserve"><value>Aucun candidat de récupération validé n’est disponible.</value></data>
   <data name="M07DisasterRecoveryFailed" xml:space="preserve"><value>Disaster Recovery n’a pas abouti. L’appareil reste en lecture seule.</value></data>
   <data name="M07DisasterRecoverySucceeded" xml:space="preserve"><value>Disaster Recovery terminé : cet appareil est maintenant autoritaire.</value></data>
+  <data name="M07DisasterRecoveryLostToWinner" xml:space="preserve"><value>Un autre appareil a obtenu l’activation de la génération suivante. Cette machine reste en lecture seule.</value></data>
+  <data name="M07DisasterRecoveryNoProvenWinner" xml:space="preserve"><value>L’activation en ligne n’a pas établi de gagnant vérifiable. Cette machine reste en lecture seule.</value></data>
   <data name="M07StaleGeneration" xml:space="preserve"><value>Une génération plus récente a été observée. Cet appareil est en lecture seule et doit être réinitialisé.</value></data>
   <data name="M07ReinitializeStale" xml:space="preserve"><value>Réinitialiser cet appareil dans la génération actuelle</value></data>
   <data name="M07ReinitializeNoSeed" xml:space="preserve"><value>Aucun seed validé de la génération actuelle n’est disponible. L’appareil reste en lecture seule.</value></data>
   <data name="M07ReinitializeSucceeded" xml:space="preserve"><value>Réinitialisation terminée. L’appareil reste en lecture seule jusqu’à un handoff normal.</value></data>
+  <data name="M07ReinitializeFailed" xml:space="preserve"><value>La réinitialisation de cette génération n’a pas abouti. L’appareil reste en lecture seule.</value></data>
   <data name="M07CandidateTypeGitHub" xml:space="preserve"><value>Handoff GitHub complet</value></data>
   <data name="M07CandidateTypeOneDrive" xml:space="preserve"><value>Checkpoint OneDrive</value></data>
   <data name="M07CandidateDataLossWarning" xml:space="preserve"><value>Cette action crée une nouvelle génération. Les écritures de l’ancien appareil doivent rester arrêtées ; une perte depuis le dernier candidat est possible.</value></data>

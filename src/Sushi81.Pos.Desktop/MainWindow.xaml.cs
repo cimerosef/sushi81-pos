@@ -143,6 +143,11 @@ public partial class MainWindow : Window
     private async void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (DataContext is not ShellViewModel viewModel || e.AddedItems.OfType<LanguageOption>().SingleOrDefault() is not { } language) return;
+        if (language.CultureName == viewModel.SelectedLanguageCultureName)
+        {
+            ApplyCatalogueHeaders();
+            return;
+        }
         try { await viewModel.ChangeLanguageAsync(language); ApplyCatalogueHeaders(); }
         catch { MessageBox.Show(this, viewModel.LanguageSaveFailure, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error); }
     }
@@ -158,9 +163,9 @@ public partial class MainWindow : Window
             await viewModel.JoinExistingLineageAsync(dialog.DisplayName);
             MessageBox.Show(this, LocalizedText(this, "JoinSucceeded", "This computer is paired read-only."), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
-        catch (Exception exception)
+        catch
         {
-            MessageBox.Show(this, exception.Message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, LocalizedText(this, "M07JoinFailed", "Pairing could not complete. This device remains read-only."), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -212,12 +217,12 @@ public partial class MainWindow : Window
             var result = await viewModel.StartDisasterRecoveryAsync(
                 dialog.SelectedCandidateId!, dialog.NormalPathUnavailableConfirmed, dialog.QuarantineConfirmed);
             if (result is { Succeeded: false })
-                MessageBox.Show(this, result.Diagnostic, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(this, viewModel.GetLocalizedDisasterRecoveryResult(result), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception)
+        catch
         {
-            MessageBox.Show(this, exception.Message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, viewModel.Localized["M07OperationFailed"], viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -230,12 +235,12 @@ public partial class MainWindow : Window
         {
             var result = await viewModel.RetryDisasterRecoveryAsync(dialog.QuarantineConfirmed);
             if (result is { Succeeded: false })
-                MessageBox.Show(this, result.Diagnostic, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(this, viewModel.GetLocalizedDisasterRecoveryResult(result), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception)
+        catch
         {
-            MessageBox.Show(this, exception.Message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, viewModel.Localized["M07OperationFailed"], viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -246,13 +251,13 @@ public partial class MainWindow : Window
         {
             var result = await viewModel.ReinitializeStaleDeviceAsync();
             if (result is not null)
-                MessageBox.Show(this, result.Diagnostic, viewModel.Title, MessageBoxButton.OK,
+                MessageBox.Show(this, viewModel.GetLocalizedDisasterRecoveryResult(result), viewModel.Title, MessageBoxButton.OK,
                     result.Succeeded ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception)
+        catch
         {
-            MessageBox.Show(this, exception.Message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, viewModel.Localized["M07OperationFailed"], viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

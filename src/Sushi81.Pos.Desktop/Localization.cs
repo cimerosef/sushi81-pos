@@ -72,7 +72,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private static readonly ResourceManager ResourceManager = new("Sushi81.Pos.Desktop.Properties.Resources", typeof(ShellViewModel).Assembly);
     private readonly ISelectedCultureStore _cultureStore;
     private CultureInfo _culture;
-    private LanguageOption _selectedLanguage;
+    private LanguageOption _selectedLanguage = new("fr-FR", "Français");
     private bool _isLanguageChangeInProgress;
     private bool _m07OperationInProgress;
     private bool _businessPresentationRefreshBlocked;
@@ -94,7 +94,6 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         Languages = new ObservableCollection<LanguageOption>();
         RecoveryCandidates = new ObservableCollection<RecoveryCandidate>();
         RefreshResources();
-        _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
         Admin = startupSucceeded && catalogueService is not null && settingsService is not null ? new M03ShellViewModel(catalogueService, settingsService, authorityGuard) : null;
         Entry = startupSucceeded && orderEntryService is not null ? new OrderEntryShellViewModel(orderEntryService, authorityGuard) : null;
         Lifecycle = startupSucceeded && orderLifecycleService is not null ? new OrderLifecycleShellViewModel(orderLifecycleService, authorityGuard) : null;
@@ -203,6 +202,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         get => _selectedLanguage;
     }
 
+    public string SelectedLanguageCultureName => _selectedLanguage.CultureName;
+
     public bool CanChangeLanguage => !_isLanguageChangeInProgress;
 
     /// <summary>
@@ -234,13 +235,12 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
             Entry?.ApplyLocalization(Localized["All"], Localized["FulfilmentUnselected"], Localized["Retrait"], Localized["Livraison"], Localized["ManualTotalActive"], Localized["NewOrder"], Localized["Quantity"], Localized);
             Lifecycle?.ApplyLocalization(Localized);
-            _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
-            OnPropertyChanged(nameof(SelectedLanguage));
         }
         catch
         {
             // Restore the ComboBox selection to the last successfully persisted culture.
             OnPropertyChanged(nameof(SelectedLanguage));
+            OnPropertyChanged(nameof(SelectedLanguageCultureName));
             throw;
         }
         finally
@@ -290,6 +290,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         Languages.Clear();
         Languages.Add(new LanguageOption("fr-FR", Read("FrenchLanguage")));
         Languages.Add(new LanguageOption("zh-CN", Read("ChineseLanguage")));
+        _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
         var keys = new[] { "ShellTitle", "Catalogue", "Settings", "Caisse", "Commandes", "Products", "Search", "OrderSearch", "Category", "All", "Active", "Inactive", "NewProduct", "Edit", "Save", "Cancel", "Add", "Confirm", "ReloadOrder", "Activate", "Deactivate", "BulkActivate", "BulkDeactivate", "BulkConfirm", "BulkNoChange", "BulkSuccess", "DeletePermanently", "ManageCategories", "CategoryShortCode", "CategoryShortCodeTooltip", "Code", "Name", "PriceTtc", "Vat", "DiscountEligible", "OptionsEnabled", "OptionGroups", "Options", "SelectionMode", "Required", "Optional", "Single", "Multi", "Minimum", "Maximum", "AdjustmentTtc", "MoveUp", "MoveDown", "PickupDiscount", "PickupMinimum", "DeliveryMinimum", "DeliveryFee", "DeliveryFeeEnabled", "Fulfilment", "FulfilmentUnselected", "Retrait", "Livraison", "PlannedDate", "PlannedTime", "TimeHour", "TimeMinute", "TimeUnset", "Telephone", "DeliveryAddress", "Comment", "PickupDiscountRequest", "Cart", "TotalTtc", "Quantity", "CustomAdjustments", "AddAdjustment", "AdjustmentLabel", "AdjustmentAmount", "NewOrder", "ManualTotalActive", "ReloadOrderTooltip", "ReloadedOrder", "OrderBrowser", "BrowseDate", "Browse", "OrderBrowserTime", "OrderBrowserMode", "OrderBrowserStatus", "OrderBrowserTotal", "OrderBrowserTelephone", "OrderBrowserEmptyTelephone", "OrderId", "OrderStatus", "OrderStatusOpen", "OrderStatusClosed", "OrderStatusCancelled", "OrderLines", "Unit", "PickupDiscountApplied", "TaxSnapshot", "InvalidOrderId", "OrderNotFound", "OrderSaved", "OrderSavedOutputFailed", "ProductInactive", "InvalidPlannedTime", "InvalidManualTotal", "ValidationFulfilmentRequired", "ValidationPlannedDateRequired", "ValidationPlannedDatePast", "ValidationPlannedTimeRequired", "ValidationPlannedTimeInvalid", "ValidationCartRequired", "ValidationDeliveryMinimum", "ValidationPickupDiscount", "InvalidQuantity", "InvalidOptions", "InvalidAdjustment", "EmptyCatalogue", "DeleteConfirm", "M03StartupFailure", "DeliveryFeeVatFixed", "CreateCategory", "CreateCategoryFirst", "RenameCategory", "Close", "EnterValidValues", "Saved", "ValidationGeneric", "ValidationAuthorityBlocked", "ValidationRequired", "ValidationCategoryDuplicate", "ValidationCategoryShortCodeDuplicate", "ValidationCategoryShortCodeTooLong", "ValidationCategoryMissing", "ValidationProductMissing", "ValidationProductDuplicateCode", "ValidationPriceNegative", "ValidationVatRange", "ValidationRequiredChoices", "ValidationSettingsRange", "ValidationInvalidNumber", "ValidationBusy", "ValidationGroupStructure", "ValidationOptionStructure", "ValidationConflict", "ValidationField", "CategoryEdit", "CategoryCreateSave", "CategoryRenameSave", "CategoryEditCancel", "DirtyEditorClose", "Discard", "KeepEditing", "OptionName", "OptionActive", "OrderReference", "OrderCard", "OrderCash", "OrderPaid", "OrderDifference", "OrderSearchLive", "OrderModify", "OrderAbandon", "OrderCancel", "OrderNewFromDetails", "OrderClose", "OrderEffectiveDate", "OrderEffectiveDateEdit", "OrderEffectiveDateHint", "OrderBrowseByDate", "OrderSave", "OrderReadOnly", "OrderEdit", "OrderAdvance", "OrderSearchHint", "OrderNoSelection", "DashboardTurnover", "DashboardReceived", "DashboardReceivedCard", "DashboardReceivedCash", "DashboardFuture", "DashboardDueToday", "DashboardOverdue", "DashboardRefresh", "AuthorityReadOnly", "AuthorityTransitioning", "AuthorityRecoveryRequired" };
         keys = keys.Append("ValidationPaymentNegative").Append("OrderCloseEligible")
             .Append("AuthorityCloseTitle").Append("AuthorityClosePrompt").Append("AuthorityTargetLabel")
@@ -320,9 +321,11 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("M07SetupPersistenceFailed")
              .Append("M07DisasterRecovery").Append("M07DisasterRecoveryPending")
              .Append("M07DisasterRecoveryNoCandidate").Append("M07DisasterRecoveryFailed")
-             .Append("M07DisasterRecoverySucceeded").Append("M07StaleGeneration")
+             .Append("M07DisasterRecoverySucceeded").Append("M07DisasterRecoveryLostToWinner")
+             .Append("M07DisasterRecoveryNoProvenWinner").Append("M07OperationFailed")
+             .Append("M07JoinFailed").Append("M07StaleGeneration")
              .Append("M07ReinitializeStale").Append("M07ReinitializeNoSeed")
-             .Append("M07ReinitializeSucceeded").Append("M07CandidateTypeGitHub")
+             .Append("M07ReinitializeSucceeded").Append("M07ReinitializeFailed").Append("M07CandidateTypeGitHub")
              .Append("M07CandidateTypeOneDrive").Append("M07CandidateDataLossWarning")
              .Append("M07QuarantineWarning").Append("M07QuarantineConfirm").Append("M07ConfirmRecovery")
              .Append("M07CandidateRevision").Append("M07CandidateHandoffVersion").Append("M07CandidateSource")
@@ -341,19 +344,24 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(AuthorityStatus));
         OnPropertyChanged(nameof(CanWrite));
         OnPropertyChanged(nameof(IsAuthorityWarningVisible));
-        OnPropertyChanged(nameof(CanJoinExistingLineage));
-        OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
-        OnPropertyChanged(nameof(CanResumePendingTransfer));
-        OnPropertyChanged(nameof(CanTestGitHubConnection));
-        OnPropertyChanged(nameof(CanConfigureM07));
-        OnPropertyChanged(nameof(CanStartDisasterRecovery));
-        OnPropertyChanged(nameof(CanRetryDisasterRecovery));
-        OnPropertyChanged(nameof(CanReinitializeStaleDevice));
+        RefreshM07CommandState();
         OnPropertyChanged(nameof(M07OperationStatus));
         OnPropertyChanged(nameof(LanguageLabel));
         OnPropertyChanged(nameof(LanguageSaveFailure));
+        OnPropertyChanged(nameof(SelectedLanguage));
+        OnPropertyChanged(nameof(SelectedLanguageCultureName));
         OnPropertyChanged(nameof(Localized));
     }
+
+    public string GetLocalizedDisasterRecoveryResult(DisasterRecoveryResult result) => result.Outcome switch
+    {
+        DisasterRecoveryOutcome.Completed => Localized["M07DisasterRecoverySucceeded"],
+        DisasterRecoveryOutcome.StaleReinitializeCompleted => Localized["M07ReinitializeSucceeded"],
+        DisasterRecoveryOutcome.StaleReinitializeFailure => Localized["M07ReinitializeFailed"],
+        DisasterRecoveryOutcome.LostToExistingWinner => Localized["M07DisasterRecoveryLostToWinner"],
+        DisasterRecoveryOutcome.NoProvenWinner => Localized["M07DisasterRecoveryNoProvenWinner"],
+        _ => Localized["M07DisasterRecoveryFailed"]
+    };
 
     public async Task<DeviceSelfJoinResult> JoinExistingLineageAsync(
         string displayName,
@@ -784,6 +792,15 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         _businessPresentationRefreshBlocked = blocked;
         OnPropertyChanged(nameof(CanWrite));
         OnPropertyChanged(nameof(IsAuthorityWarningVisible));
+        RefreshM07CommandState();
+        Admin?.SetBusinessPresentationRefreshBlocked(blocked);
+        Entry?.SetBusinessPresentationRefreshBlocked(blocked);
+        Lifecycle?.SetBusinessPresentationRefreshBlocked(blocked);
+    }
+
+    private void RefreshM07CommandState()
+    {
+        OnPropertyChanged(nameof(CanJoinExistingLineage));
         OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
         OnPropertyChanged(nameof(CanResumePendingTransfer));
         OnPropertyChanged(nameof(CanTestGitHubConnection));
@@ -791,9 +808,6 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(CanStartDisasterRecovery));
         OnPropertyChanged(nameof(CanRetryDisasterRecovery));
         OnPropertyChanged(nameof(CanReinitializeStaleDevice));
-        Admin?.SetBusinessPresentationRefreshBlocked(blocked);
-        Entry?.SetBusinessPresentationRefreshBlocked(blocked);
-        Lifecycle?.SetBusinessPresentationRefreshBlocked(blocked);
     }
 
     private AuthorityPhase? CurrentAuthorityPhase => M07Runtime?.CurrentPhase ?? _authorityPhase;

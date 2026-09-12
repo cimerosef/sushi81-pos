@@ -62,6 +62,37 @@ public sealed class M07DisasterRecoveryUiTests
         });
     }
 
+    [TestMethod]
+    public void DisasterRecoveryResultPresentationUsesLocalizedStableOutcomes()
+    {
+        var shell = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+        var lost = new DisasterRecoveryResult(
+            false,
+            true,
+            "Another recovery device owns the next-generation activation; this device remains read-only.",
+            Outcome: DisasterRecoveryOutcome.LostToExistingWinner);
+        var noWinner = new DisasterRecoveryResult(
+            false,
+            true,
+            "Online activation did not produce a proven winner; this device remains read-only.",
+            Outcome: DisasterRecoveryOutcome.NoProvenWinner);
+        var staleSuccess = new DisasterRecoveryResult(
+            true,
+            true,
+            "This device was reinitialized into the current generation and remains read-only.",
+            Outcome: DisasterRecoveryOutcome.StaleReinitializeCompleted);
+
+        StringAssert.Contains(shell.GetLocalizedDisasterRecoveryResult(lost), "activation");
+        StringAssert.Contains(shell.GetLocalizedDisasterRecoveryResult(noWinner), "gagnant");
+        StringAssert.Contains(shell.GetLocalizedDisasterRecoveryResult(staleSuccess), "Réinitialisation");
+
+        shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"))
+            .GetAwaiter().GetResult();
+        StringAssert.Contains(shell.GetLocalizedDisasterRecoveryResult(lost), "另一台设备");
+        StringAssert.Contains(shell.GetLocalizedDisasterRecoveryResult(noWinner), "可证明");
+        StringAssert.Contains(shell.GetLocalizedDisasterRecoveryResult(staleSuccess), "重新初始化");
+    }
+
     internal static void AssertShownMainWindowPreservesM07ActionStateAcrossRefreshAndLocalizationOnSta()
     {
         RunOnSta(() =>
@@ -125,6 +156,8 @@ public sealed class M07DisasterRecoveryUiTests
                     }
                     Assert.AreEqual(writable, shell.CanWrite);
                     Assert.IsFalse(string.IsNullOrWhiteSpace(shell.AuthorityStatus));
+                    var language = VisualDescendants<ComboBox>(window).Single(combo => combo.SelectedValuePath == "CultureName");
+                    Assert.AreEqual(shell.SelectedLanguageCultureName, language.SelectedValue, vector.Item1.ToString());
 
                     if (vector.Item1 is AuthorityPhase.PairedUninitializedReadOnly or AuthorityPhase.NonAuthoritativeReadOnly)
                     {

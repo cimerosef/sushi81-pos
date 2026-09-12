@@ -23,6 +23,8 @@
   <data name="JoinPrompt" xml:space="preserve"><value>以只读模式加入已配置的 Sushi81 系统。此操作不会授予写入权威。</value></data>
   <data name="JoinConfirm" xml:space="preserve"><value>以只读方式加入</value></data>
   <data name="JoinSucceeded" xml:space="preserve"><value>此设备现已以只读方式配对。</value></data>
+  <data name="M07JoinFailed" xml:space="preserve"><value>配对未完成。此设备保持只读。</value></data>
+  <data name="M07OperationFailed" xml:space="preserve"><value>M07 操作未完成。请查看当前状态；写入仍被禁止。</value></data>
   <data name="M07AcquireAuthority" xml:space="preserve"><value>检查并获取已转移的权威</value></data>
   <data name="M07AcquireValidating" xml:space="preserve"><value>正在验证已转移的权威…</value></data>
   <data name="M07AcquireAcquired" xml:space="preserve"><value>已获取权威。完成本地验证后可进行写入。</value></data>
@@ -262,10 +264,13 @@
   <data name="M07DisasterRecoveryNoCandidate" xml:space="preserve"><value>没有可用的已验证恢复候选项。</value></data>
   <data name="M07DisasterRecoveryFailed" xml:space="preserve"><value>灾难恢复未完成。设备保持只读。</value></data>
   <data name="M07DisasterRecoverySucceeded" xml:space="preserve"><value>灾难恢复完成：此设备现在拥有权威写入权限。</value></data>
+  <data name="M07DisasterRecoveryLostToWinner" xml:space="preserve"><value>另一台设备已获取下一代激活权。此设备保持只读。</value></data>
+  <data name="M07DisasterRecoveryNoProvenWinner" xml:space="preserve"><value>在线激活未能建立可证明的获胜者。此设备保持只读。</value></data>
   <data name="M07StaleGeneration" xml:space="preserve"><value>已发现更新的代。此设备保持只读，必须重新初始化。</value></data>
   <data name="M07ReinitializeStale" xml:space="preserve"><value>将设备重新初始化到当前代</value></data>
   <data name="M07ReinitializeNoSeed" xml:space="preserve"><value>没有可用的当前代已验证 seed。设备保持只读。</value></data>
   <data name="M07ReinitializeSucceeded" xml:space="preserve"><value>重新初始化完成。直到正常交接前，设备保持只读。</value></data>
+  <data name="M07ReinitializeFailed" xml:space="preserve"><value>当前代重新初始化未完成。设备保持只读。</value></data>
   <data name="M07CandidateTypeGitHub" xml:space="preserve"><value>完整 GitHub 交接</value></data>
   <data name="M07CandidateTypeOneDrive" xml:space="preserve"><value>OneDrive checkpoint</value></data>
   <data name="M07CandidateDataLossWarning" xml:space="preserve"><value>此操作会创建新代。旧设备必须停止写入；自最近候选项以来的数据可能丢失。</value></data>

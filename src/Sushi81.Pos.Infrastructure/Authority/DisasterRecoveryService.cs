@@ -8,17 +8,31 @@ using Sushi81.Pos.Application.Pairing.SystemMetadata;
 
 namespace Sushi81.Pos.Infrastructure.Authority;
 
+public enum DisasterRecoveryOutcome
+{
+    GenericFailure,
+    LostToExistingWinner,
+    NoProvenWinner,
+    Completed,
+    StaleReinitializeCompleted,
+    StaleReinitializeFailure
+}
+
 public sealed record DisasterRecoveryResult(
     bool Succeeded,
     bool RemainsReadOnly,
     string Diagnostic,
-    RecoveryCandidate? Candidate = null)
+    RecoveryCandidate? Candidate = null,
+    DisasterRecoveryOutcome Outcome = DisasterRecoveryOutcome.GenericFailure)
 {
-    public static DisasterRecoveryResult Failure(string diagnostic, RecoveryCandidate? candidate = null) =>
-        new(false, true, diagnostic, candidate);
+    public static DisasterRecoveryResult Failure(
+        string diagnostic,
+        RecoveryCandidate? candidate = null,
+        DisasterRecoveryOutcome outcome = DisasterRecoveryOutcome.GenericFailure) =>
+        new(false, true, diagnostic, candidate, outcome);
 
     public static DisasterRecoveryResult Success(RecoveryCandidate candidate) =>
-        new(true, false, "Disaster Recovery completed and this device is authoritative.", candidate);
+        new(true, false, "Disaster Recovery completed and this device is authoritative.", candidate, DisasterRecoveryOutcome.Completed);
 }
 
 /// <summary>
@@ -171,10 +185,16 @@ public sealed class DisasterRecoveryService(
                 if (activationResult.Outcome == RecoveryActivationOutcome.LostToExistingWinner)
                 {
                     await FenceIfNewerGenerationAsync(current, recovery, cancellationToken);
-                    return DisasterRecoveryResult.Failure("Another recovery device owns the next-generation activation; this device remains read-only.", candidate);
+                    return DisasterRecoveryResult.Failure(
+                        "Another recovery device owns the next-generation activation; this device remains read-only.",
+                        candidate,
+                        DisasterRecoveryOutcome.LostToExistingWinner);
                 }
                 if (!activationResult.Accepted || activationResult.Receipt is null)
-                    return DisasterRecoveryResult.Failure("Online activation did not produce a proven winner; this device remains read-only.", candidate);
+                    return DisasterRecoveryResult.Failure(
+                        "Online activation did not produce a proven winner; this device remains read-only.",
+                        candidate,
+                        DisasterRecoveryOutcome.NoProvenWinner);
 
                 recovery = recovery with { Receipt = activationResult.Receipt };
                 current = current with
@@ -254,13 +274,20 @@ public sealed class DisasterRecoveryService(
             };
             await PersistAsync(reinitialized, cancellationToken);
             guard.SetState(WriteAuthorityState.NonAuthoritativeReadOnly);
-            return new(true, true, "This device was reinitialized into the current generation and remains read-only.", candidate);
+            return new(
+                true,
+                true,
+                "This device was reinitialized into the current generation and remains read-only.",
+                candidate,
+                DisasterRecoveryOutcome.StaleReinitializeCompleted);
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception)
         {
             guard.SetState(WriteAuthorityState.NonAuthoritativeReadOnly);
-            return DisasterRecoveryResult.Failure("Stale-generation reinitialization could not complete; this device remains read-only.");
+            return DisasterRecoveryResult.Failure(
+                "Stale-generation reinitialization could not complete; this device remains read-only.",
+                outcome: DisasterRecoveryOutcome.StaleReinitializeFailure);
         }
         finally
         {

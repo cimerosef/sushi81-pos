@@ -9,7 +9,7 @@
     <DockPanel Grid.Row="0" Margin="0,0,0,12">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
         <TextBlock VerticalAlignment="Center" Margin="0,0,8,0" Text="{Binding LanguageLabel}" />
-        <ComboBox Width="150" Height="28" Padding="6,0" VerticalAlignment="Center" VerticalContentAlignment="Center" IsEnabled="{Binding CanChangeLanguage}" DisplayMemberPath="DisplayName" ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage, Mode=OneWay}" SelectionChanged="OnLanguageSelectionChanged" />
+        <ComboBox Width="150" Height="28" Padding="6,0" VerticalAlignment="Center" VerticalContentAlignment="Center" IsEnabled="{Binding CanChangeLanguage}" DisplayMemberPath="DisplayName" SelectedValuePath="CultureName" ItemsSource="{Binding Languages}" SelectedValue="{Binding SelectedLanguageCultureName, Mode=OneWay}" SelectionChanged="OnLanguageSelectionChanged" />
       </StackPanel>
       <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding Title}" />
     </DockPanel>
