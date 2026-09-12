@@ -135,14 +135,15 @@ public sealed class PrinterSetupViewModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            configuration = configuration with
-            {
-                KitchenPrinterQueueId = NullIfBlank(KitchenQueueId),
-                KitchenPrinterQueueName = NullIfBlank(KitchenQueueName),
-                CustomerPrinterQueueId = NullIfBlank(CustomerQueueId),
-                CustomerPrinterQueueName = NullIfBlank(CustomerQueueName)
-            };
-            await configurationService.SaveAsync(configuration, cancellationToken);
+            configuration = await configurationService.UpdateAsync(
+                current => current with
+                {
+                    KitchenPrinterQueueId = NullIfBlank(KitchenQueueId),
+                    KitchenPrinterQueueName = NullIfBlank(KitchenQueueName),
+                    CustomerPrinterQueueId = NullIfBlank(CustomerQueueId),
+                    CustomerPrinterQueueName = NullIfBlank(CustomerQueueName)
+                },
+                cancellationToken);
             StatusMessage = Text("PrinterSaved", "Printer selections saved locally.");
         }
         catch (OperationCanceledException)

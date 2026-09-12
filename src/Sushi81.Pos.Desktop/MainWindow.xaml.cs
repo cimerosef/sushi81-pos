@@ -647,6 +647,18 @@ public partial class MainWindow : Window
             await lifecycle.ReprintAsync(PrintDocumentKind.Customer);
     }
 
+    private async void OnRetryInitialKitchen(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry })
+            await entry.RetryInitialPrintAsync(PrintDocumentKind.Kitchen);
+    }
+
+    private async void OnRetryInitialCustomer(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry })
+            await entry.RetryInitialPrintAsync(PrintDocumentKind.Customer);
+    }
+
     private void OnReuseOrderCustomer(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle, Entry: { } entry } || lifecycle.SelectedOrder is not { } order) return;

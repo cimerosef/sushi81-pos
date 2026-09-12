@@ -6,6 +6,7 @@ using System.Text;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.OrderEntry;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Domain;
 
 namespace Sushi81.Pos.Desktop;
@@ -89,6 +90,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private string committedMessage = string.Empty;
     private string reloadOrderIdText = string.Empty;
     private OrderSnapshot? reloadedOrder;
+    private ConfirmOrderResult? lastConfirmationResult;
     private DateTime? browseDate;
     private OrderBrowserRowViewModel? selectedBrowserOrder;
     private readonly object refreshLock = new();
@@ -310,11 +312,13 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     }
     public bool CanWrite => !businessPresentationRefreshBlocked
         && (authorityGuard is null || authorityGuard.State == WriteAuthorityState.Authoritative);
-    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanAddSelectedProduct)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
+    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanAddSelectedProduct)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); RaiseInitialRetryProperties(); } }
     public bool IsCommitted { get => isCommitted; private set { isCommitted = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
     public bool CanAddSelectedProduct => CanWrite && !IsBusy && !IsCommitted && SelectedProduct is not null;
     public bool CanConfirm => CanWrite && !IsBusy && !IsCommitted && PlannedDateValid && PlannedTimeValid && pricing?.IsValid == true;
     public bool CanStartNewOrder => IsCommitted && !IsBusy;
+    public bool CanRetryInitialKitchen => CanRetryInitial(PrintDocumentKind.Kitchen);
+    public bool CanRetryInitialCustomer => CanRetryInitial(PrintDocumentKind.Customer);
 
     public void RefreshAuthorityState()
     {
@@ -646,6 +650,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
                 return result;
             }
             IsCommitted = true;
+            lastConfirmationResult = result;
+            RaiseInitialRetryProperties();
             var committedId = result.CommittedOrder?.Id ?? result.PersistedOrderId;
             var committedLabel = !string.IsNullOrWhiteSpace(result.CommittedOrder?.Reference)
                 ? result.CommittedOrder!.Reference
@@ -670,6 +676,40 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         }
         catch (OperationCanceledException) when (disposed || lifetimeCancellation.IsCancellationRequested) { return null; }
         finally { if (!disposed) IsBusy = false; }
+    }
+
+    public async Task RetryInitialPrintAsync(PrintDocumentKind kind, CancellationToken cancellationToken = default)
+    {
+        if (!CanRetryInitial(kind)) return;
+        var orderId = lastConfirmationResult?.CommittedOrder?.Id ?? lastConfirmationResult?.PersistedOrderId;
+        if (orderId is null) return;
+
+        using var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetimeCancellation.Token);
+        IsBusy = true;
+        try
+        {
+            var result = await service.RetryInitialPrintAsync(orderId.Value, kind, operationCancellation.Token);
+            var previous = lastConfirmationResult;
+            var previousOutput = previous?.Output;
+            if (previous is null || previousOutput is null) return;
+
+            var output = new PrintDispatchResult(previousOutput.Documents
+                .Select(document => document.Kind == kind ? result : document)
+                .ToArray());
+            lastConfirmationResult = previous with
+            {
+                DispatchSucceeded = output.Succeeded,
+                Issues = output.Issues,
+                Output = output
+            };
+            ValidationMessage = output.Succeeded ? string.Empty : string.Join(Environment.NewLine, output.Issues.Select(LocalizeIssue));
+            RaiseInitialRetryProperties();
+        }
+        catch (OperationCanceledException) when (disposed || lifetimeCancellation.IsCancellationRequested) { }
+        finally
+        {
+            if (!disposed) IsBusy = false;
+        }
     }
 
     public async Task<bool> ReloadOrderAsync(CancellationToken cancellationToken = default)
@@ -707,9 +747,22 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         reloadOrderIdText = string.Empty;
         reloadedOrder = null;
         isCommitted = false;
+        lastConfirmationResult = null;
         PendingProduct = null;
         OnPropertyChanged(string.Empty);
         _ = RepriceAsync(clearManualOverride: true);
+    }
+
+    private bool CanRetryInitial(PrintDocumentKind kind) =>
+        !IsBusy
+        && lastConfirmationResult?.PersistenceSucceeded == true
+        && (lastConfirmationResult.CommittedOrder?.Id ?? lastConfirmationResult.PersistedOrderId) is not null
+        && lastConfirmationResult.Output?.Documents.Any(document => document.Kind == kind && document.IsKnownFailure) == true;
+
+    private void RaiseInitialRetryProperties()
+    {
+        OnPropertyChanged(nameof(CanRetryInitialKitchen));
+        OnPropertyChanged(nameof(CanRetryInitialCustomer));
     }
 
     private NewOrderDraft BuildDraft() => new(

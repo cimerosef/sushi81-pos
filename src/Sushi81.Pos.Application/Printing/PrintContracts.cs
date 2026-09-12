@@ -51,6 +51,11 @@ public sealed record PrintDocumentResult(
 {
     public bool Succeeded => Status == PrintOutcomeStatus.Succeeded;
 
+    public bool IsKnownFailure => Status is
+        PrintOutcomeStatus.QueueUnavailable
+        or PrintOutcomeStatus.GenerationFailed
+        or PrintOutcomeStatus.SubmissionFailed;
+
     public static PrintDocumentResult Success(OrderPrintDocument document) => new(document.Kind, PrintOutcomeStatus.Succeeded, "Printed.", document);
 }
 
@@ -76,6 +81,8 @@ public interface IOrderPrintOutcomeDispatcher : Sushi81.Pos.Application.OrderEnt
 public interface IOrderPrintApplicationService
 {
     Task<PrintDocumentResult> ReprintAsync(Guid orderId, PrintDocumentKind kind, CancellationToken cancellationToken = default);
+
+    Task<PrintDocumentResult> RetryInitialAsync(Guid orderId, PrintDocumentKind kind, CancellationToken cancellationToken = default);
 }
 
 public interface IPrintDocumentSubmitter
@@ -172,7 +179,6 @@ public sealed class OrderPrintDocumentFactory(IBusinessClock clock)
         lines.Add(Center($"Total EUR {FormatMoney(order.TotalTtc)}", CustomerWidth));
         lines.Add($"CB       {FormatMoney(order.CardPaymentTtc)} EUR");
         lines.Add($"Espèce   {FormatMoney(order.CashPaymentTtc)} EUR");
-        if (order.Status == OrderStatus.Cancelled) lines.Add(Center("ANNULÉ", CustomerWidth));
         lines.Add(string.Empty);
         lines.Add(Center("Sushi81 POS", CustomerWidth));
         return string.Join(Environment.NewLine, lines) + Environment.NewLine;
@@ -181,7 +187,7 @@ public sealed class OrderPrintDocumentFactory(IBusinessClock clock)
     private static void AddMarkings(List<string> lines, OrderSnapshot order, PrintIntent intent, int width)
     {
         if (order.Status == OrderStatus.Cancelled) lines.Add(Center("ANNULÉ", width));
-        if (intent == PrintIntent.ExplicitReprint || intent == PrintIntent.InitialRetry)
+        if (intent == PrintIntent.ExplicitReprint)
             lines.Add(Center(width == KitchenWidth ? "RÉIMPRESSION" : "DUPLICATA", width));
     }
 
@@ -240,10 +246,20 @@ public sealed class OrderPrintApplicationService(IOrderStore orders, Sushi81.Pos
 
     public async Task<PrintDocumentResult> ReprintAsync(Guid orderId, PrintDocumentKind kind, CancellationToken cancellationToken = default)
     {
+        return await PrintAsync(orderId, kind, PrintIntent.ExplicitReprint, cancellationToken);
+    }
+
+    public async Task<PrintDocumentResult> RetryInitialAsync(Guid orderId, PrintDocumentKind kind, CancellationToken cancellationToken = default)
+    {
+        return await PrintAsync(orderId, kind, PrintIntent.InitialRetry, cancellationToken);
+    }
+
+    private async Task<PrintDocumentResult> PrintAsync(Guid orderId, PrintDocumentKind kind, PrintIntent intent, CancellationToken cancellationToken)
+    {
         var order = await orders.GetByIdAsync(orderId, cancellationToken);
         if (order is null) return new(kind, PrintOutcomeStatus.OrderNotFound, "The committed order could not be found.");
         if (dispatcher is not IOrderPrintOutcomeDispatcher output)
             return new(kind, PrintOutcomeStatus.Unsupported, "Printing is not configured on this device.");
-        return await output.PrintDocumentAsync(order, kind, PrintIntent.ExplicitReprint, cancellationToken);
+        return await output.PrintDocumentAsync(order, kind, intent, cancellationToken);
     }
 }

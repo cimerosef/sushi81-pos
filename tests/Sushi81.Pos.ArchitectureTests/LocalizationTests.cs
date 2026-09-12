@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text.Json;
 using Sushi81.Pos.Application.Foundation.Configuration;
 using Sushi81.Pos.Application.Foundation.Paths;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Desktop;
 using Sushi81.Pos.Infrastructure.Configuration;
 
@@ -79,6 +80,29 @@ public sealed class LocalizationTests
     }
 
     [TestMethod]
+    public async Task ConcurrentLanguageAndPrinterWritersPreserveEachOthersLatestFields()
+    {
+        using var paths = new TemporaryAppPaths();
+        using var configurationService = new JsonLocalConfigurationService(paths);
+        var initial = await configurationService.LoadAsync();
+        var cultureStore = new ConfigurationSelectedCultureStore(initial, configurationService);
+        var printerSetup = new PrinterSetupViewModel(initial, configurationService, new FixedQueueCatalog());
+        printerSetup.KitchenQueueId = "kitchen-queue";
+        printerSetup.KitchenQueueName = "Kitchen";
+        printerSetup.CustomerQueueId = "customer-queue";
+        printerSetup.CustomerQueueName = "Customer";
+
+        await Task.WhenAll(
+            cultureStore.SaveAsync(CultureInfo.GetCultureInfo("zh-CN")),
+            printerSetup.SaveAsync());
+
+        var persisted = await configurationService.LoadAsync();
+        Assert.AreEqual("zh-CN", persisted.UiCulture);
+        Assert.AreEqual("kitchen-queue", persisted.KitchenPrinterQueueId);
+        Assert.AreEqual("customer-queue", persisted.CustomerPrinterQueueId);
+    }
+
+    [TestMethod]
     public void LanguageSwitchIsAwaitableOnASynchronizationContextWithoutBlockingIt()
     {
         var synchronizationContext = new QueuedSynchronizationContext();
@@ -145,6 +169,14 @@ public sealed class LocalizationTests
 
         public Task SaveAsync(CultureInfo selectedCulture, CancellationToken cancellationToken = default) =>
             Task.FromException(new InvalidOperationException("Synthetic persistence failure."));
+    }
+
+    private sealed class FixedQueueCatalog : IPrintQueueCatalog
+    {
+        public Task<IReadOnlyList<PrintQueueInfo>> ListAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PrintQueueInfo>>([
+                new("kitchen-queue", "Kitchen"),
+                new("customer-queue", "Customer")]);
     }
 
     private sealed class QueuedSynchronizationContext : SynchronizationContext

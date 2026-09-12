@@ -313,4 +313,6 @@ Changements effectifs : {2}</value></data>
   <data name="OrderPrintKitchenFailure" xml:space="preserve"><value>L’impression cuisine est indisponible ou a échoué. Vérifiez la file puis réimprimez.</value></data>
   <data name="OrderPrintCustomerFailure" xml:space="preserve"><value>L’impression client est indisponible ou a échoué. Vérifiez la file puis réimprimez.</value></data>
   <data name="OrderPrintSaveOrAbandon" xml:space="preserve"><value>Enregistrez ou abandonnez la modification avant d’imprimer l’état enregistré.</value></data>
+  <data name="OrderRetryInitialKitchen" xml:space="preserve"><value>Réessayer sortie cuisine</value></data>
+  <data name="OrderRetryInitialCustomer" xml:space="preserve"><value>Réessayer sortie client</value></data>
 </root>

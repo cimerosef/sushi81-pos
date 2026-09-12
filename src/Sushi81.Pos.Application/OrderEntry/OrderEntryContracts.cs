@@ -266,6 +266,19 @@ public sealed class OrderEntryService(
     public Task<OrderSnapshot?> GetOrderByIdAsync(Guid orderId, CancellationToken cancellationToken = default) => orders.GetByIdAsync(orderId, cancellationToken);
     public Task<IReadOnlyList<OrderBrowserRow>> ListOrdersByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) => orders.ListByPlannedDateAsync(plannedDate, cancellationToken);
 
+    /// <summary>
+    /// Retries one known failed initial output from the latest committed order. Ambiguous
+    /// submissions must use the explicit reprint path because another physical copy may exist.
+    /// </summary>
+    public async Task<PrintDocumentResult> RetryInitialPrintAsync(Guid orderId, PrintDocumentKind kind, CancellationToken cancellationToken = default)
+    {
+        var committed = await orders.GetByIdAsync(orderId, cancellationToken);
+        if (committed is null) return new(kind, PrintOutcomeStatus.OrderNotFound, "The committed order could not be found.");
+        if (dispatcher is not IOrderPrintOutcomeDispatcher output)
+            return new(kind, PrintOutcomeStatus.Unsupported, "Printing is not configured on this device.");
+        return await output.PrintDocumentAsync(committed, kind, PrintIntent.InitialRetry, cancellationToken);
+    }
+
     public DateOnly BusinessDate => clock.BusinessDate;
 
     private static string? NormalizeOptional(string? value)

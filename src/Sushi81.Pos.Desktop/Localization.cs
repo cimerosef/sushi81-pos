@@ -54,9 +54,9 @@ public sealed class ConfigurationSelectedCultureStore : ISelectedCultureStore
     public async Task SaveAsync(CultureInfo culture, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(culture);
-        var updatedConfiguration = _configuration with { UiCulture = culture.Name };
-        await _configurationService.SaveAsync(updatedConfiguration, cancellationToken);
-        _configuration = updatedConfiguration;
+        _configuration = await _configurationService.UpdateAsync(
+            current => current with { UiCulture = culture.Name },
+            cancellationToken);
     }
 
     public void ReplaceConfiguration(LocalConfiguration configuration)

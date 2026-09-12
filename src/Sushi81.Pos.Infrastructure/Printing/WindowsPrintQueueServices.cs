@@ -15,7 +15,7 @@ namespace Sushi81.Pos.Infrastructure.Printing;
 public sealed class WindowsPrintQueueCatalog : IPrintQueueCatalog
 {
     public Task<IReadOnlyList<PrintQueueInfo>> ListAsync(CancellationToken cancellationToken = default) =>
-        Task.Run<IReadOnlyList<PrintQueueInfo>>(() =>
+        StaPrintThread.RunAsync<IReadOnlyList<PrintQueueInfo>>(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var server = new LocalPrintServer();
@@ -46,7 +46,9 @@ public sealed class WindowsPrintDocumentSubmitter : IPrintDocumentSubmitter
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
-        return await Task.Run(() => SubmitCore(document, configuredQueueId, configuredQueueName, cancellationToken), cancellationToken);
+        return await StaPrintThread.RunAsync(
+            () => SubmitCore(document, configuredQueueId, configuredQueueName, cancellationToken),
+            cancellationToken);
     }
 
     private static PrintOutcomeStatus SubmitCore(OrderPrintDocument document, string? configuredQueueId, string? configuredQueueName, CancellationToken cancellationToken)
@@ -75,7 +77,8 @@ public sealed class WindowsPrintDocumentSubmitter : IPrintDocumentSubmitter
 
             if (queue is null) return PrintOutcomeStatus.QueueUnavailable;
 
-            var documentPaginator = CreateDocumentPaginator(document);
+            var capabilities = queue.GetPrintCapabilities();
+            var documentPaginator = CreateDocumentPaginator(document, capabilities);
             var writer = PrintQueue.CreateXpsDocumentWriter(queue);
             writeStarted = true;
             writer.Write(documentPaginator);
@@ -103,26 +106,154 @@ public sealed class WindowsPrintDocumentSubmitter : IPrintDocumentSubmitter
         }
     }
 
-    private static FixedDocument CreateDocumentPaginator(OrderPrintDocument document)
+    private static FixedDocument CreateDocumentPaginator(OrderPrintDocument document, PrintCapabilities capabilities)
     {
-        const double pageWidth = 288;
-        const double pageHeight = 7200;
+        var surface = ThermalPrintLayout.From(capabilities);
+        var pages = ThermalPrintLayout.Paginate(document.Text, surface);
         var fixedDocument = new FixedDocument();
-        var page = new FixedPage { Width = pageWidth, Height = pageHeight };
-        var text = new TextBlock
+        foreach (var pageText in pages)
         {
-            Width = pageWidth - 18,
-            Margin = new Thickness(9, 9, 9, 9),
-            FontFamily = new FontFamily("Consolas"),
-            FontSize = 9,
-            TextWrapping = TextWrapping.Wrap,
-            Text = document.Text
-        };
-        page.Children.Add(text);
-        var pageContent = new PageContent();
-        ((System.Windows.Markup.IAddChild)pageContent).AddChild(page);
-        fixedDocument.Pages.Add(pageContent);
+            var contentHeight = ThermalPrintLayout.MeasureHeight(pageText, surface.ImageableWidth);
+            var bottomMargin = Math.Max(0, surface.PageHeight - surface.OriginHeight - surface.ImageableHeight);
+            var pageHeight = Math.Min(surface.PageHeight, surface.OriginHeight + contentHeight + bottomMargin);
+            var page = new FixedPage { Width = surface.PageWidth, Height = pageHeight };
+            var text = new TextBlock
+            {
+                Width = surface.ImageableWidth,
+                Margin = new Thickness(surface.OriginWidth, surface.OriginHeight, 0, 0),
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = ThermalPrintLayout.FontSize,
+                TextWrapping = TextWrapping.Wrap,
+                Text = pageText
+            };
+            page.Children.Add(text);
+            var pageContent = new PageContent();
+            ((System.Windows.Markup.IAddChild)pageContent).AddChild(page);
+            fixedDocument.Pages.Add(pageContent);
+        }
         return fixedDocument;
+    }
+}
+
+public sealed record PrintImageableSurface(
+    double PageWidth,
+    double PageHeight,
+    double OriginWidth,
+    double OriginHeight,
+    double ImageableWidth,
+    double ImageableHeight);
+
+/// <summary>
+/// Converts the selected queue's actual imageable area into bounded receipt pages. The helper
+/// intentionally has no thermal-paper constants: queue capabilities own both width and height.
+/// </summary>
+public static class ThermalPrintLayout
+{
+    public const double FontSize = 9;
+
+    public static PrintImageableSurface From(PrintCapabilities capabilities)
+    {
+        ArgumentNullException.ThrowIfNull(capabilities);
+        var imageable = capabilities.PageImageableArea
+            ?? throw new InvalidOperationException("The selected printer did not expose an imageable page area.");
+        if (imageable.ExtentWidth <= 0 || imageable.ExtentHeight <= 0)
+            throw new InvalidOperationException("The selected printer exposed an invalid imageable page area.");
+
+        var pageWidth = imageable.ExtentWidth + imageable.OriginWidth * 2;
+        var pageHeight = imageable.ExtentHeight + imageable.OriginHeight * 2;
+        return new(pageWidth, pageHeight, imageable.OriginWidth, imageable.OriginHeight, imageable.ExtentWidth, imageable.ExtentHeight);
+    }
+
+    public static IReadOnlyList<string> Paginate(string text, PrintImageableSurface surface)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(surface);
+        var lineHeight = MeasureHeight("M", surface.ImageableWidth);
+        var wrappedLines = text.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n')
+            .SelectMany(line => WrapLine(line, surface.ImageableWidth, lineHeight))
+            .ToArray();
+        var pages = new List<string>();
+        var current = new List<string>();
+        foreach (var line in wrappedLines)
+        {
+            var candidate = string.Join(Environment.NewLine, current.Append(line));
+            if (current.Count > 0 && MeasureHeight(candidate, surface.ImageableWidth) > surface.ImageableHeight)
+            {
+                pages.Add(string.Join(Environment.NewLine, current));
+                current.Clear();
+            }
+            current.Add(line);
+        }
+        if (current.Count > 0) pages.Add(string.Join(Environment.NewLine, current));
+        return pages.Count == 0 ? [string.Empty] : pages;
+    }
+
+    public static double MeasureHeight(string text, double width)
+    {
+        var block = CreateTextBlock(text, width, TextWrapping.Wrap);
+        block.Measure(new Size(width, double.PositiveInfinity));
+        return Math.Max(block.DesiredSize.Height, 1);
+    }
+
+    private static List<string> WrapLine(string line, double width, double lineHeight)
+    {
+        if (line.Length == 0) return [string.Empty];
+        var remaining = line;
+        var result = new List<string>();
+        while (remaining.Length > 0)
+        {
+            var bestLength = 0;
+            for (var length = 1; length <= remaining.Length; length++)
+            {
+                if (MeasureHeight(remaining[..length], width) > lineHeight) break;
+                bestLength = length;
+            }
+            if (bestLength == 0) bestLength = 1;
+            var cut = remaining[..bestLength].LastIndexOf(' ');
+            if (cut > 0) bestLength = cut;
+            result.Add(remaining[..bestLength].TrimEnd());
+            remaining = remaining[bestLength..].TrimStart();
+        }
+        return result;
+    }
+
+    private static TextBlock CreateTextBlock(string text, double width, TextWrapping wrapping) => new()
+    {
+        Width = width,
+        FontFamily = new FontFamily("Consolas"),
+        FontSize = FontSize,
+        TextWrapping = wrapping,
+        Text = text
+    };
+}
+
+internal static class StaPrintThread
+{
+    public static Task<T> RunAsync<T>(Func<T> action, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        cancellationToken.ThrowIfCancellationRequested();
+        var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                completion.TrySetResult(action());
+            }
+            catch (Exception exception)
+            {
+                completion.TrySetException(exception);
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "Sushi81 POS Windows print STA"
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return completion.Task;
     }
 }
 

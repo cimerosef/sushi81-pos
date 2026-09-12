@@ -65,6 +65,20 @@ public sealed class M08PrintingTests
         StringAssert.Contains(kitchen.Text, "RÉIMPRESSION");
         StringAssert.Contains(customer.Text, "ANNULÉ");
         StringAssert.Contains(customer.Text, "DUPLICATA");
+        Assert.AreEqual(1, customer.Text.Split("ANNULÉ", StringSplitOptions.None).Length - 1);
+    }
+
+    [TestMethod]
+    public void KnownInitialRetryKeepsInitialTicketMarkingWhileExplicitReprintMarksAnAdditionalCopy()
+    {
+        var order = CreateOrder(BusinessDate, OrderStatus.Open);
+        var factory = new OrderPrintDocumentFactory(new FixedClock());
+
+        var initialRetry = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.InitialRetry);
+        var explicitReprint = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.ExplicitReprint);
+
+        Assert.IsFalse(initialRetry.Text.Contains("DUPLICATA", StringComparison.Ordinal));
+        StringAssert.Contains(explicitReprint.Text, "DUPLICATA");
     }
 
     [TestMethod]
@@ -80,6 +94,21 @@ public sealed class M08PrintingTests
         Assert.AreSame(latest, dispatcher.LastOrder);
         Assert.AreEqual(PrintIntent.ExplicitReprint, dispatcher.LastIntent);
         Assert.AreEqual(PrintDocumentKind.Customer, dispatcher.LastKind);
+    }
+
+    [TestMethod]
+    public async Task InitialRetryServiceReloadsLatestCommittedOrderWithInitialIntent()
+    {
+        var latest = CreateOrder(BusinessDate, OrderStatus.Open);
+        var dispatcher = new RecordingOutcomeDispatcher();
+        var service = new OrderPrintApplicationService(new RecordingOrderStore(latest), dispatcher);
+
+        var result = await service.RetryInitialAsync(latest.Id, PrintDocumentKind.Kitchen);
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreSame(latest, dispatcher.LastOrder);
+        Assert.AreEqual(PrintIntent.InitialRetry, dispatcher.LastIntent);
+        Assert.AreEqual(PrintDocumentKind.Kitchen, dispatcher.LastKind);
     }
 
     private static OrderSnapshot CreateOrder(DateOnly plannedDate, OrderStatus status) =>

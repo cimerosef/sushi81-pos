@@ -5,6 +5,7 @@ using Sushi81.Pos.Domain;
 using Sushi81.Pos.Infrastructure.Migrations;
 using Sushi81.Pos.Infrastructure.Settings;
 using Sushi81.Pos.Infrastructure.Sqlite;
+using Sushi81.Pos.Infrastructure.Printing;
 
 namespace Sushi81.Pos.Infrastructure.IntegrationTests;
 
@@ -39,6 +40,31 @@ public sealed class M08PrintingIntegrationTests
         Assert.IsTrue((await store.UpdateAsync(updated)).Succeeded);
         var reopened = await store.GetAsync();
         Assert.AreEqual(updatedIdentity, reopened.ReceiptIdentity);
+    }
+
+    [TestMethod]
+    public async Task ThermalLayoutPaginatesToTheQueueImageableHeightOnAnStaThread()
+    {
+        var completion = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var surface = new PrintImageableSurface(220, 90, 5, 5, 210, 30);
+                var pages = ThermalPrintLayout.Paginate(string.Join(Environment.NewLine, Enumerable.Repeat("Ligne de test longue pour la pagination", 12)), surface);
+                completion.TrySetResult(pages);
+            }
+            catch (Exception exception)
+            {
+                completion.TrySetException(exception);
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+
+        var pages = await completion.Task;
+        Assert.IsGreaterThan(1, pages.Count);
+        Assert.IsTrue(pages.All(page => !string.IsNullOrWhiteSpace(page)));
     }
 
     private sealed class FixedClock : IBusinessClock
