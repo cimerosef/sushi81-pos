@@ -12,11 +12,11 @@
 
 This record exists so M08 preparation can be reviewed durably without being mistaken for implementation authorization.
 
-M07 is Passed and merged through PR #13. M08 preparation is therefore allowed, but Codex implementation remains forbidden until the project owner explicitly authorizes M08 implementation after the preparation/readiness review and all material specification gaps are resolved.
+M07 is Passed and merged through PR #13. M08 preparation is allowed, but Codex implementation remains forbidden until the project owner explicitly authorizes M08 implementation after the preparation/readiness review.
 
-## Current non-authorization conditions
+## Current preparation state
 
-At preparation time:
+At the current preparation head:
 
 - GitHub Issue #4 is CLOSED;
 - no M08 implementation branch exists;
@@ -25,14 +25,20 @@ At preparation time:
 - no local/Codex implementation change is authorized;
 - M09+ remain unauthorized.
 
-The current material preparation gap is the customer-ticket receipt identity block: Approved requirements mandate Sushi 81 business/statutory identity and VAT identification on the customer ticket, but GitHub does not yet freeze the exact identity values or authoritative settings/storage model.
+The former material preparation gap `M08-D1` is **resolved** by the project-owner decision:
+
+- `docs/decisions/m08-print-layout-and-receipt-identity.md`;
+- `docs/implementation/milestone-08-contract-addendum-print-layout-identity.md`.
+
+That decision freezes the Sushi 81 receipt identity, owner-selected kitchen/customer visual targets and authoritative SQLite storage semantics for the receipt identity. It does **not** itself authorize implementation.
 
 ## What an explicit future authorization must mean
 
 A later project-owner statement approving **M08 implementation** authorizes only the implementation scope frozen in:
 
 - `docs/implementation/milestone-08-printing-reprinting.md`;
-- any later owner-approved M08 decision/amendment resolving the receipt-identity gap;
+- `docs/implementation/milestone-08-contract-addendum-print-layout-identity.md`;
+- `docs/decisions/m08-print-layout-and-receipt-identity.md`;
 - current Approved V1 baseline/acceptance criteria.
 
 It never authorizes merge, M09, or scope expansion.
