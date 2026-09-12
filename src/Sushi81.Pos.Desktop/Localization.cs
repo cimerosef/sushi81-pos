@@ -351,6 +351,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("PrinterSaved").Append("PrinterRefreshSucceeded").Append("PrinterRefreshFailed").Append("PrinterSaveFailed").Append("PrinterQueueUnavailable")
              .Append("OrderReprintKitchen").Append("OrderReprintCustomer").Append("OrderPrintSuccess")
              .Append("OrderPrintFailure").Append("OrderPrintKitchenFailure").Append("OrderPrintCustomerFailure").Append("OrderPrintAmbiguous").Append("OrderPrintSaveOrAbandon")
+             .Append("OrderRetryInitialKitchen").Append("OrderRetryInitialCustomer")
              .ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         OnPropertyChanged(nameof(Title));
