@@ -82,6 +82,60 @@ public sealed class M08PrintingTests
     }
 
     [TestMethod]
+    public void AmbiguousSubmissionIsNotKnownFailureAndKeepsAStatusAwareIssue()
+    {
+        var document = new OrderPrintDocument(
+            PrintDocumentKind.Kitchen,
+            PrintIntent.InitialAutomatic,
+            Guid.NewGuid(),
+            "20260912-001",
+            "synthetic",
+            false,
+            false);
+        var ambiguous = new PrintDocumentResult(
+            PrintDocumentKind.Kitchen,
+            PrintOutcomeStatus.AmbiguousSubmission,
+            "The kitchen print result is uncertain.",
+            document);
+        var knownFailure = new PrintDocumentResult(
+            PrintDocumentKind.Customer,
+            PrintOutcomeStatus.QueueUnavailable,
+            "The customer printer is unavailable.",
+            document with { Kind = PrintDocumentKind.Customer });
+
+        Assert.IsFalse(ambiguous.IsKnownFailure);
+        Assert.IsTrue(knownFailure.IsKnownFailure);
+        var issues = PrintDispatchResult.From(ambiguous, knownFailure).Issues;
+        Assert.AreEqual(ValidationCodes.PrintAmbiguous, issues.Single(issue => issue.Field == "kitchen-print").StableCode);
+        Assert.AreEqual(ValidationCodes.Generic, issues.Single(issue => issue.Field == "customer-print").StableCode);
+    }
+
+    [TestMethod]
+    public void IndependentInitialOutputMatrixKeepsKitchenAndCustomerFailuresSeparate()
+    {
+        var vectors = new[]
+        {
+            (Kitchen: PrintOutcomeStatus.Succeeded, Customer: PrintOutcomeStatus.Succeeded, Succeeded: true, KnownFailures: 0),
+            (Kitchen: PrintOutcomeStatus.QueueUnavailable, Customer: PrintOutcomeStatus.Succeeded, Succeeded: false, KnownFailures: 1),
+            (Kitchen: PrintOutcomeStatus.Succeeded, Customer: PrintOutcomeStatus.SubmissionFailed, Succeeded: false, KnownFailures: 1),
+            (Kitchen: PrintOutcomeStatus.GenerationFailed, Customer: PrintOutcomeStatus.QueueUnavailable, Succeeded: false, KnownFailures: 2),
+            (Kitchen: PrintOutcomeStatus.AmbiguousSubmission, Customer: PrintOutcomeStatus.Succeeded, Succeeded: false, KnownFailures: 0)
+        };
+
+        foreach (var vector in vectors)
+        {
+            var kitchen = new PrintDocumentResult(PrintDocumentKind.Kitchen, vector.Kitchen, vector.Kitchen.ToString());
+            var customer = new PrintDocumentResult(PrintDocumentKind.Customer, vector.Customer, vector.Customer.ToString());
+            var output = PrintDispatchResult.From(kitchen, customer);
+
+            Assert.AreEqual(vector.Succeeded, output.Succeeded, vector.ToString());
+            Assert.AreEqual(vector.KnownFailures, output.Documents.Count(document => document.IsKnownFailure), vector.ToString());
+            Assert.HasCount(vector.Kitchen == PrintOutcomeStatus.Succeeded ? 0 : 1, output.Documents.Where(document => document.Kind == PrintDocumentKind.Kitchen && !document.Succeeded));
+            Assert.HasCount(vector.Customer == PrintOutcomeStatus.Succeeded ? 0 : 1, output.Documents.Where(document => document.Kind == PrintDocumentKind.Customer && !document.Succeeded));
+        }
+    }
+
+    [TestMethod]
     public async Task ReprintServiceReloadsLatestCommittedOrderBeforeRendering()
     {
         var latest = CreateOrder(BusinessDate, OrderStatus.Open) with { Comment = "Dernier état committé" };

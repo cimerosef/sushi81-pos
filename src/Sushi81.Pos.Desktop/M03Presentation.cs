@@ -50,7 +50,9 @@ public static class M03Presentation
     {
         if (issue.Field is "kitchen-print" or "customer-print")
         {
-            var printKey = issue.Field == "kitchen-print" ? "OrderPrintKitchenFailure" : "OrderPrintCustomerFailure";
+            var printKey = issue.StableCode == ValidationCodes.PrintAmbiguous
+                ? "OrderPrintAmbiguous"
+                : issue.Field == "kitchen-print" ? "OrderPrintKitchenFailure" : "OrderPrintCustomerFailure";
             return localized.TryGetValue(printKey, out var printMessage) ? printMessage : issue.Message;
         }
         var key = issue.StableCode switch

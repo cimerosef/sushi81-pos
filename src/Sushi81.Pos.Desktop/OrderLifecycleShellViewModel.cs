@@ -489,7 +489,10 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         PrintStatusMessage = result.Succeeded
             ? Text("OrderPrintSuccess", "The requested document was accepted by the printer.")
             : M03Presentation.Message(
-                new ValidationIssue(kind == PrintDocumentKind.Kitchen ? "kitchen-print" : "customer-print", result.OperatorMessage, ValidationCodes.Generic),
+                new ValidationIssue(
+                    kind == PrintDocumentKind.Kitchen ? "kitchen-print" : "customer-print",
+                    result.OperatorMessage,
+                    result.Status == PrintOutcomeStatus.AmbiguousSubmission ? ValidationCodes.PrintAmbiguous : ValidationCodes.Generic),
                 localized);
     }
 

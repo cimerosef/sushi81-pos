@@ -141,28 +141,107 @@ public sealed record PrintImageableSurface(
     double OriginWidth,
     double OriginHeight,
     double ImageableWidth,
-    double ImageableHeight);
+    double ImageableHeight)
+{
+    public bool UsedFallback { get; init; }
+}
+
+/// <summary>Testable snapshot of the geometry exposed by a Windows print driver.</summary>
+public sealed record PrintImageableGeometry(
+    double? OriginWidth,
+    double? OriginHeight,
+    double? ImageableWidth,
+    double? ImageableHeight,
+    double? MediaWidth = null,
+    double? MediaHeight = null);
 
 /// <summary>
-/// Converts the selected queue's actual imageable area into bounded receipt pages. The helper
-/// intentionally has no thermal-paper constants: queue capabilities own both width and height.
+/// Converts the selected queue's actual imageable area into bounded receipt pages. Queue
+/// capabilities own normal geometry; a bounded thermal-safe fallback is used only when the
+/// driver omits or corrupts imageable metadata.
 /// </summary>
 public static class ThermalPrintLayout
 {
     public const double FontSize = 9;
+    public const double FallbackPageWidth = 288;
+    public const double FallbackPageHeight = 1440;
+    public const double MinimumFallbackPageWidth = 72;
+    public const double MaximumFallbackPageWidth = 576;
+    public const double MinimumFallbackPageHeight = 144;
+    public const double MaximumFallbackPageHeight = 1440;
+    private const double FallbackMargin = 9;
 
     public static PrintImageableSurface From(PrintCapabilities capabilities)
     {
         ArgumentNullException.ThrowIfNull(capabilities);
-        var imageable = capabilities.PageImageableArea
-            ?? throw new InvalidOperationException("The selected printer did not expose an imageable page area.");
-        if (imageable.ExtentWidth <= 0 || imageable.ExtentHeight <= 0)
-            throw new InvalidOperationException("The selected printer exposed an invalid imageable page area.");
-
-        var pageWidth = imageable.ExtentWidth + imageable.OriginWidth * 2;
-        var pageHeight = imageable.ExtentHeight + imageable.OriginHeight * 2;
-        return new(pageWidth, pageHeight, imageable.OriginWidth, imageable.OriginHeight, imageable.ExtentWidth, imageable.ExtentHeight);
+        var media = capabilities.PageMediaSizeCapability
+            .Where(candidate => candidate.Width is > 0 && candidate.Height is > 0)
+            .OrderByDescending(candidate => candidate.Width!.Value * candidate.Height!.Value)
+            .FirstOrDefault();
+        var imageable = capabilities.PageImageableArea;
+        var geometry = imageable is null
+            ? new PrintImageableGeometry(null, null, null, null, media?.Width, media?.Height)
+            : new PrintImageableGeometry(
+                imageable.OriginWidth,
+                imageable.OriginHeight,
+                imageable.ExtentWidth,
+                imageable.ExtentHeight,
+                media?.Width,
+                media?.Height);
+        return FromGeometry(geometry);
     }
+
+    public static PrintImageableSurface FromGeometry(PrintImageableGeometry? geometry)
+    {
+        if (geometry is not null && TryCreateSurface(geometry, out var surface)) return surface;
+
+        var mediaWidth = geometry?.MediaWidth;
+        var mediaHeight = geometry?.MediaHeight;
+        return CreateFallbackSurface(mediaWidth, mediaHeight);
+    }
+
+    private static bool TryCreateSurface(PrintImageableGeometry geometry, out PrintImageableSurface surface)
+    {
+        surface = null!;
+        if (!IsFiniteNonNegative(geometry.OriginWidth) || !IsFiniteNonNegative(geometry.OriginHeight)
+            || !IsFinitePositive(geometry.ImageableWidth) || !IsFinitePositive(geometry.ImageableHeight)) return false;
+
+        var pageWidth = geometry.ImageableWidth!.Value + geometry.OriginWidth!.Value * 2;
+        var pageHeight = geometry.ImageableHeight!.Value + geometry.OriginHeight!.Value * 2;
+        if (!IsFinitePositive(pageWidth) || !IsFinitePositive(pageHeight)
+            || pageWidth > MaximumFallbackPageWidth || pageHeight > MaximumFallbackPageHeight) return false;
+
+        surface = new(
+            pageWidth,
+            pageHeight,
+            geometry.OriginWidth.Value,
+            geometry.OriginHeight.Value,
+            geometry.ImageableWidth.Value,
+            geometry.ImageableHeight.Value);
+        return true;
+    }
+
+    private static PrintImageableSurface CreateFallbackSurface(double? mediaWidth, double? mediaHeight)
+    {
+        var pageWidth = Clamp(mediaWidth ?? FallbackPageWidth, MinimumFallbackPageWidth, MaximumFallbackPageWidth);
+        var pageHeight = Clamp(mediaHeight ?? FallbackPageHeight, MinimumFallbackPageHeight, MaximumFallbackPageHeight);
+        var horizontalMargin = Math.Min(FallbackMargin, pageWidth / 4);
+        var verticalMargin = Math.Min(FallbackMargin, pageHeight / 4);
+        return new(
+            pageWidth,
+            pageHeight,
+            horizontalMargin,
+            verticalMargin,
+            pageWidth - horizontalMargin * 2,
+            pageHeight - verticalMargin * 2)
+        {
+            UsedFallback = true
+        };
+    }
+
+    private static bool IsFinitePositive(double? value) => value is { } number && double.IsFinite(number) && number > 0;
+    private static bool IsFiniteNonNegative(double? value) => value is { } number && double.IsFinite(number) && number >= 0;
+    private static double Clamp(double value, double minimum, double maximum) => double.IsFinite(value) ? Math.Clamp(value, minimum, maximum) : minimum;
 
     public static IReadOnlyList<string> Paginate(string text, PrintImageableSurface surface)
     {

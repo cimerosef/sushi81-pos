@@ -65,7 +65,10 @@ public sealed record PrintDispatchResult(IReadOnlyList<PrintDocumentResult> Docu
     public bool AnyAttempted => Documents.Count > 0;
     public IReadOnlyList<ValidationIssue> Issues => Documents
         .Where(document => !document.Succeeded)
-        .Select(document => new ValidationIssue(document.Kind == PrintDocumentKind.Kitchen ? "kitchen-print" : "customer-print", document.OperatorMessage, ValidationCodes.Generic))
+        .Select(document => new ValidationIssue(
+            document.Kind == PrintDocumentKind.Kitchen ? "kitchen-print" : "customer-print",
+            document.OperatorMessage,
+            document.Status == PrintOutcomeStatus.AmbiguousSubmission ? ValidationCodes.PrintAmbiguous : ValidationCodes.Generic))
         .ToArray();
 
     public static PrintDispatchResult From(params PrintDocumentResult[] documents) => new(documents);

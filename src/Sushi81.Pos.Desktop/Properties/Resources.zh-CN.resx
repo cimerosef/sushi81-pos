@@ -312,6 +312,7 @@
   <data name="OrderPrintFailure" xml:space="preserve"><value>打印失败：</value></data>
   <data name="OrderPrintKitchenFailure" xml:space="preserve"><value>厨房打印不可用或失败。请检查队列后重印。</value></data>
   <data name="OrderPrintCustomerFailure" xml:space="preserve"><value>客户打印不可用或失败。请检查队列后重印。</value></data>
+  <data name="OrderPrintAmbiguous" xml:space="preserve"><value>打印结果不确定。请勿重试初始输出；如需额外副本，请使用明确的重印操作。</value></data>
   <data name="OrderPrintSaveOrAbandon" xml:space="preserve"><value>请先保存或放弃修改，再打印已保存状态。</value></data>
   <data name="OrderRetryInitialKitchen" xml:space="preserve"><value>重试厨房输出</value></data>
   <data name="OrderRetryInitialCustomer" xml:space="preserve"><value>重试客户输出</value></data>

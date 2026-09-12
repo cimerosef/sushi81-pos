@@ -8,9 +8,11 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.OrderEntry;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Desktop;
 using Sushi81.Pos.Domain;
@@ -1705,6 +1707,86 @@ public sealed class M05DesktopTests
         Assert.IsFalse(viewModel.CommittedMessage.Contains(result.CommittedOrder!.Id.ToString(), StringComparison.Ordinal), "The normal output-failure path must not expose the technical GUID when a human reference is available.");
     }
 
+    [TestMethod]
+    public void M08AmbiguousReprintIsLocalizedAndRemainsAvailableOnReadOnlyStaWpfPath()
+    {
+        RunOnSta(() =>
+        {
+            var order = Snapshot(new DateOnly(2026, 9, 2));
+            var store = new LifecycleStore(order);
+            using var lifecycleService = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                true,
+                new CatalogueService(new EmptyCatalogueStore()),
+                new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))),
+                orderLifecycleService: lifecycleService,
+                authorityGuard: new FixedAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly),
+                printService: new AmbiguousPrintService());
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                var commandes = VisualDescendants<TabItem>(window).Single(item => item.DataContext is OrderLifecycleShellViewModel);
+                commandes.IsSelected = true;
+                var row = new OrderManagementRowViewModel(new OrderBrowserRow(
+                    order.Id,
+                    order.PlannedFulfilmentDate,
+                    order.PlannedFulfilmentTime,
+                    order.Fulfilment,
+                    order.Status,
+                    order.TotalTtc,
+                    order.Telephone)
+                {
+                    Reference = order.Reference
+                });
+                lifecycle.SelectAsync(row).GetAwaiter().GetResult();
+                window.UpdateLayout();
+
+                Assert.IsTrue(lifecycle.CanReprintKitchen, "Printing must remain available on a non-authoritative local copy.");
+                var reprint = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["OrderReprintKitchen"]));
+                Assert.IsTrue(reprint.IsEnabled);
+                reprint.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.AreEqual(shell.Localized["OrderPrintAmbiguous"], lifecycle.PrintStatusMessage);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public async Task M08InitialRetryMatrixOffersOnlyTheKnownFailedDestination()
+    {
+        var categoryId = Guid.NewGuid();
+        var product = new OrderEntryProduct(new ProductAggregate(
+            new Product(Guid.NewGuid(), "P", "Plat", categoryId, Money.FromCents(1000), 10m, true, true, false, default, default),
+            [],
+            new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Plats");
+        var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountMinTotalTtc = Money.Zero });
+        var store = new ReferenceOrderStore("20260902-001");
+        var dispatcher = new AmbiguousInitialDispatcher();
+        using var service = new OrderEntryService(new SingleEntryCatalogue(product), settings, store, dispatcher, new DeterministicIds(), new FixedClock());
+        using var viewModel = new OrderEntryShellViewModel(service);
+        viewModel.AddConfiguredLine(product, [], [], 1);
+        viewModel.SelectedFulfilment = FulfilmentMode.Retrait;
+        viewModel.SelectedPlannedHour = 11;
+        viewModel.SelectedPlannedMinute = 0;
+        await viewModel.RepriceAsync(clearManualOverride: true);
+
+        var result = await viewModel.ConfirmAsync();
+
+        Assert.IsTrue(result!.Succeeded);
+        Assert.IsFalse(viewModel.CanRetryInitialKitchen, "Ambiguous Kitchen output must not be retried as an indistinguishable initial ticket.");
+        Assert.IsTrue(viewModel.CanRetryInitialCustomer, "Known Customer failure must remain independently retryable.");
+        await viewModel.RetryInitialPrintAsync(PrintDocumentKind.Kitchen);
+        await viewModel.RetryInitialPrintAsync(PrintDocumentKind.Customer);
+        Assert.AreEqual(0, dispatcher.InitialRetryCalls.Count(call => call == PrintDocumentKind.Kitchen));
+        Assert.AreEqual(1, dispatcher.InitialRetryCalls.Count(call => call == PrintDocumentKind.Customer));
+        Assert.IsFalse(viewModel.CanRetryInitialCustomer);
+    }
+
     private static OrderSnapshot Snapshot(DateOnly plannedDate) => new(
         Guid.NewGuid(), OrderSourceType.Pos, OrderStatus.Open,
         new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero),
@@ -1806,6 +1888,43 @@ public sealed class M05DesktopTests
     private sealed class ThrowingDispatcher : IOrderPrintDispatcher
     {
         public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) => throw new InvalidOperationException("synthetic output failure");
+    }
+
+    private sealed class FixedAuthorityGuard(WriteAuthorityState state) : IWriteAuthorityGuard
+    {
+        public WriteAuthorityState State { get; } = state;
+        public void RequireWriteAuthority() => throw new WriteAuthorityException(State);
+    }
+
+    private sealed class AmbiguousPrintService : IOrderPrintApplicationService
+    {
+        public Task<PrintDocumentResult> ReprintAsync(Guid orderId, PrintDocumentKind kind, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PrintDocumentResult(
+                kind,
+                PrintOutcomeStatus.AmbiguousSubmission,
+                "The print result is uncertain.",
+                new OrderPrintDocument(kind, PrintIntent.ExplicitReprint, orderId, "synthetic", "synthetic", false, false)));
+
+        public Task<PrintDocumentResult> RetryInitialAsync(Guid orderId, PrintDocumentKind kind, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PrintDocumentResult(kind, PrintOutcomeStatus.Unsupported, "Initial retry is not available in this synthetic UI test."));
+    }
+
+    private sealed class AmbiguousInitialDispatcher : IOrderPrintOutcomeDispatcher
+    {
+        public List<PrintDocumentKind> InitialRetryCalls { get; } = [];
+
+        public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<PrintDispatchResult> DispatchInitialAsync(OrderSnapshot committedOrder, PrintIntent intent = PrintIntent.InitialAutomatic, CancellationToken cancellationToken = default) =>
+            Task.FromResult(PrintDispatchResult.From(
+                new PrintDocumentResult(PrintDocumentKind.Kitchen, PrintOutcomeStatus.AmbiguousSubmission, "Kitchen outcome is uncertain."),
+                new PrintDocumentResult(PrintDocumentKind.Customer, PrintOutcomeStatus.QueueUnavailable, "Customer queue is unavailable.")));
+
+        public Task<PrintDocumentResult> PrintDocumentAsync(OrderSnapshot committedOrder, PrintDocumentKind kind, PrintIntent intent = PrintIntent.ExplicitReprint, CancellationToken cancellationToken = default)
+        {
+            if (intent == PrintIntent.InitialRetry) InitialRetryCalls.Add(kind);
+            return Task.FromResult(PrintDocumentResult.Success(new OrderPrintDocument(kind, intent, committedOrder.Id, committedOrder.Reference, "synthetic", false, false)));
+        }
     }
 
     private sealed class SingleEntryCatalogue(OrderEntryProduct product) : IOrderEntryCatalogueQueries

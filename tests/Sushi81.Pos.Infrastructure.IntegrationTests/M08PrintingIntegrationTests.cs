@@ -67,6 +67,50 @@ public sealed class M08PrintingIntegrationTests
         Assert.IsTrue(pages.All(page => !string.IsNullOrWhiteSpace(page)));
     }
 
+    [TestMethod]
+    public void ThermalLayoutUsesNormalAndNarrowDriverGeometryWithoutFallback()
+    {
+        var normal = ThermalPrintLayout.FromGeometry(new PrintImageableGeometry(5, 5, 210, 30));
+        var narrow = ThermalPrintLayout.FromGeometry(new PrintImageableGeometry(1, 1, 50, 100));
+
+        Assert.IsFalse(normal.UsedFallback);
+        Assert.AreEqual(220d, normal.PageWidth);
+        Assert.AreEqual(40d, normal.PageHeight);
+        Assert.IsFalse(narrow.UsedFallback);
+        Assert.AreEqual(52d, narrow.PageWidth);
+        Assert.AreEqual(102d, narrow.PageHeight);
+    }
+
+    [TestMethod]
+    public void ThermalLayoutUsesMediaOrBoundedFallbackForMissingAndInvalidImageableMetadata()
+    {
+        var mediaFallback = ThermalPrintLayout.FromGeometry(new PrintImageableGeometry(null, null, null, null, 320, 2400));
+        var invalidFallback = ThermalPrintLayout.FromGeometry(new PrintImageableGeometry(-1, 0, double.NaN, double.PositiveInfinity, 9999, 99999));
+        var defaultFallback = ThermalPrintLayout.FromGeometry(null);
+
+        Assert.IsTrue(mediaFallback.UsedFallback);
+        Assert.AreEqual(320d, mediaFallback.PageWidth);
+        Assert.AreEqual(ThermalPrintLayout.MaximumFallbackPageHeight, mediaFallback.PageHeight);
+        Assert.IsTrue(invalidFallback.UsedFallback);
+        Assert.AreEqual(ThermalPrintLayout.MaximumFallbackPageWidth, invalidFallback.PageWidth);
+        Assert.AreEqual(ThermalPrintLayout.MaximumFallbackPageHeight, invalidFallback.PageHeight);
+        Assert.IsTrue(defaultFallback.UsedFallback);
+        Assert.AreEqual(ThermalPrintLayout.FallbackPageWidth, defaultFallback.PageWidth);
+        Assert.AreEqual(ThermalPrintLayout.FallbackPageHeight, defaultFallback.PageHeight);
+        Assert.IsGreaterThan(0d, defaultFallback.ImageableWidth);
+        Assert.IsGreaterThan(0d, defaultFallback.ImageableHeight);
+    }
+
+    [TestMethod]
+    public async Task ProductionPrintThreadExecutesOnSta()
+    {
+        var apartmentState = await StaPrintThread.RunAsync(
+            () => Thread.CurrentThread.GetApartmentState(),
+            CancellationToken.None);
+
+        Assert.AreEqual(ApartmentState.STA, apartmentState);
+    }
+
     private sealed class FixedClock : IBusinessClock
     {
         public DateTimeOffset UtcNow => new(2026, 9, 12, 10, 15, 0, TimeSpan.Zero);

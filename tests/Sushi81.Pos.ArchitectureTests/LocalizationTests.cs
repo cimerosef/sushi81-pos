@@ -1,6 +1,7 @@
 using System.IO;
 using System.Globalization;
 using System.Text.Json;
+using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Configuration;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Printing;
@@ -100,6 +101,21 @@ public sealed class LocalizationTests
         Assert.AreEqual("zh-CN", persisted.UiCulture);
         Assert.AreEqual("kitchen-queue", persisted.KitchenPrinterQueueId);
         Assert.AreEqual("customer-queue", persisted.CustomerPrinterQueueId);
+    }
+
+    [TestMethod]
+    public async Task AmbiguousPrintOutcomeIsLocalizedInFrenchAndChinese()
+    {
+        var fr = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+        var zh = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+        await zh.ChangeLanguageAsync(zh.Languages.Single(language => language.CultureName == "zh-CN"));
+        var frIssue = new ValidationIssue("kitchen-print", "uncertain", ValidationCodes.PrintAmbiguous);
+        var zhIssue = new ValidationIssue("customer-print", "uncertain", ValidationCodes.PrintAmbiguous);
+
+        Assert.AreEqual(fr.Localized["OrderPrintAmbiguous"], M03Presentation.Message(frIssue, fr.Localized));
+        Assert.AreEqual(zh.Localized["OrderPrintAmbiguous"], M03Presentation.Message(zhIssue, zh.Localized));
+        Assert.AreNotEqual(fr.Localized["OrderPrintKitchenFailure"], M03Presentation.Message(frIssue, fr.Localized));
+        Assert.AreNotEqual(zh.Localized["OrderPrintCustomerFailure"], M03Presentation.Message(zhIssue, zh.Localized));
     }
 
     [TestMethod]
