@@ -1,6 +1,6 @@
 # M07 final Windows/WPF manual acceptance
 
-**Status:** Remediation-21 candidate prepared — M20 owner D/E/H passed; Scenario G now executable; owner retest required — NOT EXECUTED / NOT PASSED
+**Status:** Remediation-22 candidate prepared — owner D/E/G/H/J/K/N evidence preserved; Scenario M focused retest required — NOT EXECUTED / NOT PASSED
 **Prepared:** 2026-09-11
 **Milestone:** M07 — Pairing, target-directed formal handoff and disaster recovery  
 **Execution gate:** CLOSED at preparation time  
@@ -71,6 +71,30 @@ R21 does not mark Scenario G, Scenario A, Scenario F, Scenario I, Scenario J, Sc
 Scenario L, Scenario M, Scenario N or overall M07 Passed. The project owner must record the
 manual result on the same accepted artifact/head.
 
+### Latest remediation candidate — M07-MANUAL-ACCEPTANCE-REMEDIATION-22
+
+R21 owner evidence identified a narrow Scenario M presentation defect set: the language ComboBox
+could become blank after a resource refresh, the Disaster Recovery action could disappear after a
+localization/state refresh, and zh-CN/French result dialogs exposed English infrastructure
+diagnostics. R22 fixes only that presentation seam and records the owner evidence ledger; it does
+not redesign authority, recovery, activation, persistence or write guards.
+
+- Production implementation head: `e971580ef43d3b50366d51733ca9431ca0997e8d`.
+- Final docs/evidence head: see the final R22 delivery comment on PR #13.
+- Fresh self-contained `win-x64` artifact: `artifacts/m07-manual-remediation-22-publish`;
+  `Sushi81.Pos.Desktop.exe`, `162816` bytes, SHA-256
+  `08E873DBD67438D3E48B6B497B1DC41828B13761CF47DE3AFDC4AC6D8BEB7284`.
+- Focused language/M07 WPF evidence: `13/13` Passed; full Release solution: `541/541` Passed,
+  `0` failed, `0` skipped; Release build `0` warnings / `0` errors.
+- Project-owner evidence ledger preserved: D/E/G/H/J/K/N Passed; A/B caveat; I partial; L frozen;
+  M blocked pending fresh R22 owner retest.
+- Exact-head CI and project-owner Windows/WPF retest remain pending. R22 automated evidence does
+  not claim Scenario M or overall M07 acceptance.
+
+The R22 finding is recorded in
+[`milestone-07-manual-acceptance-findings-04.md`](milestone-07-manual-acceptance-findings-04.md).
+The owner must retest Scenario M on the fresh R22 artifact/head. M07 remains **NOT PASSED**.
+
 ## Remediation finding carried into owner retest
 
 The first owner review of Scenario A found a blocking defect on the prior WP10 candidate
@@ -97,11 +121,12 @@ This checklist is executed by the project owner only after ChatGPT review/remedi
 
 Fill before testing:
 
-- exact production-code head SHA: `ae4e9b38ebd66e8b898fb0e4ad569bab024f0be4`
+- exact production-code head SHA: `e971580ef43d3b50366d51733ca9431ca0997e8d`
 - exact docs/evidence head SHA: see the final evidence-bookkeeping head on PR #13
 - PR number: `#13`
-- artifact/publish location: `artifacts/m07-manual-remediation-21-publish`
-- Release test result: `540/540` Passed, `0` failed, `0` skipped
+- artifact/publish location: `artifacts/m07-manual-remediation-22-publish`
+- Release test result: `541/541` Passed, `0` failed, `0` skipped
+- Release build warnings/errors: `0 / 0`
 - Release build warnings/errors: `0 / 0`
 - exact-head CI run: pending delivery verification
 - Windows PC A identity/display name:

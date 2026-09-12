@@ -1,6 +1,6 @@
 # M07 worklog — pairing, target-directed handoff and disaster recovery
 
-**Status:** Authorized / WP10 automated closure — WP9 Passed; owner acceptance pending
+**Status:** Authorized / M07 manual-acceptance remediation-22 candidate — owner acceptance pending
 **Prepared:** 2026-09-07  
 **Authorized:** 2026-09-07  
 **Execution gate:** OPEN — verified against GitHub Issue #4 on 2026-09-08
@@ -514,3 +514,45 @@ Windows/WPF acceptance remains **not executed / not passed**. Scenario A, F, I, 
 remain pending as applicable. Exact-head CI, push and matching `CODEX_DONE` remain pending. WP7
 proof repository/release/assets were not opened, rerun, mutated or deleted; M08+ and merge remain
 unauthorized.
+
+### Review cycle 17 — manual-acceptance remediation `M07-MANUAL-ACCEPTANCE-REMEDIATION-22`
+
+**Entry evidence:** The current Issue #4 gate was OPEN, the active PR was #13, and the expected
+baseline head was `1f5c73d4cec787ff2f4cffd2961b2ade9fa04804`. R21 owner evidence preserved D/E/G/H/J/K/N
+as Passed, retained the A/B caveat and I partial status, and left Scenario M blocked on a narrow
+localization/presentation defect set.
+
+**Scope:** Fix only Scenario M language binding, M07 command-state refresh notifications and safe
+localized presentation of Disaster Recovery/reinitialize/join failures. Do not change target-
+directed authority, single-writer protocol, activation, persistence, write guards, real owner
+state, OneDrive state, WP7 proof assets or any M08+ scope.
+
+**Implementation:** The MainWindow language ComboBox now uses stable `CultureName` value binding;
+resource refresh rebinds the selected option and raises selection plus centralized M07 command
+state notifications. `DisasterRecoveryResult` now carries a presentation-only stable outcome
+classification, allowing French/zh-CN result messages without exposing infrastructure diagnostics.
+Join and M07 operation exception handlers use safe localized messages. Existing authority and
+recovery transitions are unchanged.
+
+**Implementation commit:** `e971580ef43d3b50366d51733ca9431ca0997e8d`.
+
+**Fresh artifact:** `artifacts/m07-manual-remediation-22-publish/Sushi81.Pos.Desktop.exe`,
+`162816` bytes, SHA-256
+`08E873DBD67438D3E48B6B497B1DC41828B13761CF47DE3AFDC4AC6D8BEB7284`.
+
+**Focused evidence:** Localization and M07 WPF/STA tests passed `13/13`; the broader affected
+M05/M06/M07 WPF and localization set passed `62/62`. These tests assert stable language identity,
+localized stable DR outcomes, no raw diagnostic presentation, and preserved DR action state after
+the existing authority-refresh/localization sequence.
+
+**Owner-evidence bookkeeping:** D/E/G/H/J/K/N remain Passed; A/B retain the Windows Sandbox
+`0x80370106` caveat; I remains partial because delayed publication/normal 15-minute proof is not
+established; L remains frozen; M remains blocked pending a fresh R22 owner retest. M07 is not
+marked Passed.
+
+**Verification:** Full Release solution passed `541/541`, `0` failed, `0` skipped; Release build
+passed with `0` warnings and `0` errors; `git diff --check` passed before the docs-only commit.
+
+**Status/boundaries:** Final docs/evidence commit, exact-head CI, push and matching
+`CODEX_DONE` remain pending delivery. WP7 proof repository/release/assets were not opened, rerun,
+mutated or deleted. Merge is unauthorized; M08 and later milestones remain not started.
