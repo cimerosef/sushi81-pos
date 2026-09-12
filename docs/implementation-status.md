@@ -1,10 +1,10 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-07  
-**Current state:** M01 through M06 are Passed and merged. M07 — Pairing, target-directed formal handoff and disaster recovery — is **Authorized / In progress** under `docs/implementation/milestone-07-authorization.md`. The dedicated branch is `codex/m07-pairing-handoff-disaster-recovery`. Codex execution may begin only after the M07 PR, Issue #4 mailbox pointer and one complete `CODEX_HANDOFF_READY` record are all created and cross-verified, then Issue #4 is reopened. M08 and later milestones have not started.
+**Last updated:** 2026-09-12  
+**Current state:** M01 through M07 are Passed and merged. M08 — Printing and reprinting — is in **Preparation** only; implementation is **NOT AUTHORIZED**. GitHub Issue #4 is CLOSED, no M08 branch/PR/handoff exists, and Codex must not execute M08 until separate project-owner implementation approval is durably translated into the normal gate sequence.
 
-> Historical implementation/evidence detail through M06 is preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). This living document intentionally contains current control state only; historical evidence must not be rewritten merely to update current milestone status.
+> Historical implementation/evidence detail through M06 is preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07 historical implementation/evidence remains in its milestone contract/worklog/manual-acceptance records and PR #13. This living document records current control state rather than rewriting historical evidence.
 
 ## 1. Status vocabulary
 
@@ -28,56 +28,80 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M03 — Catalogue and settings | Passed | Merged through PR #5; final Windows/WPF acceptance Passed. |
 | M04 — Order-entry vertical slice | Passed | Merged through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a`; final Windows/WPF acceptance Passed. |
 | M05 — Lifecycle/payments/search/dashboard | Passed | Merged through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`; accepted production head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`; final Windows/WPF acceptance Passed. |
-| M06 — Local recovery/read-only enforcement | Passed | PR #11 merged at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; accepted production repair head `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`; final docs/PR head `86326d81551aa4cb5cdcbc6826b8c740317b34c4`; Release tests 364/364, build 0 warnings/errors, exact-head CI `34091370109`, project-owner Windows/WPF acceptance Passed. |
-| M07 — Pairing, target-directed formal handoff and disaster recovery | In progress | Project-owner implementation authorization recorded 2026-09-07 in `milestone-07-authorization.md`. Dedicated branch `codex/m07-pairing-handoff-disaster-recovery`; execution setup is being completed. Merge is not authorized. |
-| M08 — Printing and reprinting | Not started | Pending M07. |
+| M06 — Local recovery/read-only enforcement | Passed | PR #11 merged at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; accepted production repair head `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`; Release tests 364/364 and project-owner acceptance Passed. |
+| M07 — Pairing, target-directed formal handoff and disaster recovery | Passed | PR #13 merged to `main` at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`; accepted production implementation head `e971580ef43d3b50366d51733ca9431ca0997e8d`; final closure docs/evidence head `d586c847f2dd541815b8c00565c58b3685a3e4be`; exact-head CI #631 / run `34698627867` succeeded; 541/541 tests Passed; owner Windows/WPF multi-device acceptance Passed. |
+| M08 — Printing and reprinting | Preparation | Contract/readiness/worklog/manual checklist prepared. Owner visual/layout and receipt-identity decision is frozen in `decisions/m08-print-layout-and-receipt-identity.md`; implementation remains not authorized; Issue #4 CLOSED; no branch/PR/handoff. |
 | M09 — Hiboutik paste fallback | Not started | Pending M08. |
 | M10 — Catalogue `.xlsx` | Not started | Pending M09. |
 | M11 — Gestion export | Not started | Pending M10. |
 | M12 — Annual archive/historical access | Not started | Pending M11. |
 | M13 — Installer and final acceptance | Not started | Pending M12. |
 
-## 3. Current acceptance ownership relevant to M06/M07
+## 3. M08 current acceptance ownership
 
-Historical criterion-by-criterion evidence through M06 remains in the archived status record. The current transition facts are:
+M08 owns the production implementation/evidence for:
 
-| Criterion | Owner | Current state | Note |
-|---|---:|---|---|
-| AC-PROD-002 | M07 | In progress | M07 must preserve local-first authoritative operation when ordinary Internet/OneDrive services are unavailable; M08 retains the final real printer-adapter offline cross-check. |
-| AC-STO-002 | M07 | In progress | N-device single-writer and target-directed normal transfer, including approved self-join semantics. |
-| AC-STO-003 | M07 | In progress | Close-retain and strict source relinquishment-before-grant ordering. |
-| AC-STO-004 | M07 | In progress | Exact-target validation/acquisition. |
-| AC-STO-005 | M07 | In progress | No silent takeover/source rollback/target substitution; genuine loss uses explicit DR. |
-| AC-STO-006 | M06 | Passed | M06 local recovery generation/debounce/retention accepted with final 364-test and owner evidence. |
-| AC-STO-007 | M07 | In progress | Newest-three complete GitHub handoff-unit retention. |
-| AC-STO-008 | M07 | In progress | Changed-only OneDrive DR checkpoints, maximum normal frequency once per 15 minutes, newest five. |
-| AC-STO-009 | M07 | In progress | Explicit generation-advancing DR under the 2026-09-07 approved quarantine/safe-candidate rules. |
-| AC-STO-010 | M06 | Passed foundation; M07 regression required | M06 centralized Application write guard, fail-closed startup and persistent read-only/recovery presentation are accepted. M07 must exercise them in real transfer/pending/stale/self-join states; printing remains AC-PRINT-010/M08. |
+| Criterion | Current state | M08 obligation |
+|---|---|---|
+| AC-LIFE-001 printing cross-check | Preparation | preserve durable commit before any automatic print attempt |
+| AC-PRINT-001 | Preparation | automatic kitchen + customer output after successful new-order commit |
+| AC-PRINT-002 | Preparation | required kitchen/customer content from committed state |
+| AC-PRINT-003 | Preparation | future-order date/time prominence |
+| AC-PRINT-004 | Preparation | print failure never rolls back order; identify failed document; independent retry |
+| AC-PRINT-005 | Foundation already present / M08 regression | saved modification does not auto-reprint |
+| AC-PRINT-006 | Preparation | reprint latest committed state, never unsaved edits |
+| AC-PRINT-007 | Preparation | `RÉIMPRESSION` / `DUPLICATA` |
+| AC-PRINT-008 | Preparation | Cancelled remains printable with prominent `ANNULÉ` |
+| AC-PRINT-010 | Preparation | non-authoritative/read-only device may print local committed copy without freshness/authority claim |
+| AC-PRINT-011 | Preparation | no B2B invoice subsystem |
+| AC-ARCH-006 | Preparation | deterministic app-owned print model + Windows spooler/queue adapter |
 
-## 4. M07 approved material direction
+`AC-PRINT-009` archive printing is explicitly deferred to M12.
 
-The project owner approved the following product/safety semantics on 2026-09-07. Detailed controlling wording is in `docs/decisions/m07-self-join-disaster-recovery.md` and the M07 acceptance amendment.
+## 4. M08 preparation decisions
 
-1. **Self-join without authority approval.** A newly installed computer may join an existing Sushi81 POS lineage without approval from the old/current authoritative computer. Joining establishes device identity/membership only and never grants write authority. In a healthy system it remains read-only until a normal handoff is explicitly targeted to it. If the former authoritative computer is genuinely dead/unavailable, the newly joined replacement may enter explicit Disaster Recovery.
-2. **Operationally fenced exceptional Disaster Recovery.** Normal authoritative offline operation remains supported. DR requires explicit confirmation that the former authoritative/designated-target device is genuinely unavailable and will remain stopped/quarantined until reinitialized; DR itself requires online single-winner generation activation before the recovery device may become writable. Software cannot remotely revoke a still-running disconnected stale writer if the operator violates that quarantine precondition.
-3. **Freshest validated safe recovery data.** DR may use a validated OneDrive recovery checkpoint or a complete validated GitHub handoff snapshot+matching grant. A snapshot without its valid matching grant is never an eligible DR source. DR always advances generation rather than turning the old target binding into an ordinary acquisition.
+The current controlling M08 package is:
 
-## 5. M07 governance gate
+- `implementation/milestone-08-printing-reprinting.md`;
+- `implementation/milestone-08-contract-addendum-print-layout-identity.md`;
+- `implementation/milestone-08-preparation-readiness.md`;
+- `implementation/milestone-08-authorization.md` — NOT AUTHORIZED;
+- `implementation/milestone-08-worklog.md`;
+- `implementation/milestone-08-final-manual-acceptance.md`;
+- `decisions/m08-print-layout-and-receipt-identity.md`.
 
-Implementation authorization is durable in `docs/implementation/milestone-07-authorization.md`. The controller may now establish the dedicated PR/mailbox/handoff and then reopen Issue #4 only after all pointers are consistent.
+The owner-selected visual reference resolves the former M08-D1 gap:
 
-Codex must still fail closed unless all of the following are simultaneously true:
+- kitchen target = page 1 of the supplied print reference;
+- customer target = page 2 Hiboutik-style receipt;
+- customer identity = Sushi 81 / 12 Rue Gaston Darley / 77140 Nemours - FRA / SIRET 90805211100014 / TVA FR03908052111 / APE 5610C;
+- receipt identity is authoritative SQLite business configuration;
+- printer queue selection remains local technical configuration;
+- exact Hiboutik typeface is treated as printer-resident visual target and verified on real hardware rather than guessed as a portable font family.
 
-- Issue #4 is OPEN;
-- Issue #4 points to the exact active M07 PR and branch;
-- the M07 authorization record exists;
-- the PR contains one valid unprocessed top-level `CODEX_HANDOFF_READY` record;
-- the handoff ID, contract and branch/PR identity are unambiguous.
+## 5. Current governance gate
 
-Authorization does not authorize merge. M07 still requires implementation evidence, ChatGPT review/remediation, exact-head project-owner Windows/WPF multi-device acceptance, green CI and separate explicit merge approval.
+Codex must fail closed unless all M08 execution prerequisites are simultaneously true.
 
-M08 must remain Not started until M07 is Passed and merged.
+Current state is intentionally:
+
+- Issue #4 **CLOSED**;
+- M08 implementation authorization: **NOT AUTHORIZED**;
+- M08 branch: none;
+- M08 PR: none;
+- active handoff: none.
+
+A later explicit project-owner approval of **M08 implementation** is required. Only after that approval may the controller:
+
+1. update the authorization record to `AUTHORIZED` with the exact preparation head;
+2. create the dedicated M08 branch and PR;
+3. update Issue #4 to point to that exact mailbox;
+4. publish one valid top-level `CODEX_HANDOFF_READY` record;
+5. verify no conflicting/older handoff exists;
+6. open Issue #4.
+
+Authorization never authorizes merge or M09.
 
 ## 6. Evidence preservation
 
-Historical M01–M06 evidence, including original M02 blocker/revalidation history and all milestone-specific manual acceptance records, remains authoritative in its original files and the archived implementation-status snapshot. Current-state cleanup must never rewrite those historical results merely to make them read as if they had always described later milestones.
+Historical M01–M07 evidence remains authoritative in its original milestone/PR records. Current-state cleanup must not rewrite historical results merely to make them read as if they had always described later milestones.
