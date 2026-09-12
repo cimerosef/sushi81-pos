@@ -4,7 +4,7 @@
 **Prepared:** 2026-09-12  
 **Milestone:** M08 — Printing and reprinting  
 **Implementation authorization:** AUTHORIZED for M08 only; this does not authorize merge or M09+
-**Execution gate:** OPEN during the completed M08-03 remediation; owner manual acceptance remains pending
+**Execution gate:** OPEN only for M08-MANUAL-ACCEPTANCE-REMEDIATION-04; owner acceptance is blocked pending the A-PC queue-discovery retest
 **Owner visual decision:** `../decisions/m08-print-layout-and-receipt-identity.md`
 
 This checklist is project-owner acceptance only. Codex/CI may prepare evidence and an exact artifact but must never check owner-manual items or declare M08 Passed on the owner's behalf.
@@ -18,14 +18,14 @@ The owner-selected visual targets are:
 
 ## 1. Exact candidate identity — fill before testing
 
-- exact production implementation head: `bbae8680353dd1b8f9679b3849db2fb373489a34`
-- exact docs/evidence record: `docs/implementation/milestone-08-worklog.md` §9 and the matching PR #14 `CODEX_DONE: M08-CONTROLLER-REMEDIATION-03`
+- exact production implementation head: `dc834da70d66d842334453345e1a3e9a6678f42c`
+- exact docs/evidence record: `docs/implementation/milestone-08-worklog.md` §10 and the matching PR #14 `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-04`
 - M08 PR number: #14 (OPEN / unmerged)
-- self-contained `win-x64` publish location: `artifacts/m08-win-x64`
-- executable SHA-256: `213FA7655D064D55904BE3372FE40FD6FD480E8FE6CD02DAA3748E7D15901028`
-- Release test result: **559/559 Passed**, 0 failed, 0 skipped
+- self-contained `win-x64` publish location: `artifacts/m08-win-x64-r04`
+- executable SHA-256: `DFF644F8CB85308C2604D98232B331A9CB22DBADBC4AAC86C6687F8A23CE7AC3`
+- Release test result: **561/561 Passed**, 0 failed, 0 skipped
 - Release build warnings/errors: **0 / 0**
-- exact-head implementation CI run/job: **Passed**, run #659 / workflow `34717646994`, job `build-and-test` `103617865931`
+- exact-head implementation/final PR CI run/job: recorded in the matching `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-04`
 - physical Windows PC/device used:
 - authority state at start:
 - Kitchen configured Windows queue:
@@ -35,7 +35,7 @@ The owner-selected visual targets are:
 - owner page-1/page-2 print reference available for side-by-side comparison: Yes / No
 - only synthetic/non-sensitive acceptance orders used: Yes / No
 
-If code or the artifact changes after a blocking finding, rerun the affected scenarios on the replacement exact candidate and record the new identity.
+If code or the artifact changes after a blocking finding, rerun the affected scenarios on the replacement exact candidate and record the new identity. The A-PC queue-discovery retest is required before resuming any order/PDF/physical-printer scenario.
 
 ## 2. Environment and safety rules
 

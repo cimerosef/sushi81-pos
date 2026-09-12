@@ -169,6 +169,35 @@ The final pushed head and exact-head CI result are recorded in the matching `COD
 
 `POST_TASK_POWER_ACTION: NONE`
 
+## 10. Owner preflight queue-discovery remediation — M08-MANUAL-ACCEPTANCE-REMEDIATION-04
+
+The project-owner A-PC preflight found a real Windows compatibility blocker before any order or physical print was attempted. `Get-Printer` listed installed queues, while the filtered `LocalPrintServer.GetPrintQueues([Local, Connections, Shared])` overload returned zero queues on the same machine; the parameterless `GetPrintQueues()` path returned the installed queues. The finding and the exact remediation scope are recorded in PR #14 comments `5648756898` and `5648758990`.
+
+Implemented only the authorized R04 queue-discovery/resolution correction:
+
+- `WindowsPrintQueueCatalog` now uses parameterless `LocalPrintServer.GetPrintQueues()`, safely disposes each discovered queue, preserves deterministic sorting and returns a stable empty result when no queues are exposed;
+- configured queue resolution in `WindowsPrintDocumentSubmitter` uses the same parameterless enumeration path and shared ID/name matching semantics, preserving `QueueUnavailable` for an unmatched configuration and all existing submission/ambiguous/STA/layout behavior;
+- duplicate queue records are normalized deterministically by stable ID/name key;
+- focused Infrastructure tests cover multiple queue normalization/sorting, ID/name/FullName-compatible resolution and unmatched configured-queue behavior without claiming the owner's installed-queue result in CI.
+
+Implementation commit: `dc834da70d66d842334453345e1a3e9a6678f42c`.
+
+Automated evidence for this remediation:
+
+- Release restore: **Passed**;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- full Release tests: **Passed**, 561/561, 0 failed, 0 skipped;
+- focused M08 Infrastructure integration tests: **Passed**, 7/7;
+- `git diff --check`: **Passed**;
+- self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r04`;
+- published executable SHA-256: `DFF644F8CB85308C2604D98232B331A9CB22DBADBC4AAC86C6687F8A23CE7AC3`;
+- exact-head CI and final PR-head SHA are recorded in the matching `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-04` comment;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner A-PC queue-discovery retest and all PDF/physical-printer acceptance remain **blocked/pending and must remain unchecked**;
+- merge: **Not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
 ## 9. Controller remediation — M08-CONTROLLER-REMEDIATION-03
 
 This remediation was limited to the residual findings in controller review `5187831217` and the active Issue #4 handoff. It did not reopen product/business semantics and did not add M09+, archive/M12, B2B invoice work or merge activity.
