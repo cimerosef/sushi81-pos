@@ -1,5 +1,6 @@
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Time;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Domain;
 using Sushi81.Pos.Infrastructure.Migrations;
@@ -109,6 +110,39 @@ public sealed class M08PrintingIntegrationTests
             CancellationToken.None);
 
         Assert.AreEqual(ApartmentState.STA, apartmentState);
+    }
+
+    [TestMethod]
+    public void PrintQueueSelectionNormalizesSortsAndResolvesStableIdentifiers()
+    {
+        var queues = PrintQueueSelection.Normalize([
+            new PrintQueueInfo("z-id", "Zeta"),
+            new PrintQueueInfo("a-id", "Alpha"),
+            new PrintQueueInfo("A-ID", "Alpha alias"),
+            new PrintQueueInfo("", "NameOnly"),
+            new PrintQueueInfo("", "nameonly"),
+            new PrintQueueInfo("", "")
+        ]);
+
+        Assert.HasCount(3, queues);
+        Assert.AreEqual("Alpha", queues[0].Name);
+        Assert.AreEqual("NameOnly", queues[1].Name);
+        Assert.AreEqual("Zeta", queues[2].Name);
+        Assert.IsTrue(PrintQueueSelection.Matches(queues[0], "a-id", null));
+        Assert.IsTrue(PrintQueueSelection.Matches(queues[0], null, "Alpha"));
+        Assert.IsTrue(PrintQueueSelection.Matches(queues[0], null, "a-id"));
+        Assert.IsFalse(PrintQueueSelection.Matches(queues[0], "missing", "missing"));
+    }
+
+    [TestMethod]
+    public void PrintQueueSelectionLeavesAnUnmatchedConfiguredQueueUnavailable()
+    {
+        var queues = PrintQueueSelection.Normalize([
+            new PrintQueueInfo("pdf-id", "Microsoft Print to PDF"),
+            new PrintQueueInfo("brother-id", "Brother HL-L2400DWE Printer")
+        ]);
+
+        Assert.IsFalse(queues.Any(queue => PrintQueueSelection.Matches(queue, "missing-id", "Missing queue")));
     }
 
     private sealed class FixedClock : IBusinessClock

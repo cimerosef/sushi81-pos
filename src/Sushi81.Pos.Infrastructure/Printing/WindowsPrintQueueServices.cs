@@ -19,20 +19,20 @@ public sealed class WindowsPrintQueueCatalog : IPrintQueueCatalog
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var server = new LocalPrintServer();
-            var queues = server.GetPrintQueues(new[]
-            {
-                EnumeratedPrintQueueTypes.Local,
-                EnumeratedPrintQueueTypes.Connections,
-                EnumeratedPrintQueueTypes.Shared
-            });
             var result = new List<PrintQueueInfo>();
-            foreach (var queue in queues)
+            foreach (var queue in server.GetPrintQueues())
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                result.Add(new(queue.FullName, queue.Name));
-                queue.Dispose();
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    result.Add(new(queue.FullName, queue.Name));
+                }
+                finally
+                {
+                    queue.Dispose();
+                }
             }
-            return (IReadOnlyList<PrintQueueInfo>)result.OrderBy(queue => queue.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
+            return PrintQueueSelection.Normalize(result);
         }, cancellationToken);
 }
 
@@ -62,11 +62,9 @@ public sealed class WindowsPrintDocumentSubmitter : IPrintDocumentSubmitter
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var server = new LocalPrintServer();
-            foreach (var candidate in server.GetPrintQueues(new[] { EnumeratedPrintQueueTypes.Local, EnumeratedPrintQueueTypes.Connections, EnumeratedPrintQueueTypes.Shared }))
+            foreach (var candidate in server.GetPrintQueues())
             {
-                if (string.Equals(candidate.FullName, configuredQueueId, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(candidate.Name, configuredQueueName, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(candidate.FullName, configuredQueueName, StringComparison.OrdinalIgnoreCase))
+                if (PrintQueueSelection.Matches(new(candidate.FullName, candidate.Name), configuredQueueId, configuredQueueName))
                 {
                     queue = candidate;
                     break;
@@ -133,6 +131,38 @@ public sealed class WindowsPrintDocumentSubmitter : IPrintDocumentSubmitter
         }
         return fixedDocument;
     }
+}
+
+internal static class PrintQueueSelection
+{
+    public static IReadOnlyList<PrintQueueInfo> Normalize(IEnumerable<PrintQueueInfo> queues)
+    {
+        ArgumentNullException.ThrowIfNull(queues);
+
+        return queues
+            .Where(queue => !string.IsNullOrWhiteSpace(queue.Id) || !string.IsNullOrWhiteSpace(queue.Name))
+            .GroupBy(StableKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderBy(queue => queue.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(queue => queue.Id, StringComparer.OrdinalIgnoreCase)
+                .First())
+            .OrderBy(queue => queue.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(queue => queue.Id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public static bool Matches(PrintQueueInfo queue, string? configuredQueueId, string? configuredQueueName)
+    {
+        ArgumentNullException.ThrowIfNull(queue);
+        return string.Equals(queue.Id, configuredQueueId, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(queue.Name, configuredQueueName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(queue.Id, configuredQueueName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string StableKey(PrintQueueInfo queue) =>
+        !string.IsNullOrWhiteSpace(queue.Id)
+            ? $"id:{queue.Id}"
+            : $"name:{queue.Name}";
 }
 
 public sealed record PrintImageableSurface(
