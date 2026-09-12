@@ -1,6 +1,6 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **IMPLEMENTATION IN PROGRESS — owner manual acceptance pending**
+**Status:** **CONTROLLER REMEDIATION COMPLETE — owner manual acceptance pending**
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
@@ -9,7 +9,7 @@
 **Implementation PR:** #14 — `M08: printing and reprinting`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** OPEN — M08-IMPLEMENTATION-01 is the active authorized handoff
+**Execution gate:** OPEN — M08-CONTROLLER-REMEDIATION-02 is the active authorized handoff
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -25,7 +25,7 @@ This worklog records M08 preparation, authorization, implementation and evidence
 - M08 governance/execution baseline after authorization/current-state bookkeeping: `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`.
 - Dedicated branch: `codex/m08-printing-reprinting`.
 - Dedicated implementation PR: #14.
-- Issue #4 is OPEN for the single active handoff M08-IMPLEMENTATION-01; no second handoff is being consumed.
+- Issue #4 is OPEN for the single active handoff M08-CONTROLLER-REMEDIATION-02; the earlier M08-IMPLEMENTATION-01 is complete and is not being reprocessed.
 - M09+: not authorized.
 
 ## 2. Preparation audit — complete
@@ -111,13 +111,13 @@ The authorized serial-execution prerequisites are complete:
 2. [x] dedicated branch codex/m08-printing-reprinting created from the authorized baseline;
 3. [x] dedicated M08 implementation PR #14 targets main;
 4. [x] Issue #4 names the branch/PR and is OPEN;
-5. [x] exactly one top-level executable handoff CODEX_HANDOFF_READY: M08-IMPLEMENTATION-01 is active;
+5. [x] the historical top-level executable handoff CODEX_HANDOFF_READY: M08-IMPLEMENTATION-01 was consumed exactly once;
 6. [x] branch/PR/comment/authorization pointers cross-checked;
 7. [x] serial oldest-first execution has consumed only M08-IMPLEMENTATION-01.
 
-## 7. Implementation evidence — active handoff
+## 7. Initial implementation evidence — completed handoff
 
-The authorized implementation is in progress on codex/m08-printing-reprinting, PR #14. The current working tree contains only the M08 printing/reprinting implementation and its focused evidence; no M09+ work has started.
+The initial authorized implementation was completed on codex/m08-printing-reprinting, PR #14. The branch contains only the M08 printing/reprinting implementation and its focused evidence; no M09+ work has started.
 
 Implemented seams/evidence so far:
 
@@ -130,7 +130,7 @@ Implemented seams/evidence so far:
 - FR/zh-CN printer setup, reprint and failure/status localization;
 - focused Application and Infrastructure M08 tests.
 
-Final automated evidence for the current candidate:
+Final automated evidence for the initial implementation candidate, before the later controller remediation:
 
 - implementation/evidence head: `4e5d9b39d4db4ad55e2f7ee6bc83e0c4d89a4ca8`;
 - Release build: **Passed**, 0 warnings / 0 errors;
@@ -142,5 +142,29 @@ Final automated evidence for the current candidate:
 - owner Windows/physical-printer acceptance: **Pending / must remain unchecked**.
 
 No merge, no M09+ implementation, and POST_TASK_POWER_ACTION: NONE.
+
+## 8. Controller remediation — M08-CONTROLLER-REMEDIATION-02
+
+The active controller remediation was limited to the scope recorded in Issue #4 and PR review `5187117563`:
+
+- local technical configuration writers now use an atomic latest-snapshot update path, preserving unrelated language, printer and M07 fields;
+- known failed Kitchen/Customer initial output can be retried independently with the same initial intent; ambiguous output remains on the explicit `RÉIMPRESSION`/`DUPLICATA` path;
+- Windows printing now executes on a dedicated STA thread, reads the selected queue imageable area and paginates content to that bounded surface instead of using a hardcoded page size;
+- duplicate customer `ANNULÉ` output was removed;
+- FR/zh-CN initial-retry controls and evidence were added.
+
+Remediation implementation commit: `50a6245e0818461a51662fe7a97fdef47d8c433d`.
+
+Remediation evidence:
+
+- Release build: **Passed**, 0 warnings / 0 errors;
+- full Release tests: **Passed**, 550/550;
+- focused M08 application tests: **Passed**, 6/6;
+- focused M08 infrastructure tests: **Passed**, 2/2;
+- focused localization/configuration tests: **Passed**, 6/6;
+- `git diff --check`: **Passed**;
+- owner Windows/physical-printer acceptance: **Pending / must remain unchecked**.
+
+The final pushed head and exact-head CI result are recorded in the matching `CODEX_DONE: M08-CONTROLLER-REMEDIATION-02` PR comment. No merge, no M09+ implementation, and `POST_TASK_POWER_ACTION: NONE`.
 
 `POST_TASK_POWER_ACTION: NONE`
