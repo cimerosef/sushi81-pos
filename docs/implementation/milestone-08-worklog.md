@@ -1,13 +1,15 @@
 # M08 worklog — printing and reprinting
 
-**Status:** Preparation complete — **IMPLEMENTATION NOT AUTHORIZED**  
+**Status:** **AUTHORIZED / execution setup in progress**  
 **Prepared:** 2026-09-12  
+**Authorized:** 2026-09-12  
+**Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
 **Preparation entry baseline:** `main@9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
-**Authorization:** `docs/implementation/milestone-08-authorization.md` — NOT AUTHORIZED  
-**Execution gate:** CLOSED
+**Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
+**Execution gate:** CLOSED until branch/PR/handoff cross-check completes
 
-This worklog records M08 preparation and, only after later explicit authorization, implementation/evidence. Preparation entries do not authorize Codex.
+This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
 ## 1. Entry state
 
@@ -17,46 +19,40 @@ This worklog records M08 preparation and, only after later explicit authorizatio
 - Accepted M07 production implementation head: `e971580ef43d3b50366d51733ca9431ca0997e8d`.
 - Final M07 closure docs/evidence head: `d586c847f2dd541815b8c00565c58b3685a3e4be`.
 - Final accepted M07 CI: #631 / run `34698627867`, success; 541/541 tests Passed; build 0 warnings / 0 errors.
-- Issue #4: CLOSED.
-- Active handoff: none.
-- M08 implementation branch: none.
-- M08 implementation PR: none.
 - M09+: not authorized.
 
-## 2. Preparation audit — 2026-09-12
+## 2. Preparation audit — complete
 
-### Specifications and production seams
+The current Approved printing/lifecycle/data/architecture/storage/control documents and accepted M04–M07 implementation were audited before authorization.
 
-Current `main` was used to re-read the frozen/amended printing/lifecycle/data/architecture/storage/control documents and accepted M07 evidence.
+Key foundation facts:
 
-Findings:
-
-- existing M04 `IOrderPrintDispatcher` seam found;
-- `OrderEntryService` already commits + reloads before dispatcher invocation;
-- dispatcher failure already preserves order persistence success;
+- M04 `IOrderPrintDispatcher` exists as the post-commit seam;
+- `OrderEntryService` already persists + reloads committed state before dispatch;
+- dispatcher failure already preserves committed order persistence;
 - production still uses `NoOpOrderPrintDispatcher`;
 - no production Windows print-queue/spooler adapter exists;
-- no current kitchen/customer reprint WPF commands exist;
-- no printer fields exist in `LocalConfiguration`;
+- no kitchen/customer reprint WPF actions exist;
+- no printer queue fields exist in local technical configuration;
 - M05 modification/payment/lifecycle writes do not auto-print;
-- current committed `OrderSnapshot` is sufficient for order/item/adjustment/tax/payment print content without current Catalogue dependency;
-- M07 non-authoritative/read-only warning and authority guard provide the required boundary; printing remains outside the business-write permission gate.
+- committed `OrderSnapshot` already contains the order/item/adjustment/tax/payment facts needed for deterministic output;
+- M07 read-only/authority semantics permit printing as a non-business-write local side effect.
 
 M08 criterion ownership: `AC-PRINT-001`–`008`, `010`, `011`, `AC-ARCH-006`, plus the production printing cross-check of `AC-LIFE-001`. `AC-PRINT-009` remains M12.
 
 ## 3. Owner print-reference decision — M08-D1 resolved
 
-On 2026-09-12 the project owner supplied `modèle impression.pdf` in the ChatGPT Sushi81 POS project resources and explicitly selected:
+On 2026-09-12 the project owner supplied `modèle impression.pdf` in the ChatGPT Sushi81 POS project resources and selected:
 
-- page 1 as the desired kitchen-ticket style, with customer telephone/remarks/order information placed between the two upper dashed separators;
-- page 2 as the desired customer-ticket style, matching the current Hiboutik receipt structure and thermal appearance as closely as practical.
+- page 1 as the kitchen-ticket visual target, with customer/fulfilment/telephone/address/comment information between the two upper dashed separators;
+- page 2 as the customer-ticket visual target, matching the current Hiboutik-style thermal structure/appearance as closely as practical.
 
-Durable GitHub records:
+Durable controlling records:
 
 - `docs/decisions/m08-print-layout-and-receipt-identity.md`;
 - `docs/implementation/milestone-08-contract-addendum-print-layout-identity.md`.
 
-Frozen Sushi 81 customer identity:
+Frozen customer identity:
 
 - `Sushi 81`;
 - `12 Rue Gaston Darley`;
@@ -65,60 +61,57 @@ Frozen Sushi 81 customer identity:
 - TVA `FR03908052111`;
 - APE/NAF `5610C`.
 
-Storage decision: receipt identity is authoritative SQLite business configuration and travels with the business lineage; printer queues remain local technical configuration.
+Receipt identity is authoritative SQLite `BusinessSettings`; printer queues remain local technical configuration. The exact Hiboutik font family is not portable/frozen; M08 targets the same narrow monospaced thermal appearance through the approved Windows printing boundary, with physical similarity judged by the owner.
 
-Font finding: the supplied PDF is image-based and does not expose a named font family. Hiboutik documentation indicates receipt typography normally uses the printer's resident fonts/default smallest font (Font A selection is supported). M08 therefore targets the same narrow monospaced thermal receipt appearance through the approved Windows spooler architecture, with actual printed similarity judged during owner acceptance. No raw ESC/POS adapter is authorized merely to force a font match.
+## 4. Project-owner implementation authorization — 2026-09-12
 
-The customer sample's Hiboutik branding/footer is a source-product footer and will not be copied onto Sushi81 POS output. Current V1 also has no customer-name field, so M08 does not invent one solely to imitate the sample; it uses committed telephone/address/order data that actually exists.
+The project owner explicitly stated:
 
-## 4. Technical proposal prepared
+> 批准 M08 正式实施。
 
-The contract/addendum freeze:
+Authorization scope is exactly the M08 contract/addendum/decision/readiness package at exact preparation head `b983efa7ef4e2591575fa662f9d433652b97e4aa`.
 
-- deterministic Application-owned kitchen/customer models;
-- Windows `PrintQueue`/fixed-document transport boundary;
-- independent kitchen/customer outcomes and retry;
-- local printer queue configuration;
-- authoritative SQLite receipt identity migration/settings extension;
-- explicit live-order kitchen/customer reprint;
-- future/cancel/reprint markings;
-- non-authoritative printing without authority/freshness implication;
-- async/responsive WPF behavior;
-- deterministic failure injection and automated test matrix;
-- owner real-printer visual comparison against page 1/page 2 references;
-- M12-only archive printing boundary.
+This authorization:
 
-## 5. Current-control reconciliation
+- authorizes M08 implementation only;
+- does not authorize merge;
+- does not authorize M09+;
+- does not itself open Issue #4;
+- requires the normal dedicated branch/PR/mailbox/handoff gate sequence before Codex execution.
 
-The active control surfaces have been advanced to the post-M07/M08-preparation state:
+## 5. Technical implementation boundaries
 
-- `docs/README.md`;
-- `docs/implementation-status.md`;
-- `docs/implementation/README.md`;
-- Issue #4 pointer/body.
+Implementation must preserve:
 
-Historical M07 evidence remains in its original contract/worklog/manual-acceptance/PR records.
+- durable commit before automatic print;
+- independent kitchen/customer model/submission outcomes;
+- real Windows print queue/spooler boundary;
+- no order rollback on print failure;
+- no automatic reprint after existing-order saves;
+- latest committed state only for explicit reprint;
+- required `RÉIMPRESSION`, `DUPLICATA`, `ANNULÉ` markings;
+- future-order prominence;
+- non-authoritative local committed-copy printing without authority/freshness implication;
+- FR/zh-CN WPF quality/localization requirements;
+- M07 authority/generation/handoff/DR/write-guard semantics;
+- no M12 archive printing implementation and no M09+ work.
 
-## 6. Governance state after preparation
+## 6. Execution setup
 
-M08 has no known material specification blocker and is ready for a separate project-owner implementation-authorization decision.
+Controller sequence after authorization:
 
-Until that decision occurs, Codex must continue to report:
+1. advance governance-only `main` with authorization/current-state records;
+2. create dedicated branch `codex/m08-printing-reprinting` from the resulting execution baseline;
+3. create the dedicated M08 implementation PR targeting `main`;
+4. update Issue #4 pointer while keeping it CLOSED;
+5. publish exactly one top-level executable handoff `CODEX_HANDOFF_READY: M08-IMPLEMENTATION-01` with `POST_TASK_POWER_ACTION: NONE`;
+6. cross-check branch/PR/comment/authorization pointers;
+7. only then reopen Issue #4.
 
-`M08_NOT_AUTHORIZED: execution gate closed / no active handoff.`
+## 7. Implementation evidence
 
-No production implementation evidence belongs in this worklog yet.
+**None yet.**
 
-## 7. Implementation entries
-
-**None.**
-
-Do not add production implementation evidence until:
-
-- project owner explicitly approves M08 implementation;
-- the authorization record is updated to Authorized with the exact preparation head;
-- a dedicated M08 branch/PR exists;
-- a valid top-level M08 `CODEX_HANDOFF_READY` exists;
-- Issue #4 is OPEN.
+Codex must not claim production implementation evidence until Issue #4 is OPEN and the matching handoff is active.
 
 `POST_TASK_POWER_ACTION: NONE`
