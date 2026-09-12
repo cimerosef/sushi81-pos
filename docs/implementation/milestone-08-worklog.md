@@ -132,13 +132,13 @@ Implemented seams/evidence so far:
 
 Final automated evidence for the current candidate:
 
-- implementation/evidence head: `c5b08f60bba3344435ae572c870326985d7a14a4`;
+- implementation/evidence head: `4e5d9b39d4db4ad55e2f7ee6bc83e0c4d89a4ca8`;
 - Release build: **Passed**, 0 warnings / 0 errors;
 - Release tests: **Passed**, 546/546;
 - focused M08 tests: **Passed**, 4 Application + 1 Infrastructure integration;
 - self-contained win-x64 publish: **Passed**, `artifacts/m08-win-x64`;
 - published executable SHA-256: `A2FB8591A4FFAD67046FBC0886249E21122A806C4F54387209DE2C4837FD2B97`;
-- exact-head CI: **Passed**, run #653 / workflow run `34704044897`, job build-and-test;
+- exact-head CI: **Passed**, run #654 / workflow run `34704258456`, job build-and-test;
 - owner Windows/physical-printer acceptance: **Pending / must remain unchecked**.
 
 No merge, no M09+ implementation, and POST_TASK_POWER_ACTION: NONE.
