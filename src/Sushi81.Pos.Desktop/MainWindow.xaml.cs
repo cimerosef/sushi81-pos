@@ -129,6 +129,12 @@ public partial class MainWindow : Window
                 PerformanceTrace.Log("entry.refresh.end");
             }
             if (viewModel.Lifecycle is { } lifecycle) { PerformanceTrace.Log("lifecycle.refresh.start"); await lifecycle.RefreshAsync(); PerformanceTrace.Log("lifecycle.refresh.end"); PerformanceTrace.Log("lifecycle.dashboard.start"); await lifecycle.RefreshDashboardAsync(); PerformanceTrace.Log("lifecycle.dashboard.end"); }
+            if (viewModel.PrinterSetup is { } printerSetup)
+            {
+                PerformanceTrace.Log("printer.refresh.start");
+                await printerSetup.RefreshAsync();
+                PerformanceTrace.Log("printer.refresh.end");
+            }
         }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
         ApplyCatalogueHeaders();

@@ -1854,6 +1854,131 @@ public sealed class M05DesktopTests
         await Task.CompletedTask;
     }
 
+    [TestMethod]
+    public void M08PrinterSelectionsHydrateDuringWindowLoadAndManualRefreshRemainsAvailable()
+    {
+        RunOnSta(() =>
+        {
+            var initial = new LocalConfiguration(
+                KitchenPrinterQueueId: "kitchen-queue",
+                KitchenPrinterQueueName: "Kitchen",
+                CustomerPrinterQueueId: "customer-queue",
+                CustomerPrinterQueueName: "Customer");
+            var configurationService = new InMemoryLocalConfigurationService(initial);
+            var queueCatalog = new MutableQueueCatalog([
+                new PrintQueueInfo("kitchen-queue", "Kitchen"),
+                new PrintQueueInfo("customer-queue", "Customer")]);
+            var printerSetup = new PrinterSetupViewModel(initial, configurationService, queueCatalog);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                true,
+                catalogueService: new CatalogueService(new EmptyCatalogueStore()),
+                settingsService: new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))),
+                configuration: initial,
+                printerSetup: printerSetup);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.AreEqual(1, queueCatalog.CallCount, "Window load must refresh printer queues without an operator click.");
+                Assert.AreEqual("kitchen-queue", printerSetup.KitchenQueueId);
+                Assert.AreEqual("customer-queue", printerSetup.CustomerQueueId);
+                Assert.AreEqual(initial, configurationService.Current, "Startup hydration must not rewrite local or M07 configuration.");
+
+                var settingsTab = VisualDescendants<TabItem>(window).Single(item => Equals(item.Header, shell.Localized["Settings"]));
+                settingsTab.IsSelected = true;
+                window.UpdateLayout();
+                var selectors = VisualDescendants<ComboBox>(window)
+                    .Where(combo => ReferenceEquals(combo.ItemsSource, printerSetup.Queues))
+                    .ToArray();
+                Assert.HasCount(2, selectors);
+                Assert.AreEqual("kitchen-queue", ((PrintQueueInfo)selectors[0].SelectedItem!).Id);
+                Assert.AreEqual("customer-queue", ((PrintQueueInfo)selectors[1].SelectedItem!).Id);
+
+                var refresh = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["RefreshPrinters"]));
+                refresh.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.AreEqual(2, queueCatalog.CallCount, "The manual refresh action must remain available after automatic startup hydration.");
+                Assert.AreEqual("kitchen-queue", ((PrintQueueInfo)selectors[0].SelectedItem!).Id);
+                Assert.AreEqual("customer-queue", ((PrintQueueInfo)selectors[1].SelectedItem!).Id);
+                Assert.AreEqual(initial, configurationService.Current, "Refreshing queues must not rewrite saved local configuration.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void M08PrinterStartupPreservesUnavailableSavedSelectionAndReportsItTruthfully()
+    {
+        RunOnSta(() =>
+        {
+            var initial = new LocalConfiguration(
+                KitchenPrinterQueueId: "missing-kitchen",
+                KitchenPrinterQueueName: "Missing Kitchen",
+                CustomerPrinterQueueId: "customer-queue",
+                CustomerPrinterQueueName: "Customer");
+            var configurationService = new InMemoryLocalConfigurationService(initial);
+            var queueCatalog = new MutableQueueCatalog([new PrintQueueInfo("customer-queue", "Customer")]);
+            var printerSetup = new PrinterSetupViewModel(initial, configurationService, queueCatalog);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                true,
+                catalogueService: new CatalogueService(new EmptyCatalogueStore()),
+                settingsService: new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))),
+                configuration: initial,
+                printerSetup: printerSetup);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.AreEqual(1, queueCatalog.CallCount);
+                Assert.AreEqual("missing-kitchen", printerSetup.KitchenQueueId);
+                Assert.AreEqual("Missing Kitchen", printerSetup.KitchenQueueName);
+                Assert.AreEqual(shell.Localized["PrinterQueueUnavailable"], printerSetup.StatusMessage);
+                Assert.AreEqual(initial, configurationService.Current, "Unavailable startup discovery must not erase the saved queue selection.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void M08PrinterStartupKeepsTheWindowUsableWhenQueueDiscoveryFails()
+    {
+        RunOnSta(() =>
+        {
+            var initial = new LocalConfiguration(
+                KitchenPrinterQueueId: "kitchen-queue",
+                KitchenPrinterQueueName: "Kitchen",
+                CustomerPrinterQueueId: "customer-queue",
+                CustomerPrinterQueueName: "Customer");
+            var configurationService = new InMemoryLocalConfigurationService(initial);
+            var printerSetup = new PrinterSetupViewModel(initial, configurationService, new ThrowingQueueCatalog());
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                true,
+                catalogueService: new CatalogueService(new EmptyCatalogueStore()),
+                settingsService: new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))),
+                configuration: initial,
+                printerSetup: printerSetup);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.AreEqual(shell.Localized["PrinterRefreshFailed"], printerSetup.StatusMessage);
+                Assert.AreEqual(initial, configurationService.Current, "A discovery failure must not rewrite local or M07 configuration.");
+                Assert.IsTrue(window.IsLoaded, "Printer discovery failure must not prevent the normal window from loading.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
     private static OrderSnapshot Snapshot(DateOnly plannedDate) => new(
         Guid.NewGuid(), OrderSourceType.Pos, OrderStatus.Open,
         new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero),
@@ -2018,6 +2143,24 @@ public sealed class M05DesktopTests
             Task.FromResult<IReadOnlyList<PrintQueueInfo>>([
                 new("kitchen-queue", "Kitchen"),
                 new("customer-queue", "Customer")]);
+    }
+
+    private sealed class MutableQueueCatalog(IReadOnlyList<PrintQueueInfo> initial) : IPrintQueueCatalog
+    {
+        public IReadOnlyList<PrintQueueInfo> Queues { get; set; } = initial;
+        public int CallCount { get; private set; }
+
+        public Task<IReadOnlyList<PrintQueueInfo>> ListAsync(CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(Queues);
+        }
+    }
+
+    private sealed class ThrowingQueueCatalog : IPrintQueueCatalog
+    {
+        public Task<IReadOnlyList<PrintQueueInfo>> ListAsync(CancellationToken cancellationToken = default) =>
+            Task.FromException<IReadOnlyList<PrintQueueInfo>>(new InvalidOperationException("synthetic queue discovery failure"));
     }
 
     private sealed class InMemoryLocalConfigurationService(LocalConfiguration initial) : ILocalConfigurationService
