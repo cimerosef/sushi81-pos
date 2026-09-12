@@ -130,12 +130,15 @@ Implemented seams/evidence so far:
 - FR/zh-CN printer setup, reprint and failure/status localization;
 - focused Application and Infrastructure M08 tests.
 
-Current automated evidence before delivery is updated here with the final exact head:
+Final automated evidence for the current candidate:
 
-- Release build: pending final candidate;
-- Release tests: pending final candidate;
-- self-contained win-x64 publish: pending final candidate;
-- exact-head CI: pending push;
+- implementation/evidence head: `c5b08f60bba3344435ae572c870326985d7a14a4`;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- Release tests: **Passed**, 546/546;
+- focused M08 tests: **Passed**, 4 Application + 1 Infrastructure integration;
+- self-contained win-x64 publish: **Passed**, `artifacts/m08-win-x64`;
+- published executable SHA-256: `A2FB8591A4FFAD67046FBC0886249E21122A806C4F54387209DE2C4837FD2B97`;
+- exact-head CI: **Passed**, run #653 / workflow run `34704044897`, job build-and-test;
 - owner Windows/physical-printer acceptance: **Pending / must remain unchecked**.
 
 No merge, no M09+ implementation, and POST_TASK_POWER_ACTION: NONE.
