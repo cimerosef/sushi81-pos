@@ -1,6 +1,6 @@
 # M07 worklog — pairing, target-directed handoff and disaster recovery
 
-**Status:** Authorized / M07 manual-acceptance remediation-22 candidate — owner acceptance pending
+**Status:** Authorized / M07 final acceptance closure candidate — ready for project-owner final acceptance; owner declaration pending
 **Prepared:** 2026-09-07  
 **Authorized:** 2026-09-07  
 **Execution gate:** OPEN — verified against GitHub Issue #4 on 2026-09-08
@@ -556,3 +556,39 @@ passed with `0` warnings and `0` errors; `git diff --check` passed before the do
 **Status/boundaries:** Final docs/evidence commit, exact-head CI, push and matching
 `CODEX_DONE` remain pending delivery. WP7 proof repository/release/assets were not opened, rerun,
 mutated or deleted. Merge is unauthorized; M08 and later milestones remain not started.
+
+### Review cycle 18 — final acceptance closure `M07-FINAL-ACCEPTANCE-CLOSURE-23`
+
+**Entry evidence:** Issue #4 was OPEN, PR #13 was the active implementation mailbox, the active
+branch was `codex/m07-pairing-handoff-disaster-recovery`, and the expected pre-closure head was
+`7a6f6aa409da9b13f667e2640e2852709d7f63b8`. The R23 handoff was the oldest unprocessed active
+handoff and authorized documentation/evidence bookkeeping only.
+
+**Scope:** Markdown/status documentation only. No production source, tests, tools, artifacts,
+workflows, authority state, recovery data, field state, or frozen WP7 proof was changed. No
+production defect fix or product/authority decision was introduced.
+
+**Documentation:** `milestone-07-final-manual-acceptance.md` was reconciled to the accepted
+owner/controller evidence: exact R22 implementation/artifact identity and CI #630 were recorded,
+the duplicate Release-build line and stale CI-pending text were removed, historical R19/R20/R21/R22
+states were retained as history, Scenario A–N results were reconciled, and the criterion ledger
+was changed from stale `Pending` wording to evidence complete with owner acceptance still pending.
+
+**Final A–N disposition:** A/B Passed with the Windows Sandbox `0x80370106` caveat and the
+target-selector/source-exclusion boundary preserved; C Passed; D/E Passed on R20; F Passed; G
+Passed on R21; H Passed on R20; I Passed with delayed checkpoint publication retained as a
+non-blocking operational finding and the 15-minute maximum treated as a rate limit rather than an
+SLA; J/K Passed on R21; L Passed from frozen WP7 proof; M Passed on the focused R22 owner retest;
+N Passed on R21.
+
+**Accepted identity/evidence:** Production implementation `e971580ef43d3b50366d51733ca9431ca0997e8d`;
+R22 artifact SHA-256 `08E873DBD67438D3E48B6B497B1DC41828B13761CF47DE3AFDC4AC6D8BEB7284`; local
+Release `541/541` Passed with `0` failed/skipped and `0` build warnings/errors; exact-head CI #630,
+run `34694891347`, job `103556562992`, successful. Relevant PR evidence comments are
+`5646313903` (M pass), `5646336795` (controller reconciliation), and `5646349314` (R23 handoff).
+
+**Verification and status:** `git diff --check` and changed-file inspection passed; the changed
+file set is restricted to the two Markdown files named by the handoff. No separate repository
+docs-hygiene command is prescribed; Markdown inspection completed. The record is ready for
+project-owner final acceptance but does not declare overall M07 Passed. PR #13 remains unmerged,
+M08 is unauthorized, and exact-head push plus matching `CODEX_DONE` remain pending delivery.
