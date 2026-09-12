@@ -9,4 +9,8 @@ public sealed record LocalConfiguration(
     string GitHubReleaseTag = "sushi81-handoff-v1",
     string GitHubReleaseName = "Sushi81 POS Handoff Transport",
     string? GitHubCredentialTarget = null,
-    string? DeviceDisplayName = null);
+    string? DeviceDisplayName = null,
+    string? KitchenPrinterQueueId = null,
+    string? KitchenPrinterQueueName = null,
+    string? CustomerPrinterQueueId = null,
+    string? CustomerPrinterQueueName = null);

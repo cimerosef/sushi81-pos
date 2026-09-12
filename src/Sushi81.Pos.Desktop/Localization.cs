@@ -8,6 +8,7 @@ using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Application.OrderEntry;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Application.Pairing.SystemMetadata;
 using Sushi81.Pos.Infrastructure.GitHubTransport;
 using Sushi81.Pos.Infrastructure.Authority;
@@ -81,7 +82,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private readonly M07ConfigurationSetupService? _m07Setup;
     private AuthorityPhase? _authorityPhase;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
         _configuration = configuration ?? new LocalConfiguration();
@@ -96,10 +97,13 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         RefreshResources();
         Admin = startupSucceeded && catalogueService is not null && settingsService is not null ? new M03ShellViewModel(catalogueService, settingsService, authorityGuard) : null;
         Entry = startupSucceeded && orderEntryService is not null ? new OrderEntryShellViewModel(orderEntryService, authorityGuard) : null;
-        Lifecycle = startupSucceeded && orderLifecycleService is not null ? new OrderLifecycleShellViewModel(orderLifecycleService, authorityGuard) : null;
+        PrintService = printService;
+        PrinterSetup = printerSetup;
+        Lifecycle = startupSucceeded && orderLifecycleService is not null ? new OrderLifecycleShellViewModel(orderLifecycleService, authorityGuard, printService) : null;
         Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
         Entry?.ApplyLocalization(Localized["All"], Localized["FulfilmentUnselected"], Localized["Retrait"], Localized["Livraison"], Localized["ManualTotalActive"], Localized["NewOrder"], Localized["Quantity"], Localized);
         Lifecycle?.ApplyLocalization(Localized);
+        PrinterSetup?.ApplyLocalization(Localized);
         if (Admin is not null) Admin.SettingsSaved += OnSettingsSaved;
     }
 
@@ -177,6 +181,10 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public OrderLifecycleShellViewModel? Lifecycle { get; }
 
+    public IOrderPrintApplicationService? PrintService { get; }
+
+    public PrinterSetupViewModel? PrinterSetup { get; }
+
     public bool IsM03Available => Admin is not null;
 
     public bool IsM04Available => Entry is not null;
@@ -235,6 +243,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
             Entry?.ApplyLocalization(Localized["All"], Localized["FulfilmentUnselected"], Localized["Retrait"], Localized["Livraison"], Localized["ManualTotalActive"], Localized["NewOrder"], Localized["Quantity"], Localized);
             Lifecycle?.ApplyLocalization(Localized);
+            PrinterSetup?.ApplyLocalization(Localized);
         }
         catch
         {
@@ -337,7 +346,12 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("M07ReasonReleasedTargetUnavailable").Append("M07ReasonRelinquishedTargetUnavailable")
              .Append("M07PendingResumeWarning").Append("M07PendingRecoveryId")
              .Append("M07PendingCandidateId").Append("M07PendingCandidateType")
-             .Append("M07RetrySameRecovery").ToArray();
+             .Append("M07RetrySameRecovery")
+             .Append("KitchenPrinter").Append("CustomerPrinter").Append("RefreshPrinters")
+             .Append("PrinterSaved").Append("PrinterRefreshSucceeded").Append("PrinterRefreshFailed").Append("PrinterSaveFailed").Append("PrinterQueueUnavailable")
+             .Append("OrderReprintKitchen").Append("OrderReprintCustomer").Append("OrderPrintSuccess")
+             .Append("OrderPrintFailure").Append("OrderPrintKitchenFailure").Append("OrderPrintCustomerFailure").Append("OrderPrintSaveOrAbandon")
+             .ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));

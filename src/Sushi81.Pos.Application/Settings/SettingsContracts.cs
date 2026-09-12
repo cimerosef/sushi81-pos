@@ -44,7 +44,8 @@ public sealed class BusinessSettingsService
                 || current.PickupDiscountMinTotalTtc != settings.PickupDiscountMinTotalTtc
                 || current.DeliveryMinMerchandiseTotalTtc != settings.DeliveryMinMerchandiseTotalTtc
                 || current.DeliveryFeeEnabled != settings.DeliveryFeeEnabled
-                || current.DeliveryFeeAmountTtc != settings.DeliveryFeeAmountTtc;
+                || current.DeliveryFeeAmountTtc != settings.DeliveryFeeAmountTtc
+                || current.ReceiptIdentity != settings.ReceiptIdentity;
             var result = await store.UpdateAsync(settings, cancellationToken);
             if (result.Succeeded && hasEffectiveChange)
             {

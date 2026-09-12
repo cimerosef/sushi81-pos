@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.OrderEntry;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Domain;
 
 namespace Sushi81.Pos.Desktop;
@@ -93,6 +94,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
 {
     private readonly OrderLifecycleService service;
     private readonly IWriteAuthorityGuard? authorityGuard;
+    private readonly IOrderPrintApplicationService? printService;
     private readonly object refreshLock = new();
     private CancellationTokenSource? refreshCancellation;
     private long refreshVersion;
@@ -115,6 +117,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private bool editPickupDiscountRequested;
     private DateTime? effectivePaymentDate;
     private string validationMessage = string.Empty;
+    private string printStatusMessage = string.Empty;
     private IReadOnlyList<ValidationIssue>? activeValidationIssues;
     private bool renderingValidationMessage;
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>();
@@ -122,10 +125,11 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private OperationalOrderView? operationalView;
     private OrderOperationalSummary summary = new(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0);
 
-    public OrderLifecycleShellViewModel(OrderLifecycleService service, IWriteAuthorityGuard? authorityGuard = null)
+    public OrderLifecycleShellViewModel(OrderLifecycleService service, IWriteAuthorityGuard? authorityGuard = null, IOrderPrintApplicationService? printService = null)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
         this.authorityGuard = authorityGuard;
+        this.printService = printService;
         browseDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue);
         effectivePaymentDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue);
         Orders = new ObservableCollection<OrderManagementRowViewModel>();
@@ -231,6 +235,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
             OnPropertyChanged();
         }
     }
+    public string PrintStatusMessage { get => printStatusMessage; private set { printStatusMessage = value ?? string.Empty; OnPropertyChanged(); } }
     public bool HasSelectedOrder => SelectedOrder is not null;
     public bool IsOperationalViewActive => operationalView is not null;
     public DateOnly BusinessDate => service.BusinessDate;
@@ -278,6 +283,8 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     public bool CanCancel => CanWrite && SelectedOrder is { Status: not OrderStatus.Cancelled } && !IsEditing;
     public bool CanReuseCustomer => SelectedOrder is not null;
     public bool CanAddCurrentLine => CanWrite && IsEditing && SelectedOrder is not null;
+    public bool CanReprintKitchen => printService is not null && SelectedOrder is not null && !IsEditing;
+    public bool CanReprintCustomer => printService is not null && SelectedOrder is not null && !IsEditing;
 
     public void RefreshAuthorityState()
     {
@@ -469,6 +476,23 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         if (SelectedOrder is null) return; var result = await service.CancelAsync(SelectedOrder.Id, cancellationToken); ApplyResult(result);
     }
 
+    public async Task ReprintAsync(PrintDocumentKind kind, CancellationToken cancellationToken = default)
+    {
+        if (printService is null || SelectedOrder is null) return;
+        if (IsEditing)
+        {
+            PrintStatusMessage = Text("OrderPrintSaveOrAbandon", "Save or abandon the edit before printing the committed order.");
+            return;
+        }
+
+        var result = await printService.ReprintAsync(SelectedOrder.Id, kind, cancellationToken);
+        PrintStatusMessage = result.Succeeded
+            ? Text("OrderPrintSuccess", "The requested document was accepted by the printer.")
+            : M03Presentation.Message(
+                new ValidationIssue(kind == PrintDocumentKind.Kitchen ? "kitchen-print" : "customer-print", result.OperatorMessage, ValidationCodes.Generic),
+                localized);
+    }
+
     public void AbandonModification()
     {
         if (!IsEditing) return;
@@ -553,7 +577,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         time.Minute % 5 == 0 && time.Ticks % TimeSpan.TicksPerMinute == 0;
     private static bool TryParse(string value, out Money money) { if (M03Presentation.TryParseDecimalInput(value, out var parsed)) { money = Money.FromEuros(parsed); return true; } money = Money.Zero; return false; }
     private void RaiseDetailProperties() { OnPropertyChanged(nameof(HasSelectedOrder)); OnPropertyChanged(nameof(IsOperationalViewActive)); OnPropertyChanged(nameof(MinimumEditPlannedDate)); foreach (var name in new[] { nameof(ReferenceText), nameof(StatusText), nameof(FulfilmentText), nameof(AdvanceText), nameof(ManualTotalText), nameof(PickupDiscountText), nameof(TaxSummaryText), nameof(PlannedDateText), nameof(PlannedTimeText), nameof(TotalText), nameof(PaidText), nameof(DifferenceText), nameof(TelephoneText), nameof(AddressText), nameof(CommentText), nameof(EditPickupDiscountRequested), nameof(IsEditPickupDiscountEnabled) }) OnPropertyChanged(name); RaiseEditPaymentProperties(); RaiseCommandProperties(); }
-    private void RaiseCommandProperties() { foreach (var name in new[] { nameof(CanModify), nameof(CanSave), nameof(CanAbandon), nameof(CanClose), nameof(CanCancel), nameof(CanReuseCustomer), nameof(CanAddCurrentLine), nameof(IsEditPickupDiscountEnabled), nameof(EditCloseEligibilityText) }) OnPropertyChanged(name); }
+    private void RaiseCommandProperties() { foreach (var name in new[] { nameof(CanModify), nameof(CanSave), nameof(CanAbandon), nameof(CanClose), nameof(CanCancel), nameof(CanReuseCustomer), nameof(CanAddCurrentLine), nameof(CanReprintKitchen), nameof(CanReprintCustomer), nameof(IsEditPickupDiscountEnabled), nameof(EditCloseEligibilityText) }) OnPropertyChanged(name); }
     private void RaiseEditPaymentProperties() { foreach (var name in new[] { nameof(EditPaidText), nameof(EditDifferenceText), nameof(EditCloseEligibilityText) }) OnPropertyChanged(name); }
     private static bool ItemsEquivalent(IReadOnlyList<OrderItemSnapshot> left, OrderItemSnapshot[] right) =>
         left.Count == right.Length && left.OrderBy(item => item.Position).Zip(right.OrderBy(item => item.Position)).All(pair =>

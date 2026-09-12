@@ -1,6 +1,6 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **AUTHORIZED / implementation mailbox setup**  
+**Status:** **IMPLEMENTATION IN PROGRESS — owner manual acceptance pending**
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
@@ -9,7 +9,7 @@
 **Implementation PR:** #14 — `M08: printing and reprinting`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** CLOSED until mailbox/handoff cross-check completes
+**Execution gate:** OPEN — M08-IMPLEMENTATION-01 is the active authorized handoff
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -25,7 +25,7 @@ This worklog records M08 preparation, authorization, implementation and evidence
 - M08 governance/execution baseline after authorization/current-state bookkeeping: `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`.
 - Dedicated branch: `codex/m08-printing-reprinting`.
 - Dedicated implementation PR: #14.
-- Issue #4 remains CLOSED until the single active handoff is posted and all pointers are verified.
+- Issue #4 is OPEN for the single active handoff M08-IMPLEMENTATION-01; no second handoff is being consumed.
 - M09+: not authorized.
 
 ## 2. Preparation audit — complete
@@ -103,22 +103,41 @@ Implementation must preserve:
 - M07 authority/generation/handoff/DR/write-guard semantics;
 - no M12 archive printing implementation and no M09+ work.
 
-## 6. Execution setup
+## 6. Execution setup and handoff cross-check
 
-Controller sequence after authorization:
+The authorized serial-execution prerequisites are complete:
 
-1. [x] advance governance-only `main` with authorization/current-state records;
-2. [x] create dedicated branch `codex/m08-printing-reprinting` from `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`;
-3. [x] create dedicated M08 implementation PR #14 targeting `main`;
-4. [ ] update Issue #4 pointer while keeping it CLOSED;
-5. [ ] publish exactly one top-level executable handoff `CODEX_HANDOFF_READY: M08-IMPLEMENTATION-01` with `POST_TASK_POWER_ACTION: NONE`;
-6. [ ] cross-check branch/PR/comment/authorization pointers;
-7. [ ] only then reopen Issue #4.
+1. [x] governance-only main records and current-state pointers established;
+2. [x] dedicated branch codex/m08-printing-reprinting created from the authorized baseline;
+3. [x] dedicated M08 implementation PR #14 targets main;
+4. [x] Issue #4 names the branch/PR and is OPEN;
+5. [x] exactly one top-level executable handoff CODEX_HANDOFF_READY: M08-IMPLEMENTATION-01 is active;
+6. [x] branch/PR/comment/authorization pointers cross-checked;
+7. [x] serial oldest-first execution has consumed only M08-IMPLEMENTATION-01.
 
-## 7. Implementation evidence
+## 7. Implementation evidence — active handoff
 
-**None yet.**
+The authorized implementation is in progress on codex/m08-printing-reprinting, PR #14. The current working tree contains only the M08 printing/reprinting implementation and its focused evidence; no M09+ work has started.
 
-Codex must not claim production implementation evidence until Issue #4 is OPEN and the matching handoff is active.
+Implemented seams/evidence so far:
+
+- deterministic Application kitchen/customer document models with committed historical facts, future-order prominence and RÉIMPRESSION/DUPLICATA/ANNULÉ markings;
+- authoritative SQLite receipt identity migration v6 and pre-v6 settings-store compatibility;
+- local technical kitchen/customer Windows queue configuration;
+- Windows/WPF System.Printing queue enumeration and fixed-document submission boundary;
+- post-commit automatic dispatch wiring and independent output outcomes;
+- latest-committed explicit kitchen/customer reprint actions;
+- FR/zh-CN printer setup, reprint and failure/status localization;
+- focused Application and Infrastructure M08 tests.
+
+Current automated evidence before delivery is updated here with the final exact head:
+
+- Release build: pending final candidate;
+- Release tests: pending final candidate;
+- self-contained win-x64 publish: pending final candidate;
+- exact-head CI: pending push;
+- owner Windows/physical-printer acceptance: **Pending / must remain unchecked**.
+
+No merge, no M09+ implementation, and POST_TASK_POWER_ACTION: NONE.
 
 `POST_TASK_POWER_ACTION: NONE`

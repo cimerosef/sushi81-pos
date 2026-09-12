@@ -23,6 +23,8 @@ using System.Globalization;
 using System.IO;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.GitHubTransport;
+using Sushi81.Pos.Application.Printing;
+using Sushi81.Pos.Infrastructure.Printing;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -55,6 +57,8 @@ public static partial class CompositionRoot
         M07ConfigurationSetupService? m07Setup = null;
         JsonAuthorityStateStore? authorityStateStore = null;
         AuthorityPhase? authorityPhase = null;
+        IOrderPrintApplicationService? printService = null;
+        PrinterSetupViewModel? printerSetup = null;
 
         try
         {
@@ -112,8 +116,15 @@ public static partial class CompositionRoot
             var orderStore = new SqliteOrderStore(connectionFactory, transactionRunner, null, idGenerator, clock);
             var orderCatalogueQueries = new OrderEntryCatalogueService(catalogueStore);
             orderLifecycleService = new OrderLifecycleService(orderStore, idGenerator, clock, authorityGuard, durableChangeNotifier, orderCatalogueQueries, settingsStore);
+            var printDispatcher = new WindowsOrderPrintDispatcher(
+                settingsStore,
+                configurationService,
+                new WindowsPrintDocumentSubmitter(),
+                clock);
+            printService = new OrderPrintApplicationService(orderStore, printDispatcher);
+            printerSetup = new PrinterSetupViewModel(configuration, configurationService, new WindowsPrintQueueCatalog());
             orderEntryService = new OrderEntryService(
-                orderCatalogueQueries, settingsStore, orderStore, new NoOpOrderPrintDispatcher(), idGenerator, clock, authorityGuard, durableChangeNotifier);
+                orderCatalogueQueries, settingsStore, orderStore, printDispatcher, idGenerator, clock, authorityGuard, durableChangeNotifier);
             if (systemMetadata is not null)
             {
                 var selfJoin = new SelfJoinService(authorityStateStore, authorityGuard, systemMetadata, clock);
@@ -193,7 +204,9 @@ public static partial class CompositionRoot
             m07Runtime,
             configuration,
             m07Setup,
-            authorityPhase);
+            authorityPhase,
+            printService,
+            printerSetup);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,

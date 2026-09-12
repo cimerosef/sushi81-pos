@@ -76,16 +76,30 @@
         </Grid>
       </TabItem>
       <TabItem Header="{Binding DataContext.Localized[Settings], RelativeSource={RelativeSource AncestorType=Window}}">
-        <StackPanel Margin="18" MaxWidth="520" IsEnabled="{Binding CanWrite}">
-          <TextBlock Text="{Binding SettingsValidationMessage}" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,0,0,8" />
-          <TextBlock Text="{Binding DataContext.Localized[PickupDiscount], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Text="{Binding PickupDiscountRateText, UpdateSourceTrigger=PropertyChanged}" local:NumericInputBehavior.SelectAllOnFocus="True" Margin="0,4,0,12" />
-          <TextBlock Text="{Binding DataContext.Localized[PickupMinimum], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Text="{Binding PickupDiscountMinText, UpdateSourceTrigger=PropertyChanged}" local:NumericInputBehavior.SelectAllOnFocus="True" Margin="0,4,0,12" />
-          <TextBlock Text="{Binding DataContext.Localized[DeliveryMinimum], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Text="{Binding DeliveryMinText, UpdateSourceTrigger=PropertyChanged}" local:NumericInputBehavior.SelectAllOnFocus="True" Margin="0,4,0,12" />
-          <CheckBox Content="{Binding DataContext.Localized[DeliveryFeeEnabled], RelativeSource={RelativeSource AncestorType=Window}}" IsChecked="{Binding DeliveryFeeEnabled}" Margin="0,0,0,12" />
-          <TextBlock Text="{Binding DataContext.Localized[DeliveryFee], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Text="{Binding DeliveryFeeAmountText, UpdateSourceTrigger=PropertyChanged}" local:NumericInputBehavior.SelectAllOnFocus="True" Margin="0,4,0,12" />
-          <TextBlock Text="{Binding DataContext.Localized[DeliveryFeeVatFixed], RelativeSource={RelativeSource AncestorType=Window}}" Opacity="0.7" Margin="0,0,0,14" />
-          <WrapPanel><Button Content="{Binding DataContext.Localized[Save], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanSaveSettings}" Padding="16,5" Margin="0,0,8,0" Click="OnSaveSettings" /><Button Content="{Binding DataContext.Localized[Cancel], RelativeSource={RelativeSource AncestorType=Window}}" Padding="16,5" Click="OnReloadSettings" /></WrapPanel>
-        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="18" MaxWidth="520">
+            <StackPanel IsEnabled="{Binding CanWrite}">
+              <TextBlock Text="{Binding SettingsValidationMessage}" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,0,0,8" />
+              <TextBlock Text="{Binding DataContext.Localized[PickupDiscount], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Text="{Binding PickupDiscountRateText, UpdateSourceTrigger=PropertyChanged}" local:NumericInputBehavior.SelectAllOnFocus="True" Margin="0,4,0,12" />
+              <TextBlock Text="{Binding DataContext.Localized[PickupMinimum], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Text="{Binding PickupDiscountMinText, UpdateSourceTrigger=PropertyChanged}" local:NumericInputBehavior.SelectAllOnFocus="True" Margin="0,4,0,12" />
+              <TextBlock Text="{Binding DataContext.Localized[DeliveryMinimum], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Text="{Binding DeliveryMinText, UpdateSourceTrigger=PropertyChanged}" local:NumericInputBehavior.SelectAllOnFocus="True" Margin="0,4,0,12" />
+              <CheckBox Content="{Binding DataContext.Localized[DeliveryFeeEnabled], RelativeSource={RelativeSource AncestorType=Window}}" IsChecked="{Binding DeliveryFeeEnabled}" Margin="0,0,0,12" />
+              <TextBlock Text="{Binding DataContext.Localized[DeliveryFee], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBox Text="{Binding DeliveryFeeAmountText, UpdateSourceTrigger=PropertyChanged}" local:NumericInputBehavior.SelectAllOnFocus="True" Margin="0,4,0,12" />
+              <TextBlock Text="{Binding DataContext.Localized[DeliveryFeeVatFixed], RelativeSource={RelativeSource AncestorType=Window}}" Opacity="0.7" Margin="0,0,0,14" />
+              <WrapPanel><Button Content="{Binding DataContext.Localized[Save], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanSaveSettings}" Padding="16,5" Margin="0,0,8,0" Click="OnSaveSettings" /><Button Content="{Binding DataContext.Localized[Cancel], RelativeSource={RelativeSource AncestorType=Window}}" Padding="16,5" Click="OnReloadSettings" /></WrapPanel>
+            </StackPanel>
+            <Separator Margin="0,16,0,12" />
+            <TextBlock Text="{Binding DataContext.Localized[KitchenPrinter], RelativeSource={RelativeSource AncestorType=Window}}" FontWeight="SemiBold" />
+            <ComboBox ItemsSource="{Binding DataContext.PrinterSetup.Queues, RelativeSource={RelativeSource AncestorType=Window}}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding DataContext.PrinterSetup.KitchenQueueId, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" Margin="0,4,0,8" />
+            <TextBlock Text="{Binding DataContext.Localized[CustomerPrinter], RelativeSource={RelativeSource AncestorType=Window}}" FontWeight="SemiBold" />
+            <ComboBox ItemsSource="{Binding DataContext.PrinterSetup.Queues, RelativeSource={RelativeSource AncestorType=Window}}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding DataContext.PrinterSetup.CustomerQueueId, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" Margin="0,4,0,8" />
+            <WrapPanel>
+              <Button Content="{Binding DataContext.Localized[RefreshPrinters], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.PrinterSetup.CanSave, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,4" Margin="0,0,8,0" Click="OnRefreshPrinters" />
+              <Button Content="{Binding DataContext.Localized[Save], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.PrinterSetup.CanSave, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,4" Click="OnSavePrinterSettings" />
+            </WrapPanel>
+            <TextBlock Text="{Binding DataContext.PrinterSetup.StatusMessage, RelativeSource={RelativeSource AncestorType=Window}}" TextWrapping="Wrap" Margin="0,8,0,0" />
+          </StackPanel>
+        </ScrollViewer>
       </TabItem>
       <TabItem Header="{Binding DataContext.Localized[Commandes], RelativeSource={RelativeSource AncestorType=Window}}" DataContext="{Binding DataContext.Lifecycle, RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.IsM05Available, RelativeSource={RelativeSource AncestorType=Window}}">
         <Grid Margin="8">
@@ -140,7 +154,10 @@
                 <Button Content="{Binding DataContext.Localized[OrderClose], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanClose}" Click="OnCloseOrder" Padding="10,4" Margin="0,0,6,4" />
                 <Button Content="{Binding DataContext.Localized[OrderCancel], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanCancel}" Click="OnCancelOrder" Padding="10,4" Margin="0,0,6,4" />
                 <Button Content="{Binding DataContext.Localized[OrderNewFromDetails], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanReuseCustomer}" Click="OnReuseOrderCustomer" Padding="10,4" Margin="0,0,6,4" />
+                <Button Content="{Binding DataContext.Localized[OrderReprintKitchen], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanReprintKitchen}" Click="OnReprintKitchen" Padding="10,4" Margin="0,0,6,4" />
+                <Button Content="{Binding DataContext.Localized[OrderReprintCustomer], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanReprintCustomer}" Click="OnReprintCustomer" Padding="10,4" Margin="0,0,6,4" />
               </WrapPanel>
+              <TextBlock Text="{Binding PrintStatusMessage}" TextWrapping="Wrap" Margin="0,2,0,4" />
             </StackPanel>
           </ScrollViewer>
         </Grid>

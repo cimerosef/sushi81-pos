@@ -11,6 +11,7 @@ using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Pairing.SystemMetadata;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.OrderEntry;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Domain;
 using Sushi81.Pos.Infrastructure.Configuration;
 using DomainSelectionMode = Sushi81.Pos.Domain.SelectionMode;
@@ -634,6 +635,18 @@ public partial class MainWindow : Window
             await lifecycle.CancelSelectedAsync();
     }
 
+    private async void OnReprintKitchen(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle })
+            await lifecycle.ReprintAsync(PrintDocumentKind.Kitchen);
+    }
+
+    private async void OnReprintCustomer(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Lifecycle: { } lifecycle })
+            await lifecycle.ReprintAsync(PrintDocumentKind.Customer);
+    }
+
     private void OnReuseOrderCustomer(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { Lifecycle: { } lifecycle, Entry: { } entry } || lifecycle.SelectedOrder is not { } order) return;
@@ -749,6 +762,20 @@ public partial class MainWindow : Window
         {
             try { await admin.LoadSettingsAsync(); admin.SetSettingsValidationMessage(string.Empty); } catch { }
         }
+        if (DataContext is ShellViewModel { PrinterSetup: { } printerSetup })
+            await printerSetup.RefreshAsync();
+    }
+
+    private async void OnRefreshPrinters(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { PrinterSetup: { } printerSetup })
+            await printerSetup.RefreshAsync();
+    }
+
+    private async void OnSavePrinterSettings(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { PrinterSetup: { } printerSetup })
+            await printerSetup.SaveAsync();
     }
 
     private async void OnSaveSettings(object sender, RoutedEventArgs e)

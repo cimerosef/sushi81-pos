@@ -6,6 +6,7 @@ using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Foundation.Transactions;
 using Sushi81.Pos.Application.Settings;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Domain;
 
 namespace Sushi81.Pos.Application.OrderEntry;
@@ -70,6 +71,7 @@ public sealed record ConfirmOrderResult(
     IReadOnlyList<ValidationIssue> Issues)
 {
     public Guid? PersistedOrderId { get; init; }
+    public PrintDispatchResult? Output { get; init; }
     public bool Succeeded => PersistenceSucceeded;
     public bool OutputSucceeded => DispatchSucceeded;
     public bool HasOutputFailure => PersistenceSucceeded && !DispatchSucceeded;
@@ -223,6 +225,16 @@ public sealed class OrderEntryService(
                 return new ConfirmOrderResult(true, false, null, [new ValidationIssue("order", "The order was committed but could not be reloaded.", ValidationCodes.Generic)]) { PersistedOrderId = orderId };
             try
             {
+                if (dispatcher is IOrderPrintOutcomeDispatcher outputDispatcher)
+                {
+                    var output = await outputDispatcher.DispatchInitialAsync(committed, PrintIntent.InitialAutomatic, cancellationToken);
+                    return new(true, output.Succeeded, committed, output.Issues)
+                    {
+                        PersistedOrderId = orderId,
+                        Output = output
+                    };
+                }
+
                 await dispatcher.DispatchAsync(committed, cancellationToken);
                 return new(true, true, committed, []);
             }

@@ -841,12 +841,17 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         return message;
     }
 
-    private string LocalizeIssue(ValidationIssue issue) => issue.StableCode switch
+    private string LocalizeIssue(ValidationIssue issue)
     {
-        ValidationCodes.Busy => Localized("ValidationBusy", "Une opération est déjà en cours."),
-        ValidationCodes.AuthorityBlocked => Localized("ValidationAuthorityBlocked", "Les écritures sont bloquées : cette instance n’a pas l’autorité locale."),
-        _ => LocalizeOrderMessage(issue.Message)
-    };
+        if (issue.Field is "kitchen-print" or "customer-print")
+            return M03Presentation.Message(issue, localized);
+        return issue.StableCode switch
+        {
+            ValidationCodes.Busy => Localized("ValidationBusy", "Une opération est déjà en cours."),
+            ValidationCodes.AuthorityBlocked => Localized("ValidationAuthorityBlocked", "Les écritures sont bloquées : cette instance n’a pas l’autorité locale."),
+            _ => LocalizeOrderMessage(issue.Message)
+        };
+    }
 
     private string FormatSnapshot(OrderSnapshot snapshot)
     {
