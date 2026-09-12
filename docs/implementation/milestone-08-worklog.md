@@ -1,6 +1,6 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **M08-CONTROLLER-REMEDIATION-03 IMPLEMENTED — controller re-review and owner manual acceptance pending**
+**Status:** **M08-MANUAL-ACCEPTANCE-REMEDIATION-06 IMPLEMENTED — owner PDF/layout retest pending**
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
@@ -9,7 +9,7 @@
 **Implementation PR:** #14 — `M08: printing and reprinting`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** OPEN during the authorized M08-CONTROLLER-REMEDIATION-03 execution; no merge or later milestone is authorized
+**Execution gate:** OPEN during the authorized M08-MANUAL-ACCEPTANCE-REMEDIATION-06 execution; no merge or later milestone is authorized
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -25,7 +25,7 @@ This worklog records M08 preparation, authorization, implementation and evidence
 - M08 governance/execution baseline after authorization/current-state bookkeeping: `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`.
 - Dedicated branch: `codex/m08-printing-reprinting`.
 - Dedicated implementation PR: #14.
-- Issue #4 is OPEN for the single active handoff M08-CONTROLLER-REMEDIATION-03; M08-IMPLEMENTATION-01 and M08-CONTROLLER-REMEDIATION-02 are complete and are not being reprocessed.
+- Issue #4 is OPEN for the single active handoff M08-MANUAL-ACCEPTANCE-REMEDIATION-06; all earlier M08 handoffs are complete and are not being reprocessed.
 - M09+: not authorized.
 
 ## 2. Preparation audit — complete
@@ -256,6 +256,38 @@ Automated evidence for this remediation:
 - exact-head CI, final PR-head SHA, and any runner-infrastructure outcome are recorded in the matching `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-05` comment;
 - execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
 - owner restart hydration retest remains pending and all PDF/physical-printer acceptance remain **blocked/pending and must remain unchecked**;
+- merge: **Not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 12. Owner PDF/layout remediation — M08-MANUAL-ACCEPTANCE-REMEDIATION-06
+
+The owner’s A-PC PDF preflight produced one Kitchen and one Customer PDF but found that the current implementation preformatted fixed-width text in Application while Infrastructure/WPF independently wrapped the same text. The finding is recorded in PR #14 comment `5649184980`; the exact authorized scope is recorded in handoff comment `5649187093`.
+
+Implemented only the authorized R06 print-layout correction:
+
+- Application now builds printer-independent semantic receipt blocks from committed order snapshots, persisted tax breakdowns, payment snapshots and the approved receipt identity;
+- the compatibility `OrderPrintDocument.Text` value is an unaligned diagnostic view only; the Windows print boundary consumes `OrderPrintDocument.Content`;
+- Infrastructure/WPF now owns alignment, centered headings/identity/markers/totals, label/value wrapping, item/option attachment, driver-width separator sizing and pagination;
+- atomic header/ticket/total/payment/footer groups remain together when the imageable page can contain them, while overlong values split safely at the physical boundary;
+- the existing R04 queue discovery/resolution path, R05 asynchronous startup hydration, durable-first output semantics, retry/reprint/ambiguous handling and receipt identity source remain unchanged;
+- the renderer no longer submits Application’s pre-centered/pre-wrapped fixed-width text to WPF.
+
+Implementation commit: `16a7a39`.
+
+Automated evidence for this remediation:
+
+- Release restore: **Passed**;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- full Release tests: **Passed**, 566/566, 0 failed, 0 skipped;
+- focused M08 Application tests: **Passed**, 8/8;
+- focused M08 Infrastructure integration tests: **Passed**, 9/9, including narrow/broad semantic rendering and atomic-header checks;
+- `git diff --check`: **Passed**;
+- self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r06`;
+- published executable SHA-256: `6BC018787E52F7359C9568F2AE75C33DBCCAE827501AA3FDF617D49BB9764F47`;
+- exact-head CI and any runner-infrastructure outcome are recorded truthfully in the matching `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-06` comment; no green CI result is inferred from local evidence;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner PDF/physical-printer retest is pending on this replacement candidate and all manual acceptance boxes remain **unchecked**;
 - merge: **Not authorized**; M09+ remain **not authorized**.
 
 `POST_TASK_POWER_ACTION: NONE`
