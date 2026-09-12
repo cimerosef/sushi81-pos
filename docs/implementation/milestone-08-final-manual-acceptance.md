@@ -3,8 +3,8 @@
 **Status:** Prepared checklist — **NOT EXECUTED / NOT PASSED**  
 **Prepared:** 2026-09-12  
 **Milestone:** M08 — Printing and reprinting  
-**Implementation authorization:** NOT YET GRANTED  
-**Execution gate:** CLOSED during preparation  
+**Implementation authorization:** AUTHORIZED for M08 only; this does not authorize merge or M09+
+**Execution gate:** OPEN during the completed M08-03 remediation; owner manual acceptance remains pending
 **Owner visual decision:** `../decisions/m08-print-layout-and-receipt-identity.md`
 
 This checklist is project-owner acceptance only. Codex/CI may prepare evidence and an exact artifact but must never check owner-manual items or declare M08 Passed on the owner's behalf.
@@ -18,14 +18,14 @@ The owner-selected visual targets are:
 
 ## 1. Exact candidate identity — fill before testing
 
-- exact production implementation head:
-- exact docs/evidence head:
-- M08 PR number:
-- self-contained `win-x64` publish location:
-- executable SHA-256:
-- Release test result:
-- Release build warnings/errors:
-- exact-head CI run/job:
+- exact production implementation head: `12427bebd72da8f7c67c47f19950b07eaee9f0c7`
+- exact docs/evidence record: `docs/implementation/milestone-08-worklog.md` §9 and the matching PR #14 `CODEX_DONE: M08-CONTROLLER-REMEDIATION-03`
+- M08 PR number: #14 (OPEN / unmerged)
+- self-contained `win-x64` publish location: `artifacts/m08-win-x64`
+- executable SHA-256: `41DAEB3E70374FF3748FE198E170277EFEB77D1F769B7B4BC17ADF60595FE82B`
+- Release test result: **558/558 Passed**, 0 failed, 0 skipped
+- Release build warnings/errors: **0 / 0**
+- exact-head CI run/job: **Passed**, run #657 / workflow `34717148839`, job `build-and-test` `103616328966`
 - physical Windows PC/device used:
 - authority state at start:
 - Kitchen configured Windows queue:

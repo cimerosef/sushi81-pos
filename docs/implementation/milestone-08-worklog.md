@@ -1,6 +1,6 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **CONTROLLER REMEDIATION COMPLETE — owner manual acceptance pending**
+**Status:** **M08-CONTROLLER-REMEDIATION-03 IMPLEMENTED — controller re-review and owner manual acceptance pending**
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
@@ -9,7 +9,7 @@
 **Implementation PR:** #14 — `M08: printing and reprinting`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** OPEN — M08-CONTROLLER-REMEDIATION-02 is the active authorized handoff
+**Execution gate:** OPEN during the authorized M08-CONTROLLER-REMEDIATION-03 execution; no merge or later milestone is authorized
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -25,7 +25,7 @@ This worklog records M08 preparation, authorization, implementation and evidence
 - M08 governance/execution baseline after authorization/current-state bookkeeping: `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`.
 - Dedicated branch: `codex/m08-printing-reprinting`.
 - Dedicated implementation PR: #14.
-- Issue #4 is OPEN for the single active handoff M08-CONTROLLER-REMEDIATION-02; the earlier M08-IMPLEMENTATION-01 is complete and is not being reprocessed.
+- Issue #4 is OPEN for the single active handoff M08-CONTROLLER-REMEDIATION-03; M08-IMPLEMENTATION-01 and M08-CONTROLLER-REMEDIATION-02 are complete and are not being reprocessed.
 - M09+: not authorized.
 
 ## 2. Preparation audit — complete
@@ -166,5 +166,35 @@ Remediation evidence:
 - owner Windows/physical-printer acceptance: **Pending / must remain unchecked**.
 
 The final pushed head and exact-head CI result are recorded in the matching `CODEX_DONE: M08-CONTROLLER-REMEDIATION-02` PR comment. No merge, no M09+ implementation, and `POST_TASK_POWER_ACTION: NONE`.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 9. Controller remediation — M08-CONTROLLER-REMEDIATION-03
+
+This remediation was limited to the residual findings in controller review `5187831217` and the active Issue #4 handoff. It did not reopen product/business semantics and did not add M09+, archive/M12, B2B invoice work or merge activity.
+
+Implemented:
+
+- Windows thermal geometry now prefers the selected queue's imageable area, then the strongest valid media dimensions, and finally a bounded thermal-safe fallback. Fallback dimensions are constrained to 72–576 DIP width and 144–1440 DIP height, with a 288×1440 DIP default; content height still trims each fixed page to the rendered content plus the media margin.
+- `AmbiguousSubmission` now carries the stable `print-ambiguous` issue code through Application, lifecycle reprint and WPF presentation. French and Simplified Chinese messages explicitly state that the initial output must not be retried and that an additional copy requires explicit reprint semantics.
+- Independent Kitchen/Customer outcome vectors, known-failed initial retry eligibility, ambiguous duplicate safety, read-only reprint availability, no-auto-reprint lifecycle save behavior, localization and the production STA print thread are covered by focused automated evidence.
+- No subagents were used: this was a serial implementation on the authorized shared branch so the controller's exact-head and mailbox protocol remained unambiguous.
+
+Implementation/evidence commit: `12427bebd72da8f7c67c47f19950b07eaee9f0c7`.
+
+Automated evidence for this remediation:
+
+- Release build: **Passed**, 0 warnings / 0 errors;
+- full Release tests: **Passed**, 558/558, 0 failed, 0 skipped;
+- focused M08 Application tests: **Passed**, 8/8;
+- focused M08 Infrastructure integration tests: **Passed**, 5/5;
+- focused localization/configuration tests: **Passed**, 7/7;
+- focused STA/WPF M08 tests: **Passed**, 2/2;
+- `git diff --check`: **Passed**;
+- self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64`;
+- published executable SHA-256: `41DAEB3E70374FF3748FE198E170277EFEB77D1F769B7B4BC17ADF60595FE82B`;
+- exact-head CI: **Passed**, run #657 / workflow run `34717148839`, job `build-and-test` `103616328966`;
+- owner Windows/physical-printer acceptance: **Pending / must remain unchecked**;
+- merge: **Not authorized**; M09+ remain **not authorized**.
 
 `POST_TASK_POWER_ACTION: NONE`
