@@ -10,6 +10,67 @@
   <data name="AuthorityReadOnly" xml:space="preserve"><value>只读模式：此实例不是本地权威实例。本地显示的数据可能已过时。仍可搜索和查看数据。</value></data>
   <data name="AuthorityTransitioning" xml:space="preserve"><value>权威状态切换中：禁止写入，本地数据可能已过时。</value></data>
   <data name="AuthorityRecoveryRequired" xml:space="preserve"><value>需要本地恢复：禁止写入，本地数据可能已过时。</value></data>
+  <data name="AuthorityCloseTitle" xml:space="preserve"><value>关闭 Sushi81 POS</value></data>
+  <data name="AuthorityClosePrompt" xml:space="preserve"><value>此电脑是当前权威设备。请选择关闭操作。</value></data>
+  <data name="AuthorityTargetLabel" xml:space="preserve"><value>转移目标</value></data>
+  <data name="AuthorityCloseRetain" xml:space="preserve"><value>关闭并保留权威</value></data>
+  <data name="AuthorityTransferClose" xml:space="preserve"><value>转移权威并关闭</value></data>
+  <data name="AuthorityCloseCancel" xml:space="preserve"><value>取消</value></data>
+  <data name="AuthorityTargetRequired" xml:space="preserve"><value>请选择目标设备。</value></data>
+  <data name="AuthorityTransferFailed" xml:space="preserve"><value>权威转移失败。</value></data>
+  <data name="JoinExistingLineage" xml:space="preserve"><value>加入现有系统</value></data>
+  <data name="JoinDisplayName" xml:space="preserve"><value>此设备名称</value></data>
+  <data name="JoinPrompt" xml:space="preserve"><value>以只读模式加入已配置的 Sushi81 系统。此操作不会授予写入权威。</value></data>
+  <data name="JoinConfirm" xml:space="preserve"><value>以只读方式加入</value></data>
+  <data name="JoinSucceeded" xml:space="preserve"><value>此设备现已以只读方式配对。</value></data>
+  <data name="M07JoinFailed" xml:space="preserve"><value>配对未完成。此设备保持只读。</value></data>
+  <data name="M07OperationFailed" xml:space="preserve"><value>M07 操作未完成。请查看当前状态；写入仍被禁止。</value></data>
+  <data name="M07AcquireAuthority" xml:space="preserve"><value>检查并获取已转移的权威</value></data>
+  <data name="M07AcquireValidating" xml:space="preserve"><value>正在验证已转移的权威…</value></data>
+  <data name="M07AcquireAcquired" xml:space="preserve"><value>已获取权威。完成本地验证后可进行写入。</value></data>
+  <data name="M07AcquireUnavailable" xml:space="preserve"><value>未配置已转移权威的获取服务。</value></data>
+  <data name="M07AcquireFailed" xml:space="preserve"><value>获取失败。此设备仍保持只读或需要恢复。</value></data>
+  <data name="M07AcquireRefreshFailed" xml:space="preserve"><value>权威状态已持久化，但界面刷新失败。刷新成功前将继续禁止写入。</value></data>
+  <data name="M07ResumeTransfer" xml:space="preserve"><value>继续待处理的转移</value></data>
+  <data name="M07ResumeValidating" xml:space="preserve"><value>正在继续权威转移…</value></data>
+  <data name="M07ResumeSucceeded" xml:space="preserve"><value>同一转移已完成。目标获取前，此设备仍保持只读。</value></data>
+  <data name="M07ResumeFailed" xml:space="preserve"><value>继续同一转移失败。此设备保持只读，确切转移仍处于待处理状态。</value></data>
+  <data name="M07PendingTransfer" xml:space="preserve"><value>有一个确切转移正在等待处理，不能修改或重新指定目标。</value></data>
+  <data name="M07ConnectionTest" xml:space="preserve"><value>测试 GitHub 转移连接</value></data>
+  <data name="M07ConnectionChecking" xml:space="preserve"><value>正在测试 GitHub 连接…</value></data>
+  <data name="M07ConnectionSuccess" xml:space="preserve"><value>GitHub 转移连接可用。</value></data>
+  <data name="M07ConnectionNotConfigured" xml:space="preserve"><value>未配置 GitHub 转移仓库。</value></data>
+  <data name="M07ConnectionCredentialMissing" xml:space="preserve"><value>未配置或无法读取受保护的 GitHub 凭据。</value></data>
+  <data name="M07ConnectionUnauthorized" xml:space="preserve"><value>GitHub 拒绝了身份验证（401）。</value></data>
+  <data name="M07ConnectionForbidden" xml:space="preserve"><value>GitHub 拒绝访问转移仓库（403）。</value></data>
+  <data name="M07ConnectionNotFound" xml:space="preserve"><value>找不到转移仓库或 release（404）。</value></data>
+  <data name="M07ConnectionFailed" xml:space="preserve"><value>GitHub 连接测试失败。请查看状态；不会暴露凭据。</value></data>
+  <data name="AuthorityTargetTitle" xml:space="preserve"><value>选择转移目标</value></data>
+  <data name="AuthorityTargetPrompt" xml:space="preserve"><value>请选择将接收权威的当前代际确切设备。</value></data>
+  <data name="AuthorityTargetConfirm" xml:space="preserve"><value>转移到此设备</value></data>
+  <data name="AuthorityTransferUnavailable" xml:space="preserve"><value>定向转移不可用。</value></data>
+  <data name="M07Setup" xml:space="preserve"><value>配置 Sushi81 系统</value></data>
+  <data name="M07SetupTitle" xml:space="preserve"><value>M07 技术配置</value></data>
+  <data name="M07SetupPrompt" xml:space="preserve"><value>选择现有的 Sushi81 OneDrive 共享文件夹，以及需要的非敏感 GitHub 转移设置。此配置不会创建权威或配对状态。保存后需要重启。</value></data>
+  <data name="M07SetupOneDriveRoot" xml:space="preserve"><value>Sushi81 OneDrive 共享文件夹</value></data>
+  <data name="M07SetupBrowse" xml:space="preserve"><value>浏览…</value></data>
+  <data name="M07SetupGitHubOwner" xml:space="preserve"><value>GitHub 所有者</value></data>
+  <data name="M07SetupGitHubRepository" xml:space="preserve"><value>GitHub 转移仓库</value></data>
+  <data name="M07SetupGitHubReleaseTag" xml:space="preserve"><value>GitHub release 标签</value></data>
+  <data name="M07SetupGitHubReleaseName" xml:space="preserve"><value>GitHub release 名称</value></data>
+  <data name="M07SetupGitHubCredentialTarget" xml:space="preserve"><value>受保护 GitHub 凭据目标名称</value></data>
+  <data name="M07SetupGitHubHelp" xml:space="preserve"><value>这里只填写 Credential Manager 目标名称。绝不要在这里填写 PAT。</value></data>
+  <data name="M07SetupSave" xml:space="preserve"><value>验证并要求重启</value></data>
+  <data name="M07SetupRestartRequired" xml:space="preserve"><value>配置已保存。请重启 Sushi81 POS，以组合 M07 服务并启用配对。</value></data>
+  <data name="M07SetupRootRequired" xml:space="preserve"><value>必须填写 OneDrive 共享文件夹。</value></data>
+  <data name="M07SetupRootAbsolute" xml:space="preserve"><value>OneDrive 共享文件夹必须使用绝对路径。</value></data>
+  <data name="M07SetupRootUnavailable" xml:space="preserve"><value>OneDrive 共享文件夹不存在或当前不可访问。</value></data>
+  <data name="M07SetupLineageUnavailable" xml:space="preserve"><value>Sushi81 lineage 元数据缺失或暂时不可用。</value></data>
+  <data name="M07SetupLineageInvalid" xml:space="preserve"><value>Sushi81 lineage 元数据无效、矛盾或不受支持。</value></data>
+  <data name="M07SetupLineageRequired" xml:space="preserve"><value>非权威设备必须加入现有 Sushi81 lineage，不能初始化空共享文件夹。</value></data>
+  <data name="M07SetupPhaseLocked" xml:space="preserve"><value>当前 authority 阶段禁止修改技术配置。</value></data>
+  <data name="M07SetupAuthorityStateUnavailable" xml:space="preserve"><value>当前 authority 状态无法验证；技术配置已安全锁定。</value></data>
+  <data name="M07SetupPersistenceFailed" xml:space="preserve"><value>技术配置无法保存。之前的配置仍然有效。</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>语言</value></data>
   <data name="LanguageSaveFailure" xml:space="preserve"><value>无法保存语言偏好设置。请重试。</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>法语</value></data>
@@ -198,4 +259,43 @@
   <data name="DashboardDueToday" xml:space="preserve"><value>今日待处理预订</value></data>
   <data name="DashboardOverdue" xml:space="preserve"><value>逾期未结算</value></data>
   <data name="DashboardRefresh" xml:space="preserve"><value>刷新</value></data>
+  <data name="M07DisasterRecovery" xml:space="preserve"><value>灾难恢复：正在查找已验证候选项…</value></data>
+  <data name="M07DisasterRecoveryPending" xml:space="preserve"><value>灾难恢复等待中：设备保持只读。请使用同一身份重试。</value></data>
+  <data name="M07DisasterRecoveryNoCandidate" xml:space="preserve"><value>没有可用的已验证恢复候选项。</value></data>
+  <data name="M07DisasterRecoveryFailed" xml:space="preserve"><value>灾难恢复未完成。设备保持只读。</value></data>
+  <data name="M07DisasterRecoverySucceeded" xml:space="preserve"><value>灾难恢复完成：此设备现在拥有权威写入权限。</value></data>
+  <data name="M07DisasterRecoveryLostToWinner" xml:space="preserve"><value>另一台设备已获取下一代激活权。此设备保持只读。</value></data>
+  <data name="M07DisasterRecoveryNoProvenWinner" xml:space="preserve"><value>在线激活未能建立可证明的获胜者。此设备保持只读。</value></data>
+  <data name="M07StaleGeneration" xml:space="preserve"><value>已发现更新的代。此设备保持只读，必须重新初始化。</value></data>
+  <data name="M07ReinitializeStale" xml:space="preserve"><value>将设备重新初始化到当前代</value></data>
+  <data name="M07ReinitializeNoSeed" xml:space="preserve"><value>没有可用的当前代已验证 seed。设备保持只读。</value></data>
+  <data name="M07ReinitializeSucceeded" xml:space="preserve"><value>重新初始化完成。直到正常交接前，设备保持只读。</value></data>
+  <data name="M07ReinitializeFailed" xml:space="preserve"><value>当前代重新初始化未完成。设备保持只读。</value></data>
+  <data name="M07CandidateTypeGitHub" xml:space="preserve"><value>完整 GitHub 交接</value></data>
+  <data name="M07CandidateTypeOneDrive" xml:space="preserve"><value>OneDrive checkpoint</value></data>
+  <data name="M07CandidateDataLossWarning" xml:space="preserve"><value>此操作会创建新代。旧设备必须停止写入；自最近候选项以来的数据可能丢失。</value></data>
+  <data name="M07QuarantineWarning" xml:space="preserve"><value>请确认旧权威设备或目标设备确实不可用、已停止/隔离，并且在重新初始化前不会用于业务写入。</value></data>
+  <data name="M07QuarantineConfirm" xml:space="preserve"><value>我确认旧设备不可用且已隔离。</value></data>
+  <data name="M07ConfirmRecovery" xml:space="preserve"><value>确认灾难恢复</value></data>
+  <data name="M07CandidateRevision" xml:space="preserve"><value>数据修订号</value></data>
+  <data name="M07CandidateHandoffVersion" xml:space="preserve"><value>交接版本</value></data>
+  <data name="M07CandidateSource" xml:space="preserve"><value>来源</value></data>
+  <data name="M07CandidateTimestamp" xml:space="preserve"><value>时间</value></data>
+  <data name="M07CandidateRecommended" xml:space="preserve"><value>协议选定</value></data>
+  <data name="M07CandidateReadOnlyNotice" xml:space="preserve"><value>候选元数据仅用于说明，不能修改，也不能用来重新指定恢复目标。</value></data>
+  <data name="M07NormalPathUnavailableConfirm" xml:space="preserve"><value>我确认正常的权威/目标路径确实不可用且无法完成。</value></data>
+  <data name="M07ContextPhase" xml:space="preserve"><value>阶段</value></data>
+  <data name="M07ContextLineage" xml:space="preserve"><value>谱系</value></data>
+  <data name="M07ContextGeneration" xml:space="preserve"><value>代</value></data>
+  <data name="M07ContextSourceTarget" xml:space="preserve"><value>之前的源/目标</value></data>
+  <data name="M07ContextHandoffVersion" xml:space="preserve"><value>交接版本</value></data>
+  <data name="M07ReasonPairedReplacement" xml:space="preserve"><value>已配对替换设备，且没有可用权威设备</value></data>
+  <data name="M07ReasonNormalAuthorityUnavailable" xml:space="preserve"><value>正常权威路径被声明不可用</value></data>
+  <data name="M07ReasonReleasedTargetUnavailable" xml:space="preserve"><value>已释放交接目标被声明不可用</value></data>
+  <data name="M07ReasonRelinquishedTargetUnavailable" xml:space="preserve"><value>不可逆交接的指定目标被声明不可用</value></data>
+  <data name="M07PendingResumeWarning" xml:space="preserve"><value>已持久化的精确恢复仍保持只读。只能重试同一次恢复。</value></data>
+  <data name="M07PendingRecoveryId" xml:space="preserve"><value>恢复</value></data>
+  <data name="M07PendingCandidateId" xml:space="preserve"><value>精确候选项</value></data>
+  <data name="M07PendingCandidateType" xml:space="preserve"><value>精确类型</value></data>
+  <data name="M07RetrySameRecovery" xml:space="preserve"><value>重试同一次恢复</value></data>
 </root>

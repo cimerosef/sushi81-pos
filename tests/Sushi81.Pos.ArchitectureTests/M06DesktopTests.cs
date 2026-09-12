@@ -1,5 +1,7 @@
 using System.Runtime.ExceptionServices;
 using System.Threading;
+using System.IO;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -9,10 +11,14 @@ using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.OrderEntry;
+using Sushi81.Pos.Application.Pairing.SystemMetadata;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Desktop;
 using Sushi81.Pos.Domain;
 using Sushi81.Pos.Infrastructure.Recovery;
+using Sushi81.Pos.Infrastructure.Authority;
+using Sushi81.Pos.Infrastructure.Pairing.SystemMetadata;
+using Sushi81.Pos.Infrastructure.GitHubTransport;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.ComponentModel;
 using System.Windows.Threading;
@@ -22,6 +28,12 @@ namespace Sushi81.Pos.ArchitectureTests;
 [TestClass]
 public sealed class M06DesktopTests
 {
+    private static readonly string[] M07Wp9MutationKeys =
+    [
+        "NewProduct", "Edit", "Save", "Confirm", "Add", "NewOrder", "OrderModify", "OrderSave",
+        "OrderClose", "OrderCancel", "OrderNewFromDetails", "Activate", "Deactivate", "BulkActivate", "BulkDeactivate"
+    ];
+
     [TestMethod]
     public void RealShellShowsStaleReadOnlySafetyBoundaryAcrossStatesAndSupportedSizesOnSta()
     {
@@ -128,6 +140,230 @@ public sealed class M06DesktopTests
     }
 
     [TestMethod]
+    public void M07ShownMainWindowPreservesActionStateAcrossRefreshAndLocalizationOnSta()
+    {
+        M07DisasterRecoveryUiTests.AssertShownMainWindowPreservesM07ActionStateAcrossRefreshAndLocalizationOnSta();
+    }
+
+    [TestMethod]
+    public void M07ShownFailClosedResultsRemainReadOnlyAcrossSafetyMatrixOnSta()
+    {
+        M07DisasterRecoveryUiTests.AssertShownFailClosedResultsAcrossTheM07SafetyMatrixOnSta();
+    }
+
+    [TestMethod]
+    public void M07ShownShellPreservesM03M04M05StateAcrossRefreshAndLocalizationOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var clock = new FixedClock();
+            var categoryId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+            var category = new CategorySummary(categoryId, "Plats", "P");
+            var summary = new ProductSummary(productId, "S81-001", "Saumon", categoryId, category.Name, Money.FromCents(1200), 10m, true, true, false);
+            var aggregate = new ProductAggregate(
+                new Product(productId, summary.Code, summary.Name, categoryId, summary.PriceTtc, summary.VatRate, true, true, false, default, default),
+                [], new Dictionary<Guid, IReadOnlyList<ProductOption>>());
+            var entryProduct = new OrderEntryProduct(aggregate, category.Name);
+            var now = clock.UtcNow;
+            var orderId = Guid.NewGuid();
+            var item = new OrderItemSnapshot(
+                Guid.NewGuid(), 1, productId, summary.Code, summary.Name, category.Name, summary.PriceTtc, summary.VatRate,
+                summary.DiscountEligible, 1, summary.PriceTtc, summary.PriceTtc, []);
+            var snapshot = new OrderSnapshot(
+                orderId, OrderSourceType.Pos, OrderStatus.Open, now, now, null, null, FulfilmentMode.Retrait,
+                clock.BusinessDate, new TimeOnly(12, 0), false, "0601020304", null, "synthetic history",
+                summary.PriceTtc, false, false, null, Money.Zero, [item], []) { Reference = "S81-0001" };
+            var catalogueStore = new ShownCatalogueStore(category, summary);
+            var settingsStore = new ShownSettingsStore();
+            var orderStore = new ShownOrderStore(snapshot);
+            using var guard = new WriteAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly);
+            var notifier = new NoOpDurableChangeNotifier();
+            var catalogue = new CatalogueService(catalogueStore, guard, notifier);
+            var settings = new BusinessSettingsService(settingsStore, guard, notifier);
+            var orderCatalogue = new ShownEntryCatalogue(category, summary, entryProduct);
+            var entryService = new OrderEntryService(orderCatalogue, settingsStore, orderStore, new NoOpOrderPrintDispatcher(), new DeterministicIds(), clock, guard, notifier);
+            var lifecycleService = new OrderLifecycleService(orderStore, new DeterministicIds(), clock, guard, notifier, orderCatalogue, settingsStore);
+            var runtime = M07DisasterRecoveryUiTests.CreateShownRuntime(guard, AuthorityPhase.NonAuthoritativeReadOnly);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true, catalogue, settings, entryService, lifecycleService,
+                guard, guard.State, runtime, authorityPhase: AuthorityPhase.NonAuthoritativeReadOnly);
+
+            shell.Admin!.Categories.Add(category);
+            shell.Admin.CategoryFilters.Add(category);
+            shell.Admin.Products.Add(summary);
+            shell.Admin.SearchText = "Saumon";
+            shell.Admin.SelectedCategoryId = categoryId;
+            shell.Admin.SelectedStatusKey = "Active";
+            shell.Admin.SelectedProduct = summary;
+
+            shell.Entry!.Categories.Add(category);
+            shell.Entry.Products.Add(summary);
+            shell.Entry.SearchText = "Saumon";
+            shell.Entry.SelectedCategoryId = categoryId;
+            shell.Entry.SelectedFulfilment = FulfilmentMode.Retrait;
+            shell.Entry.Telephone = "0601020304";
+            shell.Entry.DeliveryAddress = "Rue synthétique";
+            shell.Entry.AddConfiguredLine(entryProduct, [], [], 2);
+            shell.Entry.SelectedCartLine = shell.Entry.Cart.Single();
+
+            var row = new OrderManagementRowViewModel(new OrderBrowserRow(
+                orderId, snapshot.PlannedFulfilmentDate, snapshot.PlannedFulfilmentTime, snapshot.Fulfilment,
+                snapshot.Status, snapshot.TotalTtc, snapshot.Telephone) { Reference = snapshot.Reference, Comment = snapshot.Comment });
+            shell.Lifecycle!.Orders.Add(row);
+            shell.Lifecycle.SearchText = "S81-0001";
+            shell.Lifecycle.BrowseDate = clock.BusinessDate.ToDateTime(TimeOnly.MinValue);
+            shell.Lifecycle.SelectedRow = row;
+            Dispatcher.CurrentDispatcher.Invoke(DispatcherPriority.Background, new Action(() => { }));
+
+            var window = new MainWindow(shell)
+            {
+                Width = 980,
+                Height = 680,
+                ShowInTaskbar = false,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = 0,
+                Top = 0
+            };
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+                var beforeAdmin = (shell.Admin.SearchText, shell.Admin.SelectedCategoryId, shell.Admin.SelectedStatusKey, shell.Admin.SelectedProduct?.Id);
+                var beforeEntry = (shell.Entry.SearchText, shell.Entry.SelectedCategoryId, shell.Entry.SelectedFulfilment, shell.Entry.Telephone, shell.Entry.Cart.Single().Draft.LineId, shell.Entry.SelectedCartLine?.Draft.Quantity);
+                var beforeLifecycle = (shell.Lifecycle.SearchText, shell.Lifecycle.BrowseDate, shell.Lifecycle.SelectedRow?.Id, shell.Lifecycle.SelectedOrder?.Id);
+
+                shell.RefreshAuthorityStateAsync().GetAwaiter().GetResult();
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                window.UpdateLayout();
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.AreEqual(beforeAdmin, (shell.Admin.SearchText, shell.Admin.SelectedCategoryId, shell.Admin.SelectedStatusKey, shell.Admin.SelectedProduct?.Id));
+                Assert.AreEqual(beforeEntry, (shell.Entry.SearchText, shell.Entry.SelectedCategoryId, shell.Entry.SelectedFulfilment, shell.Entry.Telephone, shell.Entry.Cart.Single().Draft.LineId, shell.Entry.SelectedCartLine?.Draft.Quantity));
+                Assert.AreEqual(beforeLifecycle, (shell.Lifecycle.SearchText, shell.Lifecycle.BrowseDate, shell.Lifecycle.SelectedRow?.Id, shell.Lifecycle.SelectedOrder?.Id));
+                Assert.AreEqual(0, catalogueStore.MutationCount);
+                Assert.AreEqual(0, settingsStore.MutationCount);
+                Assert.AreEqual(0, orderStore.MutationCount);
+                Assert.IsFalse(shell.CanWrite);
+            }
+            finally
+            {
+                window.Hide();
+                runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+        });
+    }
+
+    [TestMethod]
+    public void M07LocalizedResourcesAreDerivedFromActualDesktopConsumptionInFrenchAndChineseOnSta()
+    {
+        var keys = DeriveM07DesktopResourceKeys();
+        CollectionAssert.Contains(keys, "JoinSucceeded");
+        CollectionAssert.Contains(keys, "AuthorityTransferUnavailable");
+        CollectionAssert.Contains(keys, "AuthorityTransferFailed");
+        CollectionAssert.Contains(keys, "M07SetupRestartRequired");
+        CollectionAssert.Contains(keys, "M07CandidateReadOnlyNotice");
+        CollectionAssert.Contains(keys, "M07PendingResumeWarning");
+
+        RunOnSta(() =>
+        {
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+            foreach (var key in keys)
+                Assert.IsFalse(string.IsNullOrWhiteSpace(shell.Localized[key]), $"Missing FR value for {key}");
+
+            shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"))
+                .GetAwaiter().GetResult();
+            foreach (var key in keys)
+                Assert.IsFalse(string.IsNullOrWhiteSpace(shell.Localized[key]), $"Missing zh-CN value for {key}");
+
+            Assert.AreNotEqual(shell.Localized["M07Setup"], shell.Localized["AuthorityTransferFailed"]);
+        });
+    }
+
+    [TestMethod]
+    public void M07DetailedPhaseMatrixKeepsShownBusinessControlsFailClosedAndLocalizesM07SurfaceOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var phases = Enum.GetValues<AuthorityPhase>();
+            foreach (var phase in phases)
+            {
+                var writable = phase is AuthorityPhase.Authoritative or AuthorityPhase.ClosedRetainedAuthority;
+                var guard = new WriteAuthorityGuard(writable
+                    ? WriteAuthorityState.Authoritative
+                    : phase is AuthorityPhase.TransferPreparing or AuthorityPhase.RelinquishedPendingGrant
+                        or AuthorityPhase.TargetAcquisitionPending or AuthorityPhase.DisasterRecoveryPreparing
+                        or AuthorityPhase.DisasterRecoveryPending
+                        ? WriteAuthorityState.Transitioning
+                        : phase is AuthorityPhase.Uninitialized or AuthorityPhase.RecoveryRequired
+                            ? WriteAuthorityState.RecoveryRequired
+                            : WriteAuthorityState.NonAuthoritativeReadOnly);
+                var runtime = M07DisasterRecoveryUiTests.CreateShownRuntime(guard, phase);
+                var catalogueStore = new EmptyCatalogueStore();
+                var settingsStore = new EmptySettingsStore();
+                var catalogue = new CatalogueService(catalogueStore, guard, new NoOpDurableChangeNotifier());
+                var settings = new BusinessSettingsService(settingsStore, guard, new NoOpDurableChangeNotifier());
+                var orderCatalogue = new OrderEntryCatalogueService(catalogueStore);
+                var orderStore = new EmptyOrderStore();
+                var clock = new FixedClock();
+                var ids = new DeterministicIds();
+                using var entry = new OrderEntryService(orderCatalogue, settingsStore, orderStore, new NoOpOrderPrintDispatcher(), ids, clock, guard, new NoOpDurableChangeNotifier());
+                using var lifecycle = new OrderLifecycleService(orderStore, ids, clock, guard, new NoOpDurableChangeNotifier(), orderCatalogue, settingsStore);
+                using var shell = new ShellViewModel(
+                    new InMemorySelectedCultureStore(), true, catalogue, settings, entry, lifecycle, guard, guard.State, runtime, authorityPhase: phase);
+                var window = new MainWindow(shell)
+                {
+                    Width = 980,
+                    Height = 680,
+                    ShowInTaskbar = false,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = 0,
+                    Top = 0
+                };
+                try
+                {
+                    window.Show();
+                    window.UpdateLayout();
+                    window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                    foreach (var key in DeriveM07DesktopResourceKeys())
+                        Assert.IsFalse(string.IsNullOrWhiteSpace(shell.Localized[key]), $"{phase}: missing FR key {key}");
+
+                    var mutationButtons = VisualDescendants<Button>(window)
+                        .Where(button => button.Content is string content && M07Wp9MutationKeys.Select(key => shell.Localized[key]).Contains(content, StringComparer.Ordinal))
+                        .ToArray();
+                    Assert.IsNotEmpty(mutationButtons, phase.ToString());
+                    if (writable)
+                    {
+                        Assert.IsTrue(shell.CanWrite, phase.ToString());
+                        Assert.IsTrue(mutationButtons.Any(button => Equals(button.Content, shell.Localized["NewProduct"]) && button.IsEnabled), phase.ToString());
+                    }
+                    else
+                    {
+                        Assert.IsFalse(shell.CanWrite, phase.ToString());
+                        Assert.IsTrue(mutationButtons.All(button => !button.IsEnabled), phase.ToString());
+                    }
+
+                    var frenchCreate = shell.Localized["NewProduct"];
+                    shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                    foreach (var key in DeriveM07DesktopResourceKeys())
+                        Assert.IsFalse(string.IsNullOrWhiteSpace(shell.Localized[key]), $"{phase}: missing zh-CN key {key}");
+                    Assert.AreNotEqual(frenchCreate, shell.Localized["NewProduct"], phase.ToString());
+                    Assert.IsTrue(VisualDescendants<Button>(window).Any(button => Equals(button.Content, shell.Localized["NewProduct"])), phase.ToString());
+                }
+                finally
+                {
+                    window.Hide();
+                    runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                    guard.Dispose();
+                }
+            }
+        });
+    }
+
+    [TestMethod]
     public void RealStaWindowCloseFlushesPendingRecoveryBeforeCompleting()
     {
         RunOnSta(() =>
@@ -160,6 +396,205 @@ public sealed class M06DesktopTests
         });
     }
 
+    [TestMethod]
+    public void M07CloseCancelLeavesTheRealStaWindowOpenWithoutFlush()
+    {
+        RunOnSta(() =>
+        {
+            var window = new Window { Width = 320, Height = 180, ShowInTaskbar = false };
+            var flushCount = 0;
+            var finalCloseCount = 0;
+            var coordinator = new MainWindowCloseCoordinator(
+                () => true,
+                () => Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Cancel)),
+                _ => Task.FromResult(false),
+                () => { flushCount++; return ValueTask.CompletedTask; },
+                () => finalCloseCount++,
+                _ => Assert.Fail("Cancel must not report an error."));
+            var args = new CancelEventArgs();
+            coordinator.HandleClosingAsync(args).GetAwaiter().GetResult();
+
+            Assert.IsTrue(args.Cancel);
+            Assert.IsFalse(coordinator.IsFinalCloseAllowed);
+            Assert.AreEqual(0, flushCount);
+            Assert.AreEqual(0, finalCloseCount);
+            Assert.IsFalse(window.IsVisible, "The arbiter must not close a window when the user cancels before it is shown.");
+        });
+    }
+
+    [TestMethod]
+    public void M07CloseRetainUsesOneStaCloseContinuationAndFlushesOnce()
+    {
+        RunOnSta(() =>
+        {
+            var order = new List<string>();
+            var window = new Window { Width = 320, Height = 180, ShowInTaskbar = false };
+            var coordinator = new MainWindowCloseCoordinator(
+                () => true,
+                () => Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Retain)),
+                _ => Task.FromResult(false),
+                () => { order.Add("flush"); return ValueTask.CompletedTask; },
+                () => { order.Add("close"); window.Dispatcher.BeginInvoke(new Action(window.Close)); },
+                exception => Assert.Fail(exception.Message));
+            window.Closing += (_, args) => _ = coordinator.HandleClosingAsync(args);
+            window.Show();
+            window.Close();
+            PumpUntilClosed(window);
+
+            Assert.AreEqual("flush|close", string.Join("|", order));
+            Assert.IsTrue(coordinator.IsFinalCloseAllowed);
+            Assert.IsFalse(window.IsVisible);
+        });
+    }
+
+    [TestMethod]
+    public void M07CloseTransferOrdersTransferBeforeFlushAndFinalClose()
+    {
+        RunOnSta(() =>
+        {
+            var order = new List<string>();
+            var window = new Window { Width = 320, Height = 180, ShowInTaskbar = false };
+            var target = Guid.NewGuid();
+            var coordinator = new MainWindowCloseCoordinator(
+                () => true,
+                () => { order.Add("intent"); return Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Transfer, target)); },
+                id => { Assert.AreEqual(target, id); order.Add("transfer"); return Task.FromResult(true); },
+                () => { order.Add("flush"); return ValueTask.CompletedTask; },
+                () => { order.Add("close"); window.Dispatcher.BeginInvoke(new Action(window.Close)); },
+                exception => Assert.Fail(exception.Message));
+            window.Closing += (_, args) => _ = coordinator.HandleClosingAsync(args);
+            window.Show();
+            window.Close();
+            PumpUntilClosed(window);
+
+            Assert.AreEqual("intent|transfer|flush|close", string.Join("|", order));
+        });
+    }
+
+    [TestMethod]
+    public void M07CloseTransferFailureKeepsWindowOpenAndDoesNotFlush()
+    {
+        RunOnSta(() =>
+        {
+            var window = new Window { Width = 320, Height = 180, ShowInTaskbar = false };
+            var flushCount = 0;
+            var finalCloseCount = 0;
+            var coordinator = new MainWindowCloseCoordinator(
+                () => true,
+                () => Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Transfer, Guid.NewGuid())),
+                _ => Task.FromResult(false),
+                () => { flushCount++; return ValueTask.CompletedTask; },
+                () => finalCloseCount++,
+                _ => { });
+            var args = new CancelEventArgs();
+            coordinator.HandleClosingAsync(args).GetAwaiter().GetResult();
+
+            Assert.IsTrue(args.Cancel);
+            Assert.IsFalse(coordinator.IsFinalCloseAllowed);
+            Assert.AreEqual(0, flushCount);
+            Assert.AreEqual(0, finalCloseCount);
+        });
+    }
+
+    [TestMethod]
+    public void M07CloseRepeatedRequestsAreReentrantSafeWhileFlushIsPending()
+    {
+        RunOnSta(() =>
+        {
+            var flush = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var finalCloseCount = 0;
+            var coordinator = new MainWindowCloseCoordinator(
+                () => false,
+                () => Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Cancel)),
+                _ => Task.FromResult(false),
+                () => new ValueTask(flush.Task),
+                () => finalCloseCount++,
+                _ => Assert.Fail("The non-authoritative close must not report an error."));
+            var first = new CancelEventArgs();
+            var second = new CancelEventArgs();
+            var firstTask = coordinator.HandleClosingAsync(first);
+            coordinator.HandleClosingAsync(second).GetAwaiter().GetResult();
+
+            Assert.IsTrue(first.Cancel);
+            Assert.IsTrue(second.Cancel);
+            Assert.IsTrue(coordinator.IsCloseInProgress);
+            Assert.AreEqual(0, finalCloseCount);
+            flush.SetResult(null);
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (finalCloseCount == 0 && DateTime.UtcNow < deadline)
+                Dispatcher.CurrentDispatcher.Invoke(DispatcherPriority.Background, new Action(() => { }));
+            firstTask.GetAwaiter().GetResult();
+            Assert.AreEqual(1, finalCloseCount);
+        });
+    }
+
+    [TestMethod]
+    public void M07CloseFlushFailureIsReportedButDoesNotCreateASecondClosePath()
+    {
+        RunOnSta(() =>
+        {
+            var reportCount = 0;
+            var finalCloseCount = 0;
+            var coordinator = new MainWindowCloseCoordinator(
+                () => false,
+                () => Task.FromResult(new MainWindowCloseRequest(MainWindowCloseIntent.Cancel)),
+                _ => Task.FromResult(false),
+                () => ValueTask.FromException(new IOException("synthetic flush failure")),
+                () => finalCloseCount++,
+                _ => reportCount++);
+            coordinator.HandleClosingAsync(new CancelEventArgs()).GetAwaiter().GetResult();
+
+            Assert.AreEqual(1, reportCount);
+            Assert.AreEqual(1, finalCloseCount);
+            Assert.IsTrue(coordinator.IsFinalCloseAllowed);
+        });
+    }
+
+    [TestMethod]
+    public void M07ReadOnlyShellRendersAcquisitionAndConnectionActionsInFrenchAndChineseOnSta()
+    {
+        RunOnSta(() =>
+        {
+            using var guard = new WriteAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly);
+            var store = new EmptyAuthorityStateStore();
+            var metadata = new EmptySystemMetadataStore();
+            var runtime = new M07RuntimeServices(
+                guard,
+                store,
+                metadata,
+                new SelfJoinService(store, guard, metadata, new FixedClock()),
+                null,
+                null,
+                null,
+                GitHubConnectionSetupState.RepositoryNotConfigured);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                true,
+                authorityGuard: guard,
+                authorityState: WriteAuthorityState.NonAuthoritativeReadOnly,
+                m07Runtime: runtime);
+            var window = new MainWindow(shell) { Width = 760, Height = 520, ShowInTaskbar = false };
+            window.Show();
+            window.UpdateLayout();
+            window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+            var buttons = VisualDescendants<Button>(window).Where(button => button.Visibility == Visibility.Visible).Select(button => button.Content as string).ToArray();
+            CollectionAssert.Contains(buttons, shell.Localized["M07AcquireAuthority"]);
+            CollectionAssert.Contains(buttons, shell.Localized["M07ConnectionTest"]);
+            Assert.IsTrue(shell.CanAcquireTransferredAuthority);
+            Assert.IsTrue(shell.CanTestGitHubConnection);
+
+            var connection = shell.TestGitHubConnectionAsync().GetAwaiter().GetResult();
+            Assert.IsNotNull(connection);
+            Assert.AreEqual(GitHubConnectionFailureKind.NotConfigured, connection!.FailureKind);
+            Assert.AreEqual(shell.Localized["M07ConnectionNotConfigured"], shell.M07OperationStatus);
+
+            shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+            Assert.AreEqual(shell.Localized["M07ConnectionNotConfigured"], shell.M07OperationStatus);
+            window.Close();
+        });
+    }
+
     private static IEnumerable<T> VisualDescendants<T>(DependencyObject root) where T : DependencyObject
     {
         var count = VisualTreeHelper.GetChildrenCount(root);
@@ -169,6 +604,59 @@ public sealed class M06DesktopTests
             if (child is T match) yield return match;
             foreach (var descendant in VisualDescendants<T>(child)) yield return descendant;
         }
+    }
+
+    private static string[] DeriveM07DesktopResourceKeys()
+    {
+        var root = FindRepositoryRoot();
+        var sourceFiles = new[]
+        {
+            Path.Combine(root, "src", "Sushi81.Pos.Desktop", "Localization.cs"),
+            Path.Combine(root, "src", "Sushi81.Pos.Desktop", "MainWindow.xaml"),
+            Path.Combine(root, "src", "Sushi81.Pos.Desktop", "MainWindow.xaml.cs")
+        };
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var file in sourceFiles)
+        {
+            var content = File.ReadAllText(file);
+            if (Path.GetFileName(file).Equals("Localization.cs", StringComparison.Ordinal))
+            {
+                // The runtime dictionary's explicit registration block is not a source of
+                // consumption. Remove it so this contract cannot pass from that manual list.
+                var registryStart = content.IndexOf("var keys = new[]", StringComparison.Ordinal);
+                var registryEnd = content.IndexOf("Localized = keys.ToDictionary", StringComparison.Ordinal);
+                if (registryStart >= 0 && registryEnd > registryStart)
+                    content = content[..registryStart] + content[registryEnd..];
+            }
+            foreach (Match match in Regex.Matches(content, @"Localized\[(?<key>[A-Za-z][A-Za-z0-9_]*)\]"))
+                AddIfM07SurfaceKey(keys, match.Groups["key"].Value);
+            foreach (Match match in Regex.Matches(content, @"""(?<key>(?:M07|Authority|Join)[A-Za-z0-9_]*)"""))
+                AddIfM07SurfaceKey(keys, match.Groups["key"].Value);
+        }
+
+        return keys.OrderBy(key => key, StringComparer.Ordinal).ToArray();
+    }
+
+    private static void AddIfM07SurfaceKey(HashSet<string> keys, string key)
+    {
+        if (key.StartsWith("M07", StringComparison.Ordinal)
+            || key.StartsWith("Authority", StringComparison.Ordinal)
+            || key.StartsWith("Join", StringComparison.Ordinal))
+            keys.Add(key);
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Sushi81.Pos.sln")))
+                return directory.FullName;
+            directory = directory.Parent;
+        }
+
+        Assert.Fail("The Sushi81 POS repository root was not found from the test output directory.");
+        return string.Empty;
     }
 
     private static void RunOnSta(Action action)
@@ -181,6 +669,14 @@ public sealed class M06DesktopTests
         if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
+    private static void PumpUntilClosed(Window window)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (window.IsVisible && DateTime.UtcNow < deadline)
+            Dispatcher.CurrentDispatcher.Invoke(DispatcherPriority.Background, new Action(() => { }));
+        Assert.IsFalse(window.IsVisible, "The close continuation must complete within the bounded STA test window.");
+    }
+
     private sealed class TestGuard(WriteAuthorityState state) : IWriteAuthorityGuard
     {
         public WriteAuthorityState State { get; } = state;
@@ -188,6 +684,47 @@ public sealed class M06DesktopTests
         {
             if (State != WriteAuthorityState.Authoritative) throw new WriteAuthorityException(State);
         }
+    }
+
+    private sealed class ShownCatalogueStore(CategorySummary category, ProductSummary product) : ICatalogueStore
+    {
+        public int MutationCount { get; private set; }
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([category]);
+        public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([product]);
+        public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(new(product.Id, product.Code, product.Name, product.CategoryId, product.PriceTtc, product.VatRate, product.IsActive, product.DiscountEligible, product.OptionsEnabled, []));
+        public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => Mutate(OperationResult<CategorySummary>.Success(category));
+        public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid categoryId, string name, CancellationToken cancellationToken = default) => Mutate(OperationResult<CategorySummary>.Success(category));
+        public Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default) => Mutate(OperationResult<CategorySummary>.Success(category));
+        public Task<OperationResult<CategorySummary>> RenameCategoryWithCodeAsync(Guid categoryId, string name, string? shortCode, CancellationToken cancellationToken = default) => Mutate(OperationResult<CategorySummary>.Success(category));
+        public Task<OperationResult<Guid>> CreateProductAsync(ProductDraft draft, CancellationToken cancellationToken = default) => Mutate(OperationResult<Guid>.Success(product.Id));
+        public Task<OperationResult> UpdateProductAsync(Guid productId, ProductDraft draft, CancellationToken cancellationToken = default) => Mutate(OperationResult.Success());
+        public Task<OperationResult> SetProductActiveAsync(Guid productId, bool isActive, CancellationToken cancellationToken = default) => Mutate(OperationResult.Success());
+        public Task<OperationResult<BulkProductActiveStateResult>> BulkSetProductsActiveAsync(BulkProductActiveStateRequest request, CancellationToken cancellationToken = default) => Mutate(OperationResult<BulkProductActiveStateResult>.Success(new(request.Items.Count, 0)));
+        public Task<OperationResult> DeleteProductAsync(Guid productId, CancellationToken cancellationToken = default) => Mutate(OperationResult.Success());
+        private Task<T> Mutate<T>(T result) { MutationCount++; return Task.FromResult(result); }
+    }
+
+    private sealed class ShownEntryCatalogue(CategorySummary category, ProductSummary product, OrderEntryProduct entryProduct) : IOrderEntryCatalogueQueries
+    {
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([category]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? categoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([product]);
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(entryProduct);
+    }
+
+    private sealed class ShownSettingsStore : IBusinessSettingsStore
+    {
+        public int MutationCount { get; private set; }
+        public Task<BusinessSettings> GetAsync(CancellationToken cancellationToken = default) => Task.FromResult(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+        public Task<OperationResult> UpdateAsync(BusinessSettings settings, CancellationToken cancellationToken = default) { MutationCount++; return Task.FromResult(OperationResult.Success()); }
+    }
+
+    private sealed class ShownOrderStore(OrderSnapshot snapshot) : IOrderStore
+    {
+        public int MutationCount { get; private set; }
+        public Task SaveAsync(OrderSnapshot value, CancellationToken cancellationToken = default) { MutationCount++; return Task.CompletedTask; }
+        public Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default) => Task.FromResult<OrderSnapshot?>(snapshot.Id == orderId ? snapshot : null);
+        public Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<OrderBrowserRow>>([new OrderBrowserRow(snapshot.Id, snapshot.PlannedFulfilmentDate, snapshot.PlannedFulfilmentTime, snapshot.Fulfilment, snapshot.Status, snapshot.TotalTtc, snapshot.Telephone) { Reference = snapshot.Reference, Comment = snapshot.Comment }]);
     }
 
     private sealed class EmptyCatalogueStore : ICatalogueStore
@@ -245,5 +782,23 @@ public sealed class M06DesktopTests
             Changes.Add(change);
             return Task.FromResult(new RecoverySnapshotResult("synthetic.db", "synthetic.json", "checksum", change.CommittedAtUtc, change.Sequence, 1));
         }
+    }
+
+    private sealed class EmptyAuthorityStateStore : IAuthorityStateStore
+    {
+        public Task<AuthorityStateDocument?> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult<AuthorityStateDocument?>(null);
+        public Task SaveAsync(AuthorityStateDocument document, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<bool> HasBootstrapMarkerAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
+        public Task WriteBootstrapMarkerAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class EmptySystemMetadataStore : ISystemMetadataStore
+    {
+        public Task<SystemLineageMetadata> EnsureCurrentLineageAsync(Guid lineageId, long generation, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<SystemLineageMetadata> ReadLineageAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<DeviceSelfJoinResult> JoinCurrentGenerationAsync(Guid deviceId, string displayName, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<DeviceRegistrationArtifact>> ListCurrentGenerationDevicesAsync(Guid lineageId, long generation, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<DeviceRegistrationArtifact>>([]);
+        public Task<ValidatedReadOnlySeed?> FindValidatedReadOnlySeedAsync(Guid lineageId, long generation, CancellationToken cancellationToken = default) => Task.FromResult<ValidatedReadOnlySeed?>(null);
+        public Task<ReadOnlySeedPublicationResult> PublishReadOnlySeedAsync(ReadOnlySeedMetadata metadata, ReadOnlyMemory<byte> payload, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

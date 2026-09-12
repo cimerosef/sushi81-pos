@@ -23,13 +23,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sushi81.Pos.Application.Tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sushi81.Pos.Infrastructure.IntegrationTests", "tests\Sushi81.Pos.Infrastructure.IntegrationTests\Sushi81.Pos.Infrastructure.IntegrationTests.csproj", "{CA57680D-C0F6-4AF2-8E1C-0FF100E2E9F8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sushi81.Pos.OneDriveFeasibility.HarnessTests", "tools\Sushi81.Pos.OneDriveFeasibility.Tests\Sushi81.Pos.OneDriveFeasibility.Tests.csproj", "{E82F7718-1ED3-496B-AB5F-CC0151418488}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sushi81.Pos.OneDriveFeasibility.Tests", "tools\Sushi81.Pos.OneDriveFeasibility.Tests\Sushi81.Pos.OneDriveFeasibility.Tests.csproj", "{E82F7718-1ED3-496B-AB5F-CC0151418488}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sushi81.Pos.OneDriveFeasibility", "tools\Sushi81.Pos.OneDriveFeasibility\Sushi81.Pos.OneDriveFeasibility.csproj", "{AE27F1B5-576C-4613-9419-FCE588E4FA0E}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{B8D3F66A-632C-482A-B1C3-6EEA5C214B5E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sushi81.Pos.OneDriveFeasibility.Protocol.Tests", "tests\Sushi81.Pos.OneDriveFeasibility.Tests\Sushi81.Pos.OneDriveFeasibility.Tests.csproj", "{E4E86669-7ACE-4873-AA5E-BFD7DAFB3153}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sushi81.Pos.OneDriveFeasibility.Tests", "tests\Sushi81.Pos.OneDriveFeasibility.Tests\Sushi81.Pos.OneDriveFeasibility.Tests.csproj", "{E4E86669-7ACE-4873-AA5E-BFD7DAFB3153}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sushi81.Pos.M07Wp7Proof", "tools\Sushi81.Pos.M07Wp7Proof\Sushi81.Pos.M07Wp7Proof.csproj", "{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -173,6 +175,18 @@ Global
 		{E4E86669-7ACE-4873-AA5E-BFD7DAFB3153}.Release|x64.Build.0 = Release|Any CPU
 		{E4E86669-7ACE-4873-AA5E-BFD7DAFB3153}.Release|x86.ActiveCfg = Release|Any CPU
 		{E4E86669-7ACE-4873-AA5E-BFD7DAFB3153}.Release|x86.Build.0 = Release|Any CPU
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}.Debug|x64.Build.0 = Debug|Any CPU
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}.Debug|x86.Build.0 = Debug|Any CPU
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}.Release|Any CPU.Build.0 = Release|Any CPU
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}.Release|x64.ActiveCfg = Release|Any CPU
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}.Release|x64.Build.0 = Release|Any CPU
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}.Release|x86.ActiveCfg = Release|Any CPU
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -186,5 +200,6 @@ Global
 		{E82F7718-1ED3-496B-AB5F-CC0151418488} = {B8D3F66A-632C-482A-B1C3-6EEA5C214B5E}
 		{AE27F1B5-576C-4613-9419-FCE588E4FA0E} = {B8D3F66A-632C-482A-B1C3-6EEA5C214B5E}
 		{E4E86669-7ACE-4873-AA5E-BFD7DAFB3153} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{203FA5C1-1F3F-4BF5-A0AC-24CAE7750F03} = {B8D3F66A-632C-482A-B1C3-6EEA5C214B5E}
 	EndGlobalSection
 EndGlobal

@@ -77,6 +77,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private string comment = string.Empty;
     private bool pickupDiscountRequested;
     private bool isBusy;
+    private bool businessPresentationRefreshBlocked;
     private bool isCommitted;
     private string totalText = "0.00";
     private Money? manualTotalOverride;
@@ -307,12 +308,29 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             _ = RepriceAsync(clearManualOverride: true);
         }
     }
-    public bool CanWrite => authorityGuard is null || authorityGuard.State == WriteAuthorityState.Authoritative;
+    public bool CanWrite => !businessPresentationRefreshBlocked
+        && (authorityGuard is null || authorityGuard.State == WriteAuthorityState.Authoritative);
     public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanAddSelectedProduct)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
     public bool IsCommitted { get => isCommitted; private set { isCommitted = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
     public bool CanAddSelectedProduct => CanWrite && !IsBusy && !IsCommitted && SelectedProduct is not null;
     public bool CanConfirm => CanWrite && !IsBusy && !IsCommitted && PlannedDateValid && PlannedTimeValid && pricing?.IsValid == true;
     public bool CanStartNewOrder => IsCommitted && !IsBusy;
+
+    public void RefreshAuthorityState()
+    {
+        OnPropertyChanged(nameof(CanWrite));
+        OnPropertyChanged(nameof(CanAddSelectedProduct));
+        OnPropertyChanged(nameof(CanConfirm));
+        OnPropertyChanged(nameof(CanStartNewOrder));
+        OnPropertyChanged(nameof(IsPickupDiscountEnabled));
+    }
+
+    public void SetBusinessPresentationRefreshBlocked(bool blocked)
+    {
+        if (businessPresentationRefreshBlocked == blocked) return;
+        businessPresentationRefreshBlocked = blocked;
+        RefreshAuthorityState();
+    }
 
     public bool HasUncommittedDraft => !IsCommitted && (Cart.Count > 0 || SelectedFulfilment is not null || !string.IsNullOrWhiteSpace(Telephone) || !string.IsNullOrWhiteSpace(DeliveryAddress) || !string.IsNullOrWhiteSpace(Comment));
 
@@ -368,7 +386,16 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public bool HasReloadedOrder => reloadedOrder is not null;
     public string ReloadedOrderDisplay => reloadedOrder is null ? string.Empty : FormatSnapshot(reloadedOrder);
 
-    public async Task RefreshAsync(CancellationToken cancellationToken = default)
+    public Task RefreshAsync(CancellationToken cancellationToken = default) =>
+        RefreshAsyncCore(throwOnFailure: false, cancellationToken: cancellationToken);
+
+    public async Task RefreshAfterLiveDatabaseReplacementAsync(CancellationToken cancellationToken = default)
+    {
+        await RefreshAsyncCore(throwOnFailure: true, cancellationToken: cancellationToken);
+        await RefreshOrderBrowserCoreAsync(SelectedBrowserOrder?.Id, throwOnFailure: true, cancellationToken: cancellationToken);
+    }
+
+    private async Task RefreshAsyncCore(bool throwOnFailure, CancellationToken cancellationToken)
     {
         PerformanceTrace.Log("entry.refresh.start");
         var request = BeginRefresh(cancellationToken);
@@ -380,12 +407,27 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             ApplyCategories(categories);
             ApplyProducts(products);
         }
-        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
-        catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; }
+        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested)
+        {
+            if (throwOnFailure) throw;
+        }
+        catch (Exception exception) when (throwOnFailure || IsCurrent(request))
+        {
+            if (throwOnFailure) throw;
+            ValidationMessage = exception.Message;
+        }
         finally { EndRefresh(request); PerformanceTrace.Log("entry.refresh.end"); }
     }
 
-    public async Task RefreshOrderBrowserAsync(Guid? preferredOrderId = null, CancellationToken cancellationToken = default)
+    public async Task RefreshOrderBrowserAsync(
+        Guid? preferredOrderId = null,
+        CancellationToken cancellationToken = default) =>
+        await RefreshOrderBrowserCoreAsync(preferredOrderId, throwOnFailure: false, cancellationToken: cancellationToken);
+
+    private async Task RefreshOrderBrowserCoreAsync(
+        Guid? preferredOrderId,
+        bool throwOnFailure,
+        CancellationToken cancellationToken)
     {
         PerformanceTrace.Log("entry.browser-refresh.start");
         var request = BeginBrowserRefresh(cancellationToken);
@@ -414,15 +456,30 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             }
             else if (selected is not null && previousId is not null)
             {
-                await SelectBrowserOrderAsync(selected, request.Cancellation.Token);
+                await SelectBrowserOrderCoreAsync(selected, throwOnFailure, request.Cancellation.Token);
             }
         }
-        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
-        catch (Exception exception) when (IsCurrentBrowserRefresh(request)) { ValidationMessage = exception.Message; }
+        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested)
+        {
+            if (throwOnFailure) throw;
+        }
+        catch (Exception exception) when (throwOnFailure || IsCurrentBrowserRefresh(request))
+        {
+            if (throwOnFailure) throw;
+            ValidationMessage = exception.Message;
+        }
         finally { EndBrowserRefresh(request); PerformanceTrace.Log("entry.browser-refresh.end"); }
     }
 
-    public async Task SelectBrowserOrderAsync(OrderBrowserRowViewModel? row, CancellationToken cancellationToken = default)
+    public async Task SelectBrowserOrderAsync(
+        OrderBrowserRowViewModel? row,
+        CancellationToken cancellationToken = default) =>
+        await SelectBrowserOrderCoreAsync(row, throwOnFailure: false, cancellationToken: cancellationToken);
+
+    private async Task SelectBrowserOrderCoreAsync(
+        OrderBrowserRowViewModel? row,
+        bool throwOnFailure,
+        CancellationToken cancellationToken)
     {
         PerformanceTrace.Log("entry.browser-selection.start");
         SelectedBrowserOrder = row;
@@ -441,9 +498,13 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             ReloadedOrder = snapshot;
             ValidationMessage = snapshot is null ? Localized("OrderNotFound", "Commande introuvable.") : string.Empty;
         }
-        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
-        catch (Exception exception) when (IsCurrentBrowserSelection(request))
+        catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested)
         {
+            if (throwOnFailure) throw;
+        }
+        catch (Exception exception) when (throwOnFailure || IsCurrentBrowserSelection(request))
+        {
+            if (throwOnFailure) throw;
             ReloadedOrder = null;
             ValidationMessage = exception.Message;
         }

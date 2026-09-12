@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Paths;
@@ -316,6 +318,20 @@ public sealed class InfrastructureIntegrationTests
     }
 
     [TestMethod]
+    public async Task AuthorityStateChangeWaitsForInFlightWriteScopeToFinish()
+    {
+        using var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+        var scope = await guard.EnterWriteScopeAsync();
+        var stateChange = Task.Run(() => guard.SetState(WriteAuthorityState.Transitioning));
+        var completed = await Task.WhenAny(stateChange, Task.Delay(TimeSpan.FromSeconds(1)));
+
+        Assert.AreNotSame(stateChange, completed, "A transition must not pass an in-flight business write scope.");
+        await scope.DisposeAsync();
+        await stateChange;
+        Assert.AreEqual(WriteAuthorityState.Transitioning, guard.State);
+    }
+
+    [TestMethod]
     public async Task AuthorityBootstrapIsDurableAndMissingStateFailsClosed()
     {
         using var paths = new TestAppPaths();
@@ -432,18 +448,41 @@ public sealed class InfrastructureIntegrationTests
         using var paths = new TestAppPaths();
         paths.EnsureInitialized();
         var store = new JsonAuthorityStateStore(paths);
+        var preflight = await AuthorityStartupPreflight.CaptureAsync(paths, store);
         var evidenceBeforeMigrations = await store.HasLegacyBootstrapEvidenceAsync();
 
         var clock = new FixedClock();
         await new SqliteMigrationRunner(new SqliteConnectionFactory(paths), ProductionMigrations.All, clock).InitializeAsync();
-        Assert.IsTrue(await store.HasLegacyBootstrapEvidenceAsync(), "The migrated schema is not itself pre-existing legacy evidence.");
+        Assert.IsFalse(await store.HasLegacyBootstrapEvidenceAsync(), "Fresh-install provenance must override migrated schema history.");
 
         var guard = new WriteAuthorityGuard();
-        var result = await new AuthorityStateCoordinator(store, guard, clock, NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(evidenceBeforeMigrations);
+        var result = await new AuthorityStateCoordinator(store, guard, clock, NullLogger<AuthorityStateCoordinator>.Instance)
+            .InitializeAsync(evidenceBeforeMigrations, preflight.HasPreExistingLiveDatabase);
 
         Assert.IsFalse(evidenceBeforeMigrations);
         Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
         Assert.Throws<WriteAuthorityException>(guard.RequireWriteAuthority);
+    }
+
+    [TestMethod]
+    public async Task FreshInstallProvenancePartialOrCorruptEvidenceAlwaysFailsClosed()
+    {
+        foreach (var mutate in new Action<TestAppPaths>[]
+        {
+            paths => File.Delete(Path.Combine(paths.ConfigDirectory, "m07-fresh-install.marker")),
+            paths => File.Delete(Path.Combine(paths.DataDirectory, "m07-fresh-install.anchor")),
+            paths => File.WriteAllText(Path.Combine(paths.ConfigDirectory, "m07-fresh-install.marker"), "corrupt"),
+            paths => File.WriteAllText(Path.Combine(paths.DataDirectory, "m07-fresh-install.anchor"), "crash-shaped-partial")
+        })
+        {
+            using var paths = new TestAppPaths();
+            var store = new JsonAuthorityStateStore(paths);
+            await AuthorityStartupPreflight.CaptureAsync(paths, store);
+            mutate(paths);
+
+            await Assert.ThrowsAsync<InvalidDataException>(() => AuthorityStartupPreflight.CaptureAsync(paths, store));
+            await Assert.ThrowsAsync<InvalidDataException>(() => store.HasLegacyBootstrapEvidenceAsync());
+        }
     }
 
     [TestMethod]
@@ -460,14 +499,146 @@ public sealed class InfrastructureIntegrationTests
         var store = new JsonAuthorityStateStore(paths);
         var legacyBootstrapEvidence = await store.HasLegacyBootstrapEvidenceAsync();
         await new AuthorityStateCoordinator(store, new WriteAuthorityGuard(), new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
-        foreach (var state in new[] { WriteAuthorityState.Authoritative, WriteAuthorityState.NonAuthoritativeReadOnly, WriteAuthorityState.Transitioning, WriteAuthorityState.RecoveryRequired })
+        foreach (var (legacyState, expectedState) in new[]
         {
-            await store.SaveAsync(new AuthorityStateDocument(1, state, DateTimeOffset.UtcNow));
+            (WriteAuthorityState.Authoritative, WriteAuthorityState.Authoritative),
+            (WriteAuthorityState.NonAuthoritativeReadOnly, WriteAuthorityState.NonAuthoritativeReadOnly),
+            (WriteAuthorityState.Transitioning, WriteAuthorityState.RecoveryRequired),
+            (WriteAuthorityState.RecoveryRequired, WriteAuthorityState.RecoveryRequired)
+        })
+        {
+            await store.SaveAsync(new AuthorityStateDocument(1, legacyState, DateTimeOffset.UtcNow));
             var guard = new WriteAuthorityGuard();
             var reloaded = await new AuthorityStateCoordinator(store, guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance).InitializeAsync(legacyBootstrapEvidence);
-            Assert.AreEqual(state, reloaded.State);
-            Assert.AreEqual(state, guard.State);
+            Assert.AreEqual(expectedState, reloaded.State);
+            Assert.AreEqual(expectedState, guard.State);
         }
+    }
+
+    [TestMethod]
+    public async Task CanonicalAuthorityPersistsOnlyDetailedProtocolAndDerivesTheCoarseGuardState()
+    {
+        using var paths = new TestAppPaths();
+        var store = new JsonAuthorityStateStore(paths);
+        var lineage = Guid.NewGuid();
+        var source = Guid.NewGuid();
+        var target = Guid.NewGuid();
+        var hash = new string('a', 64);
+        var snapshotReceipt = new RemoteAssetEvidence(12, 34, "snapshot.db", 123, hash);
+        var grantReceipt = new RemoteAssetEvidence(12, 35, "grant.json", 456, hash);
+        var transfer = new TransferEvidence(
+            Guid.NewGuid(), lineage, 1, 1, source, target, 7,
+            "snapshot.db", "C:\\snapshot.db", 123, hash, snapshotReceipt, grantReceipt, DateTimeOffset.UtcNow);
+
+        var cases = new (AuthorityPhase Phase, WriteAuthorityState State, AuthorityProtocolState Protocol)[]
+        {
+            (AuthorityPhase.Uninitialized, WriteAuthorityState.RecoveryRequired,
+                new(1, source, "fresh", null, 0, 0, 0, AuthorityPhase.Uninitialized)),
+            (AuthorityPhase.PairedUninitializedReadOnly, WriteAuthorityState.NonAuthoritativeReadOnly,
+                new(1, source, "joined", lineage, 1, 0, 0, AuthorityPhase.PairedUninitializedReadOnly)),
+            (AuthorityPhase.Authoritative, WriteAuthorityState.Authoritative,
+                new(1, source, "source", lineage, 1, 0, 0, AuthorityPhase.Authoritative)),
+            (AuthorityPhase.ClosedRetainedAuthority, WriteAuthorityState.Authoritative,
+                new(1, source, "source", lineage, 1, 0, 0, AuthorityPhase.ClosedRetainedAuthority)),
+            (AuthorityPhase.TransferPreparing, WriteAuthorityState.Transitioning,
+                new(1, source, "source", lineage, 1, 1, 7, AuthorityPhase.TransferPreparing, transfer with { SnapshotReceipt = null, GrantReceipt = null, RelinquishedAtUtc = null })),
+            (AuthorityPhase.RelinquishedPendingGrant, WriteAuthorityState.Transitioning,
+                new(1, source, "source", lineage, 1, 1, 7, AuthorityPhase.RelinquishedPendingGrant, transfer with { GrantReceipt = null })),
+            (AuthorityPhase.ReleasedNonAuthoritative, WriteAuthorityState.NonAuthoritativeReadOnly,
+                new(1, source, "source", lineage, 1, 1, 7, AuthorityPhase.ReleasedNonAuthoritative, transfer)),
+            (AuthorityPhase.TargetAcquisitionPending, WriteAuthorityState.Transitioning,
+                new(1, target, "target", lineage, 1, 1, 7, AuthorityPhase.TargetAcquisitionPending, transfer)),
+            (AuthorityPhase.NonAuthoritativeReadOnly, WriteAuthorityState.NonAuthoritativeReadOnly,
+                new(1, target, "target", lineage, 1, 1, 7, AuthorityPhase.NonAuthoritativeReadOnly)),
+            (AuthorityPhase.StaleGeneration, WriteAuthorityState.NonAuthoritativeReadOnly,
+                new(1, target, "target", lineage, 1, 1, 7, AuthorityPhase.StaleGeneration)),
+            (AuthorityPhase.DisasterRecoveryPending, WriteAuthorityState.Transitioning,
+                new(1, target, "replacement", lineage, 1, 1, 7, AuthorityPhase.DisasterRecoveryPending,
+                    Recovery: new(Guid.NewGuid(), target, lineage, 1, 2, "candidate", hash, 7, snapshotReceipt))),
+            (AuthorityPhase.RecoveryRequired, WriteAuthorityState.RecoveryRequired,
+                new(1, target, "target", null, 0, 0, 0, AuthorityPhase.RecoveryRequired))
+        };
+
+        foreach (var testCase in cases)
+        {
+            testCase.Protocol.Validate();
+            var document = new AuthorityStateDocument(2, testCase.State, DateTimeOffset.UtcNow)
+            {
+                Protocol = testCase.Protocol
+            };
+            await store.SaveAsync(document);
+            var json = await File.ReadAllTextAsync(Path.Combine(paths.ConfigDirectory, "authority-state.json"));
+            using var jsonDocument = JsonDocument.Parse(json);
+            Assert.IsFalse(jsonDocument.RootElement.TryGetProperty("state", out _));
+            var reloaded = await store.LoadAsync();
+            Assert.IsNotNull(reloaded);
+            Assert.AreEqual(testCase.State, reloaded!.EffectiveState);
+            Assert.AreEqual(testCase.Phase, reloaded.Protocol!.Phase);
+        }
+    }
+
+    [TestMethod]
+    public async Task ExactSerializedM06RecoveryAndTransitioningStatesRemainNonWritableAfterMigration()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        await using (var legacyConnection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.LiveDatabasePath, Pooling = false }.ToString()))
+        {
+            await legacyConnection.OpenAsync();
+            await ExecuteAsync(legacyConnection, "CREATE TABLE schema_migrations(version INTEGER NOT NULL); INSERT INTO schema_migrations(version) VALUES(5);");
+        }
+
+        var store = new JsonAuthorityStateStore(paths);
+        var legacyEvidence = await store.HasLegacyBootstrapEvidenceAsync();
+        await new AuthorityStateCoordinator(store, new WriteAuthorityGuard(), new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance)
+            .InitializeAsync(legacyEvidence);
+
+        foreach (var legacyState in new[] { "Transitioning", "RecoveryRequired" })
+        {
+            var legacyValue = legacyState == "Transitioning" ? 3 : 4;
+            await File.WriteAllTextAsync(
+                Path.Combine(paths.ConfigDirectory, "authority-state.json"),
+                $"{{\"schemaVersion\":1,\"state\":{legacyValue},\"updatedAtUtc\":\"2026-09-07T12:00:00Z\"}}");
+            var guard = new WriteAuthorityGuard();
+            var result = await new AuthorityStateCoordinator(store, guard, new FixedClock(), NullLogger<AuthorityStateCoordinator>.Instance)
+                .InitializeAsync(legacyEvidence);
+            Assert.AreEqual(WriteAuthorityState.RecoveryRequired, result.State);
+            Assert.AreEqual(WriteAuthorityState.RecoveryRequired, guard.State);
+            Assert.AreEqual(2, (await store.LoadAsync())!.SchemaVersion);
+        }
+    }
+
+    [TestMethod]
+    public async Task CanonicalAuthorityReplacementReopensAndFailureBeforeReplaceLeavesPriorDocumentIntact()
+    {
+        using var paths = new TestAppPaths();
+        var lineage = Guid.NewGuid();
+        var device = Guid.NewGuid();
+        var firstProtocol = new AuthorityProtocolState(1, device, "device", lineage, 1, 0, 0, AuthorityPhase.Authoritative);
+        var firstDocument = new AuthorityStateDocument(2, WriteAuthorityState.Authoritative, DateTimeOffset.UtcNow)
+        {
+            Protocol = firstProtocol
+        };
+        var firstEvents = new List<string>();
+        var store = new JsonAuthorityStateStore(paths, firstEvents.Add);
+        await store.SaveAsync(firstDocument);
+        CollectionAssert.Contains(firstEvents, "before-replace");
+        CollectionAssert.Contains(firstEvents, "after-reopen");
+
+        var secondProtocol = firstProtocol with { Phase = AuthorityPhase.NonAuthoritativeReadOnly };
+        var secondDocument = new AuthorityStateDocument(2, WriteAuthorityState.NonAuthoritativeReadOnly, DateTimeOffset.UtcNow)
+        {
+            Protocol = secondProtocol
+        };
+        var failingStore = new JsonAuthorityStateStore(paths, point =>
+        {
+            if (point == "before-replace") throw new IOException("injected before replace");
+        });
+        await Assert.ThrowsAsync<IOException>(() => failingStore.SaveAsync(secondDocument));
+        var persisted = await store.LoadAsync();
+        Assert.IsNotNull(persisted);
+        Assert.AreEqual(AuthorityPhase.Authoritative, persisted!.Protocol!.Phase);
+        Assert.AreEqual(WriteAuthorityState.Authoritative, persisted.EffectiveState);
     }
 
     [TestMethod]
@@ -525,9 +696,72 @@ public sealed class InfrastructureIntegrationTests
     [TestMethod]
     public void RedactorExcludesRepresentativeSensitiveValues()
     {
-        var output = SensitiveDataRedactor.Redact("phone 0612345678 email client@example.test");
+        const string usernameOnlyUrl = "https://synthetic-user@example.test/path";
+        var output = SensitiveDataRedactor.Redact(
+            "phone 0612345678 email client@example.test "
+            + "Bearer standalone-secret ghp_abcdefghijklmnopqrstuvwxyz "
+            + "https://user:password@example.test/api?access_token=query-secret&next=1 token=field-secret "
+            + usernameOnlyUrl + " "
+            + "{\"token\":\"json-token\", \"access_token\": \"json-access\", "
+            + "\"refresh_token\":\"json-refresh\", \"secret\": \"json-secret\", "
+            + "\"password\":\"json-password\", \"client_secret\": \"json-client\", "
+            + "\"authorization\": \"json-authorization\"} Authorization: Bearer header-secret");
         Assert.IsFalse(output.Contains("0612345678", StringComparison.Ordinal));
         Assert.IsFalse(output.Contains("client@example.test", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("header-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("standalone-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("ghp_abcdefghijklmnopqrstuvwxyz", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("user:password@", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("synthetic-user@", StringComparison.Ordinal));
+        StringAssert.Contains(output, "https://[redacted-userinfo]@example.test/path");
+        StringAssert.Contains(output, "https://[redacted-userinfo]@example.test/api");
+        Assert.IsFalse(output.Contains("query-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("field-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-token", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-access", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-refresh", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-password", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-client", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-authorization", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void RollingFileLoggerRedactsMessageAndExceptionSecretsBeforeWriting()
+    {
+        using var paths = new TestAppPaths();
+        using (var provider = new RollingFileLoggerProvider(paths, TimeProvider.System))
+        {
+            var logger = provider.CreateLogger("synthetic");
+            logger.Log(
+                LogLevel.Error,
+                new EventId(9001, "SyntheticSecret"),
+                "transport failed https://user:password@example.test/api?token=query-secret "
+                    + "https://synthetic-user@example.test/message ghp_abcdefghijklmnopqrstuvwxyz "
+                    + "{\"token\":\"json-token\", \"password\": \"json-password\"}",
+                new InvalidOperationException(
+                    "https://exception-user:exception-password@example.test/exception "
+                    + "https://exception-synthetic-user@example.test/exception-user "
+                    + "?access_token=exception-query {\"secret\":\"exception-json\", \"client_secret\": \"exception-client\"} "
+                    + "ghp_exception_abcdefghijklmnopqrstuvwxyz Authorization: Bearer exception-secret"),
+                static (state, exception) => state);
+        }
+
+        var output = string.Join(Environment.NewLine,
+            Directory.EnumerateFiles(paths.LogsDirectory, "sushi81-*.log").Select(File.ReadAllText));
+        Assert.IsFalse(output.Contains("exception-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("user:password@", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("synthetic-user@", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("exception-user:exception-password@", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("exception-synthetic-user@", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("exception-query", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("exception-json", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("exception-client", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("ghp_exception_abcdefghijklmnopqrstuvwxyz", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("query-secret", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("ghp_abcdefghijklmnopqrstuvwxyz", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-token", StringComparison.Ordinal));
+        Assert.IsFalse(output.Contains("json-password", StringComparison.Ordinal));
     }
 
     private static async Task ExecuteAsync(SqliteConnection connection, string sql, SqliteTransaction? transaction = null, CancellationToken cancellationToken = default)

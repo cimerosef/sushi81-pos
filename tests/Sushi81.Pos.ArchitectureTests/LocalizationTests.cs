@@ -22,12 +22,14 @@ public sealed class LocalizationTests
 
         Assert.AreEqual("Fondation prête.", viewModel.Status);
         Assert.AreEqual("Langue", viewModel.LanguageLabel);
+        Assert.AreEqual("fr-FR", viewModel.SelectedLanguageCultureName);
 
         await viewModel.ChangeLanguageAsync(viewModel.Languages.Single(option => option.CultureName == "zh-CN"));
 
         Assert.AreEqual("基础已就绪。", viewModel.Status);
         Assert.AreEqual("语言", viewModel.LanguageLabel);
         Assert.AreEqual("zh-CN", store.Load().Name);
+        Assert.AreEqual("zh-CN", viewModel.SelectedLanguageCultureName);
         CollectionAssert.AreEquivalent(ChineseLanguageNames, viewModel.Languages.Select(option => option.DisplayName).ToArray());
 
         await viewModel.ChangeLanguageAsync(viewModel.Languages.Single(option => option.CultureName == "fr-FR"));
@@ -63,6 +65,7 @@ public sealed class LocalizationTests
         var configurationPath = Path.Combine(paths.ConfigDirectory, "local-settings.json");
         using var persistedJson = JsonDocument.Parse(await File.ReadAllTextAsync(configurationPath));
         Assert.AreEqual("zh-CN", persistedJson.RootElement.GetProperty("uiCulture").GetString());
+        Assert.AreEqual("zh-CN", firstViewModel.SelectedLanguageCultureName);
 
         var restartedService = new JsonLocalConfigurationService(paths);
         var restartedConfiguration = await restartedService.LoadAsync();

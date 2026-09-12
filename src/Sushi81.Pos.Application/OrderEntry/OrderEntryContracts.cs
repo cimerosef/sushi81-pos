@@ -146,14 +146,7 @@ public sealed class OrderEntryService(
             if (!await confirmationGate.WaitAsync(0, cancellationToken))
                 return ConfirmOrderResult.Failure(new ValidationIssue("order", "An order confirmation is already in progress.", ValidationCodes.Busy));
             acquired = true;
-            try
-            {
-                authorityGuard.RequireWriteAuthority();
-            }
-            catch (WriteAuthorityException exception)
-            {
-                return ConfirmOrderResult.Failure(new ValidationIssue("authority", $"Local write authority is unavailable ({exception.State}).", ValidationCodes.AuthorityBlocked));
-            }
+            await using var authorityScope = await authorityGuard.EnterWriteScopeAsync(cancellationToken);
             var businessSettings = await settings.GetAsync(cancellationToken);
             var currentLines = new List<OrderLineDraft>();
             foreach (var line in draft.Lines ?? [])
@@ -239,6 +232,10 @@ public sealed class OrderEntryService(
             }
         }
         catch (OperationCanceledException) { throw; }
+        catch (WriteAuthorityException exception)
+        {
+            return ConfirmOrderResult.Failure(new ValidationIssue("authority", $"Local write authority is unavailable ({exception.State}).", ValidationCodes.AuthorityBlocked));
+        }
         catch (Exception exception)
         {
             return ConfirmOrderResult.Failure(new ValidationIssue("order", exception.Message, ValidationCodes.Generic));

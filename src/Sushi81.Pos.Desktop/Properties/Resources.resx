@@ -10,6 +10,67 @@
   <data name="AuthorityReadOnly" xml:space="preserve"><value>Mode lecture seule : cette instance n’est pas l’autorité locale. Les données affichées localement peuvent être obsolètes. Les recherches et consultations restent disponibles.</value></data>
   <data name="AuthorityTransitioning" xml:space="preserve"><value>Transition d’autorité en cours : les écritures sont bloquées et les données locales peuvent être obsolètes.</value></data>
   <data name="AuthorityRecoveryRequired" xml:space="preserve"><value>Récupération locale requise : les écritures sont bloquées et les données locales peuvent être obsolètes.</value></data>
+  <data name="AuthorityCloseTitle" xml:space="preserve"><value>Fermer Sushi81 POS</value></data>
+  <data name="AuthorityClosePrompt" xml:space="preserve"><value>Cette machine est l’autorité courante. Choisissez l’action de fermeture.</value></data>
+  <data name="AuthorityTargetLabel" xml:space="preserve"><value>Cible du transfert</value></data>
+  <data name="AuthorityCloseRetain" xml:space="preserve"><value>Fermer et conserver l’autorité</value></data>
+  <data name="AuthorityTransferClose" xml:space="preserve"><value>Transférer l’autorité et fermer</value></data>
+  <data name="AuthorityCloseCancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="AuthorityTargetRequired" xml:space="preserve"><value>Choisissez une machine cible.</value></data>
+  <data name="AuthorityTransferFailed" xml:space="preserve"><value>Le transfert d’autorité a échoué.</value></data>
+  <data name="JoinExistingLineage" xml:space="preserve"><value>Rejoindre le système existant</value></data>
+  <data name="JoinDisplayName" xml:space="preserve"><value>Nom de cette machine</value></data>
+  <data name="JoinPrompt" xml:space="preserve"><value>Rejoignez le système Sushi81 configuré en mode lecture seule. Cette action ne donne pas l’autorité d’écriture.</value></data>
+  <data name="JoinConfirm" xml:space="preserve"><value>Rejoindre en lecture seule</value></data>
+  <data name="JoinSucceeded" xml:space="preserve"><value>Cette machine est maintenant appairée en lecture seule.</value></data>
+  <data name="M07JoinFailed" xml:space="preserve"><value>L’appairage n’a pas abouti. Cette machine reste en lecture seule.</value></data>
+  <data name="M07OperationFailed" xml:space="preserve"><value>L’opération M07 n’a pas abouti. Consultez l’état affiché ; les écritures restent bloquées.</value></data>
+  <data name="M07AcquireAuthority" xml:space="preserve"><value>Vérifier et acquérir l’autorité transférée</value></data>
+  <data name="M07AcquireValidating" xml:space="preserve"><value>Validation de l’autorité transférée en cours…</value></data>
+  <data name="M07AcquireAcquired" xml:space="preserve"><value>Autorité acquise. Les écritures sont disponibles après validation locale.</value></data>
+  <data name="M07AcquireUnavailable" xml:space="preserve"><value>L’acquisition de l’autorité transférée n’est pas configurée.</value></data>
+  <data name="M07AcquireFailed" xml:space="preserve"><value>L’acquisition a échoué. Cette machine reste en lecture seule ou en récupération requise.</value></data>
+  <data name="M07AcquireRefreshFailed" xml:space="preserve"><value>L’autorité est durable mais l’actualisation des écrans a échoué. Les écritures restent bloquées jusqu’à une actualisation sûre.</value></data>
+  <data name="M07ResumeTransfer" xml:space="preserve"><value>Reprendre le transfert en attente</value></data>
+  <data name="M07ResumeValidating" xml:space="preserve"><value>Reprise du transfert d’autorité en cours…</value></data>
+  <data name="M07ResumeSucceeded" xml:space="preserve"><value>Le même transfert est terminé. Cette machine reste en lecture seule jusqu’à acquisition par la cible.</value></data>
+  <data name="M07ResumeFailed" xml:space="preserve"><value>La reprise du même transfert a échoué. Cette machine reste en lecture seule et le transfert exact reste en attente.</value></data>
+  <data name="M07PendingTransfer" xml:space="preserve"><value>Un transfert exact est en attente. Il ne peut pas être modifié ou réattribué.</value></data>
+  <data name="M07ConnectionTest" xml:space="preserve"><value>Tester la connexion GitHub de transfert</value></data>
+  <data name="M07ConnectionChecking" xml:space="preserve"><value>Test de connexion GitHub en cours…</value></data>
+  <data name="M07ConnectionSuccess" xml:space="preserve"><value>Connexion GitHub de transfert disponible.</value></data>
+  <data name="M07ConnectionNotConfigured" xml:space="preserve"><value>Le dépôt GitHub de transfert n’est pas configuré.</value></data>
+  <data name="M07ConnectionCredentialMissing" xml:space="preserve"><value>Le justificatif GitHub protégé n’est pas configuré ou lisible.</value></data>
+  <data name="M07ConnectionUnauthorized" xml:space="preserve"><value>GitHub a refusé l’authentification (401).</value></data>
+  <data name="M07ConnectionForbidden" xml:space="preserve"><value>GitHub a refusé l’accès au dépôt de transfert (403).</value></data>
+  <data name="M07ConnectionNotFound" xml:space="preserve"><value>Le dépôt ou la release de transfert est introuvable (404).</value></data>
+  <data name="M07ConnectionFailed" xml:space="preserve"><value>Le test de connexion GitHub a échoué. Consultez le statut sans exposer de justificatif.</value></data>
+  <data name="AuthorityTargetTitle" xml:space="preserve"><value>Choisir la cible du transfert</value></data>
+  <data name="AuthorityTargetPrompt" xml:space="preserve"><value>Choisissez l’appareil exact de la génération courante qui recevra l’autorité.</value></data>
+  <data name="AuthorityTargetConfirm" xml:space="preserve"><value>Transférer vers cet appareil</value></data>
+  <data name="AuthorityTransferUnavailable" xml:space="preserve"><value>Le transfert ciblé n’est pas disponible.</value></data>
+  <data name="M07Setup" xml:space="preserve"><value>Configurer le système Sushi81</value></data>
+  <data name="M07SetupTitle" xml:space="preserve"><value>Configuration technique M07</value></data>
+  <data name="M07SetupPrompt" xml:space="preserve"><value>Sélectionnez le dossier OneDrive partagé existant et, si nécessaire, les paramètres non secrets du transport GitHub. Cette configuration ne crée ni autorité ni appairage. Un redémarrage sera requis.</value></data>
+  <data name="M07SetupOneDriveRoot" xml:space="preserve"><value>Dossier OneDrive partagé Sushi81</value></data>
+  <data name="M07SetupBrowse" xml:space="preserve"><value>Parcourir…</value></data>
+  <data name="M07SetupGitHubOwner" xml:space="preserve"><value>Propriétaire GitHub</value></data>
+  <data name="M07SetupGitHubRepository" xml:space="preserve"><value>Dépôt GitHub de transfert</value></data>
+  <data name="M07SetupGitHubReleaseTag" xml:space="preserve"><value>Tag de release GitHub</value></data>
+  <data name="M07SetupGitHubReleaseName" xml:space="preserve"><value>Nom de release GitHub</value></data>
+  <data name="M07SetupGitHubCredentialTarget" xml:space="preserve"><value>Nom de justificatif protégé GitHub</value></data>
+  <data name="M07SetupGitHubHelp" xml:space="preserve"><value>Saisissez uniquement le nom de cible Credential Manager. Ne saisissez jamais le PAT ici.</value></data>
+  <data name="M07SetupSave" xml:space="preserve"><value>Valider et demander le redémarrage</value></data>
+  <data name="M07SetupRestartRequired" xml:space="preserve"><value>Configuration enregistrée. Redémarrez Sushi81 POS pour composer les services M07 et rendre l’appairage disponible.</value></data>
+  <data name="M07SetupRootRequired" xml:space="preserve"><value>Le dossier OneDrive partagé est obligatoire.</value></data>
+  <data name="M07SetupRootAbsolute" xml:space="preserve"><value>Le dossier OneDrive partagé doit être un chemin absolu.</value></data>
+  <data name="M07SetupRootUnavailable" xml:space="preserve"><value>Le dossier OneDrive partagé n’existe pas ou n’est pas accessible.</value></data>
+  <data name="M07SetupLineageUnavailable" xml:space="preserve"><value>Les métadonnées de lignée Sushi81 sont absentes ou momentanément indisponibles.</value></data>
+  <data name="M07SetupLineageInvalid" xml:space="preserve"><value>Les métadonnées de lignée Sushi81 sont invalides, contradictoires ou incompatibles.</value></data>
+  <data name="M07SetupLineageRequired" xml:space="preserve"><value>Un appareil non autoritaire doit rejoindre une lignée Sushi81 existante.</value></data>
+  <data name="M07SetupPhaseLocked" xml:space="preserve"><value>La configuration technique est verrouillée pendant la phase d’autorité actuelle.</value></data>
+  <data name="M07SetupAuthorityStateUnavailable" xml:space="preserve"><value>L’état d’autorité actuel ne peut pas être vérifié ; la configuration technique reste verrouillée.</value></data>
+  <data name="M07SetupPersistenceFailed" xml:space="preserve"><value>La configuration technique n’a pas pu être enregistrée. La configuration précédente reste active.</value></data>
   <data name="LanguageLabel" xml:space="preserve"><value>Langue</value></data>
   <data name="LanguageSaveFailure" xml:space="preserve"><value>Impossible d’enregistrer la préférence de langue. Réessayez.</value></data>
   <data name="FrenchLanguage" xml:space="preserve"><value>Français</value></data>
@@ -198,4 +259,43 @@ Changements effectifs : {2}</value></data>
   <data name="DashboardDueToday" xml:space="preserve"><value>Anticipées à servir</value></data>
   <data name="DashboardOverdue" xml:space="preserve"><value>En retard non réglées</value></data>
   <data name="DashboardRefresh" xml:space="preserve"><value>Actualiser</value></data>
+  <data name="M07DisasterRecovery" xml:space="preserve"><value>Disaster Recovery : rechercher les candidats validés…</value></data>
+  <data name="M07DisasterRecoveryPending" xml:space="preserve"><value>Disaster Recovery est en attente : l’appareil reste en lecture seule. Réessayez avec la même identité.</value></data>
+  <data name="M07DisasterRecoveryNoCandidate" xml:space="preserve"><value>Aucun candidat de récupération validé n’est disponible.</value></data>
+  <data name="M07DisasterRecoveryFailed" xml:space="preserve"><value>Disaster Recovery n’a pas abouti. L’appareil reste en lecture seule.</value></data>
+  <data name="M07DisasterRecoverySucceeded" xml:space="preserve"><value>Disaster Recovery terminé : cet appareil est maintenant autoritaire.</value></data>
+  <data name="M07DisasterRecoveryLostToWinner" xml:space="preserve"><value>Un autre appareil a obtenu l’activation de la génération suivante. Cette machine reste en lecture seule.</value></data>
+  <data name="M07DisasterRecoveryNoProvenWinner" xml:space="preserve"><value>L’activation en ligne n’a pas établi de gagnant vérifiable. Cette machine reste en lecture seule.</value></data>
+  <data name="M07StaleGeneration" xml:space="preserve"><value>Une génération plus récente a été observée. Cet appareil est en lecture seule et doit être réinitialisé.</value></data>
+  <data name="M07ReinitializeStale" xml:space="preserve"><value>Réinitialiser cet appareil dans la génération actuelle</value></data>
+  <data name="M07ReinitializeNoSeed" xml:space="preserve"><value>Aucun seed validé de la génération actuelle n’est disponible. L’appareil reste en lecture seule.</value></data>
+  <data name="M07ReinitializeSucceeded" xml:space="preserve"><value>Réinitialisation terminée. L’appareil reste en lecture seule jusqu’à un handoff normal.</value></data>
+  <data name="M07ReinitializeFailed" xml:space="preserve"><value>La réinitialisation de cette génération n’a pas abouti. L’appareil reste en lecture seule.</value></data>
+  <data name="M07CandidateTypeGitHub" xml:space="preserve"><value>Handoff GitHub complet</value></data>
+  <data name="M07CandidateTypeOneDrive" xml:space="preserve"><value>Checkpoint OneDrive</value></data>
+  <data name="M07CandidateDataLossWarning" xml:space="preserve"><value>Cette action crée une nouvelle génération. Les écritures de l’ancien appareil doivent rester arrêtées ; une perte depuis le dernier candidat est possible.</value></data>
+  <data name="M07QuarantineWarning" xml:space="preserve"><value>Confirmez que l’ancien appareil autoritaire ou cible est réellement indisponible, arrêté/quarantiné et ne sera pas utilisé pour écrire avant sa réinitialisation.</value></data>
+  <data name="M07QuarantineConfirm" xml:space="preserve"><value>Je confirme l’indisponibilité et la mise en quarantaine de l’ancien appareil.</value></data>
+  <data name="M07ConfirmRecovery" xml:space="preserve"><value>Confirmer Disaster Recovery</value></data>
+  <data name="M07CandidateRevision" xml:space="preserve"><value>Révision des données</value></data>
+  <data name="M07CandidateHandoffVersion" xml:space="preserve"><value>Version de handoff</value></data>
+  <data name="M07CandidateSource" xml:space="preserve"><value>Source</value></data>
+  <data name="M07CandidateTimestamp" xml:space="preserve"><value>Horodatage</value></data>
+  <data name="M07CandidateRecommended" xml:space="preserve"><value>Sélectionné par le protocole</value></data>
+  <data name="M07CandidateReadOnlyNotice" xml:space="preserve"><value>Les métadonnées du candidat sont uniquement informatives ; elles ne peuvent pas être modifiées ni servir à réorienter la récupération.</value></data>
+  <data name="M07NormalPathUnavailableConfirm" xml:space="preserve"><value>Je confirme que le chemin normal d’autorité/cible est réellement indisponible et ne peut pas être terminé.</value></data>
+  <data name="M07ContextPhase" xml:space="preserve"><value>Phase</value></data>
+  <data name="M07ContextLineage" xml:space="preserve"><value>Lignée</value></data>
+  <data name="M07ContextGeneration" xml:space="preserve"><value>Génération</value></data>
+  <data name="M07ContextSourceTarget" xml:space="preserve"><value>Source/cible précédente</value></data>
+  <data name="M07ContextHandoffVersion" xml:space="preserve"><value>Version de transfert</value></data>
+  <data name="M07ReasonPairedReplacement" xml:space="preserve"><value>remplacement apparié sans autorité disponible</value></data>
+  <data name="M07ReasonNormalAuthorityUnavailable" xml:space="preserve"><value>le chemin normal d’autorité est déclaré indisponible</value></data>
+  <data name="M07ReasonReleasedTargetUnavailable" xml:space="preserve"><value>la cible du transfert libéré est déclarée indisponible</value></data>
+  <data name="M07ReasonRelinquishedTargetUnavailable" xml:space="preserve"><value>la cible désignée du transfert irréversible est déclarée indisponible</value></data>
+  <data name="M07PendingResumeWarning" xml:space="preserve"><value>La récupération persistée exacte reste en lecture seule. Seule cette même récupération peut être réessayée.</value></data>
+  <data name="M07PendingRecoveryId" xml:space="preserve"><value>Récupération</value></data>
+  <data name="M07PendingCandidateId" xml:space="preserve"><value>Candidat exact</value></data>
+  <data name="M07PendingCandidateType" xml:space="preserve"><value>Type exact</value></data>
+  <data name="M07RetrySameRecovery" xml:space="preserve"><value>Réessayer la même récupération</value></data>
 </root>

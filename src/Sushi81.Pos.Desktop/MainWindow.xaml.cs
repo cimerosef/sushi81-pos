@@ -1,12 +1,18 @@
 using System.ComponentModel;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Microsoft.Win32;
+using Sushi81.Pos.Application.Foundation.Configuration;
+using Sushi81.Pos.Application.Foundation.Authority;
+using Sushi81.Pos.Application.Pairing.SystemMetadata;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Domain;
+using Sushi81.Pos.Infrastructure.Configuration;
 using DomainSelectionMode = Sushi81.Pos.Domain.SelectionMode;
 
 namespace Sushi81.Pos.Desktop;
@@ -18,15 +24,92 @@ public partial class MainWindow : Window
     private int commandesGridResizeInvocationCount;
     private int commandesGridWidthMutationCount;
     private IDisposable? performanceTraceProbe;
+    private readonly MainWindowCloseCoordinator closeCoordinator;
     private readonly CatalogueHeaderSet catalogueHeaders = new();
 
-    public MainWindow(ShellViewModel viewModel)
+    public MainWindow(ShellViewModel viewModel, IAsyncDisposable? recoveryScheduler = null, Action<Exception>? closeFailureLogger = null)
     {
         InitializeComponent();
         DataContext = viewModel;
         if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
         ApplyCatalogueHeaders();
+        closeCoordinator = new MainWindowCloseCoordinator(
+            () => viewModel.AuthorityState == WriteAuthorityState.Authoritative
+                && viewModel.M07Runtime is not null,
+            () => RequestCloseAsync(viewModel),
+            targetDeviceId => TransferAndCloseAsync(viewModel, targetDeviceId),
+            recoveryScheduler is null ? null : new Func<ValueTask>(recoveryScheduler.DisposeAsync),
+            () => Dispatcher.BeginInvoke(new Action(Close)),
+            exception =>
+            {
+                closeFailureLogger?.Invoke(exception);
+                ShowCloseFailure(viewModel);
+            });
+        Closing += (_, closing) => _ = closeCoordinator.HandleClosingAsync(closing);
         Closed += OnClosed;
+    }
+
+    private async Task<MainWindowCloseRequest> RequestCloseAsync(ShellViewModel viewModel)
+    {
+        var choiceDialog = new AuthorityCloseChoiceDialog(this, viewModel.Localized);
+        if (choiceDialog.ShowDialog() != true)
+            return new MainWindowCloseRequest(MainWindowCloseIntent.Cancel);
+
+        var choice = choiceDialog.Choice;
+        if (choice.Intent != MainWindowCloseIntent.Transfer)
+            return choice;
+
+        // Target enumeration is deliberately after the user selected Transfer, so
+        // Retain and Cancel never contact OneDrive/GitHub or alter authority state.
+        if (viewModel.M07Runtime is not { } runtime || runtime.NormalHandoff is null)
+        {
+            ShowCloseFailure(viewModel, LocalizedText(this, "AuthorityTransferUnavailable", "Target-directed transfer is unavailable."));
+            return new MainWindowCloseRequest(MainWindowCloseIntent.Cancel);
+        }
+
+        IReadOnlyList<DeviceRegistrationArtifact> targets;
+        try
+        {
+            targets = await runtime.GetEligibleTransferTargetsAsync();
+        }
+        catch (Exception)
+        {
+            ShowCloseFailure(viewModel);
+            return new MainWindowCloseRequest(MainWindowCloseIntent.Cancel);
+        }
+
+        var targetDialog = new AuthorityTargetSelectionDialog(this, viewModel.Localized, targets);
+        return targetDialog.ShowDialog() == true && targetDialog.TargetDeviceId is { } target
+            ? new MainWindowCloseRequest(MainWindowCloseIntent.Transfer, target)
+            : new MainWindowCloseRequest(MainWindowCloseIntent.Cancel);
+    }
+
+    private async Task<bool> TransferAndCloseAsync(ShellViewModel viewModel, Guid targetDeviceId)
+    {
+        var runtime = viewModel.M07Runtime;
+        if (runtime?.NormalHandoff is null)
+        {
+            ShowCloseFailure(viewModel, LocalizedText(this, "AuthorityTransferUnavailable", "Target-directed transfer is unavailable."));
+            return false;
+        }
+
+        var result = await runtime.NormalHandoff.TransferAndCloseAsync(targetDeviceId);
+        await viewModel.RefreshAuthorityStateAsync();
+        if (!result.Succeeded)
+        {
+            // A failed handoff must leave the source visible. In particular, a
+            // post-relinquishment pending state remains read-only/recovery-required.
+            ShowCloseFailure(viewModel, LocalizedText(this, "AuthorityTransferFailed", "Authority transfer failed."));
+            return false;
+        }
+
+        return true;
+    }
+
+    private void ShowCloseFailure(ShellViewModel viewModel, string? safeMessage = null)
+    {
+        var message = safeMessage ?? LocalizedText(this, "AuthorityTransferFailed", "Authority transfer failed.");
+        MessageBox.Show(this, message, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -60,8 +143,163 @@ public partial class MainWindow : Window
     private async void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (DataContext is not ShellViewModel viewModel || e.AddedItems.OfType<LanguageOption>().SingleOrDefault() is not { } language) return;
+        if (language.CultureName == viewModel.SelectedLanguageCultureName)
+        {
+            ApplyCatalogueHeaders();
+            return;
+        }
         try { await viewModel.ChangeLanguageAsync(language); ApplyCatalogueHeaders(); }
         catch { MessageBox.Show(this, viewModel.LanguageSaveFailure, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private async void OnJoinExistingLineage(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanJoinExistingLineage: true } viewModel) return;
+        var dialog = new DeviceJoinDialog(this, viewModel.Localized);
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            await viewModel.JoinExistingLineageAsync(dialog.DisplayName);
+            MessageBox.Show(this, LocalizedText(this, "JoinSucceeded", "This computer is paired read-only."), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch
+        {
+            MessageBox.Show(this, LocalizedText(this, "M07JoinFailed", "Pairing could not complete. This device remains read-only."), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnAcquireTransferredAuthority(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanAcquireTransferredAuthority: true } viewModel) return;
+        try
+        {
+            var result = await viewModel.AcquireTransferredAuthorityAsync();
+            if (result is { Succeeded: false })
+                MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnResumePendingTransfer(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanResumePendingTransfer: true } viewModel) return;
+        try
+        {
+            var result = await viewModel.ResumePendingTransferAsync();
+            if (result is { Succeeded: false })
+                MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnStartDisasterRecovery(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanStartDisasterRecovery: true } viewModel) return;
+        try
+        {
+            var discovered = await viewModel.DiscoverRecoveryCandidatesAsync();
+            if (discovered is null || discovered.Candidates.Count == 0)
+            {
+                MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var dialog = new DisasterRecoveryDialog(this, viewModel.Localized, viewModel.RecoveryEntryContext!, discovered.Candidates, discovered.Recommended);
+            if (dialog.ShowDialog() != true) return;
+            var result = await viewModel.StartDisasterRecoveryAsync(
+                dialog.SelectedCandidateId!, dialog.NormalPathUnavailableConfirmed, dialog.QuarantineConfirmed);
+            if (result is { Succeeded: false })
+                MessageBox.Show(this, viewModel.GetLocalizedDisasterRecoveryResult(result), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            MessageBox.Show(this, viewModel.Localized["M07OperationFailed"], viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnRetryDisasterRecovery(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanRetryDisasterRecovery: true } viewModel) return;
+        var dialog = new DisasterRecoveryPendingDialog(this, viewModel.Localized, viewModel.RecoveryEntryContext);
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            var result = await viewModel.RetryDisasterRecoveryAsync(dialog.QuarantineConfirmed);
+            if (result is { Succeeded: false })
+                MessageBox.Show(this, viewModel.GetLocalizedDisasterRecoveryResult(result), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            MessageBox.Show(this, viewModel.Localized["M07OperationFailed"], viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnReinitializeStaleDevice(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanReinitializeStaleDevice: true } viewModel) return;
+        try
+        {
+            var result = await viewModel.ReinitializeStaleDeviceAsync();
+            if (result is not null)
+                MessageBox.Show(this, viewModel.GetLocalizedDisasterRecoveryResult(result), viewModel.Title, MessageBoxButton.OK,
+                    result.Succeeded ? MessageBoxImage.Information : MessageBoxImage.Warning);
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            MessageBox.Show(this, viewModel.Localized["M07OperationFailed"], viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnTestGitHubConnection(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanTestGitHubConnection: true } viewModel) return;
+        try
+        {
+            await viewModel.TestGitHubConnectionAsync();
+            MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnConfigureM07(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CanConfigureM07: true } viewModel) return;
+
+        var dialog = new M07SetupDialog(this, viewModel.Localized, viewModel.Configuration);
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            var result = await viewModel.ConfigureM07Async(dialog.Input);
+            if (result is { Succeeded: true })
+            {
+                MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else if (result is not null)
+            {
+                MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void ApplyCatalogueHeaders()
@@ -1029,5 +1267,465 @@ public partial class MainWindow : Window
 
         private sealed record ModeItem(DomainSelectionMode Mode, string Label);
         private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private sealed class AuthorityCloseChoiceDialog : Window
+    {
+        public AuthorityCloseChoiceDialog(
+            Window owner,
+            IReadOnlyDictionary<string, string> labels)
+        {
+            Owner = owner;
+            Title = Read(labels, "AuthorityCloseTitle", "Close Sushi81 POS");
+            Width = 560;
+            Height = 220;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            ResizeMode = ResizeMode.NoResize;
+
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "AuthorityClosePrompt", "This computer is the current authority. Choose how to close."),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+            var buttons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+            var retain = new Button { Content = Read(labels, "AuthorityCloseRetain", "Close and retain authority"), Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+            retain.Click += (_, _) => Complete(new MainWindowCloseRequest(MainWindowCloseIntent.Retain));
+            var transfer = new Button { Content = Read(labels, "AuthorityTransferClose", "Transfer authority and close"), Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(0, 0, 8, 0) };
+            transfer.Click += (_, _) => Complete(new MainWindowCloseRequest(MainWindowCloseIntent.Transfer));
+            var cancel = new Button { Content = Read(labels, "AuthorityCloseCancel", "Cancel"), Padding = new Thickness(10, 5, 10, 5), IsCancel = true };
+            cancel.Click += (_, _) => Complete(new MainWindowCloseRequest(MainWindowCloseIntent.Cancel));
+            buttons.Children.Add(retain); buttons.Children.Add(transfer); buttons.Children.Add(cancel); root.Children.Add(buttons);
+            Content = root;
+        }
+
+        public MainWindowCloseRequest Choice { get; private set; } = new(MainWindowCloseIntent.Cancel);
+
+        private void Complete(MainWindowCloseRequest choice)
+        {
+            Choice = choice;
+            DialogResult = true;
+            Close();
+        }
+
+        private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private sealed class AuthorityTargetSelectionDialog : Window
+    {
+        private readonly ComboBox targetSelector;
+
+        public AuthorityTargetSelectionDialog(
+            Window owner,
+            IReadOnlyDictionary<string, string> labels,
+            IReadOnlyList<DeviceRegistrationArtifact> targets)
+        {
+            Owner = owner;
+            Title = Read(labels, "AuthorityTargetTitle", "Choose transfer target");
+            Width = 560;
+            Height = 240;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            ResizeMode = ResizeMode.NoResize;
+
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "AuthorityTargetPrompt", "Choose the exact current-generation device that will receive authority."),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+            root.Children.Add(new TextBlock { Text = Read(labels, "AuthorityTargetLabel", "Transfer target"), FontWeight = FontWeights.SemiBold });
+            targetSelector = new ComboBox
+            {
+                DisplayMemberPath = nameof(TargetChoice.Label),
+                SelectedValuePath = nameof(TargetChoice.DeviceId),
+                IsEnabled = targets.Count > 0,
+                Margin = new Thickness(0, 4, 0, 14),
+                MinWidth = 360
+            };
+            targetSelector.ItemsSource = targets.Select(target => new TargetChoice(target.DeviceId, $"{target.DisplayName} ({target.DeviceId.ToString("N")[..8]})")).ToArray();
+            targetSelector.SelectedIndex = targets.Count > 0 ? 0 : -1;
+            root.Children.Add(targetSelector);
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var confirm = new Button { Content = Read(labels, "AuthorityTargetConfirm", "Transfer to this device"), Padding = new Thickness(10, 5, 10, 5), IsEnabled = targets.Count > 0 };
+            confirm.Click += (_, _) => { if (targetSelector.SelectedValue is Guid) DialogResult = true; };
+            var cancel = new Button { Content = Read(labels, "AuthorityCloseCancel", "Cancel"), Padding = new Thickness(10, 5, 10, 5), Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+            buttons.Children.Add(confirm); buttons.Children.Add(cancel); root.Children.Add(buttons);
+            Content = root;
+        }
+
+        public Guid? TargetDeviceId => targetSelector.SelectedValue is Guid selected ? selected : null;
+
+        private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
+
+        private sealed record TargetChoice(Guid DeviceId, string Label);
+    }
+
+    private sealed class DeviceJoinDialog : Window
+    {
+        private readonly TextBox displayNameBox;
+
+        public DeviceJoinDialog(Window owner, IReadOnlyDictionary<string, string> labels)
+        {
+            Owner = owner;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            SizeToContent = SizeToContent.WidthAndHeight;
+            MinWidth = 420;
+            Title = LocalizedText(owner, "JoinExistingLineage", "Join existing Sushi81 system");
+
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "JoinPrompt", "Join the configured Sushi81 system as a read-only device."),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "JoinDisplayName", "Device name"),
+                FontWeight = FontWeights.SemiBold
+            });
+            displayNameBox = new TextBox { MinWidth = 340, Margin = new Thickness(0, 5, 0, 14) };
+            root.Children.Add(displayNameBox);
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var confirm = new Button { Content = Read(labels, "JoinConfirm", "Join read-only"), Padding = new Thickness(10, 4, 10, 4), IsDefault = true };
+            confirm.Click += (_, _) =>
+            {
+                if (string.IsNullOrWhiteSpace(displayNameBox.Text))
+                {
+                    displayNameBox.Focus();
+                    return;
+                }
+
+                DialogResult = true;
+            };
+            var cancel = new Button { Content = Read(labels, "AuthorityCloseCancel", "Cancel"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+            buttons.Children.Add(confirm);
+            buttons.Children.Add(cancel);
+            root.Children.Add(buttons);
+            Content = root;
+        }
+
+        public string DisplayName => displayNameBox.Text.Trim();
+
+        private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private sealed class DisasterRecoveryDialog : Window
+    {
+        private readonly ComboBox candidateSelector;
+        private readonly CheckBox normalPathUnavailableCheckBox;
+        private readonly CheckBox quarantineCheckBox;
+        private readonly Button confirmButton;
+
+        public DisasterRecoveryDialog(
+            Window owner,
+            IReadOnlyDictionary<string, string> labels,
+            DisasterRecoveryEntryContext context,
+            IReadOnlyList<RecoveryCandidate> candidates,
+            RecoveryCandidate? recommended)
+        {
+            Owner = owner;
+            Title = Read(labels, "M07DisasterRecovery", "Disaster Recovery");
+            Width = 700;
+            Height = candidates.Count > 0 ? 500 : 300;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            MinWidth = 560;
+
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "M07QuarantineWarning", "The old authority/target must be stopped and quarantined before recovery."),
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = Brushes.DarkRed,
+                Margin = new Thickness(0, 0, 0, 10)
+            });
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "M07CandidateDataLossWarning", "Disaster Recovery creates a new generation and may lose changes after the selected candidate."),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+
+            root.Children.Add(new TextBlock
+            {
+                Text = ContextLabel(labels, context),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "M07CandidateReadOnlyNotice", "Candidate metadata is orientation-only; it cannot be changed or used to retarget recovery."),
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.78,
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+
+            candidateSelector = new ComboBox { MinWidth = 620, IsEnabled = false, Margin = new Thickness(0, 0, 0, 12) };
+            candidateSelector.ItemsSource = candidates.Select(candidate => new CandidateChoice(
+                candidate.CandidateId,
+                $"{(candidate.CandidateId == recommended?.CandidateId ? Read(labels, "M07CandidateRecommended", "Protocol-selected") + " | " : string.Empty)}"
+                + $"{TypeLabel(labels, candidate)} | {Read(labels, "M07CandidateRevision", "Revision")}: {candidate.BusinessRevision} | "
+                + $"{Read(labels, "M07CandidateHandoffVersion", "Handoff")}: {candidate.HandoffVersion} | "
+                + $"{Read(labels, "M07CandidateSource", "Source")}: {candidate.SourceDeviceId.ToString("N")[..8]} | "
+                + $"{Read(labels, "M07CandidateTimestamp", "Timestamp")}: {candidate.CreatedAtUtc:yyyy-MM-dd HH:mm:ss} UTC")).ToArray();
+            var recommendedId = recommended?.CandidateId;
+            candidateSelector.SelectedItem = candidateSelector.Items.OfType<CandidateChoice>().FirstOrDefault(choice => choice.CandidateId == recommendedId)
+                ?? candidateSelector.Items.OfType<CandidateChoice>().FirstOrDefault();
+            root.Children.Add(candidateSelector);
+
+            normalPathUnavailableCheckBox = new CheckBox
+            {
+                Content = Read(labels, "M07NormalPathUnavailableConfirm", "I confirm the normal authority/target path is genuinely unavailable and cannot be completed."),
+                IsThreeState = false,
+                Margin = new Thickness(0, 4, 0, 8)
+            };
+            normalPathUnavailableCheckBox.Checked += (_, _) => UpdateConfirmation();
+            normalPathUnavailableCheckBox.Unchecked += (_, _) => UpdateConfirmation();
+            root.Children.Add(normalPathUnavailableCheckBox);
+
+            quarantineCheckBox = new CheckBox
+            {
+                Content = Read(labels, "M07QuarantineConfirm", "I confirm the old device is unavailable and quarantined."),
+                IsThreeState = false,
+                Margin = new Thickness(0, 4, 0, 14)
+            };
+            quarantineCheckBox.Checked += (_, _) => UpdateConfirmation();
+            quarantineCheckBox.Unchecked += (_, _) => UpdateConfirmation();
+            root.Children.Add(quarantineCheckBox);
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            confirmButton = new Button
+            {
+                Content = Read(labels, "M07ConfirmRecovery", "Confirm Disaster Recovery"),
+                Padding = new Thickness(10, 5, 10, 5),
+                IsDefault = true,
+                IsEnabled = false
+            };
+            confirmButton.Click += (_, _) =>
+            {
+                if (QuarantineConfirmed && (candidateSelector.SelectedItem is CandidateChoice || candidates.Count == 0))
+                    DialogResult = true;
+            };
+            var cancel = new Button
+            {
+                Content = Read(labels, "AuthorityCloseCancel", "Cancel"),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(8, 0, 0, 0),
+                IsCancel = true
+            };
+            buttons.Children.Add(confirmButton);
+            buttons.Children.Add(cancel);
+            root.Children.Add(buttons);
+            Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = root };
+        }
+
+        public string? SelectedCandidateId => (candidateSelector.SelectedItem as CandidateChoice)?.CandidateId;
+
+        public bool NormalPathUnavailableConfirmed => normalPathUnavailableCheckBox.IsChecked == true;
+
+        public bool QuarantineConfirmed => quarantineCheckBox.IsChecked == true;
+
+        private void UpdateConfirmation() => confirmButton.IsEnabled = NormalPathUnavailableConfirmed && QuarantineConfirmed &&
+            (candidateSelector.Items.Count == 0 || candidateSelector.SelectedItem is CandidateChoice);
+
+        private static string ContextLabel(IReadOnlyDictionary<string, string> labels, DisasterRecoveryEntryContext context)
+        {
+            var reasonKey = context.Reason switch
+            {
+                DisasterRecoveryEntryReason.PairedReplacement => "M07ReasonPairedReplacement",
+                DisasterRecoveryEntryReason.NormalAuthorityUnavailable => "M07ReasonNormalAuthorityUnavailable",
+                DisasterRecoveryEntryReason.ReleasedTargetUnavailable => "M07ReasonReleasedTargetUnavailable",
+                DisasterRecoveryEntryReason.RelinquishedTransferTargetUnavailable => "M07ReasonRelinquishedTargetUnavailable",
+                _ => "M07ReasonNormalAuthorityUnavailable"
+            };
+            var lineage = context.LineageId?.ToString("N")[..8] ?? "—";
+            var source = context.PriorSourceDeviceId?.ToString("N")[..8] ?? "—";
+            var target = context.PriorTargetDeviceId?.ToString("N")[..8] ?? "—";
+            var version = context.PriorHandoffVersion?.ToString(CultureInfo.InvariantCulture) ?? "—";
+            return $"{Read(labels, "M07ContextPhase", "Phase")}: {context.Phase} | "
+                + $"{Read(labels, "M07ContextLineage", "Lineage")}: {lineage} | "
+                + $"{Read(labels, "M07ContextGeneration", "Generation")}: {context.Generation} → {context.Generation + 1} | "
+                + $"{Read(labels, reasonKey, "Normal path unavailable")}; "
+                + $"{Read(labels, "M07ContextSourceTarget", "Prior source/target")}: {source} → {target} | "
+                + $"{Read(labels, "M07ContextHandoffVersion", "Transfer version")}: {version}";
+        }
+
+        private static string TypeLabel(IReadOnlyDictionary<string, string> labels, RecoveryCandidate candidate) =>
+            Read(labels, candidate.Type == RecoveryCandidateType.GitHubHandoff ? "M07CandidateTypeGitHub" : "M07CandidateTypeOneDrive", candidate.TypeName);
+
+        private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
+
+        private sealed record CandidateChoice(string CandidateId, string Label)
+        {
+            public override string ToString() => Label;
+        }
+    }
+
+    private sealed class DisasterRecoveryPendingDialog : Window
+    {
+        private readonly CheckBox quarantineCheckBox;
+        private readonly Button retryButton;
+
+        public DisasterRecoveryPendingDialog(
+            Window owner,
+            IReadOnlyDictionary<string, string> labels,
+            DisasterRecoveryEntryContext? context)
+        {
+            Owner = owner;
+            Title = Read(labels, "M07DisasterRecoveryPending", "Disaster Recovery pending");
+            Width = 620;
+            SizeToContent = SizeToContent.Height;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "M07PendingResumeWarning", "The exact persisted recovery remains read-only. Only the same recovery may be retried."),
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = Brushes.DarkRed,
+                Margin = new Thickness(0, 0, 0, 12)
+            });
+            root.Children.Add(new TextBlock
+            {
+                Text = $"{Read(labels, "M07PendingRecoveryId", "Recovery")}: {Short(context?.RecoveryId)}\n"
+                    + $"{Read(labels, "M07PendingCandidateId", "Candidate")}: {context?.RecoveryCandidateId ?? "—"}\n"
+                    + $"{Read(labels, "M07PendingCandidateType", "Type")}: {context?.RecoveryCandidateType ?? "—"}\n"
+                    + $"{Read(labels, "M07CandidateRevision", "Revision")}: {context?.RecoveryBusinessRevision?.ToString(CultureInfo.InvariantCulture) ?? "—"} | "
+                    + $"{Read(labels, "M07CandidateHandoffVersion", "Handoff")}: {context?.RecoveryHandoffVersion?.ToString(CultureInfo.InvariantCulture) ?? "—"}\n"
+                    + $"{Read(labels, "M07ContextGeneration", "Generation")}: {context?.Generation ?? 0} → {(context?.Generation ?? 0) + 1}",
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 18)
+            });
+            quarantineCheckBox = new CheckBox
+            {
+                Content = Read(labels, "M07QuarantineConfirm", "I confirm the old device is unavailable and quarantined."),
+                IsThreeState = false,
+                Margin = new Thickness(0, 0, 0, 14)
+            };
+            root.Children.Add(quarantineCheckBox);
+            var retry = retryButton = new Button
+            {
+                Content = Read(labels, "M07RetrySameRecovery", "Retry same recovery"),
+                Padding = new Thickness(10, 5, 10, 5),
+                IsDefault = true,
+                IsEnabled = false
+            };
+            quarantineCheckBox.Checked += (_, _) => retryButton.IsEnabled = true;
+            quarantineCheckBox.Unchecked += (_, _) => retryButton.IsEnabled = false;
+            retry.Click += (_, _) => DialogResult = true;
+            var close = new Button
+            {
+                Content = Read(labels, "AuthorityCloseCancel", "Close"),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(8, 0, 0, 0),
+                IsCancel = true
+            };
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            buttons.Children.Add(retry);
+            buttons.Children.Add(close);
+            root.Children.Add(buttons);
+            Content = root;
+        }
+
+        public bool QuarantineConfirmed => quarantineCheckBox.IsChecked == true;
+
+        private static string Short(Guid? value) => value is { } id ? id.ToString("N")[..8] : "—";
+
+        private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private sealed class M07SetupDialog : Window
+    {
+        private readonly TextBox oneDriveRootBox;
+        private readonly TextBox githubOwnerBox;
+        private readonly TextBox githubRepositoryBox;
+        private readonly TextBox githubReleaseTagBox;
+        private readonly TextBox githubReleaseNameBox;
+        private readonly TextBox githubCredentialTargetBox;
+        private readonly IReadOnlyDictionary<string, string> labels;
+
+        public M07SetupDialog(Window owner, IReadOnlyDictionary<string, string> labels, LocalConfiguration configuration)
+        {
+            Owner = owner;
+            this.labels = labels;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            SizeToContent = SizeToContent.WidthAndHeight;
+            MinWidth = 620;
+            MaxWidth = 760;
+            Title = Read(labels, "M07SetupTitle", "M07 technical setup");
+
+            var root = new StackPanel { Margin = new Thickness(18) };
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "M07SetupPrompt", "Select the existing shared root and non-secret transport settings."),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 14)
+            });
+
+            root.Children.Add(new TextBlock { Text = Read(labels, "M07SetupOneDriveRoot", "Sushi81 shared OneDrive root"), FontWeight = FontWeights.SemiBold });
+            var rootPanel = new DockPanel { Margin = new Thickness(0, 4, 0, 10) };
+            var browse = new Button { Content = Read(labels, "M07SetupBrowse", "Browse…"), Padding = new Thickness(10, 4, 10, 4) };
+            DockPanel.SetDock(browse, Dock.Right);
+            browse.Click += (_, _) => BrowseForRoot();
+            oneDriveRootBox = new TextBox { MinWidth = 480, Text = configuration.OneDriveRoot ?? string.Empty, Margin = new Thickness(0, 0, 8, 0) };
+            rootPanel.Children.Add(browse);
+            rootPanel.Children.Add(oneDriveRootBox);
+            root.Children.Add(rootPanel);
+
+            githubOwnerBox = AddField(root, "M07SetupGitHubOwner", configuration.GitHubOwner);
+            githubRepositoryBox = AddField(root, "M07SetupGitHubRepository", configuration.GitHubRepository);
+            githubReleaseTagBox = AddField(root, "M07SetupGitHubReleaseTag", configuration.GitHubReleaseTag);
+            githubReleaseNameBox = AddField(root, "M07SetupGitHubReleaseName", configuration.GitHubReleaseName);
+            githubCredentialTargetBox = AddField(root, "M07SetupGitHubCredentialTarget", configuration.GitHubCredentialTarget);
+            root.Children.Add(new TextBlock
+            {
+                Text = Read(labels, "M07SetupGitHubHelp", "Enter only the protected credential target name. Never enter a PAT."),
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.72,
+                Margin = new Thickness(0, -2, 0, 14)
+            });
+
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var save = new Button { Content = Read(labels, "M07SetupSave", "Validate and require restart"), Padding = new Thickness(10, 4, 10, 4), IsDefault = true };
+            save.Click += (_, _) => DialogResult = true;
+            var cancel = new Button { Content = Read(labels, "AuthorityCloseCancel", "Cancel"), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+            buttons.Children.Add(save);
+            buttons.Children.Add(cancel);
+            root.Children.Add(buttons);
+            Content = root;
+        }
+
+        public M07ConfigurationSetupInput Input => new(
+            oneDriveRootBox.Text,
+            githubOwnerBox.Text,
+            githubRepositoryBox.Text,
+            githubReleaseTagBox.Text,
+            githubReleaseNameBox.Text,
+            githubCredentialTargetBox.Text);
+
+        private TextBox AddField(Panel parent, string labelKey, string? value)
+        {
+            parent.Children.Add(new TextBlock { Text = Read(labels, labelKey, labelKey), FontWeight = FontWeights.SemiBold });
+            var box = new TextBox { Text = value ?? string.Empty, Margin = new Thickness(0, 4, 0, 10), MinWidth = 480 };
+            parent.Children.Add(box);
+            return box;
+        }
+
+        private void BrowseForRoot()
+        {
+            var picker = new OpenFolderDialog
+            {
+                Multiselect = false,
+                FolderName = Directory.Exists(oneDriveRootBox.Text) ? oneDriveRootBox.Text : string.Empty
+            };
+            if (picker.ShowDialog() == true)
+                oneDriveRootBox.Text = picker.FolderName;
+        }
+
+        private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) => labels.TryGetValue(key, out var value) ? value : fallback;
     }
 }

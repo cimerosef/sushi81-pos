@@ -101,6 +101,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private OrderManagementRowViewModel? selectedRow;
     private OrderSnapshot? selectedOrder;
     private bool isEditing;
+    private bool businessPresentationRefreshBlocked;
     private string editTelephone = string.Empty;
     private string editAddress = string.Empty;
     private string editComment = string.Empty;
@@ -266,7 +267,8 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     public string TelephoneText => SelectedOrder?.Telephone ?? string.Empty;
     public string AddressText => SelectedOrder?.DeliveryAddress ?? string.Empty;
     public string CommentText => SelectedOrder?.Comment ?? string.Empty;
-    public bool CanWrite => authorityGuard is null || authorityGuard.State == WriteAuthorityState.Authoritative;
+    public bool CanWrite => !businessPresentationRefreshBlocked
+        && (authorityGuard is null || authorityGuard.State == WriteAuthorityState.Authoritative);
     public bool CanModify => CanWrite && SelectedOrder is { Status: not OrderStatus.Cancelled } && !IsEditing;
     public bool EditPlannedTimeValid => (EditPlannedHour is null && EditPlannedMinute is null)
         || (EditPlannedHour is { } hour && EditPlannedMinute is { } minute && IsApprovedPlannedTime(new TimeOnly(hour, minute)));
@@ -276,6 +278,19 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     public bool CanCancel => CanWrite && SelectedOrder is { Status: not OrderStatus.Cancelled } && !IsEditing;
     public bool CanReuseCustomer => SelectedOrder is not null;
     public bool CanAddCurrentLine => CanWrite && IsEditing && SelectedOrder is not null;
+
+    public void RefreshAuthorityState()
+    {
+        OnPropertyChanged(nameof(CanWrite));
+        RaiseCommandProperties();
+    }
+
+    public void SetBusinessPresentationRefreshBlocked(bool blocked)
+    {
+        if (businessPresentationRefreshBlocked == blocked) return;
+        businessPresentationRefreshBlocked = blocked;
+        RefreshAuthorityState();
+    }
     public string DashboardTurnoverText => summary.TurnoverTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string DashboardReceivedText => summary.ReceivedTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string DashboardReceivedCardText => summary.ReceivedCardTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
@@ -306,7 +321,34 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         if (activeValidationIssues is { Count: > 0 }) RenderValidationIssues();
     }
 
-    public async Task RefreshAsync(CancellationToken cancellationToken = default)
+    public Task RefreshAsync(CancellationToken cancellationToken = default) =>
+        RefreshAsyncCore(throwOnFailure: false, cancellationToken: cancellationToken);
+
+    public async Task RefreshAfterLiveDatabaseReplacementAsync(CancellationToken cancellationToken = default)
+    {
+        var preferredOrderId = SelectedRow?.Id;
+        await RefreshAsyncCore(throwOnFailure: true, cancellationToken: cancellationToken);
+
+        if (preferredOrderId is { } orderId)
+        {
+            var replacement = Orders.FirstOrDefault(row => row.Id == orderId);
+            if (replacement is null)
+            {
+                SelectedRow = null;
+                SelectedOrder = null;
+                DetailLines.Clear();
+                RaiseDetailProperties();
+            }
+            else
+            {
+                await SelectAsync(replacement, cancellationToken);
+            }
+        }
+
+        await RefreshDashboardAsync(cancellationToken);
+    }
+
+    private async Task RefreshAsyncCore(bool throwOnFailure, CancellationToken cancellationToken)
     {
         PerformanceTrace.Log("lifecycle.refresh.start");
         CancellationTokenSource? previous;
@@ -330,8 +372,15 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
             if (selectedRow is not null) selectedRow = Orders.FirstOrDefault(row => row.Id == selectedRow.Id);
             OnPropertyChanged(nameof(SelectedRow));
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) { ValidationMessage = exception.Message; }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            if (throwOnFailure) throw;
+        }
+        catch (Exception exception)
+        {
+            if (throwOnFailure) throw;
+            ValidationMessage = exception.Message;
+        }
         finally { PerformanceTrace.Log("lifecycle.refresh.end"); }
     }
 
