@@ -2,105 +2,75 @@
 
 Milestone implementation contracts under this directory define the executable scope for Phase 6 delivery.
 
-All implementation handoffs issued on or after 2026-08-30 inherit the cross-cutting execution governance in:
+All implementation handoffs inherit the cross-cutting governance in:
 
-- `agent-execution-contract.md`
-- `interactive-quality-gate.md`
-- `control-state-preservation.md`
-- `post-task-power-policy.md`
+- `agent-execution-contract.md`;
+- `interactive-quality-gate.md`;
+- `control-state-preservation.md`;
+- `post-task-power-policy.md`.
 
-`agent-execution-contract.md` requires the Codex main agent to assess safe parallelization before implementation, delegate only independent work packages, prefer GPT-5.6 Luna subagents at the highest available reasoning effort (`max` when explicitly controllable), retain main-agent integration/review responsibility, and report execution topology in `CODEX_DONE` evidence.
+These files govern implementation mechanics/quality and do not themselves change frozen product/business/data behavior.
 
-`interactive-quality-gate.md` is the mandatory defect-prevention/verification layer for user-visible implementation, especially WPF. It requires operator-journey analysis, framework-lifecycle reasoning, realistic STA/WPF regression coverage for critical dynamic/event paths, explicit localization/DataContext handling, layout checks, defect-escape retrospectives, and focused adjacent-pattern audits after operator-found defects.
+## Completed milestones
 
-`control-state-preservation.md` requires interactive actions to preserve unrelated editor/control state unless the frozen workflow explicitly couples those values.
+M01 through M07 are Passed and merged.
 
-`post-task-power-policy.md` makes host sleep/hibernate/shutdown strictly explicit and one-shot. The default for every handoff/run is `POST_TASK_POWER_ACTION: NONE`.
+Key recent closure state:
 
-Milestone-specific contracts remain authoritative for milestone scope and acceptance requirements. These cross-cutting contracts do not change frozen V1 product, business, data or architecture semantics.
+- M04 — Passed/merged through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a`.
+- M05 — Passed/merged through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`.
+- M06 — Passed/merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`.
+- M07 — Passed/merged through PR #13 at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`; accepted production implementation head `e971580ef43d3b50366d51733ca9431ca0997e8d`; final closure docs/evidence head `d586c847f2dd541815b8c00565c58b3685a3e4be`; exact-head CI #631 / run `34698627867` succeeded; 541/541 tests Passed; project-owner Windows/WPF multi-device acceptance Passed.
 
-## Completed M03 contracts
+Historical milestone contracts/worklogs/manual-acceptance records remain authoritative in their existing files and PRs. Do not rewrite historical evidence to make later project state appear historical.
 
-M03 is Passed and merged through PR #5 at merge commit `57f89cac0672d6d98dda7dc3c9a8ba7b3434e292`.
+## M08 preparation — printing and reprinting
 
-Historical M03 contracts remain under this directory as implementation/evidence records.
+M08 is the current next milestone but remains **Preparation / NOT AUTHORIZED**.
 
-## Completed M04 contracts
+Controlling preparation package:
 
-M04 — First complete order-entry vertical slice — is Passed and merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a` after complete Windows/WPF manual acceptance.
+- `milestone-08-printing-reprinting.md` — detailed base implementation contract;
+- `milestone-08-contract-addendum-print-layout-identity.md` — controlling addendum resolving owner print-layout/receipt-identity semantics;
+- `milestone-08-preparation-readiness.md` — preparation/readiness audit;
+- `milestone-08-authorization.md` — currently `NOT AUTHORIZED`;
+- `milestone-08-worklog.md` — preparation/evidence record;
+- `milestone-08-final-manual-acceptance.md` — prepared Windows/WPF + real printer acceptance checklist;
+- `../decisions/m08-print-layout-and-receipt-identity.md` — owner-approved page-1 kitchen / page-2 customer visual target and exact Sushi 81 receipt identity.
 
-Historical M04 records remain under this directory, including:
+The former M08-D1 receipt-identity gap is resolved. The customer identity is frozen as authoritative SQLite business configuration; printer queue selection remains local technical configuration.
 
-- `milestone-04-order-entry.md`;
-- `milestone-04-authorization.md`;
-- `milestone-04-worklog.md`;
-- `milestone-04-final-manual-acceptance.md`.
+This preparation does **not** authorize Codex.
 
-## Completed M05 contracts
+Current execution state:
 
-M05 — Lifecycle, payments, search and operational dashboard — is Passed and merged through PR #10 at merge commit `79499d7c6ed65a74f524097c1507ca648dc151c3`.
+- Issue #4: CLOSED;
+- M08 implementation branch: none;
+- M08 implementation PR: none;
+- executable `CODEX_HANDOFF_READY`: none;
+- M09+: unauthorized.
 
-Accepted production-code head: `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`. Final documentation/status head: `217d187dd3ef5498c11f21bc516eccc6737fa952`.
+A separate explicit project-owner approval of **M08 implementation** is required. Only after that approval may the governance controller update `milestone-08-authorization.md` to Authorized, record the exact preparation head, create the dedicated M08 branch/PR/mailbox, publish one valid handoff, and finally open Issue #4.
 
-Historical M05 records remain under this directory, including:
+## Execution model for a future authorized M08 run
 
-- `milestone-05-lifecycle-payments-search-dashboard.md`;
-- `milestone-05-authorization.md`;
-- `milestone-05-worklog.md`;
-- `milestone-05-final-manual-acceptance.md`;
-- related manual-acceptance findings/remediation records.
+The M08 contract inherits `agent-execution-contract.md` and must use dependency-first execution:
 
-M05 is no longer active work and does not itself authorize M06.
+1. main agent re-reads current GitHub authority and freezes shared print contracts/seams;
+2. main agent evaluates safe parallel work packages;
+3. likely parallel candidates after seams are stable include deterministic print-model/layout work, Windows queue/config adapter work, and independent WPF/localization/test work where write sets do not overlap;
+4. final integration, CompositionRoot wiring, whole-solution verification and GitHub gate transitions remain main-agent/serial responsibilities;
+5. real printer/project-owner acceptance is never delegated or fabricated.
 
-## Completed M06 contracts
+The exact runtime topology remains a Codex responsibility under the execution contract once M08 is actually authorized.
 
-M06 — Local recovery and authoritative/read-only enforcement — is Passed and merged through PR #11 at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e` after complete project-owner Windows/WPF manual acceptance.
+## Governance reminder
 
-Accepted production repair head: `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`. Final documentation/PR head: `86326d81551aa4cb5cdcbc6826b8c740317b34c4`. Release tests: 364/364 Passed.
+Issue #4 is the master execution switch and active-mailbox pointer.
 
-Historical M06 records remain under this directory:
+- OPEN = Codex may execute only the single matching valid handoff.
+- CLOSED = Codex makes no project changes.
 
-- `milestone-06-local-recovery-read-only-enforcement.md` — detailed historical implementation contract;
-- `milestone-06-authorization.md` — historical durable project-owner authorization;
-- `milestone-06-worklog.md` — historical implementation/evidence record;
-- `milestone-06-final-manual-acceptance.md` — Passed project-owner Windows/WPF acceptance record;
-- `archive/implementation-status-through-m06-2026-09-07.md` — byte-for-byte archived living-status snapshot through the M06→M07 transition.
+Preparation documents, a Passed prior milestone, or a future milestone appearing in the implementation plan never authorize execution by themselves.
 
-M06 is no longer active work. Its completion does not authorize M07.
-
-## M07 preparation — material decisions approved, implementation not authorized
-
-M07 — Pairing, target-directed formal handoff and disaster recovery — is the next milestone and its closed-gate implementation preparation is complete pending explicit project-owner implementation authorization.
-
-The project owner approved the material self-join/DR/recovery-source semantics on 2026-09-07. The controlling Approved records are:
-
-- `../decisions/m07-self-service-pairing-and-disaster-recovery.md` — concise canonical owner decision: self-service joining without old-source approval, joining ≠ authority, operationally fenced DR and freshest validated safe recovery source;
-- `../decisions/m07-self-join-disaster-recovery.md` — detailed Approved companion covering the same decisions and UI/storage/governance consequences;
-- `../decisions/m07-recovery-candidate-ordering-clarification.md` — technical consistency clarification requiring a durable monotonic business-data revision for deterministic recovery freshness;
-- `../acceptance-criteria-amendment-m07-self-join-disaster-recovery.md` — corresponding acceptance clarifications, with candidate-ordering fallback superseded by the monotonic-revision clarification.
-
-Prepared M07 implementation artifacts are:
-
-- `milestone-07-pairing-handoff-disaster-recovery.md` — detailed implementation contract, explicitly **NOT YET AUTHORIZED**;
-- `milestone-07-contract-addendum-recovery-ordering.md` — mandatory contract addendum applying deterministic business-data revision ordering;
-- `milestone-07-parallel-execution-plan.md` — mandatory parallelization/dependency companion;
-- `milestone-07-worklog.md` — prepared execution/evidence log, no implementation entries yet;
-- `milestone-07-final-manual-acceptance.md` — prepared project-owner Windows/WPF checklist, not executed;
-- `milestone-07-preparation-readiness.md` — preparation-closure/gate checklist;
-- `milestone-07-preauthorization-design-review.md` — historical pre-authorization analysis. Its former proposal requiring authoritative-device approval for new pairing is superseded and must not guide implementation.
-
-Current governance remains:
-
-- no M07 durable implementation authorization;
-- no M07 implementation branch;
-- no M07 implementation PR;
-- no executable `CODEX_HANDOFF_READY`;
-- GitHub issue #4 execution gate CLOSED;
-- Codex must not start M07;
-- M08 must not start.
-
-M07 owns the production connection of the M02 target-directed GitHub transport/revalidation semantics to the M06 production authority/read-only/recovery seams, while preserving the single Application-layer write guard as the business-write safety boundary.
-
-When the project owner later explicitly authorizes M07 implementation, governance must first create the durable M07 authorization and then complete the normal dedicated-branch/PR/mailbox/handoff prerequisites before issue #4 may be opened and Codex may execute.
-
-Future milestone contracts M07–M13 must include a short **Parallel execution plan** section or mandatory contract companion that identifies likely independent workstreams and the dependency seams that must be stabilized before concurrent delegation, and must treat `interactive-quality-gate.md` as inherited whenever the milestone includes user-visible UI/workflow behavior.
+`POST_TASK_POWER_ACTION` defaults to `NONE` unless a particular future handoff explicitly states otherwise.
