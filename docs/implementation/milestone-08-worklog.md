@@ -180,20 +180,20 @@ Implemented:
 - Independent Kitchen/Customer outcome vectors, known-failed initial retry eligibility, ambiguous duplicate safety, read-only reprint availability, no-auto-reprint lifecycle save behavior, localization and the production STA print thread are covered by focused automated evidence.
 - No subagents were used: this was a serial implementation on the authorized shared branch so the controller's exact-head and mailbox protocol remained unambiguous.
 
-Implementation/evidence commit: `12427bebd72da8f7c67c47f19950b07eaee9f0c7`.
+Implementation/evidence commit: `bbae8680353dd1b8f9679b3849db2fb373489a34`.
 
 Automated evidence for this remediation:
 
 - Release build: **Passed**, 0 warnings / 0 errors;
-- full Release tests: **Passed**, 558/558, 0 failed, 0 skipped;
+- full Release tests: **Passed**, 559/559, 0 failed, 0 skipped;
 - focused M08 Application tests: **Passed**, 8/8;
 - focused M08 Infrastructure integration tests: **Passed**, 5/5;
 - focused localization/configuration tests: **Passed**, 7/7;
-- focused STA/WPF M08 tests: **Passed**, 2/2;
+- focused STA/WPF M08 tests: **Passed**, 3/3;
 - `git diff --check`: **Passed**;
 - self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64`;
-- published executable SHA-256: `41DAEB3E70374FF3748FE198E170277EFEB77D1F769B7B4BC17ADF60595FE82B`;
-- exact-head CI: **Passed**, run #657 / workflow run `34717148839`, job `build-and-test` `103616328966`;
+- published executable SHA-256: `213FA7655D064D55904BE3372FE40FD6FD480E8FE6CD02DAA3748E7D15901028`;
+- exact-head implementation CI: **Passed**, run #659 / workflow run `34717646994`, job `build-and-test` `103617865931`;
 - owner Windows/physical-printer acceptance: **Pending / must remain unchecked**;
 - merge: **Not authorized**; M09+ remain **not authorized**.
 

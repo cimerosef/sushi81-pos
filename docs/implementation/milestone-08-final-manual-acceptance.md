@@ -18,14 +18,14 @@ The owner-selected visual targets are:
 
 ## 1. Exact candidate identity — fill before testing
 
-- exact production implementation head: `12427bebd72da8f7c67c47f19950b07eaee9f0c7`
+- exact production implementation head: `bbae8680353dd1b8f9679b3849db2fb373489a34`
 - exact docs/evidence record: `docs/implementation/milestone-08-worklog.md` §9 and the matching PR #14 `CODEX_DONE: M08-CONTROLLER-REMEDIATION-03`
 - M08 PR number: #14 (OPEN / unmerged)
 - self-contained `win-x64` publish location: `artifacts/m08-win-x64`
-- executable SHA-256: `41DAEB3E70374FF3748FE198E170277EFEB77D1F769B7B4BC17ADF60595FE82B`
-- Release test result: **558/558 Passed**, 0 failed, 0 skipped
+- executable SHA-256: `213FA7655D064D55904BE3372FE40FD6FD480E8FE6CD02DAA3748E7D15901028`
+- Release test result: **559/559 Passed**, 0 failed, 0 skipped
 - Release build warnings/errors: **0 / 0**
-- exact-head CI run/job: **Passed**, run #657 / workflow `34717148839`, job `build-and-test` `103616328966`
+- exact-head implementation CI run/job: **Passed**, run #659 / workflow `34717646994`, job `build-and-test` `103617865931`
 - physical Windows PC/device used:
 - authority state at start:
 - Kitchen configured Windows queue:
