@@ -169,6 +169,36 @@ The final pushed head and exact-head CI result are recorded in the matching `COD
 
 `POST_TASK_POWER_ACTION: NONE`
 
+## 9. Controller remediation — M08-CONTROLLER-REMEDIATION-03
+
+This remediation was limited to the residual findings in controller review `5187831217` and the active Issue #4 handoff. It did not reopen product/business semantics and did not add M09+, archive/M12, B2B invoice work or merge activity.
+
+Implemented:
+
+- Windows thermal geometry now prefers the selected queue's imageable area, then the strongest valid media dimensions, and finally a bounded thermal-safe fallback. Fallback dimensions are constrained to 72–576 DIP width and 144–1440 DIP height, with a 288×1440 DIP default; content height still trims each fixed page to the rendered content plus the media margin.
+- `AmbiguousSubmission` now carries the stable `print-ambiguous` issue code through Application, lifecycle reprint and WPF presentation. French and Simplified Chinese messages explicitly state that the initial output must not be retried and that an additional copy requires explicit reprint semantics.
+- Independent Kitchen/Customer outcome vectors, known-failed initial retry eligibility, ambiguous duplicate safety, read-only reprint availability, no-auto-reprint lifecycle save behavior, localization and the production STA print thread are covered by focused automated evidence.
+- No subagents were used: this was a serial implementation on the authorized shared branch so the controller's exact-head and mailbox protocol remained unambiguous.
+
+Implementation/evidence commit: `bbae8680353dd1b8f9679b3849db2fb373489a34`.
+
+Automated evidence for this remediation:
+
+- Release build: **Passed**, 0 warnings / 0 errors;
+- full Release tests: **Passed**, 559/559, 0 failed, 0 skipped;
+- focused M08 Application tests: **Passed**, 8/8;
+- focused M08 Infrastructure integration tests: **Passed**, 5/5;
+- focused localization/configuration tests: **Passed**, 7/7;
+- focused STA/WPF M08 tests: **Passed**, 3/3;
+- `git diff --check`: **Passed**;
+- self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64`;
+- published executable SHA-256: `213FA7655D064D55904BE3372FE40FD6FD480E8FE6CD02DAA3748E7D15901028`;
+- exact-head implementation CI: **Passed**, run #659 / workflow run `34717646994`, job `build-and-test` `103617865931`;
+- owner Windows/physical-printer acceptance: **Pending / must remain unchecked**;
+- merge: **Not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
 ## 10. Owner preflight queue-discovery remediation — M08-MANUAL-ACCEPTANCE-REMEDIATION-04
 
 The project-owner A-PC preflight found a real Windows compatibility blocker before any order or physical print was attempted. `Get-Printer` listed installed queues, while the filtered `LocalPrintServer.GetPrintQueues([Local, Connections, Shared])` overload returned zero queues on the same machine; the parameterless `GetPrintQueues()` path returned the installed queues. The finding and the exact remediation scope are recorded in PR #14 comments `5648756898` and `5648758990`.
@@ -198,32 +228,34 @@ Automated evidence for this remediation:
 
 `POST_TASK_POWER_ACTION: NONE`
 
-## 9. Controller remediation — M08-CONTROLLER-REMEDIATION-03
+## 11. Owner Scenario-A startup-hydration remediation — M08-MANUAL-ACCEPTANCE-REMEDIATION-05
 
-This remediation was limited to the residual findings in controller review `5187831217` and the active Issue #4 handoff. It did not reopen product/business semantics and did not add M09+, archive/M12, B2B invoice work or merge activity.
+The owner’s R04 A-PC retest confirmed that saved Kitchen/Customer queue values were persisted, but both selectors were blank after application restart until `Actualiser les imprimantes` was clicked. The finding and exact scope are recorded in PR #14 comments `5649001583` and `5649002909`.
 
-Implemented:
+Implemented only the authorized R05 startup-visibility correction:
 
-- Windows thermal geometry now prefers the selected queue's imageable area, then the strongest valid media dimensions, and finally a bounded thermal-safe fallback. Fallback dimensions are constrained to 72–576 DIP width and 144–1440 DIP height, with a 288×1440 DIP default; content height still trims each fixed page to the rendered content plus the media margin.
-- `AmbiguousSubmission` now carries the stable `print-ambiguous` issue code through Application, lifecycle reprint and WPF presentation. French and Simplified Chinese messages explicitly state that the initial output must not be retried and that an additional copy requires explicit reprint semantics.
-- Independent Kitchen/Customer outcome vectors, known-failed initial retry eligibility, ambiguous duplicate safety, read-only reprint availability, no-auto-reprint lifecycle save behavior, localization and the production STA print thread are covered by focused automated evidence.
-- No subagents were used: this was a serial implementation on the authorized shared branch so the controller's exact-head and mailbox protocol remained unambiguous.
+- `MainWindow.OnLoaded` now invokes the existing `PrinterSetupViewModel.RefreshAsync()` through the repaired R04 queue-discovery path during normal asynchronous window initialization;
+- saved queue IDs/names are mapped to visible Kitchen/Customer selector values automatically when the queues still exist;
+- unavailable saved selections remain preserved and show the existing truthful unavailable status;
+- discovery failures remain contained by the existing printer-setup error path, so startup remains usable and local/M07 configuration is not rewritten;
+- the manual refresh action remains available and was exercised after automatic startup hydration.
 
-Implementation/evidence commit: `bbae8680353dd1b8f9679b3849db2fb373489a34`.
+Implementation commit: `bdfb2c73bf533f94583a7592be126fae46f4ddcc`.
 
 Automated evidence for this remediation:
 
+- Release restore: **Passed**;
 - Release build: **Passed**, 0 warnings / 0 errors;
-- full Release tests: **Passed**, 559/559, 0 failed, 0 skipped;
+- full Release tests: **Passed**, 564/564, 0 failed, 0 skipped;
 - focused M08 Application tests: **Passed**, 8/8;
-- focused M08 Infrastructure integration tests: **Passed**, 5/5;
-- focused localization/configuration tests: **Passed**, 7/7;
-- focused STA/WPF M08 tests: **Passed**, 3/3;
+- focused M08 Infrastructure integration tests: **Passed**, 7/7;
+- focused localization + M08 WPF tests: **Passed**, 13/13, including three startup-hydration/operator-path tests;
 - `git diff --check`: **Passed**;
-- self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64`;
-- published executable SHA-256: `213FA7655D064D55904BE3372FE40FD6FD480E8FE6CD02DAA3748E7D15901028`;
-- exact-head implementation CI: **Passed**, run #659 / workflow run `34717646994`, job `build-and-test` `103617865931`;
-- owner Windows/physical-printer acceptance: **Pending / must remain unchecked**;
+- self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r05`;
+- published executable SHA-256: `E553802B321879A55B9B93303FC28FFC1054C9E81944FEB0B1DB22B4568AA550`;
+- exact-head CI, final PR-head SHA, and any runner-infrastructure outcome are recorded in the matching `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-05` comment;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner restart hydration retest remains pending and all PDF/physical-printer acceptance remain **blocked/pending and must remain unchecked**;
 - merge: **Not authorized**; M09+ remain **not authorized**.
 
 `POST_TASK_POWER_ACTION: NONE`
