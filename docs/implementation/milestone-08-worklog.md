@@ -383,7 +383,7 @@ Automated evidence for this remediation:
 - `git diff --check`: **Passed**;
 - self-contained single-file `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r09-final`;
 - published executable SHA-256: `9E8F21A7C47BE7ACFE8BD79BBC811EC11E33F3DAB822E52D76E22A8716079F32`;
-- exact-head GitHub Actions CI: record the current successful run/job in this evidence section before the final R09 completion record;
+- exact-head GitHub Actions CI for the pushed R09 implementation/evidence head: run `34763794421` / run #667 / job `103741070545`, **SUCCESS**; checkout, restore, build and test steps passed;
 - execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
 - owner Customer A-PC replacement PDF retest remains pending; Kitchen/Customer physical B-PC validation remains pending; no physical acceptance is claimed;
 - M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.

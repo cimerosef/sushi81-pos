@@ -25,7 +25,7 @@ The owner-selected visual targets are:
 - executable SHA-256: `9E8F21A7C47BE7ACFE8BD79BBC811EC11E33F3DAB822E52D76E22A8716079F32`
 - Release test result: **573/573 Passed**, 0 failed, 0 skipped
 - Release build warnings/errors: **0 / 0**
-- exact-head implementation/final PR CI run/job: record the current successful R09 run/job in the matching `CODEX_DONE` and §15 evidence
+- exact-head implementation/final PR CI run/job: run `34763794421` / run #667 / job `103741070545`, **SUCCESS**; checkout, restore, build and test steps passed
 - physical Windows PC/device used:
 - authority state at start:
 - Kitchen configured Windows queue:
