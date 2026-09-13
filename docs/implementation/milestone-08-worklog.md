@@ -1,6 +1,6 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **M08-MANUAL-ACCEPTANCE-REMEDIATION-09 IMPLEMENTED — owner Customer PDF retest pending**
+**Status:** **M08-MANUAL-ACCEPTANCE-REMEDIATION-10 IMPLEMENTED — owner B-PC physical retest pending**
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
@@ -9,7 +9,7 @@
 **Implementation PR:** #14 — `M08: printing and reprinting`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** OPEN during the authorized M08-MANUAL-ACCEPTANCE-REMEDIATION-09 execution; no merge or later milestone is authorized
+**Execution gate:** OPEN during the authorized M08-MANUAL-ACCEPTANCE-REMEDIATION-10 execution; no merge or later milestone is authorized
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -383,9 +383,40 @@ Automated evidence for this remediation:
 - `git diff --check`: **Passed**;
 - self-contained single-file `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r09-final`;
 - published executable SHA-256: `9E8F21A7C47BE7ACFE8BD79BBC811EC11E33F3DAB822E52D76E22A8716079F32`;
-- exact-head GitHub Actions CI for the pushed R09 implementation/evidence head: run `34763794421` / run #667 / job `103741070545`, **SUCCESS**; checkout, restore, build and test steps passed;
+- exact-head GitHub Actions CI for the pushed R09 implementation/evidence head: run `34763794421` / run #667 / job `103741070545`, **SUCCESS**; checkout, restore, build and test steps passed. The corrected R09 final-head record is run `34763988836` / run #668 / job `103741587693`, **SUCCESS**;
 - execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
 - owner Customer A-PC replacement PDF retest remains pending; Kitchen/Customer physical B-PC validation remains pending; no physical acceptance is claimed;
+- M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 16. B-PC thermal typography and safe-width remediation — M08-MANUAL-ACCEPTANCE-REMEDIATION-10
+
+The owner’s R09 B-PC comparison on the `GP-C200 Series` queue accepted the Customer/Kitchen content semantics and structure but found that both receipts were materially too small for practical store use and that the Customer rightmost amount column extended beyond the reliable physical print area. The active R10 handoff is PR #14 comment `5654692567`, with owner evidence in comment `5654607708`, starting from `50201b656c08f9125bdfb63547339b01d4b05828`.
+
+Implemented only the authorized R10 thermal presentation remediation:
+
+- all receipt measurement and WPF visuals now use the standard Windows `Arial` family with normal stretch;
+- Kitchen typography is enlarged to body 18, heading 22 and total 20 bold;
+- Customer typography is enlarged to body 12, business name 17 bold, legal identity 10 and grand total 17 bold;
+- receipt content is capped at the 72 mm printable width, centered inside wider driver imageable areas, and reserves approximately 2 mm left / 3 mm right thermal-safe insets;
+- pagination, wrapping, separators and character-capacity measurement use the same safe width and typography as the rendered visuals;
+- R08/R09 Customer option alignment, quantity-aware pricing, ellipsis trimming, total/footer/payment semantics and all Kitchen/authority/persistence behavior remain preserved.
+
+Implementation commit: `fbfbd42480512f26fb05c7b418f9c138dc886fe6`.
+
+Automated evidence for this remediation:
+
+- focused M08 Application tests: **Passed**, 11/11;
+- focused M08 Infrastructure/STA-WPF integration tests: **Passed**, 14/14;
+- full Release solution tests: **Passed**, 574/574, 0 failed, 0 skipped;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- `git diff --check`: **Passed**;
+- self-contained single-file `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r10-final`;
+- published executable SHA-256: `F5166C2F7A4B94A768CFA25DA2CFAFD015D799EDD279F48209292CBE082DA28B`;
+- exact-head GitHub Actions CI: record the successful R10 final-head run/job in this section before the matching R10 completion record;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- B-PC physical Kitchen and Customer retest remains pending; owner manual checkboxes remain unchecked and no physical acceptance is claimed;
 - M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.
 
 `POST_TASK_POWER_ACTION: NONE`

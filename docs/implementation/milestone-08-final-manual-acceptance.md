@@ -4,7 +4,7 @@
 **Prepared:** 2026-09-12  
 **Milestone:** M08 — Printing and reprinting  
 **Implementation authorization:** AUTHORIZED for M08 only; this does not authorize merge or M09+
-**Execution gate:** OPEN only for M08-MANUAL-ACCEPTANCE-REMEDIATION-09; owner acceptance is blocked pending the replacement-candidate Customer PDF/layout retest
+**Execution gate:** OPEN only for M08-MANUAL-ACCEPTANCE-REMEDIATION-10; owner acceptance is blocked pending the replacement-candidate B-PC physical retest
 **Owner visual decision:** `../decisions/m08-print-layout-and-receipt-identity.md`
 
 This checklist is project-owner acceptance only. Codex/CI may prepare evidence and an exact artifact but must never check owner-manual items or declare M08 Passed on the owner's behalf.
@@ -18,14 +18,14 @@ The owner-selected visual targets are:
 
 ## 1. Exact candidate identity — fill before testing
 
-- exact production implementation head: `cf96ea397784e611e81c3b00c611d8b972217deb`
-- exact docs/evidence record: `docs/implementation/milestone-08-worklog.md` §15 and the matching PR #14 `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-09`
+- exact production implementation head: `fbfbd42480512f26fb05c7b418f9c138dc886fe6`
+- exact docs/evidence record: `docs/implementation/milestone-08-worklog.md` §16 and the matching PR #14 `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-10`
 - M08 PR number: #14 (OPEN / unmerged)
-- self-contained `win-x64` publish location: `artifacts/m08-win-x64-r09-final`
-- executable SHA-256: `9E8F21A7C47BE7ACFE8BD79BBC811EC11E33F3DAB822E52D76E22A8716079F32`
-- Release test result: **573/573 Passed**, 0 failed, 0 skipped
+- self-contained `win-x64` publish location: `artifacts/m08-win-x64-r10-final`
+- executable SHA-256: `F5166C2F7A4B94A768CFA25DA2CFAFD015D799EDD279F48209292CBE082DA28B`
+- Release test result: **574/574 Passed**, 0 failed, 0 skipped
 - Release build warnings/errors: **0 / 0**
-- exact-head implementation/final PR CI run/job: run `34763794421` / run #667 / job `103741070545`, **SUCCESS**; checkout, restore, build and test steps passed
+- exact-head implementation/final PR CI run/job: record the successful R10 final-head run/job in the matching `CODEX_DONE` and §16 evidence
 - physical Windows PC/device used:
 - authority state at start:
 - Kitchen configured Windows queue:
@@ -35,7 +35,7 @@ The owner-selected visual targets are:
 - owner page-1/page-2 print reference available for side-by-side comparison: Yes / No
 - only synthetic/non-sensitive acceptance orders used: Yes / No
 
-The R08 A-PC PDF retest accepted the targeted Customer spacing/price-column/total/footer refinements except for the remaining option-price alignment issue. Rerun the affected Customer scenarios on this R09 replacement exact candidate and record the new identity. The restart-hydration result and R07/R08 Kitchen layout remain preserved; owner PDF/physical-printer acceptance is still pending and all boxes below remain unchecked.
+The R09 A-PC Customer PDF/layout review passed the targeted Customer presentation, including far-right option amounts. The B-PC `GP-C200 Series` comparison accepted content semantics and structure but found Kitchen and Customer typography materially too small and the Customer rightmost amount beyond the reliable print area. Rerun the affected physical scenarios on this R10 replacement exact candidate; owner physical-printer acceptance is still pending and all boxes below remain unchecked.
 
 ## 2. Environment and safety rules
 
