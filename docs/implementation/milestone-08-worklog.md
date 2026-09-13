@@ -1,6 +1,6 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **M08-MANUAL-ACCEPTANCE-REMEDIATION-10 IMPLEMENTED — owner B-PC physical retest pending**
+**Status:** **M08-MANUAL-ACCEPTANCE-REMEDIATION-11 IMPLEMENTED — owner B-PC Kitchen-only physical retest pending**
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
@@ -9,7 +9,7 @@
 **Implementation PR:** #14 — `M08: printing and reprinting`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** OPEN during the authorized M08-MANUAL-ACCEPTANCE-REMEDIATION-10 execution; no merge or later milestone is authorized
+**Execution gate:** OPEN during the authorized M08-MANUAL-ACCEPTANCE-REMEDIATION-11 execution; no merge or later milestone is authorized
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -25,7 +25,7 @@ This worklog records M08 preparation, authorization, implementation and evidence
 - M08 governance/execution baseline after authorization/current-state bookkeeping: `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`.
 - Dedicated branch: `codex/m08-printing-reprinting`.
 - Dedicated implementation PR: #14.
-- Issue #4 is OPEN for the single active handoff M08-MANUAL-ACCEPTANCE-REMEDIATION-06; all earlier M08 handoffs are complete and are not being reprocessed.
+- Issue #4 is OPEN for the single active handoff M08-MANUAL-ACCEPTANCE-REMEDIATION-11; all earlier M08 handoffs are complete and are not being reprocessed.
 - M09+: not authorized.
 
 ## 2. Preparation audit — complete
@@ -166,8 +166,6 @@ Remediation evidence:
 - owner Windows/physical-printer acceptance: **Pending / must remain unchecked**.
 
 The final pushed head and exact-head CI result are recorded in the matching `CODEX_DONE: M08-CONTROLLER-REMEDIATION-02` PR comment. No merge, no M09+ implementation, and `POST_TASK_POWER_ACTION: NONE`.
-
-`POST_TASK_POWER_ACTION: NONE`
 
 ## 9. Controller remediation — M08-CONTROLLER-REMEDIATION-03
 
@@ -417,6 +415,33 @@ Automated evidence for this remediation:
 - exact-head R10 implementation-commit CI: run `34778772484` / run #669 failed before workflow steps with no job steps/logs available; the failed-job retry also failed before workflow steps as job `103781910099` (initial job `103781803903`). The account-level billing/spending-limit blocker remains unresolved. Final pushed evidence-head CI then completed successfully as run `34778902457` / run #670 / job `103782154836`;
 - execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
 - B-PC physical Kitchen and Customer retest remains pending; owner manual checkboxes remain unchecked and no physical acceptance is claimed;
+- M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 17. B-PC Kitchen metadata and list-spacing refinement — M08-MANUAL-ACCEPTANCE-REMEDIATION-11
+
+The owner’s R10 B-PC result accepted the Customer output as-is and found the Kitchen output materially successful, with only smaller ordinary metadata typography and slightly tighter item/option list breathing room still to refine. The R11 finding is recorded in PR #14 comment `5656194132`; the authorized handoff is comment `5656196142`, starting from R10 head `afbef48c9218f51a2364b18d7a6f854c40a7665e`.
+
+Implemented only the authorized Kitchen-only presentation refinement:
+
+- Kitchen ordinary `Cmd`/`Heure`/`Mode`/`Prévu`/`Tél`/`Adresse`/`Note` and equivalent identity/reference/timestamp metadata remain at 12 DIP;
+- Kitchen heading remains 22 DIP, item and option text remains 18 DIP, the total remains 20 DIP bold, and markers remain prominent;
+- the first rendered line of each logical item receives approximately 3 DIP top spacing and each logical option receives approximately 2 DIP top spacing; wrapped continuation lines receive no repeated margin;
+- Customer rendering is unchanged by R11, including its existing typography, spacing and safe-width output.
+
+Production source and the Infrastructure STA/WPF regression coverage were updated together. The R11 evidence is:
+
+- focused M08 Application tests: **Passed**, 11/11;
+- focused M08 Infrastructure/STA-WPF integration tests: **Passed**, 15/15;
+- full Release solution tests: **Passed**, 575/575, 0 failed, 0 skipped;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- `git diff --check`: **Passed**;
+- self-contained single-file `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r11-final`;
+- published executable SHA-256: `715167295642AAFADE0356644066C891893B6004ED04DA47A0793962F0C1E79C`;
+- exact-head R11 CI: pending until the final R11 head is pushed;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner B-PC Kitchen-only physical retest remains pending; the Customer output is accepted as-is from R10 and no Customer retest is requested;
 - M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.
 
 `POST_TASK_POWER_ACTION: NONE`

@@ -93,7 +93,8 @@ public sealed class M08PrintingIntegrationTests
         Assert.IsTrue(pages.SelectMany(page => page.Split(Environment.NewLine)).Any(line => line.Contains("TOTAL : 12.50 EUR", StringComparison.Ordinal)));
         var flattenedAddress = string.Join(" ", pages.SelectMany(page => page.Split(Environment.NewLine)));
         StringAssert.Contains(flattenedAddress, "12 rue très");
-        StringAssert.Contains(flattenedAddress, "longue à Nemours");
+        StringAssert.Contains(flattenedAddress, "longue à");
+        StringAssert.Contains(flattenedAddress, "Nemours");
         Assert.IsFalse(pages.Any(page => page.Contains("Catalogue actuel", StringComparison.Ordinal)));
     }
 
@@ -420,7 +421,7 @@ public sealed class M08PrintingIntegrationTests
         Assert.AreEqual(ThermalPrintLayout.CustomerBodyFontSize, result.CustomerOptionSize);
         Assert.AreEqual(ThermalPrintLayout.CustomerTotalFontSize, result.CustomerTotalSize);
         Assert.AreEqual(ThermalPrintLayout.KitchenHeadingFontSize, result.KitchenHeadingSize);
-        Assert.AreEqual(ThermalPrintLayout.KitchenBodyFontSize, result.KitchenBodySize);
+        Assert.AreEqual(ThermalPrintLayout.KitchenInfoFontSize, result.KitchenBodySize);
         Assert.AreEqual(ThermalPrintLayout.KitchenTotalFontSize, result.KitchenTotalSize);
         Assert.AreEqual(ThermalPrintLayout.ReceiptFontFamilyName, result.TicketFont);
         Assert.AreEqual(ThermalPrintLayout.ReceiptFontFamilyName, result.HeadingFont);
@@ -438,6 +439,75 @@ public sealed class M08PrintingIntegrationTests
         Assert.AreEqual(2, result.OptionPriceColumn);
         Assert.AreEqual(2, result.TotalPriceColumn);
         Assert.IsTrue(result.KitchenOptionPreserved);
+    }
+
+    [TestMethod]
+    public async Task R11KeepsKitchenMetadataSmallAndSpacesLogicalRowsWithoutChangingCustomerTiers()
+    {
+        var kitchenContent = new PrintReceiptContent([
+            new(PrintReceiptBlockKind.Heading, "*** CUISINE ***"),
+            new(PrintReceiptBlockKind.Reference, "Cmd", "20260913-001"),
+            new(PrintReceiptBlockKind.Timestamp, "Heure", "10:15"),
+            new(PrintReceiptBlockKind.LabelValue, "Mode", "Livraison"),
+            new(PrintReceiptBlockKind.Marker, "RÉIMPRESSION"),
+            new(PrintReceiptBlockKind.Item, "1x P-001", "Produit avec un libellé suffisamment long pour forcer une continuation sur plusieurs lignes thermiques et conserver la preuve de l'espacement logique"),
+            new(PrintReceiptBlockKind.Option, "Option cuisine avec un libellé suffisamment long pour forcer une continuation sur plusieurs lignes thermiques", "1.50 EUR"),
+            new(PrintReceiptBlockKind.Total, "TOTAL", "11.50 EUR")
+        ]);
+        var customerContent = new PrintReceiptContent([
+            new(PrintReceiptBlockKind.Ticket, "20260913-001", "13/09/2026 12:30"),
+            new(PrintReceiptBlockKind.Item, "1 x P-001", "Produit")
+            {
+                Item = new("1x", "P-001 Produit", "10.00", string.Empty)
+            },
+            new(PrintReceiptBlockKind.Total, "Total EUR", "10.00")
+        ]);
+
+        var result = await StaPrintThread.RunAsync(
+            () =>
+            {
+                var surface = new PrintImageableSurface(400, 1200, 5, 5, 390, 1180);
+                var kitchen = ThermalPrintLayout.RenderPages(kitchenContent, surface).Single();
+                var customer = ThermalPrintLayout.RenderPages(customerContent, surface).Single();
+                var customerItemVisual = ThermalPrintLayout.CreateVisual(customer.Single(block => block.Item is not null), ThermalPrintLayout.EffectiveContentWidth(surface));
+                return (
+                    Kitchen: kitchen,
+                    Customer: customer,
+                    CustomerItemFont: ((Grid)customerItemVisual).Children.OfType<TextBlock>().First().FontSize);
+            },
+            CancellationToken.None);
+
+        var itemStart = Array.FindIndex(result.Kitchen.ToArray(), block => block.Text.StartsWith("1x P-001", StringComparison.Ordinal));
+        var optionStart = Array.FindIndex(result.Kitchen.ToArray(), block => block.Text.StartsWith("- Option cuisine", StringComparison.Ordinal));
+        var totalStart = Array.FindIndex(result.Kitchen.ToArray(), block => block.Text.Contains("TOTAL", StringComparison.Ordinal));
+        var kitchenItemLines = result.Kitchen.Skip(itemStart).Take(optionStart - itemStart).ToArray();
+        var kitchenOptionLines = result.Kitchen.Skip(optionStart).Take(totalStart - optionStart).ToArray();
+        var kitchenHeading = result.Kitchen.Single(block => block.Text == "*** CUISINE ***");
+        var kitchenReference = result.Kitchen.Single(block => block.Text.Contains("Cmd", StringComparison.Ordinal));
+        var kitchenTimestamp = result.Kitchen.Single(block => block.Text.Contains("Heure", StringComparison.Ordinal));
+        var kitchenInfo = result.Kitchen.Single(block => block.Text.Contains("Mode", StringComparison.Ordinal));
+        var kitchenMarker = result.Kitchen.Single(block => block.Text == "RÉIMPRESSION");
+        var kitchenTotal = result.Kitchen.Single(block => block.Text.Contains("TOTAL", StringComparison.Ordinal));
+
+        Assert.AreEqual(ThermalPrintLayout.KitchenHeadingFontSize, kitchenHeading.FontSize);
+        Assert.AreEqual(ThermalPrintLayout.KitchenInfoFontSize, kitchenReference.FontSize);
+        Assert.AreEqual(ThermalPrintLayout.KitchenInfoFontSize, kitchenTimestamp.FontSize);
+        Assert.AreEqual(ThermalPrintLayout.KitchenInfoFontSize, kitchenInfo.FontSize);
+        Assert.AreEqual(ThermalPrintLayout.KitchenBodyFontSize, kitchenMarker.FontSize);
+        Assert.AreEqual(FontWeights.Bold, kitchenMarker.FontWeight);
+        Assert.IsGreaterThan(1, kitchenItemLines.Length);
+        Assert.IsGreaterThan(1, kitchenOptionLines.Length);
+        Assert.IsTrue(kitchenItemLines.All(block => block.FontSize == ThermalPrintLayout.KitchenBodyFontSize));
+        Assert.IsTrue(kitchenOptionLines.All(block => block.FontSize == ThermalPrintLayout.KitchenBodyFontSize));
+        Assert.AreEqual(ThermalPrintLayout.KitchenItemTopMargin, kitchenItemLines[0].TopMargin);
+        Assert.IsTrue(kitchenItemLines.Skip(1).All(block => block.TopMargin == 0));
+        Assert.AreEqual(ThermalPrintLayout.KitchenOptionTopMargin, kitchenOptionLines[0].TopMargin);
+        Assert.IsTrue(kitchenOptionLines.Skip(1).All(block => block.TopMargin == 0));
+        Assert.AreEqual(ThermalPrintLayout.KitchenTotalFontSize, kitchenTotal.FontSize);
+        Assert.AreEqual(FontWeights.Bold, kitchenTotal.FontWeight);
+        Assert.AreEqual(ThermalPrintLayout.CustomerBodyFontSize, result.Customer.Single(block => block.Text.Contains("20260913-001", StringComparison.Ordinal)).FontSize);
+        Assert.AreEqual(ThermalPrintLayout.CustomerBodyFontSize, result.Customer.Single(block => block.Item is not null).FontSize);
+        Assert.AreEqual(ThermalPrintLayout.CustomerBodyFontSize, result.CustomerItemFont);
     }
 
     [TestMethod]

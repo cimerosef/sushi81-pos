@@ -4,7 +4,7 @@
 **Prepared:** 2026-09-12  
 **Milestone:** M08 — Printing and reprinting  
 **Implementation authorization:** AUTHORIZED for M08 only; this does not authorize merge or M09+
-**Execution gate:** OPEN only for M08-MANUAL-ACCEPTANCE-REMEDIATION-10; owner acceptance is blocked pending the replacement-candidate B-PC physical retest
+**Execution gate:** OPEN only for M08-MANUAL-ACCEPTANCE-REMEDIATION-11; owner acceptance is blocked pending the Kitchen-only B-PC physical retest
 **Owner visual decision:** `../decisions/m08-print-layout-and-receipt-identity.md`
 
 This checklist is project-owner acceptance only. Codex/CI may prepare evidence and an exact artifact but must never check owner-manual items or declare M08 Passed on the owner's behalf.
@@ -18,14 +18,14 @@ The owner-selected visual targets are:
 
 ## 1. Exact candidate identity — fill before testing
 
-- exact production implementation head: `fbfbd42480512f26fb05c7b418f9c138dc886fe6`
-- exact docs/evidence record: `docs/implementation/milestone-08-worklog.md` §16 and the matching PR #14 `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-10`
+- exact production implementation head: pending final R11 push
+- exact docs/evidence record: `docs/implementation/milestone-08-worklog.md` §17 and the matching PR #14 `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-11`
 - M08 PR number: #14 (OPEN / unmerged)
-- self-contained `win-x64` publish location: `artifacts/m08-win-x64-r10-final`
-- executable SHA-256: `F5166C2F7A4B94A768CFA25DA2CFAFD015D799EDD279F48209292CBE082DA28B`
-- Release test result: **574/574 Passed**, 0 failed, 0 skipped
+- self-contained `win-x64` publish location: `artifacts/m08-win-x64-r11-final`
+- executable SHA-256: `715167295642AAFADE0356644066C891893B6004ED04DA47A0793962F0C1E79C`
+- Release test result: **575/575 Passed**, 0 failed, 0 skipped
 - Release build warnings/errors: **0 / 0**
-- exact-head implementation-commit CI: run `34778772484` / run #669 failed before workflow steps with no job steps/logs available; the failed-job retry also failed before workflow steps as job `103781910099` (initial job `103781803903`). The account-level billing/spending-limit blocker remains unresolved. Final pushed evidence-head CI then completed successfully as run `34778902457` / run #670 / job `103782154836`
+- exact-head implementation-commit CI: pending final R11 push
 - physical Windows PC/device used:
 - authority state at start:
 - Kitchen configured Windows queue:
@@ -35,7 +35,7 @@ The owner-selected visual targets are:
 - owner page-1/page-2 print reference available for side-by-side comparison: Yes / No
 - only synthetic/non-sensitive acceptance orders used: Yes / No
 
-The R09 A-PC Customer PDF/layout review passed the targeted Customer presentation, including far-right option amounts. The B-PC `GP-C200 Series` comparison accepted content semantics and structure but found Kitchen and Customer typography materially too small and the Customer rightmost amount beyond the reliable print area. Rerun the affected physical scenarios on this R10 replacement exact candidate; owner physical-printer acceptance is still pending and all boxes below remain unchecked.
+The R09 A-PC Customer PDF/layout review passed the targeted Customer presentation, including far-right option amounts. The R10 B-PC `GP-C200 Series` comparison accepted the Customer output as-is and found the Kitchen output materially successful, with only ordinary Kitchen metadata typography and item/option list breathing room requiring the R11 refinement. Run the Kitchen-only physical retest on the R11 exact candidate; no Customer retest is requested, and all owner boxes below remain unchecked.
 
 ## 2. Environment and safety rules
 

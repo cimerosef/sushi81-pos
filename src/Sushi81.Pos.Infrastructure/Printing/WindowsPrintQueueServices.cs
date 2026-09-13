@@ -195,9 +195,12 @@ public static class ThermalPrintLayout
     public const string ReceiptFontFamilyName = "Arial";
     public const double CustomerBodyFontSize = 12;
     public const double FontSize = CustomerBodyFontSize;
+    public const double KitchenInfoFontSize = CustomerBodyFontSize;
     public const double KitchenBodyFontSize = 18;
     public const double KitchenHeadingFontSize = 22;
     public const double KitchenTotalFontSize = 20;
+    public const double KitchenItemTopMargin = 3;
+    public const double KitchenOptionTopMargin = 2;
     public const double CustomerBusinessNameFontSize = 17;
     public const double CustomerLegalIdentityFontSize = 10;
     public const double CustomerTotalFontSize = 17;
@@ -591,6 +594,10 @@ internal static class ThermalReceiptRenderer
                 blockRendering = AddTopMargin(blockRendering, ThermalPrintLayout.CustomerSectionGap);
             else if (!isKitchen && block.Kind == PrintReceiptBlockKind.Marker && previousKind != PrintReceiptBlockKind.Marker)
                 blockRendering = AddTopMargin(blockRendering, ThermalPrintLayout.CustomerSectionGap);
+            else if (isKitchen && block.Kind == PrintReceiptBlockKind.Item)
+                blockRendering = AddTopMargin(blockRendering, ThermalPrintLayout.KitchenItemTopMargin);
+            else if (isKitchen && block.Kind == PrintReceiptBlockKind.Option)
+                blockRendering = AddTopMargin(blockRendering, ThermalPrintLayout.KitchenOptionTopMargin);
 
             rendered.AddRange(blockRendering);
             previousKind = block.Kind;
@@ -608,15 +615,15 @@ internal static class ThermalReceiptRenderer
             PrintReceiptBlockKind.LegacyText => RenderWrapped(block.Text, width, group, BodyFontSize(isKitchen)),
             PrintReceiptBlockKind.Heading => RenderCentered(block.Text, width, group, ThermalPrintLayout.KitchenHeadingFontSize, FontWeights.Bold),
             PrintReceiptBlockKind.BusinessName => RenderCentered(block.Text, width, group, ThermalPrintLayout.CustomerBusinessNameFontSize, FontWeights.Bold),
-            PrintReceiptBlockKind.Identity => RenderCentered(Combine(block), width, group, BodyFontSize(isKitchen), FontWeights.Normal),
+            PrintReceiptBlockKind.Identity => RenderCentered(Combine(block), width, group, InfoFontSize(isKitchen), FontWeights.Normal),
             PrintReceiptBlockKind.LegalIdentity => RenderCentered(block.Text, width, group, ThermalPrintLayout.CustomerLegalIdentityFontSize, FontWeights.Normal),
             PrintReceiptBlockKind.Reference or
-            PrintReceiptBlockKind.Timestamp or
+            PrintReceiptBlockKind.Timestamp => RenderCentered(Combine(block), width, group, InfoFontSize(isKitchen), FontWeights.Bold),
             PrintReceiptBlockKind.Marker => RenderCentered(Combine(block), width, group, BodyFontSize(isKitchen), FontWeights.Bold),
-            PrintReceiptBlockKind.Ticket => RenderWrapped(Combine(block, separator: "    "), width, group, BodyFontSize(isKitchen)),
+            PrintReceiptBlockKind.Ticket => RenderWrapped(Combine(block, separator: "    "), width, group, InfoFontSize(isKitchen)),
             PrintReceiptBlockKind.Footer => RenderFooter(block, width, group),
             PrintReceiptBlockKind.Separator => [new(new string('-', CharacterCapacity(width, BodyFontSize(isKitchen))), group, BodyFontSize(isKitchen), TextAlignment.Left, FontWeights.Normal)],
-            PrintReceiptBlockKind.LabelValue => RenderLabelValue(block.Text, block.SecondaryText, width, group, BodyFontSize(isKitchen)),
+            PrintReceiptBlockKind.LabelValue => RenderLabelValue(block.Text, block.SecondaryText, width, group, InfoFontSize(isKitchen)),
             PrintReceiptBlockKind.CustomerInfo => RenderCenteredLabelValue(block.Text, block.SecondaryText, width, group, ThermalPrintLayout.CustomerBodyFontSize),
             PrintReceiptBlockKind.Item => block.Item is not null && !isKitchen
                 ? RenderItem(block, group)
@@ -777,6 +784,8 @@ internal static class ThermalReceiptRenderer
     }
 
     private static double BodyFontSize(bool isKitchen) => isKitchen ? ThermalPrintLayout.KitchenBodyFontSize : ThermalPrintLayout.CustomerBodyFontSize;
+
+    private static double InfoFontSize(bool isKitchen) => isKitchen ? ThermalPrintLayout.KitchenInfoFontSize : ThermalPrintLayout.CustomerBodyFontSize;
 
     private static int CharacterCapacity(double width, double fontSize)
     {
