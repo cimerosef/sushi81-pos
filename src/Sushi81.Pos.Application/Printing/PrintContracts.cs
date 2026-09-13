@@ -234,11 +234,11 @@ public sealed class OrderPrintDocumentFactory(IBusinessClock clock)
                 Item = new(
                     $"{item.Quantity}x",
                     $"{item.ProductCode} {item.ProductName}",
-                    $"{FormatMoney(item.ProductBasePriceTtc)} EUR",
-                    $"{FormatMoney(item.CalculatedLineTotalTtc)} EUR")
+                    FormatMoney(item.ProductBasePriceTtc),
+                    item.Quantity > 1 ? FormatMoney(item.ExtendedBaseTtc) : string.Empty)
             });
             foreach (var adjustment in item.Adjustments.OrderBy(adjustment => adjustment.DisplayOrder))
-                blocks.Add(new(PrintReceiptBlockKind.Option, adjustment.Label, $"{FormatMoney(adjustment.AdjustmentTtcPerUnit)} EUR"));
+                blocks.Add(new(PrintReceiptBlockKind.Option, adjustment.Label, FormatMoney(adjustment.AdjustmentTtcPerUnit)));
         }
         blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
         var totalHt = order.TaxBreakdown.Aggregate(Money.Zero, (total, tax) => total + tax.TaxableTtc - tax.IncludedVatTtc);
@@ -252,6 +252,7 @@ public sealed class OrderPrintDocumentFactory(IBusinessClock clock)
         blocks.Add(new(PrintReceiptBlockKind.Total, "Total EUR", FormatMoney(order.TotalTtc), AtomicGroup: "customer-total"));
         AddSettledPayments(blocks, order);
         blocks.Add(new(PrintReceiptBlockKind.Footer, "Merci de votre visite !", AtomicGroup: "customer-footer"));
+        blocks.Add(new(PrintReceiptBlockKind.Footer, "www.sushi81.fr", AtomicGroup: "customer-footer"));
         return new(blocks);
     }
 

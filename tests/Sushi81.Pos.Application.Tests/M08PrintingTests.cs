@@ -118,6 +118,40 @@ public sealed class M08PrintingTests
     }
 
     [TestMethod]
+    public void CustomerItemRowsUseQuantityAwareBasePricingWithoutCurrencySuffixes()
+    {
+        var factory = new OrderPrintDocumentFactory(new FixedClock());
+        var quantityOne = factory.Create(CreateOrder(BusinessDate, OrderStatus.Open), ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.InitialAutomatic);
+        var quantityOneItem = quantityOne.Content.Blocks.Single(block => block.Kind == PrintReceiptBlockKind.Item);
+        var quantityOneOption = quantityOne.Content.Blocks.Single(block => block.Kind == PrintReceiptBlockKind.Option);
+
+        Assert.IsNotNull(quantityOneItem.Item);
+        Assert.AreEqual("10.00", quantityOneItem.Item.UnitPriceText);
+        Assert.AreEqual(string.Empty, quantityOneItem.Item.LineTotalText);
+        Assert.AreEqual("2.50", quantityOneOption.SecondaryText);
+
+        var quantityTwoOrder = CreateOrder(BusinessDate, OrderStatus.Open) with
+        {
+            TotalTtc = Money.FromCents(2500),
+            Items = [CreateOrder(BusinessDate, OrderStatus.Open).Items[0] with
+            {
+                Quantity = 2,
+                ExtendedBaseTtc = Money.FromCents(2000),
+                CalculatedLineTotalTtc = Money.FromCents(2500)
+            }]
+        };
+        var quantityTwo = factory.Create(quantityTwoOrder, ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.InitialAutomatic);
+        var quantityTwoItem = quantityTwo.Content.Blocks.Single(block => block.Kind == PrintReceiptBlockKind.Item);
+
+        Assert.IsNotNull(quantityTwoItem.Item);
+        Assert.AreEqual("10.00", quantityTwoItem.Item.UnitPriceText);
+        Assert.AreEqual("20.00", quantityTwoItem.Item.LineTotalText);
+        Assert.AreNotEqual("25.00", quantityTwoItem.Item.LineTotalText);
+        Assert.IsFalse(quantityTwoItem.Item.UnitPriceText.Contains("EUR", StringComparison.Ordinal));
+        Assert.IsFalse(quantityTwoItem.Item.LineTotalText.Contains("EUR", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void AmbiguousSubmissionIsNotKnownFailureAndKeepsAStatusAwareIssue()
     {
         var document = new OrderPrintDocument(

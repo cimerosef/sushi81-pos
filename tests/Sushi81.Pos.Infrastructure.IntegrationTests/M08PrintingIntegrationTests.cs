@@ -187,6 +187,67 @@ public sealed class M08PrintingIntegrationTests
     }
 
     [TestMethod]
+    public async Task StructuredRendererExpressesR08CustomerSpacingTrimmedRowsTotalAndFooter()
+    {
+        var customerContent = new PrintReceiptContent([
+            new(PrintReceiptBlockKind.BusinessName, "Sushi 81", AtomicGroup: "customer-identity"),
+            new(PrintReceiptBlockKind.LegalIdentity, "90805211100014 FR03908052111 5610C", AtomicGroup: "customer-identity"),
+            new(PrintReceiptBlockKind.Ticket, "20260913-001", "13/09/2026 12:30", AtomicGroup: "customer-ticket"),
+            new(PrintReceiptBlockKind.Marker, "DUPLICATA"),
+            new(PrintReceiptBlockKind.Item, "1 x P-001", "Produit avec une description très longue qui doit rester sur une seule ligne")
+            {
+                Item = new("1x", "P-001 Produit avec une description très longue qui doit rester sur une seule ligne", "10.00", string.Empty)
+            },
+            new(PrintReceiptBlockKind.Option, "Sauce", "1.50"),
+            new(PrintReceiptBlockKind.Item, "2 x P-002", "Produit deux")
+            {
+                Item = new("2x", "P-002 Produit deux", "8.00", "16.00")
+            },
+            new(PrintReceiptBlockKind.Payment, "CB", "24.00", AtomicGroup: "customer-payment"),
+            new(PrintReceiptBlockKind.PaymentConfirmation, "Payé en", "CB TVA incluse", AtomicGroup: "customer-payment"),
+            new(PrintReceiptBlockKind.Total, "Total EUR", "24.00", AtomicGroup: "customer-total"),
+            new(PrintReceiptBlockKind.Footer, "Merci de votre visite !", AtomicGroup: "customer-footer"),
+            new(PrintReceiptBlockKind.Footer, "www.sushi81.fr", AtomicGroup: "customer-footer")
+        ]);
+
+        var result = await StaPrintThread.RunAsync(
+            () =>
+            {
+                var rendered = ThermalPrintLayout.RenderPages(customerContent, new PrintImageableSurface(400, 600, 5, 5, 390, 580)).Single();
+                var itemGrid = (Grid)ThermalPrintLayout.CreateVisual(rendered.First(block => block.Item is not null), ThermalPrintLayout.ThermalWidth80Mm);
+                var totalGrid = ThermalPrintLayout.CreateVisual(rendered.Single(block => block.Total is not null), ThermalPrintLayout.ThermalWidth80Mm);
+                var description = (TextBlock)itemGrid.Children[1];
+                return (Rendered: rendered, DescriptionWrapping: description.TextWrapping, DescriptionTrimming: description.TextTrimming, TotalIsGrid: totalGrid is Grid);
+            },
+            CancellationToken.None);
+        var rendered = result.Rendered;
+
+        var ticket = rendered.Single(block => block.Text.Contains("20260913-001", StringComparison.Ordinal));
+        var marker = rendered.Single(block => block.Text == "DUPLICATA");
+        var itemRows = rendered.Where(block => block.Item is not null).ToArray();
+        var total = rendered.Single(block => block.Total is not null);
+        var payment = rendered.Single(block => block.Text.StartsWith("CB", StringComparison.Ordinal));
+        var footerLines = rendered.Where(block => block.Text is "Merci de votre visite !" or "www.sushi81.fr").ToArray();
+
+        Assert.AreEqual(ThermalPrintLayout.CustomerSectionGap, ticket.TopMargin);
+        Assert.AreEqual(ThermalPrintLayout.CustomerSectionGap, marker.TopMargin);
+        Assert.AreEqual(string.Empty, itemRows[0].Item!.LineTotalText);
+        Assert.AreEqual("16.00", itemRows[1].Item!.LineTotalText);
+        Assert.AreEqual(ThermalPrintLayout.CustomerTotalFontSize, total.FontSize);
+        Assert.AreEqual(FontWeights.Bold, total.FontWeight);
+        Assert.AreEqual("Total", total.Total!.Label);
+        Assert.AreEqual("EUR 24.00", total.Total.Amount);
+        Assert.AreEqual(TextAlignment.Left, payment.Alignment);
+        Assert.HasCount(2, footerLines);
+        Assert.AreEqual(ThermalPrintLayout.CustomerFooterGap, footerLines[0].TopMargin);
+        Assert.AreEqual(0d, footerLines[1].TopMargin);
+
+        Assert.AreEqual(TextWrapping.NoWrap, result.DescriptionWrapping);
+        Assert.AreEqual(TextTrimming.CharacterEllipsis, result.DescriptionTrimming);
+        Assert.IsTrue(result.TotalIsGrid);
+    }
+
+    [TestMethod]
     public void ThermalLayoutUsesNormalAndNarrowDriverGeometryWithoutFallback()
     {
         var normal = ThermalPrintLayout.FromGeometry(new PrintImageableGeometry(5, 5, 210, 30));
