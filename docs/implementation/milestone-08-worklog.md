@@ -414,7 +414,7 @@ Automated evidence for this remediation:
 - `git diff --check`: **Passed**;
 - self-contained single-file `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r10-final`;
 - published executable SHA-256: `F5166C2F7A4B94A768CFA25DA2CFAFD015D799EDD279F48209292CBE082DA28B`;
-- exact-head GitHub Actions CI: record the successful R10 final-head run/job in this section before the matching R10 completion record;
+- exact-head GitHub Actions CI: run `34778772484` / run #669 failed before workflow steps with no job steps/logs available; the failed-job retry also failed before workflow steps as job `103781910099` (initial job `103781803903`). The account-level billing/spending-limit blocker remains unresolved;
 - execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
 - B-PC physical Kitchen and Customer retest remains pending; owner manual checkboxes remain unchecked and no physical acceptance is claimed;
 - M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.

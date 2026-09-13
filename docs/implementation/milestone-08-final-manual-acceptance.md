@@ -25,7 +25,7 @@ The owner-selected visual targets are:
 - executable SHA-256: `F5166C2F7A4B94A768CFA25DA2CFAFD015D799EDD279F48209292CBE082DA28B`
 - Release test result: **574/574 Passed**, 0 failed, 0 skipped
 - Release build warnings/errors: **0 / 0**
-- exact-head implementation/final PR CI run/job: record the successful R10 final-head run/job in the matching `CODEX_DONE` and §16 evidence
+- exact-head implementation/final PR CI run/job: run `34778772484` / run #669 failed before workflow steps with no job steps/logs available; the failed-job retry also failed before workflow steps as job `103781910099` (initial job `103781803903`). The account-level billing/spending-limit blocker remains unresolved
 - physical Windows PC/device used:
 - authority state at start:
 - Kitchen configured Windows queue:
