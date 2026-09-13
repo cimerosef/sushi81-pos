@@ -248,6 +248,69 @@ public sealed class M08PrintingIntegrationTests
     }
 
     [TestMethod]
+    public async Task StructuredRendererExpressesR09CustomerOptionPriceColumnAndPreservesKitchenOptionText()
+    {
+        const string longOptionLabel = "Option avec un libelle tres long qui doit rester visible avant le montant";
+        var customerContent = new PrintReceiptContent([
+            new(PrintReceiptBlockKind.Item, "1 x P-001", "Produit")
+            {
+                Item = new("1x", "P-001 Produit", "10.00", string.Empty)
+            },
+            new(PrintReceiptBlockKind.Option, longOptionLabel, "-1.00")
+            {
+                Option = new(longOptionLabel, "-1.00")
+            },
+            new(PrintReceiptBlockKind.Option, "Sauce premium", "1.50")
+            {
+                Option = new("Sauce premium", "1.50")
+            }
+        ]);
+        var kitchenContent = new PrintReceiptContent([
+            new(PrintReceiptBlockKind.Heading, "*** CUISINE ***"),
+            new(PrintReceiptBlockKind.Option, "Option cuisine", "2.50 EUR")
+        ]);
+
+        var result = await StaPrintThread.RunAsync(
+            () =>
+            {
+                var surface = new PrintImageableSurface(400, 600, 5, 5, 390, 580);
+                var customer = ThermalPrintLayout.RenderPages(customerContent, surface).Single();
+                var kitchen = ThermalPrintLayout.RenderPages(kitchenContent, surface).Single();
+                var customerOption = customer.First(block => block.Option is not null);
+                var optionGrid = (Grid)ThermalPrintLayout.CreateVisual(customerOption, ThermalPrintLayout.ThermalWidth80Mm);
+                return (
+                    Customer: customer,
+                    Kitchen: kitchen,
+                    Option: customerOption,
+                    OptionColumnCount: optionGrid.ColumnDefinitions.Count,
+                    DescriptionWrapping: ((TextBlock)optionGrid.Children[0]).TextWrapping,
+                    DescriptionTrimming: ((TextBlock)optionGrid.Children[0]).TextTrimming,
+                    AmountAlignment: ((TextBlock)optionGrid.Children[1]).TextAlignment,
+                    AmountText: ((TextBlock)optionGrid.Children[1]).Text,
+                    AmountColumn: Grid.GetColumn(optionGrid.Children[1]),
+                    KitchenOption: kitchen.Single(block => block.Text.Contains("Option cuisine", StringComparison.Ordinal)),
+                    KitchenVisualIsTextBlock: ThermalPrintLayout.CreateVisual(kitchen.Single(block => block.Text.Contains("Option cuisine", StringComparison.Ordinal)), ThermalPrintLayout.ThermalWidth80Mm) is TextBlock,
+                    KitchenVisualText: ((TextBlock)ThermalPrintLayout.CreateVisual(kitchen.Single(block => block.Text.Contains("Option cuisine", StringComparison.Ordinal)), ThermalPrintLayout.ThermalWidth80Mm)).Text);
+            },
+            CancellationToken.None);
+
+        Assert.IsTrue(result.Option.IsIndented);
+        Assert.AreEqual(longOptionLabel, result.Option.Option!.Description);
+        Assert.AreEqual("-1.00", result.Option.Option.AmountText);
+        Assert.IsFalse(result.Option.Text.Contains("EUR", StringComparison.Ordinal));
+        Assert.AreEqual(3, result.OptionColumnCount);
+        Assert.AreEqual(TextWrapping.NoWrap, result.DescriptionWrapping);
+        Assert.AreEqual(TextTrimming.CharacterEllipsis, result.DescriptionTrimming);
+        Assert.AreEqual(TextAlignment.Right, result.AmountAlignment);
+        Assert.AreEqual("-1.00", result.AmountText);
+        Assert.AreEqual(2, result.AmountColumn);
+        Assert.IsNull(result.KitchenOption.Option);
+        Assert.IsTrue(result.KitchenOption.IsIndented);
+        Assert.IsTrue(result.KitchenVisualIsTextBlock);
+        StringAssert.Contains(result.KitchenVisualText, "Option cuisine 2.50 EUR");
+    }
+
+    [TestMethod]
     public void ThermalLayoutUsesNormalAndNarrowDriverGeometryWithoutFallback()
     {
         var normal = ThermalPrintLayout.FromGeometry(new PrintImageableGeometry(5, 5, 210, 30));

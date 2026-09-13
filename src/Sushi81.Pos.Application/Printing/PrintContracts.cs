@@ -61,6 +61,10 @@ public sealed record PrintReceiptItem(
     string UnitPriceText,
     string LineTotalText);
 
+public sealed record PrintReceiptOption(
+    string Description,
+    string AmountText);
+
 /// <summary>
 /// Printer-independent receipt content. Text is kept as semantic values; alignment,
 /// wrapping, font choice and pagination belong to the infrastructure print boundary.
@@ -73,6 +77,8 @@ public sealed record PrintReceiptBlock(
     string? AtomicGroup = null)
 {
     public PrintReceiptItem? Item { get; init; }
+
+    public PrintReceiptOption? Option { get; init; }
 }
 
 public sealed record PrintReceiptContent(IReadOnlyList<PrintReceiptBlock> Blocks)
@@ -238,7 +244,10 @@ public sealed class OrderPrintDocumentFactory(IBusinessClock clock)
                     item.Quantity > 1 ? FormatMoney(item.ExtendedBaseTtc) : string.Empty)
             });
             foreach (var adjustment in item.Adjustments.OrderBy(adjustment => adjustment.DisplayOrder))
-                blocks.Add(new(PrintReceiptBlockKind.Option, adjustment.Label, FormatMoney(adjustment.AdjustmentTtcPerUnit)));
+                blocks.Add(new(PrintReceiptBlockKind.Option, adjustment.Label, FormatMoney(adjustment.AdjustmentTtcPerUnit))
+                {
+                    Option = new(adjustment.Label, FormatMoney(adjustment.AdjustmentTtcPerUnit))
+                });
         }
         blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
         var totalHt = order.TaxBreakdown.Aggregate(Money.Zero, (total, tax) => total + tax.TaxableTtc - tax.IncludedVatTtc);

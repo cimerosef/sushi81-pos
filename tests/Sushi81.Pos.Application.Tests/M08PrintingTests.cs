@@ -129,6 +129,9 @@ public sealed class M08PrintingTests
         Assert.AreEqual("10.00", quantityOneItem.Item.UnitPriceText);
         Assert.AreEqual(string.Empty, quantityOneItem.Item.LineTotalText);
         Assert.AreEqual("2.50", quantityOneOption.SecondaryText);
+        Assert.IsNotNull(quantityOneOption.Option);
+        Assert.AreEqual("2.50", quantityOneOption.Option.AmountText);
+        Assert.IsFalse(quantityOneOption.Option.AmountText.Contains("EUR", StringComparison.Ordinal));
 
         var quantityTwoOrder = CreateOrder(BusinessDate, OrderStatus.Open) with
         {

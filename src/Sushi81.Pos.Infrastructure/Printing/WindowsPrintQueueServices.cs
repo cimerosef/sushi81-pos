@@ -426,6 +426,21 @@ public static class ThermalPrintLayout
             return row;
         }
 
+        if (block.Option is not null)
+        {
+            var row = new Grid
+            {
+                Width = width,
+                Margin = new Thickness(0, block.TopMargin, 0, 0)
+            };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            AddCell(row, $"- {block.Option.Description}", 1, block, TextWrapping.NoWrap, TextAlignment.Left, TextTrimming.CharacterEllipsis);
+            AddCell(row, block.Option.AmountText, 2, block, TextWrapping.NoWrap, TextAlignment.Right);
+            return row;
+        }
+
         return new TextBlock
         {
             Width = width,
@@ -527,6 +542,7 @@ internal sealed record RenderedThermalReceiptBlock(
     FontWeight FontWeight,
     bool IsIndented = false,
     PrintReceiptItem? Item = null,
+    PrintReceiptOption? Option = null,
     double TopMargin = 0,
     RenderedThermalReceiptTotal? Total = null);
 
@@ -579,6 +595,8 @@ internal static class ThermalReceiptRenderer
             PrintReceiptBlockKind.Item => block.Item is not null && !isKitchen
                 ? RenderItem(block, group)
                 : RenderWrapped(Combine(block), width, group, BodyFontSize(isKitchen)),
+            PrintReceiptBlockKind.Option when block.Option is not null && !isKitchen
+                => RenderOption(block.Option, group),
             PrintReceiptBlockKind.Option => RenderPrefixed("    - ", Combine(block), width, group, BodyFontSize(isKitchen)),
             PrintReceiptBlockKind.ItemAmount => RenderPrefixed("  ", block.Text, width, group, ThermalPrintLayout.FontSize),
             PrintReceiptBlockKind.Tax => RenderTax(block, width, group),
@@ -617,6 +635,18 @@ internal static class ThermalReceiptRenderer
             TextAlignment.Left,
             FontWeights.Normal,
             Item: item);
+    }
+
+    private static IEnumerable<RenderedThermalReceiptBlock> RenderOption(PrintReceiptOption option, string? group)
+    {
+        yield return new(
+            $"    - {option.Description} {option.AmountText}".TrimEnd(),
+            group,
+            ThermalPrintLayout.FontSize,
+            TextAlignment.Left,
+            FontWeights.Normal,
+            IsIndented: true,
+            Option: option);
     }
 
     private static IEnumerable<RenderedThermalReceiptBlock> RenderFooter(PrintReceiptBlock block, double width, string? group)
