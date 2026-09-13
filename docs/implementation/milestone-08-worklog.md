@@ -1,6 +1,6 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **M08-MANUAL-ACCEPTANCE-REMEDIATION-06 IMPLEMENTED — owner PDF/layout retest pending**
+**Status:** **M08-MANUAL-ACCEPTANCE-REMEDIATION-07 IMPLEMENTED — owner PDF/layout retest pending**
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
@@ -9,7 +9,7 @@
 **Implementation PR:** #14 — `M08: printing and reprinting`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** OPEN during the authorized M08-MANUAL-ACCEPTANCE-REMEDIATION-06 execution; no merge or later milestone is authorized
+**Execution gate:** OPEN during the authorized M08-MANUAL-ACCEPTANCE-REMEDIATION-07 execution; no merge or later milestone is authorized
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -288,6 +288,39 @@ Automated evidence for this remediation:
 - exact-head CI and any runner-infrastructure outcome are recorded truthfully in the matching `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-06` comment; no green CI result is inferred from local evidence;
 - execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
 - owner PDF/physical-printer retest is pending on this replacement candidate and all manual acceptance boxes remain **unchecked**;
+- merge: **Not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 13. Owner PDF/layout remediation — M08-MANUAL-ACCEPTANCE-REMEDIATION-07
+
+The owner’s R06 A-PC PDF retest still found residual physical visual-layout defects in the customer receipt. The exact authorized R07 scope was published in PR #14 comment `5651873489`, with payment-visibility clarifications in comments `5651930116` and `5651951816`.
+
+Implemented only the authorized R07 thermal customer-receipt visual correction:
+
+- wide queues now use an effective 80mm-class receipt content width while narrower queue geometry remains respected;
+- the Windows/WPF boundary now renders structured receipt visuals instead of one uniform TextBlock, including a customer item grid with quantity, description, unit price and line total columns;
+- customer hierarchy is explicit: larger Sushi 81 heading, centered customer information, one unlabeled legal-identity line, left-aligned reference/date row, VAT hierarchy, prominent total and centered footer;
+- options use physical indentation and legal numbers remain on one unlabeled line;
+- unpaid/unsettled receipts do not display payment rows or a paid sentence; settled receipts display only positive committed methods and a truthful payment confirmation;
+- R06 semantic Application receipt blocks, durable-first printing, queue behavior, pagination and reprint semantics remain preserved;
+- no product/business semantics, M09+ work or merge activity was introduced.
+
+Implementation commit: `3429b865ea4b80649064b1a69a021433dc6e8469`.
+
+Automated evidence for this remediation:
+
+- Release restore: **Passed**;
+- full Release tests: **Passed**, 570/570, 0 failed, 0 skipped;
+- focused M08 Application tests: **Passed**, 10/10;
+- focused M08 Infrastructure integration tests: **Passed**, 11/11;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- `git diff --check`: **Passed**;
+- self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r07`;
+- published executable SHA-256: `3BF9B835D230B64481B6FB8827A653E83F6D7A466D2CA060E62FB8DBABE6B387`;
+- exact-head implementation CI, final PR-head SHA and job/step results are recorded truthfully in the matching `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-07` comment;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner A-PC PDF/physical-printer retest remains pending and all manual acceptance boxes remain **unchecked**;
 - merge: **Not authorized**; M09+ remain **not authorized**.
 
 `POST_TASK_POWER_ACTION: NONE`
