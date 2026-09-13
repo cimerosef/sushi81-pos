@@ -1,6 +1,6 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **M08-MANUAL-ACCEPTANCE-REMEDIATION-07 IMPLEMENTED — owner PDF/layout retest pending**
+**Status:** **M08-MANUAL-ACCEPTANCE-REMEDIATION-08 IMPLEMENTED — owner Customer PDF retest pending**
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
@@ -9,7 +9,7 @@
 **Implementation PR:** #14 — `M08: printing and reprinting`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** OPEN during the authorized M08-MANUAL-ACCEPTANCE-REMEDIATION-07 execution; no merge or later milestone is authorized
+**Execution gate:** OPEN during the authorized M08-MANUAL-ACCEPTANCE-REMEDIATION-08 execution; no merge or later milestone is authorized
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -322,5 +322,39 @@ Automated evidence for this remediation:
 - execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
 - owner A-PC PDF/physical-printer retest remains pending and all manual acceptance boxes remain **unchecked**;
 - merge: **Not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 14. Owner Customer PDF refinement — M08-MANUAL-ACCEPTANCE-REMEDIATION-08
+
+The owner’s R07 A-PC PDF retest materially accepted the Kitchen layout for later B-PC physical validation but found a narrow remaining Customer presentation issue. The exact finding is PR #14 comment `5652256091`; the authorized R08 handoff is comment `5652257452`, with clarifications in comments `5652260536` and `5652282919`.
+
+Implemented only the authorized R08 Customer presentation refinement:
+
+- structural spacing now separates the identity block from the ticket/date row and the ticket/date row from `DUPLICATA`/status markers;
+- quantity-one Customer items show one product price; quantity-greater-than-one items show unit price plus the persisted base-product quantity-multiplied total, not the option-adjusted total;
+- long Customer descriptions are single-line and ellipsis-trimmed so price columns retain priority;
+- literal `EUR` is omitted only from Customer item/option rows;
+- settled payment rows and the truthful `Payé en ... TVA incluse` line remain left-aligned;
+- the prominent Customer grand total is now a structured left/right row (`Total` / `EUR <amount>`) with a flexible gap;
+- a structural two-body-line gap precedes the centered two-line footer `Merci de votre visite !` / `www.sushi81.fr`;
+- R07 Kitchen layout/semantics, 80-mm width cap, identity/VAT/payment gating, durable-first printing, reprint/retry/ambiguity and M07 authority boundaries remain preserved.
+
+Implementation commit: `9da90ea26fcea00a954e2a8c45d429c42e67e89b`.
+
+Automated evidence for this remediation:
+
+- Release restore: **Passed** with `-r win-x64 -p:NuGetAudit=false`;
+- focused M08 Application tests: **Passed**, 11/11;
+- focused M08 Infrastructure integration tests: **Passed**, 12/12;
+- full Release solution tests: **Passed**, 572/572, 0 failed, 0 skipped;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- `git diff --check`: **Passed**;
+- self-contained single-file `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r08-final`;
+- published executable SHA-256: `72355B2CDFF106346B4B865972107BC85452CE4C385126222B70DCF9B3B5CA1E`;
+- exact-head GitHub Actions run `34746337035` / run #664 attempt #2 / job `103694926738` failed before any workflow step because of the account billing/spending-limit blocker; the workflow was retried once and did not execute checkout/restore/build/test;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner Customer A-PC PDF retest remains pending; Kitchen physical B-PC validation remains pending; no physical acceptance is claimed;
+- M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.
 
 `POST_TASK_POWER_ACTION: NONE`
