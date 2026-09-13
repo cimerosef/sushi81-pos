@@ -1,3 +1,5 @@
+using System.Windows;
+using System.Windows.Controls;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Printing;
@@ -113,6 +115,75 @@ public sealed class M08PrintingIntegrationTests
         StringAssert.Contains(rendered, "nom de");
         StringAssert.Contains(rendered, "volontaireme");
         Assert.IsFalse(rendered.Contains(new string(' ', 20), StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void ThermalContentWidthCapsWideVirtualQueuesButNeverWidensNarrowQueues()
+    {
+        var wide = new PrintImageableSurface(1000, 2400, 5, 5, 800, 2390);
+        var narrow = new PrintImageableSurface(220, 2400, 5, 5, 210, 2390);
+
+        Assert.AreEqual(ThermalPrintLayout.ThermalWidth80Mm, ThermalPrintLayout.EffectiveContentWidth(wide), 0.01);
+        Assert.AreEqual(210d, ThermalPrintLayout.EffectiveContentWidth(narrow));
+        Assert.IsGreaterThan(wide.OriginWidth, ThermalPrintLayout.EffectiveContentOriginWidth(wide));
+        Assert.AreEqual(narrow.OriginWidth, ThermalPrintLayout.EffectiveContentOriginWidth(narrow));
+    }
+
+    [TestMethod]
+    public async Task StructuredRendererExpressesR07HierarchyIndentationAndCustomerRows()
+    {
+        var kitchenContent = new PrintReceiptContent([
+            new(PrintReceiptBlockKind.Heading, "*** CUISINE ***", AtomicGroup: "kitchen-header"),
+            new(PrintReceiptBlockKind.Item, "1x P-001", "Plat") { },
+            new(PrintReceiptBlockKind.Option, "Option", "2.50 EUR")
+        ]);
+        var customerContent = new PrintReceiptContent([
+            new(PrintReceiptBlockKind.BusinessName, "Sushi 81", AtomicGroup: "customer-identity"),
+            new(PrintReceiptBlockKind.LegalIdentity, "90805211100014 FR03908052111 5610C", AtomicGroup: "customer-identity"),
+            new(PrintReceiptBlockKind.Ticket, "20260913-001", "13/09/2026 12:30", AtomicGroup: "customer-ticket"),
+            new(PrintReceiptBlockKind.CustomerInfo, "Adresse", "12 rue de Nemours", AtomicGroup: "customer-info"),
+            new(PrintReceiptBlockKind.Item, "2 x P-002", "Plat deux")
+            {
+                Item = new("2x", "P-002 Plat deux", "8.00 EUR", "16.00 EUR")
+            },
+            new(PrintReceiptBlockKind.Tax, "Total HT", "14.55 EUR", AtomicGroup: "customer-tax"),
+            new(PrintReceiptBlockKind.Total, "Total EUR", "16.00", AtomicGroup: "customer-total"),
+            new(PrintReceiptBlockKind.Footer, "Merci de votre visite !", AtomicGroup: "customer-footer")
+        ]);
+
+        var (kitchenBlocks, customerBlocks, itemIsGrid) = await StaPrintThread.RunAsync(
+            () =>
+            {
+                var surface = new PrintImageableSurface(400, 300, 5, 5, 390, 280);
+                return (
+                    ThermalPrintLayout.RenderPages(kitchenContent, surface).Single(),
+                    ThermalPrintLayout.RenderPages(customerContent, surface).Single(),
+                    ThermalPrintLayout.CreateVisual(
+                        ThermalPrintLayout.RenderPages(customerContent, surface).Single().Single(block => block.Item is not null),
+                        300) is Grid);
+            },
+            CancellationToken.None);
+
+        var heading = kitchenBlocks.Single(block => block.Text == "*** CUISINE ***");
+        var option = kitchenBlocks.Single(block => block.Text.Contains("Option", StringComparison.Ordinal));
+        var businessName = customerBlocks.Single(block => block.Text == "Sushi 81");
+        var legal = customerBlocks.Single(block => block.Text == "90805211100014 FR03908052111 5610C");
+        var ticket = customerBlocks.Single(block => block.Text.Contains("20260913-001", StringComparison.Ordinal));
+        var item = customerBlocks.Single(block => block.Item is not null);
+        var total = customerBlocks.Single(block => block.Text == "Total EUR 16.00");
+
+        Assert.AreEqual(13d, heading.FontSize);
+        Assert.AreEqual(TextAlignment.Center, heading.Alignment);
+        Assert.AreEqual(ThermalPrintLayout.CustomerBusinessNameFontSize, businessName.FontSize);
+        Assert.AreEqual(TextAlignment.Center, businessName.Alignment);
+        Assert.AreEqual(TextAlignment.Center, legal.Alignment);
+        Assert.AreEqual(TextAlignment.Left, ticket.Alignment);
+        Assert.IsTrue(option.IsIndented);
+        Assert.IsNotNull(item.Item);
+        Assert.IsTrue(itemIsGrid);
+        Assert.AreEqual(ThermalPrintLayout.CustomerTotalFontSize, total.FontSize);
+        Assert.AreEqual(FontWeights.Bold, total.FontWeight);
+        StringAssert.Contains(string.Join(Environment.NewLine, customerBlocks.Select(block => block.Text)), "Merci de votre visite !");
     }
 
     [TestMethod]

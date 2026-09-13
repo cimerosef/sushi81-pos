@@ -43,9 +43,8 @@ public sealed class M08PrintingTests
 
         var document = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.ExplicitReprint);
 
-        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Identity && block.Text == "Sushi 81"));
-        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Identity && block.Text == "SIRET" && block.SecondaryText == "90805211100014"));
-        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Identity && block.Text == "TVA" && block.SecondaryText == "FR03908052111"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.BusinessName && block.Text == "Sushi 81"));
+        Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.LegalIdentity && block.Text == "90805211100014 FR03908052111 5610C"));
         Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "DUPLICATA"));
         Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Payment && block.Text == "CB" && block.SecondaryText == "7.00 EUR"));
         Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Payment && block.Text == "Espèce" && block.SecondaryText == "5.50 EUR"));
@@ -79,6 +78,43 @@ public sealed class M08PrintingTests
 
         Assert.IsFalse(initialRetry.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "DUPLICATA"));
         Assert.IsTrue(explicitReprint.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "DUPLICATA"));
+    }
+
+    [TestMethod]
+    public void UnsettledCustomerReceiptOmitsPaymentRowsAndPaidConfirmation()
+    {
+        var order = CreateOrder(BusinessDate, OrderStatus.Open);
+        var document = new OrderPrintDocumentFactory(new FixedClock()).Create(order, ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.InitialAutomatic);
+
+        Assert.IsFalse(document.Content.Blocks.Any(block => block.Kind is PrintReceiptBlockKind.Payment or PrintReceiptBlockKind.PaymentConfirmation));
+        Assert.IsFalse(document.Content.ToDiagnosticText().Contains("Payé en", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void SettledCustomerReceiptShowsOnlyPositiveCommittedMethodsAndTruthfulConfirmation()
+    {
+        var factory = new OrderPrintDocumentFactory(new FixedClock());
+        var cardOnly = factory.Create(
+            CreateOrder(BusinessDate, OrderStatus.Open) with { CardPaymentTtc = Money.FromCents(1250) },
+            ReceiptIdentity.Default,
+            PrintDocumentKind.Customer,
+            PrintIntent.InitialAutomatic);
+        var mixed = factory.Create(
+            CreateOrder(BusinessDate, OrderStatus.Open) with
+            {
+                CardPaymentTtc = Money.FromCents(700),
+                CashPaymentTtc = Money.FromCents(550)
+            },
+            ReceiptIdentity.Default,
+            PrintDocumentKind.Customer,
+            PrintIntent.InitialAutomatic);
+
+        Assert.IsTrue(cardOnly.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Payment && block.Text == "CB" && block.SecondaryText == "12.50 EUR"));
+        Assert.IsFalse(cardOnly.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Payment && block.Text == "Espèce"));
+        Assert.IsTrue(cardOnly.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.PaymentConfirmation && block.SecondaryText == "CB TVA incluse"));
+        Assert.IsTrue(mixed.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Payment && block.Text == "CB"));
+        Assert.IsTrue(mixed.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Payment && block.Text == "Espèce"));
+        Assert.IsTrue(mixed.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.PaymentConfirmation && block.SecondaryText == "CB + Espèce TVA incluse"));
     }
 
     [TestMethod]

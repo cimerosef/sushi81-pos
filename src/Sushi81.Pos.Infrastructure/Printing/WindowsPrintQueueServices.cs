@@ -107,24 +107,24 @@ public sealed class WindowsPrintDocumentSubmitter : IPrintDocumentSubmitter
     private static FixedDocument CreateDocumentPaginator(OrderPrintDocument document, PrintCapabilities capabilities)
     {
         var surface = ThermalPrintLayout.From(capabilities);
-        var pages = ThermalPrintLayout.Paginate(document.Content, surface);
+        var pages = ThermalPrintLayout.RenderPages(document.Content, surface);
+        var contentWidth = ThermalPrintLayout.EffectiveContentWidth(surface);
+        var contentOrigin = ThermalPrintLayout.EffectiveContentOriginWidth(surface);
         var fixedDocument = new FixedDocument();
-        foreach (var pageText in pages)
+        foreach (var pageBlocks in pages)
         {
-            var contentHeight = ThermalPrintLayout.MeasureHeight(pageText, surface.ImageableWidth);
+            var contentHeight = ThermalPrintLayout.MeasureRenderedHeight(pageBlocks, contentWidth);
             var bottomMargin = Math.Max(0, surface.PageHeight - surface.OriginHeight - surface.ImageableHeight);
             var pageHeight = Math.Min(surface.PageHeight, surface.OriginHeight + contentHeight + bottomMargin);
             var page = new FixedPage { Width = surface.PageWidth, Height = pageHeight };
-            var text = new TextBlock
+            var panel = new StackPanel
             {
-                Width = surface.ImageableWidth,
-                Margin = new Thickness(surface.OriginWidth, surface.OriginHeight, 0, 0),
-                FontFamily = new FontFamily("Consolas"),
-                FontSize = ThermalPrintLayout.FontSize,
-                TextWrapping = TextWrapping.NoWrap,
-                Text = pageText
+                Width = contentWidth,
+                Margin = new Thickness(contentOrigin, surface.OriginHeight, 0, 0)
             };
-            page.Children.Add(text);
+            foreach (var block in pageBlocks)
+                panel.Children.Add(ThermalPrintLayout.CreateVisual(block, contentWidth));
+            page.Children.Add(panel);
             var pageContent = new PageContent();
             ((System.Windows.Markup.IAddChild)pageContent).AddChild(page);
             fixedDocument.Pages.Add(pageContent);
@@ -193,6 +193,10 @@ public sealed record PrintImageableGeometry(
 public static class ThermalPrintLayout
 {
     public const double FontSize = 9;
+    public const double KitchenBodyFontSize = 11;
+    public const double CustomerBusinessNameFontSize = 14;
+    public const double CustomerTotalFontSize = 13;
+    public const double ThermalWidth80Mm = 80d / 25.4d * 96d;
     public const double FallbackPageWidth = 288;
     public const double FallbackPageHeight = 1440;
     public const double MinimumFallbackPageWidth = 72;
@@ -200,6 +204,18 @@ public static class ThermalPrintLayout
     public const double MinimumFallbackPageHeight = 144;
     public const double MaximumFallbackPageHeight = 1440;
     private const double FallbackMargin = 9;
+
+    public static double EffectiveContentWidth(PrintImageableSurface surface)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        return Math.Min(surface.ImageableWidth, ThermalWidth80Mm);
+    }
+
+    public static double EffectiveContentOriginWidth(PrintImageableSurface surface)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        return surface.OriginWidth + Math.Max(0, (surface.ImageableWidth - EffectiveContentWidth(surface)) / 2);
+    }
 
     public static PrintImageableSurface From(PrintCapabilities capabilities)
     {
@@ -303,63 +319,137 @@ public static class ThermalPrintLayout
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(surface);
+        return RenderPages(content, surface)
+            .Select(page => string.Join(Environment.NewLine, page.Select(block => block.Text)))
+            .DefaultIfEmpty(string.Empty)
+            .ToArray();
+    }
 
-        var renderedBlocks = ThermalReceiptRenderer.Render(content, surface.ImageableWidth);
-        var units = new List<string>();
-        string? previousAtomicGroup = null;
-        foreach (var renderedBlock in renderedBlocks)
+    internal static IReadOnlyList<IReadOnlyList<RenderedThermalReceiptBlock>> RenderPages(PrintReceiptContent content, PrintImageableSurface surface)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(surface);
+
+        var width = EffectiveContentWidth(surface);
+        var renderedBlocks = ThermalReceiptRenderer.Render(content, width);
+        var units = new List<IReadOnlyList<RenderedThermalReceiptBlock>>();
+        foreach (var block in renderedBlocks)
         {
-            if (renderedBlock.AtomicGroup is not null
+            if (block.AtomicGroup is not null
                 && units.Count > 0
-                && renderedBlock.AtomicGroup == previousAtomicGroup)
+                && units[^1].Count > 0
+                && units[^1][0].AtomicGroup == block.AtomicGroup)
             {
-                units[^1] = string.Join(Environment.NewLine, units[^1], renderedBlock.Text);
+                units[^1] = units[^1].Append(block).ToArray();
             }
             else
             {
-                units.Add(renderedBlock.Text);
+                units.Add([block]);
             }
-            previousAtomicGroup = renderedBlock.AtomicGroup;
         }
 
-        var pages = new List<string>();
-        var current = new List<string>();
+        var pages = new List<IReadOnlyList<RenderedThermalReceiptBlock>>();
+        var current = new List<RenderedThermalReceiptBlock>();
         foreach (var unit in units)
         {
-            var candidate = string.Join(Environment.NewLine, current.Append(unit));
-            if (current.Count > 0 && MeasureHeight(candidate, surface.ImageableWidth) > surface.ImageableHeight)
+            var candidate = current.Concat(unit).ToArray();
+            if (current.Count > 0 && MeasureRenderedHeight(candidate, width) > surface.ImageableHeight)
             {
-                pages.Add(string.Join(Environment.NewLine, current));
+                pages.Add(current.ToArray());
                 current.Clear();
             }
 
-            if (MeasureHeight(unit, surface.ImageableWidth) <= surface.ImageableHeight)
+            if (MeasureRenderedHeight(unit, width) <= surface.ImageableHeight)
             {
-                current.Add(unit);
+                current.AddRange(unit);
                 continue;
             }
 
-            foreach (var line in unit.Split(Environment.NewLine, StringSplitOptions.None))
+            foreach (var block in unit)
             {
-                candidate = string.Join(Environment.NewLine, current.Append(line));
-                if (current.Count > 0 && MeasureHeight(candidate, surface.ImageableWidth) > surface.ImageableHeight)
+                if (current.Count > 0 && MeasureRenderedHeight(current.Append(block).ToArray(), width) > surface.ImageableHeight)
                 {
-                    pages.Add(string.Join(Environment.NewLine, current));
+                    pages.Add(current.ToArray());
                     current.Clear();
                 }
-                current.Add(line);
+                current.Add(block);
             }
         }
 
-        if (current.Count > 0) pages.Add(string.Join(Environment.NewLine, current));
-        return pages.Count == 0 ? [string.Empty] : pages;
+        if (current.Count > 0) pages.Add(current.ToArray());
+        return pages.Count == 0 ? [Array.Empty<RenderedThermalReceiptBlock>()] : pages;
+    }
+
+    internal static double MeasureRenderedHeight(IEnumerable<RenderedThermalReceiptBlock> blocks, double width)
+    {
+        var panel = new StackPanel { Width = width };
+        foreach (var block in blocks) panel.Children.Add(CreateVisual(block, width));
+        panel.Measure(new Size(width, double.PositiveInfinity));
+        return Math.Max(panel.DesiredSize.Height, 1);
+    }
+
+    internal static FrameworkElement CreateVisual(RenderedThermalReceiptBlock block, double width)
+    {
+        if (block.Item is not null)
+        {
+            var row = new Grid { Width = width };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            AddCell(row, block.Item.QuantityText, 0, block);
+            AddCell(row, block.Item.Description, 1, block, TextWrapping.Wrap);
+            AddCell(row, block.Item.UnitPriceText, 2, block, TextWrapping.NoWrap, TextAlignment.Right);
+            AddCell(row, block.Item.LineTotalText, 3, block, TextWrapping.NoWrap, TextAlignment.Right);
+            return row;
+        }
+
+        return new TextBlock
+        {
+            Width = width,
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = block.FontSize,
+            FontWeight = block.FontWeight,
+            TextAlignment = block.Alignment,
+            TextWrapping = TextWrapping.NoWrap,
+            Text = block.IsIndented ? block.Text.TrimStart() : block.Text,
+            Margin = block.IsIndented ? new Thickness(18, 0, 0, 0) : new Thickness(0)
+        };
+    }
+
+    private static void AddCell(Grid row, string text, int column, RenderedThermalReceiptBlock block, TextWrapping wrapping = TextWrapping.NoWrap, TextAlignment alignment = TextAlignment.Left)
+    {
+        var cell = new TextBlock
+        {
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = block.FontSize,
+            FontWeight = block.FontWeight,
+            TextAlignment = alignment,
+            TextWrapping = wrapping,
+            Text = text,
+            Margin = new Thickness(column == 0 ? 0 : 6, 0, 0, 0)
+        };
+        Grid.SetColumn(cell, column);
+        row.Children.Add(cell);
     }
 
     public static double MeasureHeight(string text, double width)
     {
-        var block = CreateTextBlock(text, width, TextWrapping.Wrap);
+        return MeasureTextHeight(text, width, FontSize);
+    }
+
+    internal static double MeasureTextHeight(string text, double width, double fontSize)
+    {
+        var block = CreateTextBlock(text, width, TextWrapping.Wrap, fontSize);
         block.Measure(new Size(width, double.PositiveInfinity));
         return Math.Max(block.DesiredSize.Height, 1);
+    }
+
+    internal static double MeasureTextWidth(string text, double fontSize)
+    {
+        var block = CreateTextBlock(text, 1, TextWrapping.NoWrap, fontSize);
+        block.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        return Math.Max(block.DesiredSize.Width, 1);
     }
 
     private static List<string> WrapLine(string line, double width, double lineHeight)
@@ -387,17 +477,24 @@ public static class ThermalPrintLayout
         return result;
     }
 
-    private static TextBlock CreateTextBlock(string text, double width, TextWrapping wrapping) => new()
+    private static TextBlock CreateTextBlock(string text, double width, TextWrapping wrapping, double fontSize = FontSize) => new()
     {
         Width = width,
         FontFamily = new FontFamily("Consolas"),
-        FontSize = FontSize,
+        FontSize = fontSize,
         TextWrapping = wrapping,
         Text = text
     };
 }
 
-internal sealed record RenderedThermalReceiptBlock(string Text, string? AtomicGroup);
+internal sealed record RenderedThermalReceiptBlock(
+    string Text,
+    string? AtomicGroup,
+    double FontSize,
+    TextAlignment Alignment,
+    FontWeight FontWeight,
+    bool IsIndented = false,
+    PrintReceiptItem? Item = null);
 
 internal static class ThermalReceiptRenderer
 {
@@ -406,72 +503,110 @@ internal static class ThermalReceiptRenderer
         ArgumentNullException.ThrowIfNull(content);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
 
+        var isKitchen = content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Heading);
         return content.Blocks
-            .SelectMany(block => RenderBlock(block, width))
+            .SelectMany(block => RenderBlock(block, width, isKitchen))
             .ToArray();
     }
 
-    private static IEnumerable<RenderedThermalReceiptBlock> RenderBlock(PrintReceiptBlock block, double width)
+    private static IEnumerable<RenderedThermalReceiptBlock> RenderBlock(PrintReceiptBlock block, double width, bool isKitchen)
     {
         ArgumentNullException.ThrowIfNull(block);
         var group = block.AtomicGroup;
         return block.Kind switch
         {
-            PrintReceiptBlockKind.LegacyText => RenderLegacy(block.Text, width, group),
-            PrintReceiptBlockKind.Heading or
-            PrintReceiptBlockKind.Identity or
+            PrintReceiptBlockKind.LegacyText => RenderWrapped(block.Text, width, group, ThermalPrintLayout.FontSize),
+            PrintReceiptBlockKind.Heading => RenderCentered(block.Text, width, group, 13, FontWeights.Bold),
+            PrintReceiptBlockKind.BusinessName => RenderCentered(block.Text, width, group, ThermalPrintLayout.CustomerBusinessNameFontSize, FontWeights.Bold),
+            PrintReceiptBlockKind.Identity => RenderCentered(Combine(block), width, group, BodyFontSize(isKitchen), FontWeights.Normal),
+            PrintReceiptBlockKind.LegalIdentity => RenderCentered(block.Text, width, group, 8, FontWeights.Normal),
             PrintReceiptBlockKind.Reference or
             PrintReceiptBlockKind.Timestamp or
-            PrintReceiptBlockKind.Marker or
-            PrintReceiptBlockKind.Footer => RenderCentered(Combine(block), width, group),
-            PrintReceiptBlockKind.Separator => [new(new string('-', CharacterCapacity(width)), group)],
-            PrintReceiptBlockKind.LabelValue => RenderLabelValue(block.Text, block.SecondaryText, width, group),
-            PrintReceiptBlockKind.Item => RenderWrapped(Combine(block), width, group),
-            PrintReceiptBlockKind.Option => RenderWrapped($"  - {Combine(block)}", width, group),
-            PrintReceiptBlockKind.ItemAmount => RenderWrapped($"  {block.Text}", width, group),
-            PrintReceiptBlockKind.Tax or PrintReceiptBlockKind.Payment => RenderLabelValue(block.Text, block.SecondaryText, width, group),
+            PrintReceiptBlockKind.Marker => RenderCentered(Combine(block), width, group, BodyFontSize(isKitchen), FontWeights.Bold),
+            PrintReceiptBlockKind.Ticket => RenderWrapped(Combine(block, separator: "    "), width, group, ThermalPrintLayout.FontSize),
+            PrintReceiptBlockKind.Footer => RenderCentered(block.Text, width, group, ThermalPrintLayout.FontSize, FontWeights.Normal),
+            PrintReceiptBlockKind.Separator => [new(new string('-', CharacterCapacity(width)), group, ThermalPrintLayout.FontSize, TextAlignment.Left, FontWeights.Normal)],
+            PrintReceiptBlockKind.LabelValue => RenderLabelValue(block.Text, block.SecondaryText, width, group, BodyFontSize(isKitchen)),
+            PrintReceiptBlockKind.CustomerInfo => RenderCenteredLabelValue(block.Text, block.SecondaryText, width, group, ThermalPrintLayout.FontSize),
+            PrintReceiptBlockKind.Item => block.Item is not null && !isKitchen
+                ? RenderItem(block, group)
+                : RenderWrapped(Combine(block), width, group, BodyFontSize(isKitchen)),
+            PrintReceiptBlockKind.Option => RenderPrefixed("    - ", Combine(block), width, group, BodyFontSize(isKitchen)),
+            PrintReceiptBlockKind.ItemAmount => RenderPrefixed("  ", block.Text, width, group, ThermalPrintLayout.FontSize),
+            PrintReceiptBlockKind.Tax => RenderTax(block, width, group),
+            PrintReceiptBlockKind.Payment or PrintReceiptBlockKind.PaymentConfirmation => RenderLabelValue(block.Text, block.SecondaryText, width, group, ThermalPrintLayout.FontSize),
             PrintReceiptBlockKind.Total => RenderCentered(
                 block.Text.Equals("Total EUR", StringComparison.Ordinal)
                     ? Combine(block, separator: " ")
                     : Combine(block, separator: " : "),
                 width,
-                group),
-            _ => RenderWrapped(Combine(block), width, group)
+                group,
+                ThermalPrintLayout.CustomerTotalFontSize,
+                FontWeights.Bold),
+            _ => RenderWrapped(Combine(block), width, group, BodyFontSize(isKitchen))
         };
     }
 
-    private static IEnumerable<RenderedThermalReceiptBlock> RenderLegacy(string text, double width, string? group)
+    private static IEnumerable<RenderedThermalReceiptBlock> RenderItem(PrintReceiptBlock block, string? group)
     {
-        foreach (var line in text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n'))
-            foreach (var wrapped in WrapLine(line, width))
-                yield return new(wrapped, group);
+        var item = block.Item!;
+        yield return new(
+            $"{item.QuantityText} {item.Description} {item.UnitPriceText} {item.LineTotalText}",
+            group,
+            ThermalPrintLayout.FontSize,
+            TextAlignment.Left,
+            FontWeights.Normal,
+            Item: item);
     }
 
-    private static IEnumerable<RenderedThermalReceiptBlock> RenderCentered(string text, double width, string? group)
+    private static IEnumerable<RenderedThermalReceiptBlock> RenderCentered(string text, double width, string? group, double fontSize, FontWeight fontWeight)
     {
-        foreach (var line in WrapLine(text, width))
-        {
-            var measuredWidth = MeasureTextWidth(line);
-            var leftPadding = Math.Max(0, (width - measuredWidth) / 2);
-            yield return new(new string(' ', (int)Math.Floor(leftPadding / Math.Max(1, MeasureTextWidth("M")))) + line, group);
-        }
+        foreach (var line in WrapLine(text, width, fontSize))
+            yield return new(line, group, fontSize, TextAlignment.Center, fontWeight);
     }
 
-    private static IEnumerable<RenderedThermalReceiptBlock> RenderLabelValue(string label, string? value, double width, string? group)
+    private static IEnumerable<RenderedThermalReceiptBlock> RenderLabelValue(string label, string? value, double width, string? group, double fontSize)
     {
         if (string.IsNullOrWhiteSpace(value)) yield break;
         var prefix = $"{label} : ";
         var first = true;
-        foreach (var line in WrapLine(prefix + value.Trim(), width))
+        foreach (var line in WrapLine(prefix + value.Trim(), width, fontSize))
         {
-            yield return new(first ? line : new string(' ', prefix.Length) + line, group);
+            yield return new(first ? line : new string(' ', prefix.Length) + line, group, fontSize, TextAlignment.Left, FontWeights.Normal);
             first = false;
         }
     }
 
-    private static IEnumerable<RenderedThermalReceiptBlock> RenderWrapped(string text, double width, string? group)
+    private static IEnumerable<RenderedThermalReceiptBlock> RenderCenteredLabelValue(string label, string? value, double width, string? group, double fontSize)
     {
-        foreach (var line in WrapLine(text, width)) yield return new(line, group);
+        if (string.IsNullOrWhiteSpace(value)) yield break;
+        foreach (var line in WrapLine($"{label} : {value.Trim()}", width, fontSize))
+            yield return new(line, group, fontSize, TextAlignment.Center, FontWeights.Normal);
+    }
+
+    private static IEnumerable<RenderedThermalReceiptBlock> RenderTax(PrintReceiptBlock block, double width, string? group)
+    {
+        var text = block.Text.Equals("Total HT", StringComparison.Ordinal)
+            ? Combine(block, separator: " : ")
+            : $"{block.Text} : {block.SecondaryText} ({block.TertiaryText})";
+        foreach (var line in WrapLine(text, width, ThermalPrintLayout.FontSize))
+            yield return new(line, group, ThermalPrintLayout.FontSize, TextAlignment.Left, FontWeights.Normal);
+    }
+
+    private static IEnumerable<RenderedThermalReceiptBlock> RenderPrefixed(string prefix, string text, double width, string? group, double fontSize)
+    {
+        var first = true;
+        foreach (var line in WrapLine(prefix + text.Trim(), width, fontSize))
+        {
+            yield return new(first ? line : new string(' ', prefix.Length) + line, group, fontSize, TextAlignment.Left, FontWeights.Normal, IsIndented: true);
+            first = false;
+        }
+    }
+
+    private static IEnumerable<RenderedThermalReceiptBlock> RenderWrapped(string text, double width, string? group, double fontSize)
+    {
+        foreach (var line in WrapLine(text, width, fontSize))
+            yield return new(line, group, fontSize, TextAlignment.Left, FontWeights.Normal);
     }
 
     private static string Combine(PrintReceiptBlock block, string separator = " ") =>
@@ -479,10 +614,10 @@ internal static class ThermalReceiptRenderer
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value!.Trim()));
 
-    private static List<string> WrapLine(string line, double width)
+    private static List<string> WrapLine(string line, double width, double fontSize)
     {
         if (line.Length == 0) return [string.Empty];
-        var lineHeight = ThermalPrintLayout.MeasureHeight("M", width);
+        var lineHeight = ThermalPrintLayout.MeasureTextHeight("M", width, fontSize);
         var result = new List<string>();
         var remaining = line.Trim();
         while (remaining.Length > 0)
@@ -490,7 +625,7 @@ internal static class ThermalReceiptRenderer
             var bestLength = 0;
             for (var length = 1; length <= remaining.Length; length++)
             {
-                if (ThermalPrintLayout.MeasureHeight(remaining[..length], width) > lineHeight) break;
+                if (ThermalPrintLayout.MeasureTextHeight(remaining[..length], width, fontSize) > lineHeight) break;
                 bestLength = length;
             }
             if (bestLength == 0) bestLength = 1;
@@ -505,23 +640,12 @@ internal static class ThermalReceiptRenderer
         return result;
     }
 
+    private static double BodyFontSize(bool isKitchen) => isKitchen ? ThermalPrintLayout.KitchenBodyFontSize : ThermalPrintLayout.FontSize;
+
     private static int CharacterCapacity(double width)
     {
-        var characterWidth = Math.Max(1, MeasureTextWidth("M"));
+        var characterWidth = Math.Max(1, ThermalPrintLayout.MeasureTextWidth("M", ThermalPrintLayout.FontSize));
         return Math.Max(1, (int)Math.Floor(width / characterWidth));
-    }
-
-    private static double MeasureTextWidth(string text)
-    {
-        var block = new TextBlock
-        {
-            FontFamily = new FontFamily("Consolas"),
-            FontSize = ThermalPrintLayout.FontSize,
-            TextWrapping = TextWrapping.NoWrap,
-            Text = text
-        };
-        block.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        return Math.Max(block.DesiredSize.Width, 1);
     }
 }
 

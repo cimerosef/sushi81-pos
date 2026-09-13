@@ -34,21 +34,32 @@ public enum PrintOutcomeStatus
 public enum PrintReceiptBlockKind
 {
     LegacyText,
+    BusinessName,
     Identity,
+    LegalIdentity,
     Heading,
     Reference,
     Timestamp,
+    Ticket,
     Marker,
     Separator,
     LabelValue,
+    CustomerInfo,
     Item,
     Option,
     ItemAmount,
     Tax,
     Total,
     Payment,
+    PaymentConfirmation,
     Footer
 }
+
+public sealed record PrintReceiptItem(
+    string QuantityText,
+    string Description,
+    string UnitPriceText,
+    string LineTotalText);
 
 /// <summary>
 /// Printer-independent receipt content. Text is kept as semantic values; alignment,
@@ -59,7 +70,10 @@ public sealed record PrintReceiptBlock(
     string Text,
     string? SecondaryText = null,
     string? TertiaryText = null,
-    string? AtomicGroup = null);
+    string? AtomicGroup = null)
+{
+    public PrintReceiptItem? Item { get; init; }
+}
 
 public sealed record PrintReceiptContent(IReadOnlyList<PrintReceiptBlock> Blocks)
 {
@@ -200,41 +214,44 @@ public sealed class OrderPrintDocumentFactory(IBusinessClock clock)
     {
         var blocks = new List<PrintReceiptBlock>
         {
-            new(PrintReceiptBlockKind.Identity, identity.BusinessName, AtomicGroup: "customer-identity"),
+            new(PrintReceiptBlockKind.BusinessName, identity.BusinessName, AtomicGroup: "customer-identity"),
             new(PrintReceiptBlockKind.Identity, identity.AddressLine1, AtomicGroup: "customer-identity"),
             new(PrintReceiptBlockKind.Identity, identity.AddressLine2, AtomicGroup: "customer-identity"),
-            new(PrintReceiptBlockKind.Identity, "SIRET", identity.Siret, AtomicGroup: "customer-identity"),
-            new(PrintReceiptBlockKind.Identity, "TVA", identity.VatNumber, AtomicGroup: "customer-identity"),
-            new(PrintReceiptBlockKind.Identity, "APE", identity.ActivityCode, AtomicGroup: "customer-identity"),
-            new(PrintReceiptBlockKind.Reference, Reference(order), AtomicGroup: "customer-ticket"),
-            new(PrintReceiptBlockKind.Timestamp, FormatDateTime(order.CreatedAt), AtomicGroup: "customer-ticket")
+            new(PrintReceiptBlockKind.LegalIdentity, $"{identity.Siret} {identity.VatNumber} {identity.ActivityCode}", AtomicGroup: "customer-identity"),
+            new(PrintReceiptBlockKind.Ticket, Reference(order), FormatDateTime(order.CreatedAt), AtomicGroup: "customer-ticket")
         };
         AddMarkings(blocks, order, PrintDocumentKind.Customer, intent);
         blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
-        AddLabelValue(blocks, "Mode", order.Fulfilment == FulfilmentMode.Retrait ? "Retrait" : "Livraison");
-        AddLabelValue(blocks, IsFuture(order) ? "FUTURE" : "Prévu", $"{FormatDate(order.PlannedFulfilmentDate)} {FormatTime(order.PlannedFulfilmentTime)}");
-        AddLabelValue(blocks, "Tél", order.Telephone);
-        AddLabelValue(blocks, "Adresse", order.DeliveryAddress);
+        AddCustomerInfo(blocks, "Mode", order.Fulfilment == FulfilmentMode.Retrait ? "Retrait" : "Livraison");
+        AddCustomerInfo(blocks, IsFuture(order) ? "FUTURE" : "Prévu", $"{FormatDate(order.PlannedFulfilmentDate)} {FormatTime(order.PlannedFulfilmentTime)}");
+        AddCustomerInfo(blocks, "Tél", order.Telephone);
+        AddCustomerInfo(blocks, "Adresse", order.DeliveryAddress);
         blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
         foreach (var item in order.Items.OrderBy(item => item.Position))
         {
-            blocks.Add(new(PrintReceiptBlockKind.Item, $"{item.Quantity} x {item.ProductCode}", item.ProductName));
-            blocks.Add(new(PrintReceiptBlockKind.ItemAmount, $"{FormatMoney(item.CalculatedLineTotalTtc)} EUR"));
+            blocks.Add(new(PrintReceiptBlockKind.Item, $"{item.Quantity} x {item.ProductCode}", item.ProductName)
+            {
+                Item = new(
+                    $"{item.Quantity}x",
+                    $"{item.ProductCode} {item.ProductName}",
+                    $"{FormatMoney(item.ProductBasePriceTtc)} EUR",
+                    $"{FormatMoney(item.CalculatedLineTotalTtc)} EUR")
+            });
             foreach (var adjustment in item.Adjustments.OrderBy(adjustment => adjustment.DisplayOrder))
-                blocks.Add(new(PrintReceiptBlockKind.Option, adjustment.Label, FormatMoney(adjustment.AdjustmentTtcPerUnit)));
+                blocks.Add(new(PrintReceiptBlockKind.Option, adjustment.Label, $"{FormatMoney(adjustment.AdjustmentTtcPerUnit)} EUR"));
         }
         blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
+        var totalHt = order.TaxBreakdown.Aggregate(Money.Zero, (total, tax) => total + tax.TaxableTtc - tax.IncludedVatTtc);
+        blocks.Add(new(PrintReceiptBlockKind.Tax, "Total HT", $"{FormatMoney(totalHt)} EUR", AtomicGroup: "customer-tax"));
         foreach (var tax in order.TaxBreakdown.OrderBy(tax => tax.VatRate))
         {
             var net = tax.TaxableTtc - tax.IncludedVatTtc;
-            blocks.Add(new(PrintReceiptBlockKind.Tax, $"HT {tax.VatRate:0.#}%", $"{FormatMoney(net)} EUR"));
-            blocks.Add(new(PrintReceiptBlockKind.Tax, $"TVA {tax.VatRate:0.#}%", $"{FormatMoney(tax.IncludedVatTtc)} EUR"));
+            blocks.Add(new(PrintReceiptBlockKind.Tax, $"TVA {tax.VatRate:0.#}%", $"{FormatMoney(tax.IncludedVatTtc)} EUR", $"base {FormatMoney(net)} EUR", "customer-tax"));
         }
         blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
         blocks.Add(new(PrintReceiptBlockKind.Total, "Total EUR", FormatMoney(order.TotalTtc), AtomicGroup: "customer-total"));
-        blocks.Add(new(PrintReceiptBlockKind.Payment, "CB", $"{FormatMoney(order.CardPaymentTtc)} EUR", AtomicGroup: "customer-payment"));
-        blocks.Add(new(PrintReceiptBlockKind.Payment, "Espèce", $"{FormatMoney(order.CashPaymentTtc)} EUR", AtomicGroup: "customer-payment"));
-        blocks.Add(new(PrintReceiptBlockKind.Footer, identity.BusinessName, AtomicGroup: "customer-footer"));
+        AddSettledPayments(blocks, order);
+        blocks.Add(new(PrintReceiptBlockKind.Footer, "Merci de votre visite !", AtomicGroup: "customer-footer"));
         return new(blocks);
     }
 
@@ -248,6 +265,31 @@ public sealed class OrderPrintDocumentFactory(IBusinessClock clock)
     private static void AddLabelValue(List<PrintReceiptBlock> blocks, string label, string? value)
     {
         if (!string.IsNullOrWhiteSpace(value)) blocks.Add(new(PrintReceiptBlockKind.LabelValue, label, value.Trim()));
+    }
+
+    private static void AddCustomerInfo(List<PrintReceiptBlock> blocks, string label, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value)) blocks.Add(new(PrintReceiptBlockKind.CustomerInfo, label, value.Trim()));
+    }
+
+    private static void AddSettledPayments(List<PrintReceiptBlock> blocks, OrderSnapshot order)
+    {
+        var payment = OrderPaymentState.From(order);
+        if (!payment.IsExactlyReconciled) return;
+
+        var modes = new List<string>(2);
+        if (order.CardPaymentTtc > Money.Zero)
+        {
+            blocks.Add(new(PrintReceiptBlockKind.Payment, "CB", $"{FormatMoney(order.CardPaymentTtc)} EUR", AtomicGroup: "customer-payment"));
+            modes.Add("CB");
+        }
+        if (order.CashPaymentTtc > Money.Zero)
+        {
+            blocks.Add(new(PrintReceiptBlockKind.Payment, "Espèce", $"{FormatMoney(order.CashPaymentTtc)} EUR", AtomicGroup: "customer-payment"));
+            modes.Add("Espèce");
+        }
+        if (modes.Count > 0)
+            blocks.Add(new(PrintReceiptBlockKind.PaymentConfirmation, "Payé en", string.Join(" + ", modes) + " TVA incluse", AtomicGroup: "customer-payment"));
     }
 
     private static string FormatMoney(Money money) => money.Euros.ToString("0.00", CultureInfo.InvariantCulture);
