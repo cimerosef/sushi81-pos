@@ -1,6 +1,6 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **M08-MANUAL-ACCEPTANCE-REMEDIATION-08 IMPLEMENTED — owner Customer PDF retest pending**
+**Status:** **M08-MANUAL-ACCEPTANCE-REMEDIATION-09 IMPLEMENTED — owner Customer PDF retest pending**
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
@@ -9,7 +9,7 @@
 **Implementation PR:** #14 — `M08: printing and reprinting`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** OPEN during the authorized M08-MANUAL-ACCEPTANCE-REMEDIATION-08 execution; no merge or later milestone is authorized
+**Execution gate:** OPEN during the authorized M08-MANUAL-ACCEPTANCE-REMEDIATION-09 execution; no merge or later milestone is authorized
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -355,6 +355,37 @@ Automated evidence for this remediation:
 - exact-head GitHub Actions run `34746337035` / run #664 attempt #2 / job `103694926738` failed before any workflow step because of the account billing/spending-limit blocker; the workflow was retried once and did not execute checkout/restore/build/test;
 - execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
 - owner Customer A-PC PDF retest remains pending; Kitchen physical B-PC validation remains pending; no physical acceptance is claimed;
+- M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 15. Owner Customer option-price alignment — M08-MANUAL-ACCEPTANCE-REMEDIATION-09
+
+The owner’s R08 A-PC PDF review accepted the targeted Customer refinements except for one residual option-price alignment issue. The exact finding is PR #14 comment `5653897755`; the authorized R09 handoff is comment `5653900316`, starting from `d8a65c14f424d4f920ace6ad692588d5b321ac1e`.
+
+Implemented only the authorized R09 Customer option presentation refinement:
+
+- Customer option/adjustment labels remain indented under their parent product;
+- each option amount now uses a dedicated right-aligned price column aligned with ordinary Customer price columns;
+- Customer item/option rows continue to omit literal `EUR`;
+- long option labels remain single-line and use deterministic ellipsis trimming so their signed amounts remain visible and never overlap;
+- Kitchen options remain on the existing text renderer and Kitchen output is unchanged;
+- all accepted R08 identity/ticket spacing, product-price semantics, payment/total/footer presentation, geometry, durable-first/retry/reprint/ambiguity and M07 authority behavior remain preserved.
+
+Implementation commit: `cf96ea397784e611e81c3b00c611d8b972217deb`.
+
+Automated evidence for this remediation:
+
+- focused M08 Application tests: **Passed**, 11/11;
+- focused M08 Infrastructure integration tests: **Passed**, 13/13;
+- full Release solution tests: **Passed**, 573/573, 0 failed, 0 skipped;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- `git diff --check`: **Passed**;
+- self-contained single-file `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r09-final`;
+- published executable SHA-256: `9E8F21A7C47BE7ACFE8BD79BBC811EC11E33F3DAB822E52D76E22A8716079F32`;
+- exact-head GitHub Actions CI: record the current successful run/job in this evidence section before the final R09 completion record;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner Customer A-PC replacement PDF retest remains pending; Kitchen/Customer physical B-PC validation remains pending; no physical acceptance is claimed;
 - M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.
 
 `POST_TASK_POWER_ACTION: NONE`

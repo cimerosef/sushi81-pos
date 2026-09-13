@@ -4,7 +4,7 @@
 **Prepared:** 2026-09-12  
 **Milestone:** M08 — Printing and reprinting  
 **Implementation authorization:** AUTHORIZED for M08 only; this does not authorize merge or M09+
-**Execution gate:** OPEN only for M08-MANUAL-ACCEPTANCE-REMEDIATION-08; owner acceptance is blocked pending the replacement-candidate Customer PDF/layout retest
+**Execution gate:** OPEN only for M08-MANUAL-ACCEPTANCE-REMEDIATION-09; owner acceptance is blocked pending the replacement-candidate Customer PDF/layout retest
 **Owner visual decision:** `../decisions/m08-print-layout-and-receipt-identity.md`
 
 This checklist is project-owner acceptance only. Codex/CI may prepare evidence and an exact artifact but must never check owner-manual items or declare M08 Passed on the owner's behalf.
@@ -18,14 +18,14 @@ The owner-selected visual targets are:
 
 ## 1. Exact candidate identity — fill before testing
 
-- exact production implementation head: `9da90ea26fcea00a954e2a8c45d429c42e67e89b`
-- exact docs/evidence record: `docs/implementation/milestone-08-worklog.md` §14 and the matching PR #14 `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-08`
+- exact production implementation head: `cf96ea397784e611e81c3b00c611d8b972217deb`
+- exact docs/evidence record: `docs/implementation/milestone-08-worklog.md` §15 and the matching PR #14 `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-09`
 - M08 PR number: #14 (OPEN / unmerged)
-- self-contained `win-x64` publish location: `artifacts/m08-win-x64-r08-final`
-- executable SHA-256: `72355B2CDFF106346B4B865972107BC85452CE4C385126222B70DCF9B3B5CA1E`
-- Release test result: **572/572 Passed**, 0 failed, 0 skipped
+- self-contained `win-x64` publish location: `artifacts/m08-win-x64-r09-final`
+- executable SHA-256: `9E8F21A7C47BE7ACFE8BD79BBC811EC11E33F3DAB822E52D76E22A8716079F32`
+- Release test result: **573/573 Passed**, 0 failed, 0 skipped
 - Release build warnings/errors: **0 / 0**
-- exact-head implementation/final PR CI run/job: run `34746337035` / attempt #2 / job `103694926738`; it failed before workflow steps because of the GitHub account billing/spending-limit blocker and is recorded in the matching R08 `CODEX_DONE`
+- exact-head implementation/final PR CI run/job: record the current successful R09 run/job in the matching `CODEX_DONE` and §15 evidence
 - physical Windows PC/device used:
 - authority state at start:
 - Kitchen configured Windows queue:
@@ -35,7 +35,7 @@ The owner-selected visual targets are:
 - owner page-1/page-2 print reference available for side-by-side comparison: Yes / No
 - only synthetic/non-sensitive acceptance orders used: Yes / No
 
-The R07 A-PC PDF retest materially accepted Kitchen layout but found the remaining Customer spacing/price-column/total/footer presentation issue. Rerun the affected Customer scenarios on this R08 replacement exact candidate and record the new identity. The restart-hydration result and R07 Kitchen layout remain preserved; owner PDF/physical-printer acceptance is still pending and all boxes below remain unchecked.
+The R08 A-PC PDF retest accepted the targeted Customer spacing/price-column/total/footer refinements except for the remaining option-price alignment issue. Rerun the affected Customer scenarios on this R09 replacement exact candidate and record the new identity. The restart-hydration result and R07/R08 Kitchen layout remain preserved; owner PDF/physical-printer acceptance is still pending and all boxes below remain unchecked.
 
 ## 2. Environment and safety rules
 
@@ -91,7 +91,7 @@ Using the intended physical printer path and the page-1 owner reference:
 - [ ] Blank optional values are omitted cleanly rather than leaving confusing labels/empty placeholders.
 - [ ] Product lines retain the compact `1x CODE Name` style of the reference.
 - [ ] Structured options/custom adjustments are visually attached to the correct parent product and cannot be confused with a separate item.
-- [ ] Long comment/address/product/option content wraps without clipping or disappearing.
+- [ ] Long comments/addresses wrap without clipping; long Customer product/option labels stay single-line and trim with price columns preserved.
 - [ ] Final total is prominent at the bottom in the same compact ticket hierarchy.
 - [ ] Kitchen ticket remains readable at practical working distance.
 
@@ -102,10 +102,10 @@ Result: Pending.
 Using the intended physical printer path and the page-2 Hiboutik reference:
 
 - [ ] Top identity block is centered and contains exactly: Sushi 81; 12 Rue Gaston Darley; 77140 Nemours - FRA; SIRET 90805211100014; TVA FR03908052111; APE 5610C.
-- [ ] Ticket/order reference and original date/time are centered beneath the identity block in the same overall hierarchy as the reference.
+- [ ] Ticket/order reference and original date/time use the accepted left-aligned ticket row beneath the identity block in the same overall hierarchy as the reference.
 - [ ] Customer/order information block uses existing committed fields only; no invented customer-name field appears merely to mimic Hiboutik.
 - [ ] Item rows preserve a dense thermal-receipt table feel with quantity, product/code/description and saved price information.
-- [ ] Long descriptions wrap deterministically without destroying price readability.
+- [ ] Long product and option descriptions remain single-line and are deterministically ellipsis-trimmed before they can overlap or displace the right-aligned price columns.
 - [ ] HT/VAT section is compact and derived from persisted tax snapshots, not current Catalogue VAT reconstruction.
 - [ ] Final `Total`/EUR amount is visually much more prominent than surrounding rows, resembling the reference hierarchy.
 - [ ] Payment information is readable and reflects the committed Card/Cash state.
