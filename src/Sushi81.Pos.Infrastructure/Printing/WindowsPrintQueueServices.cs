@@ -192,13 +192,23 @@ public sealed record PrintImageableGeometry(
 /// </summary>
 public static class ThermalPrintLayout
 {
-    public const double FontSize = 9;
-    public const double KitchenBodyFontSize = 11;
-    public const double CustomerBusinessNameFontSize = 14;
-    public const double CustomerTotalFontSize = 13;
-    public const double CustomerSectionGap = FontSize;
-    public const double CustomerFooterGap = FontSize * 2;
-    public const double ThermalWidth80Mm = 80d / 25.4d * 96d;
+    public const string ReceiptFontFamilyName = "Arial";
+    public const double CustomerBodyFontSize = 12;
+    public const double FontSize = CustomerBodyFontSize;
+    public const double KitchenBodyFontSize = 18;
+    public const double KitchenHeadingFontSize = 22;
+    public const double KitchenTotalFontSize = 20;
+    public const double CustomerBusinessNameFontSize = 17;
+    public const double CustomerLegalIdentityFontSize = 10;
+    public const double CustomerTotalFontSize = 17;
+    public const double CustomerSectionGap = CustomerBodyFontSize;
+    public const double CustomerFooterGap = CustomerBodyFontSize * 2;
+    public const double ThermalRollWidth80Mm = 80d / 25.4d * 96d;
+    public const double ThermalPrintableWidth72Mm = 72d / 25.4d * 96d;
+    public const double ThermalSafeInsetLeftMm = 2;
+    public const double ThermalSafeInsetRightMm = 3;
+    public const double ThermalSafeInsetLeft = ThermalSafeInsetLeftMm / 25.4d * 96d;
+    public const double ThermalSafeInsetRight = ThermalSafeInsetRightMm / 25.4d * 96d;
     public const double FallbackPageWidth = 288;
     public const double FallbackPageHeight = 1440;
     public const double MinimumFallbackPageWidth = 72;
@@ -210,13 +220,25 @@ public static class ThermalPrintLayout
     public static double EffectiveContentWidth(PrintImageableSurface surface)
     {
         ArgumentNullException.ThrowIfNull(surface);
-        return Math.Min(surface.ImageableWidth, ThermalWidth80Mm);
+        var cappedWidth = Math.Min(surface.ImageableWidth, ThermalPrintableWidth72Mm);
+        return Math.Max(1, cappedWidth - EffectiveLeftInset(cappedWidth) - EffectiveRightInset(cappedWidth));
     }
 
     public static double EffectiveContentOriginWidth(PrintImageableSurface surface)
     {
         ArgumentNullException.ThrowIfNull(surface);
-        return surface.OriginWidth + Math.Max(0, (surface.ImageableWidth - EffectiveContentWidth(surface)) / 2);
+        var cappedWidth = Math.Min(surface.ImageableWidth, ThermalPrintableWidth72Mm);
+        var centeredOrigin = surface.OriginWidth + Math.Max(0, (surface.ImageableWidth - cappedWidth) / 2);
+        return centeredOrigin + EffectiveLeftInset(cappedWidth);
+    }
+
+    private static double EffectiveLeftInset(double cappedWidth) =>
+        Math.Min(ThermalSafeInsetLeft, Math.Max(0, cappedWidth - 1));
+
+    private static double EffectiveRightInset(double cappedWidth)
+    {
+        var leftInset = EffectiveLeftInset(cappedWidth);
+        return Math.Min(ThermalSafeInsetRight, Math.Max(0, cappedWidth - leftInset - 1));
     }
 
     public static PrintImageableSurface From(PrintCapabilities capabilities)
@@ -295,18 +317,19 @@ public static class ThermalPrintLayout
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(surface);
-        var lineHeight = MeasureHeight("M", surface.ImageableWidth);
+        var contentWidth = EffectiveContentWidth(surface);
+        var lineHeight = MeasureHeight("M", contentWidth);
         var wrappedLines = text.Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n')
             .Split('\n')
-            .SelectMany(line => WrapLine(line, surface.ImageableWidth, lineHeight))
+            .SelectMany(line => WrapLine(line, contentWidth, lineHeight))
             .ToArray();
         var pages = new List<string>();
         var current = new List<string>();
         foreach (var line in wrappedLines)
         {
             var candidate = string.Join(Environment.NewLine, current.Append(line));
-            if (current.Count > 0 && MeasureHeight(candidate, surface.ImageableWidth) > surface.ImageableHeight)
+            if (current.Count > 0 && MeasureHeight(candidate, contentWidth) > surface.ImageableHeight)
             {
                 pages.Add(string.Join(Environment.NewLine, current));
                 current.Clear();
@@ -444,7 +467,8 @@ public static class ThermalPrintLayout
         return new TextBlock
         {
             Width = width,
-            FontFamily = new FontFamily("Consolas"),
+            FontFamily = new FontFamily(ThermalPrintLayout.ReceiptFontFamilyName),
+            FontStretch = FontStretches.Normal,
             FontSize = block.FontSize,
             FontWeight = block.FontWeight,
             TextAlignment = block.Alignment,
@@ -467,7 +491,8 @@ public static class ThermalPrintLayout
     {
         var cell = new TextBlock
         {
-            FontFamily = new FontFamily("Consolas"),
+            FontFamily = new FontFamily(ThermalPrintLayout.ReceiptFontFamilyName),
+            FontStretch = FontStretches.Normal,
             FontSize = block.FontSize,
             FontWeight = block.FontWeight,
             TextAlignment = alignment,
@@ -527,7 +552,8 @@ public static class ThermalPrintLayout
     private static TextBlock CreateTextBlock(string text, double width, TextWrapping wrapping, double fontSize = FontSize) => new()
     {
         Width = width,
-        FontFamily = new FontFamily("Consolas"),
+        FontFamily = new FontFamily(ReceiptFontFamilyName),
+        FontStretch = FontStretches.Normal,
         FontSize = fontSize,
         TextWrapping = wrapping,
         Text = text
@@ -579,35 +605,35 @@ internal static class ThermalReceiptRenderer
         var group = block.AtomicGroup;
         return block.Kind switch
         {
-            PrintReceiptBlockKind.LegacyText => RenderWrapped(block.Text, width, group, ThermalPrintLayout.FontSize),
-            PrintReceiptBlockKind.Heading => RenderCentered(block.Text, width, group, 13, FontWeights.Bold),
+            PrintReceiptBlockKind.LegacyText => RenderWrapped(block.Text, width, group, BodyFontSize(isKitchen)),
+            PrintReceiptBlockKind.Heading => RenderCentered(block.Text, width, group, ThermalPrintLayout.KitchenHeadingFontSize, FontWeights.Bold),
             PrintReceiptBlockKind.BusinessName => RenderCentered(block.Text, width, group, ThermalPrintLayout.CustomerBusinessNameFontSize, FontWeights.Bold),
             PrintReceiptBlockKind.Identity => RenderCentered(Combine(block), width, group, BodyFontSize(isKitchen), FontWeights.Normal),
-            PrintReceiptBlockKind.LegalIdentity => RenderCentered(block.Text, width, group, 8, FontWeights.Normal),
+            PrintReceiptBlockKind.LegalIdentity => RenderCentered(block.Text, width, group, ThermalPrintLayout.CustomerLegalIdentityFontSize, FontWeights.Normal),
             PrintReceiptBlockKind.Reference or
             PrintReceiptBlockKind.Timestamp or
             PrintReceiptBlockKind.Marker => RenderCentered(Combine(block), width, group, BodyFontSize(isKitchen), FontWeights.Bold),
-            PrintReceiptBlockKind.Ticket => RenderWrapped(Combine(block, separator: "    "), width, group, ThermalPrintLayout.FontSize),
+            PrintReceiptBlockKind.Ticket => RenderWrapped(Combine(block, separator: "    "), width, group, BodyFontSize(isKitchen)),
             PrintReceiptBlockKind.Footer => RenderFooter(block, width, group),
-            PrintReceiptBlockKind.Separator => [new(new string('-', CharacterCapacity(width)), group, ThermalPrintLayout.FontSize, TextAlignment.Left, FontWeights.Normal)],
+            PrintReceiptBlockKind.Separator => [new(new string('-', CharacterCapacity(width, BodyFontSize(isKitchen))), group, BodyFontSize(isKitchen), TextAlignment.Left, FontWeights.Normal)],
             PrintReceiptBlockKind.LabelValue => RenderLabelValue(block.Text, block.SecondaryText, width, group, BodyFontSize(isKitchen)),
-            PrintReceiptBlockKind.CustomerInfo => RenderCenteredLabelValue(block.Text, block.SecondaryText, width, group, ThermalPrintLayout.FontSize),
+            PrintReceiptBlockKind.CustomerInfo => RenderCenteredLabelValue(block.Text, block.SecondaryText, width, group, ThermalPrintLayout.CustomerBodyFontSize),
             PrintReceiptBlockKind.Item => block.Item is not null && !isKitchen
                 ? RenderItem(block, group)
                 : RenderWrapped(Combine(block), width, group, BodyFontSize(isKitchen)),
             PrintReceiptBlockKind.Option when block.Option is not null && !isKitchen
                 => RenderOption(block.Option, group),
             PrintReceiptBlockKind.Option => RenderPrefixed("    - ", Combine(block), width, group, BodyFontSize(isKitchen)),
-            PrintReceiptBlockKind.ItemAmount => RenderPrefixed("  ", block.Text, width, group, ThermalPrintLayout.FontSize),
+            PrintReceiptBlockKind.ItemAmount => RenderPrefixed("  ", block.Text, width, group, ThermalPrintLayout.CustomerBodyFontSize),
             PrintReceiptBlockKind.Tax => RenderTax(block, width, group),
-            PrintReceiptBlockKind.Payment or PrintReceiptBlockKind.PaymentConfirmation => RenderLabelValue(block.Text, block.SecondaryText, width, group, ThermalPrintLayout.FontSize),
+            PrintReceiptBlockKind.Payment or PrintReceiptBlockKind.PaymentConfirmation => RenderLabelValue(block.Text, block.SecondaryText, width, group, ThermalPrintLayout.CustomerBodyFontSize),
             PrintReceiptBlockKind.Total when block.Text.Equals("Total EUR", StringComparison.Ordinal)
                 => RenderTotal(block, group),
             PrintReceiptBlockKind.Total => RenderCentered(
                 Combine(block, separator: " : "),
                 width,
                 group,
-                ThermalPrintLayout.CustomerTotalFontSize,
+                isKitchen ? ThermalPrintLayout.KitchenTotalFontSize : ThermalPrintLayout.CustomerTotalFontSize,
                 FontWeights.Bold),
             _ => RenderWrapped(Combine(block), width, group, BodyFontSize(isKitchen))
         };
@@ -631,7 +657,7 @@ internal static class ThermalReceiptRenderer
         yield return new(
             $"{item.QuantityText} {item.Description} {item.UnitPriceText} {item.LineTotalText}",
             group,
-            ThermalPrintLayout.FontSize,
+            ThermalPrintLayout.CustomerBodyFontSize,
             TextAlignment.Left,
             FontWeights.Normal,
             Item: item);
@@ -642,7 +668,7 @@ internal static class ThermalReceiptRenderer
         yield return new(
             $"    - {option.Description} {option.AmountText}".TrimEnd(),
             group,
-            ThermalPrintLayout.FontSize,
+            ThermalPrintLayout.CustomerBodyFontSize,
             TextAlignment.Left,
             FontWeights.Normal,
             IsIndented: true,
@@ -651,7 +677,7 @@ internal static class ThermalReceiptRenderer
 
     private static IEnumerable<RenderedThermalReceiptBlock> RenderFooter(PrintReceiptBlock block, double width, string? group)
     {
-        foreach (var rendered in RenderCentered(block.Text, width, group, ThermalPrintLayout.FontSize, FontWeights.Normal))
+        foreach (var rendered in RenderCentered(block.Text, width, group, ThermalPrintLayout.CustomerBodyFontSize, FontWeights.Normal))
             yield return block.Text.Equals("Merci de votre visite !", StringComparison.Ordinal)
                 ? rendered with { TopMargin = ThermalPrintLayout.CustomerFooterGap }
                 : rendered;
@@ -699,8 +725,8 @@ internal static class ThermalReceiptRenderer
         var text = block.Text.Equals("Total HT", StringComparison.Ordinal)
             ? Combine(block, separator: " : ")
             : $"{block.Text} : {block.SecondaryText} ({block.TertiaryText})";
-        foreach (var line in WrapLine(text, width, ThermalPrintLayout.FontSize))
-            yield return new(line, group, ThermalPrintLayout.FontSize, TextAlignment.Left, FontWeights.Normal);
+        foreach (var line in WrapLine(text, width, ThermalPrintLayout.CustomerBodyFontSize))
+            yield return new(line, group, ThermalPrintLayout.CustomerBodyFontSize, TextAlignment.Left, FontWeights.Normal);
     }
 
     private static IEnumerable<RenderedThermalReceiptBlock> RenderPrefixed(string prefix, string text, double width, string? group, double fontSize)
@@ -750,11 +776,11 @@ internal static class ThermalReceiptRenderer
         return result;
     }
 
-    private static double BodyFontSize(bool isKitchen) => isKitchen ? ThermalPrintLayout.KitchenBodyFontSize : ThermalPrintLayout.FontSize;
+    private static double BodyFontSize(bool isKitchen) => isKitchen ? ThermalPrintLayout.KitchenBodyFontSize : ThermalPrintLayout.CustomerBodyFontSize;
 
-    private static int CharacterCapacity(double width)
+    private static int CharacterCapacity(double width, double fontSize)
     {
-        var characterWidth = Math.Max(1, ThermalPrintLayout.MeasureTextWidth("M", ThermalPrintLayout.FontSize));
+        var characterWidth = Math.Max(1, ThermalPrintLayout.MeasureTextWidth("M", fontSize));
         return Math.Max(1, (int)Math.Floor(width / characterWidth));
     }
 }
