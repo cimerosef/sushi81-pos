@@ -1,10 +1,10 @@
 # M08 final Windows/WPF manual acceptance — printing and reprinting
 
-**Status:** Prepared checklist — **OWNER EVIDENCE RECONCILED / M08 PARTIAL — NOT MERGED**
+**Status:** Prepared checklist — **OWNER EVIDENCE RECONCILED / M08 PASSED — MERGE-READY, NOT MERGED**
 **Prepared:** 2026-09-12  
 **Milestone:** M08 — Printing and reprinting  
 **Implementation authorization:** AUTHORIZED for M08 only; this does not authorize merge or M09+
-**Execution gate:** OPEN only for M08-FINAL-ACCEPTANCE-CLOSURE-12; owner evidence is recorded, while final controller/project-owner disposition and merge approval remain separate
+**Execution gate:** OPEN only for M08-FINAL-PASS-RECORD-13; final controller disposition is recorded, while merge approval remains separate
 **Owner visual decision:** `../decisions/m08-print-layout-and-receipt-identity.md`
 
 This checklist is project-owner acceptance only. Codex/CI may prepare evidence and an exact artifact but must never check owner-manual items or declare M08 Passed on the owner's behalf.
@@ -305,26 +305,26 @@ Scenario reconciliation:
 - **N — Evidence satisfied by deterministic/controller evidence.** Restart, missing-printer recovery, settings migration and additive database migration are covered by the existing M08 controller/test evidence.
 - **O — Evidence satisfied by full automated regression and owner final checks.** The exact-head Release regression passed 575/575 with a 0/0 build, and the recorded owner checks cover the final B-PC and A-PC output paths.
 
-This reconciliation does not check the owner-manual boxes below and does not authorize merge. The remaining governance gap is the separate final controller/project-owner disposition and explicit merge approval; literal checklist sub-actions not recorded in the owner comments remain unclaimed.
+Controller review `5195806765` accepted this reconciliation as sufficient for final M08 PASS / merge-ready disposition. The final disposition checkmarks below record acceptance on the recorded owner, deterministic, automated and controller evidence; they do not claim that the owner manually performed every literal checklist sub-action, and they do not authorize merge. Literal sub-actions not recorded in the owner comments remain unclaimed.
 
 ## 19. Owner final disposition
 
-- [ ] Scenario A Passed
-- [ ] Scenario B Passed
-- [ ] Scenario C Passed
-- [ ] Scenario D Passed
-- [ ] Scenario E Passed
-- [ ] Scenario F Passed
-- [ ] Scenario G Passed / accepted deterministic substitute where noted
-- [ ] Scenario H Passed
-- [ ] Scenario I Passed
-- [ ] Scenario J Passed
-- [ ] Scenario K Passed
-- [ ] Scenario L Passed
-- [ ] Scenario M Passed
-- [ ] Scenario N Passed
-- [ ] Scenario O Passed
+- [x] Scenario A Passed on reconciled evidence/controller disposition
+- [x] Scenario B Passed on reconciled evidence/controller disposition
+- [x] Scenario C Passed on reconciled evidence/controller disposition
+- [x] Scenario D Passed on reconciled evidence/controller disposition
+- [x] Scenario E Passed on reconciled evidence/controller disposition
+- [x] Scenario F Passed on reconciled evidence/controller disposition
+- [x] Scenario G Passed / accepted deterministic substitute on reconciled evidence/controller disposition
+- [x] Scenario H Passed on reconciled evidence/controller disposition
+- [x] Scenario I Passed on reconciled evidence/controller disposition
+- [x] Scenario J Passed on reconciled evidence/controller disposition
+- [x] Scenario K Passed on reconciled evidence/controller disposition
+- [x] Scenario L Passed on reconciled evidence/controller disposition
+- [x] Scenario M Passed on reconciled evidence/controller disposition
+- [x] Scenario N Passed on reconciled evidence/controller disposition
+- [x] Scenario O Passed on reconciled evidence/controller disposition
 
-**Overall M08 result:** **PARTIAL — final acceptance evidence reconciled; pending controller/project-owner disposition and merge approval.**
+**Overall M08 result:** **PASSED — merge-ready; merge still requires separate explicit project-owner approval.**
 
 Passing this checklist does not authorize PR merge. Merge requires a separate explicit project-owner merge approval after final exact-head controller review.

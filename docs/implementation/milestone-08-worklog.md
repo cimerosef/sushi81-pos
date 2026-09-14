@@ -1,6 +1,6 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **M08-FINAL-ACCEPTANCE-CLOSURE-12 IMPLEMENTED — evidence reconciled; pending final controller/project-owner disposition**
+**Status:** **M08-FINAL-PASS-RECORD-13 IMPLEMENTED — M08 PASSED / merge-ready, not yet merged**
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
@@ -9,7 +9,7 @@
 **Implementation PR:** #14 — `M08: printing and reprinting`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** OPEN during the authorized M08-FINAL-ACCEPTANCE-CLOSURE-12 docs/evidence reconciliation; no merge or later milestone is authorized
+**Execution gate:** OPEN during the authorized M08-FINAL-PASS-RECORD-13 docs/evidence-only pass record; no merge or later milestone is authorized
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -25,7 +25,7 @@ This worklog records M08 preparation, authorization, implementation and evidence
 - M08 governance/execution baseline after authorization/current-state bookkeeping: `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`.
 - Dedicated branch: `codex/m08-printing-reprinting`.
 - Dedicated implementation PR: #14.
-- Issue #4 is OPEN for the single active handoff M08-FINAL-ACCEPTANCE-CLOSURE-12; all earlier M08 handoffs are complete and are not being reprocessed.
+- Issue #4 is OPEN for the single active handoff M08-FINAL-PASS-RECORD-13; all earlier M08 handoffs are complete and are not being reprocessed.
 - M09+: not authorized.
 
 ## 2. Preparation audit — complete
@@ -460,6 +460,20 @@ Final evidence recorded for the M08 candidate:
 - A-PC automatic print: **PASS**; fresh synthetic order `20260914-001`, Retrait, `2x TST001A Produit test simple`, total EUR 19.00; Microsoft Print to PDF for both queues; exactly one Kitchen and one Customer prompt, no duplicates, no `RÉIMPRESSION`/`DUPLICATA`, and persisted VAT plus quantity-two pricing checked; owner evidence is PR #14 comment `5661259453`.
 - A-PC local publish SHA-256: `94D60E3BA2399EFEC73D47C82BC01F7BBBC9D122C3AB615526881F7306AD27EE`; this environment-specific hash does not replace the Codex artifact hash.
 - Scenario A–O evidence reconciliation is recorded in `milestone-08-final-manual-acceptance.md` §18. Owner checklist boxes remain unchecked because Codex does not exercise owner authority; final controller/project-owner disposition and separate merge approval remain pending.
-- M08 is not declared Passed, PR #14 remains unmerged, and M09+ remain unauthorized/not started.
+- At the closure-record stage, M08 was not yet declared Passed; §19 records the subsequent controller disposition. PR #14 remained unmerged, and M09+ remained unauthorized/not started.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 19. Final pass record — M08-FINAL-PASS-RECORD-13
+
+Controller review `5195806765` accepted the §18 evidence reconciliation as sufficient for final M08 **PASSED / merge-ready** disposition. This handoff makes that disposition durable in the living governance documents before the project owner makes the separate merge decision.
+
+- Starting closure-docs head: `935efad5b8609a51acc8eef09387b2a017b55504`.
+- Accepted production candidate: R11 head `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; production implementation commit `7ab74655977faaf70f95c91188d5a69486a378e6`.
+- R11 exact-head CI: #673 / run `34784638478` / job `103797769200`, SUCCESS; 575/575; build 0/0.
+- Closure exact-head CI: #674 / run `34824945898` / job `103914804236`, SUCCESS.
+- Owner evidence remains Customer R10 PASS/frozen, Kitchen R11 PASS/final, and A-PC fresh automatic print PASS with exactly one Kitchen plus one Customer and no duplicate/reprint markers.
+- This pass-record handoff changed only the living M08 status/acceptance evidence documents; production-source diff = 0 and test-source diff = 0. No new testing claim is added.
+- M08 is **Passed / merge-ready, not yet merged**. PR #14 remains OPEN / unmerged; merge requires separate explicit project-owner approval. M09+ remain unauthorized/not started.
 
 `POST_TASK_POWER_ACTION: NONE`

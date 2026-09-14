@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Last updated:** 2026-09-14
-**Current state:** M01 through M07 are Passed and merged. M08 — Printing and reprinting — is **Partial**: the R11 production implementation and exact-head CI passed; B-PC Customer R10, B-PC Kitchen R11 and the A-PC automatic-print evidence are reconciled in the closure docs. Final controller/project-owner disposition and separate merge approval remain pending. M09 and later milestones remain unauthorized.
+**Current state:** M01 through M07 are Passed and merged. M08 — Printing and reprinting — is **Passed / merge-ready, not yet merged**: the R11 production implementation, exact-head CI, B-PC Customer R10, B-PC Kitchen R11 and A-PC automatic-print evidence are reconciled and accepted by controller review `5195806765`. Merge still requires separate explicit project-owner approval. M09 and later milestones remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07 evidence remains authoritative in its milestone-specific worklog/manual-acceptance/PR records. This living document states current control state only.
 
@@ -31,7 +31,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M05 — Lifecycle/payments/search/dashboard | Passed | Merged through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`; final Windows/WPF acceptance Passed. |
 | M06 — Local recovery/read-only enforcement | Passed | Merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; final Windows/WPF acceptance Passed. |
 | M07 — Pairing, target-directed handoff and disaster recovery | Passed | Project-owner final acceptance recorded on PR #13; accepted production head `e971580ef43d3b50366d51733ca9431ca0997e8d`; final closure docs/evidence head `d586c847f2dd541815b8c00565c58b3685a3e4be`; PR #13 merged to `main` at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`; exact-head CI #631 succeeded with 541/541 tests and 0 warnings/errors. |
-| M08 — Printing and reprinting | Partial | R11 candidate head `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; implementation commit `7ab74655977faaf70f95c91188d5a69486a378e6`; exact CI #673 / run `34784638478` / job `103797769200` succeeded with 575/575 tests and 0 warnings/errors; B-PC Customer R10 and Kitchen R11 physical evidence is recorded in PR comment `5656535282`; A-PC automatic-print PASS is recorded in comment `5661259453`; closure evidence is reconciled, while final controller/project-owner disposition and merge approval remain pending. |
+| M08 — Printing and reprinting | Passed | Merge-ready, not yet merged. Accepted production candidate R11 head `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; implementation commit `7ab74655977faaf70f95c91188d5a69486a378e6`; exact CI #673 / run `34784638478` / job `103797769200` succeeded with 575/575 tests and 0 warnings/errors; closure exact-head CI #674 / run `34824945898` / job `103914804236` succeeded; B-PC Customer R10 and Kitchen R11 physical evidence is recorded in PR comment `5656535282`; A-PC automatic-print PASS is recorded in comment `5661259453`; controller final-pass disposition is recorded in review `5195806765`. Merge requires separate explicit project-owner approval. |
 | M09 — Hiboutik paste fallback | Not started | Unauthorized; pending M08. |
 | M10 — Catalogue `.xlsx` | Not started | Unauthorized; pending M09. |
 | M11 — Gestion export | Not started | Unauthorized; pending M10. |
@@ -90,7 +90,7 @@ Codex must still fail closed unless all of the following are simultaneously true
 - the active PR contains exactly one valid unprocessed top-level `CODEX_HANDOFF_READY` for the current task;
 - the handoff ID, contract/addendum and branch/PR identity are unambiguous.
 
-Authorization does not authorize merge. M08 evidence is now reconciled and the milestone remains Partial pending final controller/project-owner disposition and separate explicit merge approval. The owner checklist remains governed by the acceptance record; Codex does not exercise owner authority.
+Authorization does not authorize merge. M08 is Passed / merge-ready on the recorded evidence and controller disposition, but remains unmerged pending separate explicit project-owner approval. The owner checklist remains governed by the acceptance record; its checkmarks record evidence/controller acceptance and do not claim that Codex exercised owner authority.
 
 M09 must not start during M08.
 
