@@ -73,6 +73,73 @@ public sealed class OrderLifecycleApplicationTests
     }
 
     [TestMethod]
+    public async Task PaymentModificationPreservesNonAuthoritativeSourceTotal()
+    {
+        var current = Snapshot(BusinessDate, total: 1000) with { SourceTotalTtc = Money.FromCents(3590) };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow)));
+
+        var result = await service.SaveModificationAsync(current with { CardPaymentTtc = Money.FromCents(500) }, BusinessDate);
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(Money.FromCents(3590), store.Snapshot!.SourceTotalTtc);
+        Assert.AreEqual(500L, store.Snapshot.CardPaymentTtc.Cents);
+    }
+
+    [TestMethod]
+    public async Task PriceAffectingModificationPreservesNonAuthoritativeSourceTotal()
+    {
+        var current = Snapshot(BusinessDate, total: 1000) with { SourceTotalTtc = Money.FromCents(3590) };
+        var item = current.Items.Single();
+        var repricedItem = item with
+        {
+            Quantity = 2,
+            ExtendedBaseTtc = Money.FromCents(2000),
+            CalculatedLineTotalTtc = Money.FromCents(2000)
+        };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow)));
+
+        var result = await service.SaveModificationAsync(current with { Items = [repricedItem] });
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(Money.FromCents(3590), store.Snapshot!.SourceTotalTtc);
+        Assert.AreEqual(2000L, store.Snapshot.TotalTtc.Cents);
+    }
+
+    [TestMethod]
+    public async Task ClosePreservesNonAuthoritativeSourceTotal()
+    {
+        var current = Snapshot(BusinessDate, total: 1000) with
+        {
+            SourceTotalTtc = Money.FromCents(3590),
+            CardPaymentTtc = Money.FromCents(1000)
+        };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock());
+
+        var result = await service.CloseAsync(current.Id);
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(OrderStatus.Closed, store.Snapshot!.Status);
+        Assert.AreEqual(Money.FromCents(3590), store.Snapshot.SourceTotalTtc);
+    }
+
+    [TestMethod]
+    public async Task CancelPreservesNonAuthoritativeSourceTotal()
+    {
+        var current = Snapshot(BusinessDate, total: 1000) with { SourceTotalTtc = Money.FromCents(3590) };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock());
+
+        var result = await service.CancelAsync(current.Id);
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(OrderStatus.Cancelled, store.Snapshot!.Status);
+        Assert.AreEqual(Money.FromCents(3590), store.Snapshot.SourceTotalTtc);
+    }
+
+    [TestMethod]
     public async Task NonAuthoritativeLifecycleMutationIsRejectedBeforePersistence()
     {
         var current = Snapshot(BusinessDate, total: 1000) with { CardPaymentTtc = Money.FromCents(1000) };

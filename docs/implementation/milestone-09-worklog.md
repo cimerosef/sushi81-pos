@@ -49,3 +49,12 @@ Implementation evidence (2026-09-14):
 - Added focused M09 WP1 migration, round-trip, exact-code, and lifecycle-preservation evidence; updated existing snapshot comparisons and production migration expectations for version 7.
 - Verification: targeted Infrastructure IntegrationTests passed **225/225**; full `Sushi81.Pos.sln` Release test suite passed **579/579**; standalone Release build passed with **0 warnings, 0 errors**; `git diff --check` passed.
 - Scope boundary: parser, unresolved-line/session/UI, source-aware provenance, reporting/export, and M10+ remain unimplemented. No manual WPF acceptance is claimed for this WP1 handoff.
+
+### WP1 remediation — exact provider wiring and lifecycle evidence
+
+Status: **Implemented; awaiting controller review**.
+
+- Wired production `SqliteCatalogueStore` through `IActiveProductCodeQueries`, so `OrderEntryCatalogueService` reaches the direct SQLite exact-code provider path; retained the existing safe summary fallback for non-provider implementations.
+- Added an instrumented application test that fails if the direct-provider lookup silently enumerates active products or reloads through the edit query.
+- Added focused lifecycle evidence proving a non-null `SourceTotalTtc` survives payment modification, price-affecting repricing, `CloseAsync`, and `CancelAsync` without changing authoritative POS total semantics.
+- Verification for this remediation is pending below after the required targeted/full Release test and build runs.

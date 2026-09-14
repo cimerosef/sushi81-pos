@@ -438,6 +438,23 @@ public sealed class OrderEntryApplicationTests
         Assert.AreEqual(OrderStatus.Closed, rows[0].Status);
     }
 
+    [TestMethod]
+    public async Task ExactCodeLookupUsesDedicatedProviderWithoutEnumeratingCatalogue()
+    {
+        var categoryId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var catalogue = new DirectExactCatalogue(categoryId, productId);
+
+        var result = await new OrderEntryCatalogueService(catalogue).GetActiveProductByCodeAsync("  HIB-EXACT-1  ");
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(productId, result!.Aggregate.Product.Id);
+        Assert.AreEqual("HIB-EXACT-1", result.Aggregate.Product.Code);
+        Assert.AreEqual(1, catalogue.ExactCalls);
+        Assert.AreEqual(0, catalogue.BroadListCalls);
+        Assert.AreEqual(0, catalogue.EditCalls);
+    }
+
     private static OrderEntryService CreateService(
         IOrderEntryCatalogueQueries catalogue,
         IOrderStore store,
@@ -489,6 +506,35 @@ public sealed class OrderEntryApplicationTests
             return Task.FromResult<IReadOnlyList<ProductSummary>>(query.ToArray());
         }
         public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(null);
+    }
+
+    private sealed class DirectExactCatalogue(Guid categoryId, Guid productId) : ICatalogueQueries, IActiveProductCodeQueries
+    {
+        public int ExactCalls { get; private set; }
+        public int BroadListCalls { get; private set; }
+        public int EditCalls { get; private set; }
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CategorySummary>>([new(categoryId, "Plats")]);
+
+        public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? filterCategoryId = null, bool? active = null, CancellationToken cancellationToken = default)
+        {
+            BroadListCalls++;
+            throw new AssertFailedException("The dedicated exact provider path must not enumerate the active catalogue.");
+        }
+
+        public Task<ProductDraft?> GetProductForEditAsync(Guid requestedProductId, CancellationToken cancellationToken = default)
+        {
+            EditCalls++;
+            throw new AssertFailedException("The dedicated exact provider path must build from its returned current product draft.");
+        }
+
+        public Task<ProductDraft?> GetActiveProductByCodeAsync(string? productCode, CancellationToken cancellationToken = default)
+        {
+            ExactCalls++;
+            return Task.FromResult<ProductDraft?>(new ProductDraft(
+                productId, "HIB-EXACT-1", "Saumon", categoryId, Money.FromCents(1250), 10m, true, true, false, []));
+        }
     }
 
     private sealed class FakeSettingsStore(BusinessSettings settings) : IBusinessSettingsStore

@@ -15,7 +15,7 @@ public sealed class SqliteCatalogueStore(
     ITransactionRunner transactionRunner,
     IIdGenerator idGenerator,
     IBusinessClock clock,
-    Func<int, Exception?>? bulkWriteFailureInjector = null) : ICatalogueStore
+    Func<int, Exception?>? bulkWriteFailureInjector = null) : ICatalogueStore, IActiveProductCodeQueries
 {
     private readonly SqliteConnectionFactory connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     private readonly ITransactionRunner transactionRunner = transactionRunner ?? throw new ArgumentNullException(nameof(transactionRunner));
