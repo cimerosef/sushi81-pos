@@ -1,10 +1,10 @@
 # M08 final Windows/WPF manual acceptance — printing and reprinting
 
-**Status:** Prepared checklist — **NOT EXECUTED / NOT PASSED**  
+**Status:** Prepared checklist — **OWNER EVIDENCE RECONCILED / M08 PARTIAL — NOT MERGED**
 **Prepared:** 2026-09-12  
 **Milestone:** M08 — Printing and reprinting  
 **Implementation authorization:** AUTHORIZED for M08 only; this does not authorize merge or M09+
-**Execution gate:** OPEN only for M08-MANUAL-ACCEPTANCE-REMEDIATION-11; owner acceptance is blocked pending the Kitchen-only B-PC physical retest
+**Execution gate:** OPEN only for M08-FINAL-ACCEPTANCE-CLOSURE-12; owner evidence is recorded, while final controller/project-owner disposition and merge approval remain separate
 **Owner visual decision:** `../decisions/m08-print-layout-and-receipt-identity.md`
 
 This checklist is project-owner acceptance only. Codex/CI may prepare evidence and an exact artifact but must never check owner-manual items or declare M08 Passed on the owner's behalf.
@@ -18,24 +18,24 @@ The owner-selected visual targets are:
 
 ## 1. Exact candidate identity — fill before testing
 
-- exact production implementation head: pending final R11 push
-- exact docs/evidence record: `docs/implementation/milestone-08-worklog.md` §17 and the matching PR #14 `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-11`
+- exact production implementation head: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`
+- exact docs/evidence record: `docs/implementation/milestone-08-worklog.md` §18 and the matching PR #14 `CODEX_DONE: M08-FINAL-ACCEPTANCE-CLOSURE-12`
 - M08 PR number: #14 (OPEN / unmerged)
 - self-contained `win-x64` publish location: `artifacts/m08-win-x64-r11-final`
 - executable SHA-256: `715167295642AAFADE0356644066C891893B6004ED04DA47A0793962F0C1E79C`
 - Release test result: **575/575 Passed**, 0 failed, 0 skipped
 - Release build warnings/errors: **0 / 0**
-- exact-head implementation-commit CI: pending final R11 push
-- physical Windows PC/device used:
-- authority state at start:
-- Kitchen configured Windows queue:
-- Customer configured Windows queue:
-- real printer model(s), if useful for diagnosis:
+- exact-head implementation-commit CI: run #673 / workflow run `34784638478` / job `103797769200` — SUCCESS; 575/575 tests, 0 failed, 0 skipped; build 0 warnings / 0 errors
+- physical Windows PC/device used: B-PC (`GP-C200 Series`, USB001); A-PC final automatic-print check
+- authority state at start: M07 authority/recovery state preserved; no authority mutation claimed by Codex
+- Kitchen configured Windows queue: B-PC `GP-C200 Series` / `USB001`
+- Customer configured Windows queue: B-PC `GP-C200 Series` / `USB001`; A-PC final automatic check used Microsoft Print to PDF for both outputs
+- real printer model(s), if useful for diagnosis: `GP-C200 Series`
 - approved receipt identity block verified: `Sushi 81 / 12 Rue Gaston Darley / 77140 Nemours - FRA / SIRET 90805211100014 / TVA FR03908052111 / APE 5610C`
-- owner page-1/page-2 print reference available for side-by-side comparison: Yes / No
-- only synthetic/non-sensitive acceptance orders used: Yes / No
+- owner page-1/page-2 print reference available for side-by-side comparison: recorded in PR #14 owner evidence comments `5656535282` and `5661259453`
+- only synthetic/non-sensitive acceptance orders used: Yes — fresh synthetic order `20260914-001` for the A-PC automatic-print check
 
-The R09 A-PC Customer PDF/layout review passed the targeted Customer presentation, including far-right option amounts. The R10 B-PC `GP-C200 Series` comparison accepted the Customer output as-is and found the Kitchen output materially successful, with only ordinary Kitchen metadata typography and item/option list breathing room requiring the R11 refinement. Run the Kitchen-only physical retest on the R11 exact candidate; no Customer retest is requested, and all owner boxes below remain unchecked.
+The R09 A-PC Customer PDF/layout review passed the targeted Customer presentation, including far-right option amounts. The R10 B-PC `GP-C200 Series` comparison accepted the Customer output as-is and found the Kitchen output materially successful; the R11 Kitchen refinement was then accepted by the owner. The B-PC Customer R10 result, B-PC Kitchen R11 result and fresh A-PC automatic-print result are reconciled below. Owner disposition boxes remain unchecked because Codex does not exercise owner authority.
 
 ## 2. Environment and safety rules
 
@@ -275,7 +275,39 @@ Perform a short smoke sweep on the same accepted candidate:
 
 Result: Pending.
 
-## 18. Owner final disposition
+## 18. Evidence reconciliation — M08-FINAL-ACCEPTANCE-CLOSURE-12
+
+The following reconciliation records the available owner, controller and automated evidence without fabricating a manual action that was not recorded. The owner evidence is:
+
+- B-PC Customer R10: **PASS / accepted as-is and frozen**, recorded in PR #14 owner evidence comment `5656535282`.
+- B-PC Kitchen R11: **PASS / final**, using the `GP-C200 Series` / `USB001` path; the owner accepted the final metadata, spacing and receipt presentation in comment `5656535282`.
+- A-PC automatic printing: **PASS**, using Microsoft Print to PDF for both queues and fresh synthetic order `20260914-001`; exactly one Kitchen and one Customer prompt, same stable order/content/total, no duplicate/reprint markers, and persisted VAT plus quantity-two pricing checked, recorded in comment `5661259453`.
+- R11 exact production/evidence head: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; implementation commit: `7ab74655977faaf70f95c91188d5a69486a378e6`.
+- R11 Codex publish evidence remains `artifacts/m08-win-x64-r11-final`, SHA-256 `715167295642AAFADE0356644066C891893B6004ED04DA47A0793962F0C1E79C`.
+- Exact-head CI run #673 (`34784638478`), job `103797769200`: **SUCCESS**; 575/575 Release tests passed and build completed with 0 warnings / 0 errors.
+- A-PC local publish SHA-256 is environment-specific: `94D60E3BA2399EFEC73D47C82BC01F7BBBC9D122C3AB615526881F7306AD27EE`; it does not replace the Codex publish artifact hash above.
+
+Scenario reconciliation:
+
+- **A — Evidence satisfied (automated/controller plus owner queue evidence).** Printer configuration, independent destination settings, persistence/migration and identity/authority boundaries are covered by the M08 automated/controller evidence; the owner’s final queues are recorded above. No unrecorded manual sub-action is claimed.
+- **B — Evidence satisfied (owner plus automated/controller).** Comment `5661259453` records exactly one Kitchen and one Customer automatic submission for the same committed synthetic order, without duplicates; durable-first and restart/persistence behavior remain covered by the exact-head regression evidence.
+- **C — Evidence satisfied (owner plus deterministic/controller).** Comment `5656535282` records the final B-PC Kitchen acceptance, including the R11 metadata/list-spacing refinement; the R11 rendering regression remains covered by the 15/15 focused Infrastructure/STA-WPF tests.
+- **D — Evidence satisfied (owner plus deterministic/controller).** The B-PC Customer R10 output was accepted as-is and frozen in comment `5656535282`; Customer identity, pricing, VAT and payment semantics remain covered by the M08 evidence set. No R11 Customer retest is claimed.
+- **E — Evidence satisfied by deterministic/controller evidence.** Future-date prominence and persistence are covered by the existing M08 scenario/controller evidence; no separate owner future-date print is claimed.
+- **F — Evidence satisfied by deterministic/controller evidence.** Independent destination outcomes, committed-order preservation and selective retry are covered by the existing M08 failure/retry evidence; no unsafe physical failure was induced for this closure.
+- **G — Evidence satisfied by deterministic/controller evidence.** Ambiguity and duplicate-safety behavior are covered by the existing M08 controller/test evidence; no uncontrolled duplicate production job was created.
+- **H — Evidence satisfied by deterministic/controller evidence.** Existing-order modification, payment/lifecycle save and no-auto-reprint behavior are covered by the existing M08 controller/test evidence.
+- **I — Evidence satisfied by deterministic/controller evidence.** Selective latest-committed Kitchen/Customer reprint behavior and `RÉIMPRESSION`/`DUPLICATA` semantics are covered by the existing M08 controller/test evidence.
+- **J — Evidence satisfied by deterministic/controller evidence.** Unsaved-edit protection and committed-state print selection are covered by the existing M08 controller/test evidence.
+- **K — Evidence satisfied by deterministic/controller evidence.** Cancelled-order markers and non-reactivation semantics are covered by the existing M08 controller/test evidence.
+- **L — Evidence satisfied by deterministic/controller evidence.** Non-authoritative/read-only printing and preservation of M07 authority boundaries are covered by the existing M08/M07 controller/test evidence.
+- **M — Evidence satisfied by deterministic/controller evidence.** Control-state and localization preservation are covered by the existing M08 controller/test evidence; no authority or business-data mutation is claimed.
+- **N — Evidence satisfied by deterministic/controller evidence.** Restart, missing-printer recovery, settings migration and additive database migration are covered by the existing M08 controller/test evidence.
+- **O — Evidence satisfied by full automated regression and owner final checks.** The exact-head Release regression passed 575/575 with a 0/0 build, and the recorded owner checks cover the final B-PC and A-PC output paths.
+
+This reconciliation does not check the owner-manual boxes below and does not authorize merge. The remaining governance gap is the separate final controller/project-owner disposition and explicit merge approval; literal checklist sub-actions not recorded in the owner comments remain unclaimed.
+
+## 19. Owner final disposition
 
 - [ ] Scenario A Passed
 - [ ] Scenario B Passed
@@ -293,6 +325,6 @@ Result: Pending.
 - [ ] Scenario N Passed
 - [ ] Scenario O Passed
 
-**Overall M08 result:** NOT EXECUTED / NOT PASSED.
+**Overall M08 result:** **PARTIAL — final acceptance evidence reconciled; pending controller/project-owner disposition and merge approval.**
 
 Passing this checklist does not authorize PR merge. Merge requires a separate explicit project-owner merge approval after final exact-head controller review.

@@ -1,6 +1,6 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **M08-MANUAL-ACCEPTANCE-REMEDIATION-11 IMPLEMENTED — owner B-PC Kitchen-only physical retest pending**
+**Status:** **M08-FINAL-ACCEPTANCE-CLOSURE-12 IMPLEMENTED — evidence reconciled; pending final controller/project-owner disposition**
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
@@ -9,7 +9,7 @@
 **Implementation PR:** #14 — `M08: printing and reprinting`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** OPEN during the authorized M08-MANUAL-ACCEPTANCE-REMEDIATION-11 execution; no merge or later milestone is authorized
+**Execution gate:** OPEN during the authorized M08-FINAL-ACCEPTANCE-CLOSURE-12 docs/evidence reconciliation; no merge or later milestone is authorized
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -25,7 +25,7 @@ This worklog records M08 preparation, authorization, implementation and evidence
 - M08 governance/execution baseline after authorization/current-state bookkeeping: `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`.
 - Dedicated branch: `codex/m08-printing-reprinting`.
 - Dedicated implementation PR: #14.
-- Issue #4 is OPEN for the single active handoff M08-MANUAL-ACCEPTANCE-REMEDIATION-11; all earlier M08 handoffs are complete and are not being reprocessed.
+- Issue #4 is OPEN for the single active handoff M08-FINAL-ACCEPTANCE-CLOSURE-12; all earlier M08 handoffs are complete and are not being reprocessed.
 - M09+: not authorized.
 
 ## 2. Preparation audit — complete
@@ -439,9 +439,27 @@ Production source and the Infrastructure STA/WPF regression coverage were update
 - `git diff --check`: **Passed**;
 - self-contained single-file `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r11-final`;
 - published executable SHA-256: `715167295642AAFADE0356644066C891893B6004ED04DA47A0793962F0C1E79C`;
-- exact-head R11 CI: pending until the final R11 head is pushed;
+- historical entry state: exact-head R11 CI was pending until the final R11 head was pushed; the final result is recorded in §18;
 - execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
-- owner B-PC Kitchen-only physical retest remains pending; the Customer output is accepted as-is from R10 and no Customer retest is requested;
+- historical entry state: the B-PC Kitchen-only physical retest was pending; the final Kitchen PASS and accepted-as-is Customer result are recorded in §18;
 - M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 18. Final acceptance evidence reconciliation — M08-FINAL-ACCEPTANCE-CLOSURE-12
+
+This closure handoff changed documentation/evidence only. Production source, tests, business behavior, printing behavior, authority/recovery behavior, installer behavior and M09+ scope were not changed.
+
+Final evidence recorded for the M08 candidate:
+
+- R11 production/evidence head: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`.
+- R11 implementation commit: `7ab74655977faaf70f95c91188d5a69486a378e6`.
+- Exact-head CI: run #673 / workflow run `34784638478` / job `103797769200`, **SUCCESS**; 575/575 Release tests passed, 0 failed, 0 skipped; build 0 warnings / 0 errors.
+- Codex self-contained publish: `artifacts/m08-win-x64-r11-final`; SHA-256 `715167295642AAFADE0356644066C891893B6004ED04DA47A0793962F0C1E79C`.
+- B-PC Customer R10: **PASS / accepted as-is and frozen**; B-PC Kitchen R11: **PASS / final** on `GP-C200 Series` / `USB001`; owner evidence is PR #14 comment `5656535282`.
+- A-PC automatic print: **PASS**; fresh synthetic order `20260914-001`, Retrait, `2x TST001A Produit test simple`, total EUR 19.00; Microsoft Print to PDF for both queues; exactly one Kitchen and one Customer prompt, no duplicates, no `RÉIMPRESSION`/`DUPLICATA`, and persisted VAT plus quantity-two pricing checked; owner evidence is PR #14 comment `5661259453`.
+- A-PC local publish SHA-256: `94D60E3BA2399EFEC73D47C82BC01F7BBBC9D122C3AB615526881F7306AD27EE`; this environment-specific hash does not replace the Codex artifact hash.
+- Scenario A–O evidence reconciliation is recorded in `milestone-08-final-manual-acceptance.md` §18. Owner checklist boxes remain unchecked because Codex does not exercise owner authority; final controller/project-owner disposition and separate merge approval remain pending.
+- M08 is not declared Passed, PR #14 remains unmerged, and M09+ remain unauthorized/not started.
 
 `POST_TASK_POWER_ACTION: NONE`
