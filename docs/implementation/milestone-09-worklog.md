@@ -103,3 +103,15 @@ Status: **Implemented; focused contract evidence captured; awaiting controller r
 - Production defect exposed/fixed: **none**. This remediation is test/evidence-only; the existing WP3 implementation remained unchanged.
 - Verification: targeted WP3 remediation/orchestration tests passed **19/19**; accepted WP2 parser tests passed **27/27**; accepted M09 WP1 Infrastructure IntegrationTests passed **3/3**; full `Sushi81.Pos.sln` Release suite passed **630/630**; standalone Release build passed with **0 warnings, 0 errors**; `git diff --check` passed.
 - Scope/topology: no WP4+, WPF/localization, reporting/export, M10+, business/specification or merge work; serial main-agent execution; no owner manual acceptance claimed.
+
+### WP4 — WPF workflow and localization
+
+Status: **Implemented; evidence captured; awaiting controller review**.
+
+- Wired one accepted `HiboutikImportOrchestrator` into the normal Caisse composition. The compact Caisse expander accepts one explicit multiline paste/parse action, retains raw source only in transient view-model state, supports reset/re-import, and never reads the clipboard or persists/logs the pasted text.
+- Added localized transient line review with source line/code/quantity/amount context, deterministic unresolved/blocker status, explicit Select product or Ignore actions, positive-quantity capture when needed, and reuse of the existing option-selection dialog for option-enabled products. Imported resolved lines enter the ordinary cart and share ordinary cart editing, pricing, validation, confirmation, retry, and print behavior without a duplicate Hiboutik workflow.
+- Final confirmation now includes active import completeness in `CanConfirm` and routes completed sessions through `ConfirmHiboutikImportAsync`; success clears raw/session state while retaining the committed ordinary cart display. Incomplete sessions are disabled and safely rejected programmatically.
+- Extended ordinary browser/detail read models and SQLite list/search reads with passive Hiboutik provenance and nullable source amount. The authoritative POS total remains primary; source amount is displayed as reference evidence only and null remains unavailable.
+- Added FR/zh-CN resource parity for paste instructions, line review, source evidence, reset, status, errors, and passive source labels. Existing business/source text is preserved when switching language.
+- Verification: focused WP4 architecture/WPF/localization tests passed **3/3**; focused browser/search persistence evidence passed **1/1**; the complete `Sushi81.Pos.sln` Release suite passed **634/634** (0 failed, 0 skipped); standalone Release builds passed with **0 warnings, 0 errors**; `git diff --check` passed.
+- Scope boundary: no WP5 reporting/integration closure, M10+, schema changes beyond the accepted M09 source-total migration, background clipboard/API/network behavior, duplicate detector, emergency UI, merge, or owner Windows/WPF manual acceptance.

@@ -316,4 +316,31 @@
   <data name="OrderPrintSaveOrAbandon" xml:space="preserve"><value>请先保存或放弃修改，再打印已保存状态。</value></data>
   <data name="OrderRetryInitialKitchen" xml:space="preserve"><value>重试厨房输出</value></data>
   <data name="OrderRetryInitialCustomer" xml:space="preserve"><value>重试客户输出</value></data>
+  <data name="HiboutikPasteAction" xml:space="preserve"><value>Hiboutik 订单</value></data>
+  <data name="HiboutikPasteInstructions" xml:space="preserve"><value>请粘贴完整的 Hiboutik 商品区块后进行解析。Total 行会自动处理。不会读取剪贴板，解析期间不会保存任何数据。</value></data>
+  <data name="HiboutikSourceText" xml:space="preserve"><value>Hiboutik 源文本</value></data>
+  <data name="HiboutikParse" xml:space="preserve"><value>解析 Hiboutik 订单</value></data>
+  <data name="HiboutikReset" xml:space="preserve"><value>重置 / 重新导入</value></data>
+  <data name="HiboutikSourceTotalFormat" xml:space="preserve"><value>源金额：{0:0.00} €</value></data>
+  <data name="HiboutikSourceTotalUnavailable" xml:space="preserve"><value>源金额：不可用</value></data>
+  <data name="HiboutikImportStatusFormat" xml:space="preserve"><value>未解析行：{0} · 阻塞项：{1}</value></data>
+  <data name="HiboutikSourceLine" xml:space="preserve"><value>源行</value></data>
+  <data name="HiboutikSourceCode" xml:space="preserve"><value>代码</value></data>
+  <data name="HiboutikSourceQuantity" xml:space="preserve"><value>数量</value></data>
+  <data name="HiboutikSourceAmountLabel" xml:space="preserve"><value>源金额</value></data>
+  <data name="HiboutikSelectProduct" xml:space="preserve"><value>选择商品</value></data>
+  <data name="HiboutikIgnoreLine" xml:space="preserve"><value>忽略</value></data>
+  <data name="HiboutikConfigureOptions" xml:space="preserve"><value>配置选项</value></data>
+  <data name="HiboutikResolutionUnresolved" xml:space="preserve"><value>未解析</value></data>
+  <data name="HiboutikResolutionResolved" xml:space="preserve"><value>已解析</value></data>
+  <data name="HiboutikResolutionIgnored" xml:space="preserve"><value>已忽略</value></data>
+  <data name="HiboutikOptionReviewPending" xml:space="preserve"><value>待复核选项</value></data>
+  <data name="HiboutikImportEmpty" xml:space="preserve"><value>Hiboutik 区块不包含可用行。</value></data>
+  <data name="HiboutikImportNoProduct" xml:space="preserve"><value>确认前请至少解析一条商品行。</value></data>
+  <data name="HiboutikImportUnresolved" xml:space="preserve"><value>每条源行都必须明确选择商品或忽略。</value></data>
+  <data name="HiboutikImportOptionsPending" xml:space="preserve"><value>每个商品的选项都必须明确复核。</value></data>
+  <data name="HiboutikQuantityRequired" xml:space="preserve"><value>请输入正数量。</value></data>
+  <data name="OrderSourcePos" xml:space="preserve"><value>POS</value></data>
+  <data name="OrderSourceHiboutik" xml:space="preserve"><value>Hiboutik</value></data>
+  <data name="OrderSourceTotalUnavailable" xml:space="preserve"><value>—</value></data>
 </root>

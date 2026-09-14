@@ -168,10 +168,11 @@ public sealed class SqliteOrderStore(
     {
         await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
         var hasM05 = await HasColumnAsync(connection, "orders", "order_reference", cancellationToken);
+        var hasSourceTotal = await HasColumnAsync(connection, "orders", "source_total_ttc_cents", cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = hasM05
-            ? "SELECT order_id,order_reference,planned_fulfilment_date,planned_fulfilment_time,fulfilment_mode,status,total_ttc_cents,advance_order_marker,telephone,delivery_address,comment,card_payment_ttc_cents,cash_payment_ttc_cents FROM orders WHERE planned_fulfilment_date=$date ORDER BY planned_fulfilment_time IS NULL,planned_fulfilment_time,order_id;"
-            : "SELECT order_id,planned_fulfilment_date,planned_fulfilment_time,fulfilment_mode,status,total_ttc_cents,telephone FROM orders WHERE planned_fulfilment_date=$date ORDER BY planned_fulfilment_time IS NULL,planned_fulfilment_time,order_id;";
+            ? $"SELECT order_id,order_reference,planned_fulfilment_date,planned_fulfilment_time,fulfilment_mode,status,total_ttc_cents,advance_order_marker,telephone,delivery_address,comment,card_payment_ttc_cents,cash_payment_ttc_cents,source_type{(hasSourceTotal ? ",source_total_ttc_cents" : string.Empty)} FROM orders WHERE planned_fulfilment_date=$date ORDER BY planned_fulfilment_time IS NULL,planned_fulfilment_time,order_id;"
+            : $"SELECT order_id,planned_fulfilment_date,planned_fulfilment_time,fulfilment_mode,status,total_ttc_cents,telephone,source_type{(hasSourceTotal ? ",source_total_ttc_cents" : string.Empty)} FROM orders WHERE planned_fulfilment_date=$date ORDER BY planned_fulfilment_time IS NULL,planned_fulfilment_time,order_id;";
         command.Parameters.AddWithValue("$date", plannedDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         var result = new List<OrderBrowserRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -184,7 +185,11 @@ public sealed class SqliteOrderStore(
                 DeliveryAddress = hasM05 ? ReadNullableString(reader, 9) : null,
                 Comment = hasM05 ? ReadNullableString(reader, 10) : null,
                 CardPaymentTtc = hasM05 ? Money.FromCents(reader.GetInt64(11)) : Money.Zero,
-                CashPaymentTtc = hasM05 ? Money.FromCents(reader.GetInt64(12)) : Money.Zero
+                CashPaymentTtc = hasM05 ? Money.FromCents(reader.GetInt64(12)) : Money.Zero,
+                SourceType = ParseSource(reader.GetString(hasM05 ? 13 : 7)),
+                SourceTotalTtc = hasSourceTotal
+                    ? (reader.IsDBNull(hasM05 ? 14 : 8) ? null : Money.FromCents(reader.GetInt64(hasM05 ? 14 : 8)))
+                    : null
             };
             result.Add(row);
         }
@@ -194,12 +199,13 @@ public sealed class SqliteOrderStore(
     public async Task<IReadOnlyList<OrderBrowserRow>> SearchAsync(string? query, CancellationToken cancellationToken = default)
     {
         await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
+        var hasSourceTotal = await HasColumnAsync(connection, "orders", "source_total_ttc_cents", cancellationToken);
         var trimmedQuery = (query ?? string.Empty).Trim();
         var telephoneTerms = TelephoneSearchNormalization.QueryTerms(trimmedQuery);
         var telephoneTerm0 = telephoneTerms.ElementAtOrDefault(0) ?? string.Empty;
         var telephoneTerm1 = telephoneTerms.ElementAtOrDefault(1) ?? string.Empty;
-        await using var command = connection.CreateCommand(); command.CommandText = """
-            SELECT order_id,order_reference,planned_fulfilment_date,planned_fulfilment_time,fulfilment_mode,status,total_ttc_cents,advance_order_marker,telephone,delivery_address,comment,card_payment_ttc_cents,cash_payment_ttc_cents
+        await using var command = connection.CreateCommand(); command.CommandText = $"""
+            SELECT order_id,order_reference,planned_fulfilment_date,planned_fulfilment_time,fulfilment_mode,status,total_ttc_cents,advance_order_marker,telephone,delivery_address,comment,card_payment_ttc_cents,cash_payment_ttc_cents,source_type{(hasSourceTotal ? ",source_total_ttc_cents" : string.Empty)}
             FROM orders
             WHERE $query='' OR COALESCE(order_reference,'') LIKE $queryPattern ESCAPE '\'
                OR COALESCE(comment,'') LIKE $queryPattern ESCAPE '\'
@@ -222,7 +228,11 @@ public sealed class SqliteOrderStore(
             Comment = ReadNullableString(reader, 10),
             AdvanceOrderMarker = reader.GetInt64(7) == 1,
             CardPaymentTtc = Money.FromCents(reader.GetInt64(11)),
-            CashPaymentTtc = Money.FromCents(reader.GetInt64(12))
+            CashPaymentTtc = Money.FromCents(reader.GetInt64(12)),
+            SourceType = ParseSource(reader.GetString(13)),
+            SourceTotalTtc = hasSourceTotal
+                ? (reader.IsDBNull(14) ? null : Money.FromCents(reader.GetInt64(14)))
+                : null
         });
         return result;
     }

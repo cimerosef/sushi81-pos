@@ -66,6 +66,27 @@ public sealed class M09Wp1IntegrationTests
     }
 
     [TestMethod]
+    public async Task BrowserAndSearchRowsExposePassiveHiboutikSourceEvidence()
+    {
+        using var paths = new TestPaths();
+        var clock = new FixedClock();
+        var factory = await InitializeProductionAsync(paths, clock);
+        var store = new SqliteOrderStore(factory, new SqliteTransactionRunner(factory), idGenerator: new DeterministicIds(), clock: clock);
+        var order = Snapshot(Guid.Parse("57000000-0000-0000-0000-000000000001"), total: 3231, source: OrderSourceType.HiboutikPaste) with { SourceTotalTtc = Money.FromCents(3590) };
+
+        await store.SaveAsync(order);
+        var byDate = (await store.ListByPlannedDateAsync(BusinessDate)).Single();
+        var searched = (await store.SearchAsync("synthetic M09 WP1")).Single();
+
+        foreach (var row in new[] { byDate, searched })
+        {
+            Assert.AreEqual(OrderSourceType.HiboutikPaste, row.SourceType);
+            Assert.AreEqual(Money.FromCents(3590), row.SourceTotalTtc);
+            Assert.AreEqual(Money.FromCents(3231), row.TotalTtc);
+        }
+    }
+
+    [TestMethod]
     public async Task ExactActiveProductCodeLookupUsesCurrentCatalogueIdentityOnly()
     {
         using var paths = new TestPaths();

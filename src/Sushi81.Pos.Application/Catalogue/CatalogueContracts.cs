@@ -94,6 +94,12 @@ public sealed record OrderBrowserRow(
     Money TotalTtc,
     string? Telephone)
 {
+    /// <summary>Hidden persisted provenance exposed only as a passive browser/detail hint.</summary>
+    public OrderSourceType SourceType { get; init; } = OrderSourceType.Pos;
+
+    /// <summary>Nullable source-reported amount; never the POS pricing authority.</summary>
+    public Money? SourceTotalTtc { get; init; }
+
     public string Reference { get; init; } = string.Empty;
     public string? DeliveryAddress { get; init; }
     public string? Comment { get; init; }

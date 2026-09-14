@@ -59,6 +59,7 @@ public static partial class CompositionRoot
         AuthorityPhase? authorityPhase = null;
         IOrderPrintApplicationService? printService = null;
         PrinterSetupViewModel? printerSetup = null;
+        HiboutikImportOrchestrator? hiboutikImportOrchestrator = null;
 
         try
         {
@@ -115,6 +116,7 @@ public static partial class CompositionRoot
             settingsService = new BusinessSettingsService(settingsStore, authorityGuard, durableChangeNotifier);
             var orderStore = new SqliteOrderStore(connectionFactory, transactionRunner, null, idGenerator, clock);
             var orderCatalogueQueries = new OrderEntryCatalogueService(catalogueStore);
+            hiboutikImportOrchestrator = new HiboutikImportOrchestrator(orderCatalogueQueries, settingsStore);
             orderLifecycleService = new OrderLifecycleService(orderStore, idGenerator, clock, authorityGuard, durableChangeNotifier, orderCatalogueQueries, settingsStore);
             var printDispatcher = new WindowsOrderPrintDispatcher(
                 settingsStore,
@@ -206,7 +208,8 @@ public static partial class CompositionRoot
             m07Setup,
             authorityPhase,
             printService,
-            printerSetup);
+            printerSetup,
+            hiboutikImportOrchestrator);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,

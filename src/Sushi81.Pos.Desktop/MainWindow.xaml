@@ -112,11 +112,15 @@
           </WrapPanel>
           <DataGrid x:Name="commandesGrid" Grid.Row="1" ItemsSource="{Binding Orders}" SelectedItem="{Binding SelectedRow, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" MinHeight="140" Margin="0,0,0,8" Loaded="OnCommandesGridLoaded" SizeChanged="OnCommandesGridSizeChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="" Binding="{Binding ReferenceText}" Width="120" />
+              <DataGridTemplateColumn Header="" Width="120">
+                <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel><TextBlock Text="{Binding ReferenceText}" /><TextBlock Text="{Binding SourceText}" FontSize="10" Foreground="DarkSlateBlue" Visibility="{Binding HasHiboutikSource, Converter={StaticResource BoolToVisibility}}" /></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
               <DataGridTextColumn Header="" Binding="{Binding PlannedDateText}" Width="100" />
               <DataGridTextColumn Header="" Binding="{Binding PlannedTimeText}" Width="65" />
               <DataGridTextColumn Header="" Binding="{Binding StatusText}" Width="95" />
-              <DataGridTextColumn Header="" Binding="{Binding TotalText, StringFormat={}{0} €}" Width="95" />
+              <DataGridTemplateColumn Header="" Width="95">
+                <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel><TextBlock Text="{Binding TotalText, StringFormat={}{0} €}" /><TextBlock Text="{Binding SourceTotalText, StringFormat={}{0} €}" FontSize="10" Foreground="DarkSlateBlue" Visibility="{Binding HasHiboutikSource, Converter={StaticResource BoolToVisibility}}" /></StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
               <DataGridTextColumn Header="" Binding="{Binding TelephoneText}" Width="150" />
               <DataGridTextColumn Header="" Binding="{Binding FulfilmentText}" Width="100" />
               <DataGridTextColumn Header="" Binding="{Binding CommentText}" Width="2*" MinWidth="180" />
@@ -129,7 +133,7 @@
               <Grid IsEnabled="{Binding HasSelectedOrder}">
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="145" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,6"><TextBlock Text="{Binding ReferenceText}" FontSize="19" FontWeight="SemiBold" /><WrapPanel><TextBlock Text="{Binding AdvanceText}" Margin="0,0,10,0" /><TextBlock Text="{Binding ManualTotalText}" Margin="0,0,10,0" /><TextBlock Text="{Binding PickupDiscountText}" Margin="0,0,10,0" /><TextBlock Text="{Binding DataContext.Localized[TaxSnapshot], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBlock Text=": " /><TextBlock Text="{Binding TaxSummaryText}" /></WrapPanel></StackPanel>
+                <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,6"><TextBlock Text="{Binding ReferenceText}" FontSize="19" FontWeight="SemiBold" /><WrapPanel><TextBlock Text="{Binding SourceText}" Foreground="DarkSlateBlue" Visibility="{Binding HasHiboutikSource, Converter={StaticResource BoolToVisibility}}" Margin="0,0,10,0" /><TextBlock Text="{Binding SourceTotalText, StringFormat={}{0} €}" Foreground="DarkSlateBlue" Visibility="{Binding HasHiboutikSource, Converter={StaticResource BoolToVisibility}}" Margin="0,0,10,0" /><TextBlock Text="{Binding AdvanceText}" Margin="0,0,10,0" /><TextBlock Text="{Binding ManualTotalText}" Margin="0,0,10,0" /><TextBlock Text="{Binding PickupDiscountText}" Margin="0,0,10,0" /><TextBlock Text="{Binding DataContext.Localized[TaxSnapshot], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBlock Text=": " /><TextBlock Text="{Binding TaxSummaryText}" /></WrapPanel></StackPanel>
                 <TextBlock Grid.Row="1" Text="{Binding DataContext.Localized[OrderStatus], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding StatusText}" />
                 <TextBlock Grid.Row="2" Text="{Binding DataContext.Localized[Fulfilment], RelativeSource={RelativeSource AncestorType=Window}}" /><ComboBox Grid.Row="2" Grid.Column="1" Width="150" HorizontalAlignment="Left" ItemsSource="{Binding FulfilmentChoices}" DisplayMemberPath="Label" SelectedValuePath="Mode" SelectedValue="{Binding EditFulfilment, Mode=TwoWay}" IsEnabled="{Binding IsEditing}" />
                 <CheckBox Grid.Row="3" Grid.Column="1" Content="{Binding DataContext.Localized[PickupDiscountRequest], RelativeSource={RelativeSource AncestorType=Window}}" IsChecked="{Binding EditPickupDiscountRequested, Mode=TwoWay}" IsEnabled="{Binding IsEditPickupDiscountEnabled}" Margin="0,0,0,6" />
@@ -201,7 +205,34 @@
 
           <Grid Grid.Row="1" Grid.Column="1" Margin="4,0,0,0">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="3*" /><RowDefinition Height="4*" /></Grid.RowDefinitions>
-            <TextBlock Grid.Row="0" FontSize="18" FontWeight="SemiBold" Text="{Binding DataContext.Localized[Cart], RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,0,0,6" />
+            <StackPanel Grid.Row="0" Margin="0,0,0,6">
+              <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding DataContext.Localized[Cart], RelativeSource={RelativeSource AncestorType=Window}}" />
+              <Expander x:Name="hiboutikPasteExpander" Header="{Binding DataContext.Localized[HiboutikPasteAction], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanWrite}" Margin="0,4,0,0">
+                <StackPanel Margin="4">
+                  <TextBlock Text="{Binding DataContext.Localized[HiboutikPasteInstructions], RelativeSource={RelativeSource AncestorType=Window}}" TextWrapping="Wrap" FontSize="11" Opacity="0.8" Margin="0,0,0,5" />
+                  <TextBlock Text="{Binding DataContext.Localized[HiboutikSourceText], RelativeSource={RelativeSource AncestorType=Window}}" FontWeight="SemiBold" />
+                  <TextBox x:Name="hiboutikSourceBox" MinHeight="72" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Text="{Binding HiboutikSourceText, UpdateSourceTrigger=PropertyChanged}" />
+                  <WrapPanel Margin="0,5,0,3">
+                    <Button Content="{Binding DataContext.Localized[HiboutikParse], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanStartHiboutikImport}" Click="OnStartHiboutikImport" Padding="8,3" />
+                    <Button Content="{Binding DataContext.Localized[HiboutikReset], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanResetHiboutikImport}" Click="OnResetHiboutikImport" Padding="8,3" Margin="6,0,0,0" />
+                  </WrapPanel>
+                  <TextBlock Text="{Binding HiboutikSourceTotalText}" Visibility="{Binding HasHiboutikImport, Converter={StaticResource BoolToVisibility}}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding HiboutikImportStatusText}" Visibility="{Binding HasHiboutikImport, Converter={StaticResource BoolToVisibility}}" TextWrapping="Wrap" FontSize="11" Foreground="DarkRed" />
+                  <ItemsControl ItemsSource="{Binding HiboutikLines}" Margin="0,3,0,0">
+                    <ItemsControl.ItemTemplate><DataTemplate><Border BorderBrush="#FFE0E0E0" BorderThickness="0,1,0,0" Padding="0,4"><StackPanel>
+                      <TextBlock Text="{Binding SourceContextText}" FontSize="11" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding SourceText}" TextWrapping="Wrap" />
+                      <WrapPanel><TextBlock Text="{Binding SourceAmountText}" FontSize="11" Margin="0,0,8,0" /><TextBlock Text="{Binding ResolutionText}" FontSize="11" Foreground="DarkRed" /></WrapPanel>
+                      <WrapPanel Margin="0,3,0,0">
+                        <Button Content="{Binding SelectProductLabel}" Tag="{Binding}" IsEnabled="{Binding CanSelectProduct}" Visibility="{Binding CanSelectProduct, Converter={StaticResource BoolToVisibility}}" Click="OnResolveHiboutikLine" Padding="7,2" />
+                        <Button Content="{Binding IgnoreLabel}" Tag="{Binding}" IsEnabled="{Binding CanIgnore}" Visibility="{Binding CanIgnore, Converter={StaticResource BoolToVisibility}}" Click="OnIgnoreHiboutikLine" Padding="7,2" Margin="5,0,0,0" />
+                        <Button Content="{Binding ConfigureLabel}" Tag="{Binding}" IsEnabled="{Binding CanConfigureOptions}" Visibility="{Binding CanConfigureOptions, Converter={StaticResource BoolToVisibility}}" Click="OnConfigureHiboutikOptions" Padding="7,2" Margin="5,0,0,0" />
+                      </WrapPanel>
+                    </StackPanel></Border></DataTemplate></ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Expander>
+            </StackPanel>
             <ListBox x:Name="orderCartList" Grid.Row="1" ItemsSource="{Binding Cart}" SelectedItem="{Binding SelectedCartLine}" BorderThickness="1" MinHeight="260" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="OnEditOrderLine">
               <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.ItemContainerStyle>
               <ListBox.ItemTemplate><DataTemplate><Grid Margin="4" MinHeight="48">
