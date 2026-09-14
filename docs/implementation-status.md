@@ -1,22 +1,22 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-14
-**Current state:** M01 through M07 are Passed and merged. M08 — Printing and reprinting — is **Passed / merge-ready, not yet merged**: the R11 production implementation, exact-head CI, B-PC Customer R10, B-PC Kitchen R11 and A-PC automatic-print evidence are reconciled and accepted by controller review `5195806765`. Merge still requires separate explicit project-owner approval. M09 and later milestones remain unauthorized.
+**Last updated:** 2026-09-14  
+**Current state:** M01 through M08 are Passed and merged. M09 — Hiboutik paste-order fallback — is in **Preparation complete / ready for project-owner implementation authorization** state. M09 implementation is not yet authorized; no M09 branch/PR/executable handoff exists; Issue #4 remains CLOSED. M10 and later milestones remain unauthorized.
 
-> Historical implementation/evidence through M06 remains preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07 evidence remains authoritative in its milestone-specific worklog/manual-acceptance/PR records. This living document states current control state only.
+> Historical implementation/evidence through M06 remains preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07/M08 evidence remains authoritative in milestone-specific worklogs/manual-acceptance/PR records. This living document states current control state only.
 
 ## 1. Status vocabulary
 
 - `Not started` — no conforming implementation evidence yet.
-- `Preparation` — specification/contract/checklist preparation is occurring, but implementation is not authorized and Codex must not execute.
+- `Preparation` — specification/contract/checklist preparation is occurring or complete, but implementation is not authorized and Codex must not execute.
 - `Authorized` — project-owner implementation approval is durable, but Codex still requires the complete branch/PR/mailbox/open-gate execution prerequisites.
 - `In progress` — an authorized executable handoff is active under the OPEN Issue #4 gate.
 - `Partial` — some evidence exists, but complete acceptance is not yet satisfied.
 - `Passed` — required automated/manual evidence is recorded and passes on the applicable accepted build.
 - `Blocked — amendment required` — a genuine material specification conflict prevents conforming implementation.
 - `Blocked — architecture decision required` — an approved protocol remains safe, but a required technical capability still needs an architecture decision/proof.
-- `Not applicable — amended` — allowed only when an approved specification amendment explicitly makes the criterion inapplicable.
+- `Not applicable — amended` — allowed only when an approved specification amendment explicitly makes the criterion inapplicable/replaces it.
 
 Only `Passed` and properly approved `Not applicable — amended` satisfy final V1 acceptance.
 
@@ -25,75 +25,105 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | Milestone | Status | Current authoritative result |
 |---|---|---|
 | M01 — Foundation and safe persistence spine | Passed | Merged through PR #1. |
-| M02 — remote handoff feasibility/revalidation | Passed | Approved target-directed GitHub Release Asset transport revalidation Passed. |
+| M02 — Remote handoff feasibility/revalidation | Passed | Approved target-directed GitHub Release Asset transport revalidation Passed. |
 | M03 — Catalogue and settings | Passed | Merged through PR #5; final Windows/WPF acceptance Passed. |
 | M04 — Order-entry vertical slice | Passed | Merged through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a`; final Windows/WPF acceptance Passed. |
 | M05 — Lifecycle/payments/search/dashboard | Passed | Merged through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`; final Windows/WPF acceptance Passed. |
 | M06 — Local recovery/read-only enforcement | Passed | Merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; final Windows/WPF acceptance Passed. |
-| M07 — Pairing, target-directed handoff and disaster recovery | Passed | Project-owner final acceptance recorded on PR #13; accepted production head `e971580ef43d3b50366d51733ca9431ca0997e8d`; final closure docs/evidence head `d586c847f2dd541815b8c00565c58b3685a3e4be`; PR #13 merged to `main` at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`; exact-head CI #631 succeeded with 541/541 tests and 0 warnings/errors. |
-| M08 — Printing and reprinting | Passed | Merge-ready, not yet merged. Accepted production candidate R11 head `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; implementation commit `7ab74655977faaf70f95c91188d5a69486a378e6`; exact CI #673 / run `34784638478` / job `103797769200` succeeded with 575/575 tests and 0 warnings/errors; closure exact-head CI #674 / run `34824945898` / job `103914804236` succeeded; B-PC Customer R10 and Kitchen R11 physical evidence is recorded in PR comment `5656535282`; A-PC automatic-print PASS is recorded in comment `5661259453`; controller final-pass disposition is recorded in review `5195806765`. Merge requires separate explicit project-owner approval. |
-| M09 — Hiboutik paste fallback | Not started | Unauthorized; pending M08. |
+| M07 — Pairing, target-directed handoff and disaster recovery | Passed | Accepted production head `e971580ef43d3b50366d51733ca9431ca0997e8d`; closure docs/evidence head `d586c847f2dd541815b8c00565c58b3685a3e4be`; PR #13 merged to `main` at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`; exact-head CI #631 succeeded with 541/541 tests and 0 warnings/errors. |
+| M08 — Printing and reprinting | Passed | Accepted production candidate `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; production implementation commit `7ab74655977faaf70f95c91188d5a69486a378e6`; final pass-record head `5f8c92c29116e17a3365ecd8801f7e13f107269c`; exact-head CI #675 succeeded; project-owner physical/manual acceptance Passed; PR #14 merged to `main` at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. |
+| M09 — Hiboutik paste fallback | Preparation | Specification amendment, parser source contract, implementation contract, testing matrix and manual checklist prepared. Ready for separate project-owner implementation authorization. No M09 implementation branch/PR/handoff yet; Issue #4 CLOSED. |
 | M10 — Catalogue `.xlsx` | Not started | Unauthorized; pending M09. |
 | M11 — Gestion export | Not started | Unauthorized; pending M10. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
 
-## 3. M08 controlling scope and criteria
+## 3. M08 closure baseline
 
-M08 controls:
+M08 is no longer open work.
 
-- `AC-PRINT-001` through `AC-PRINT-008`;
-- `AC-PRINT-010`;
-- `AC-PRINT-011`;
-- `AC-ARCH-006`;
-- the production printing cross-check of `AC-LIFE-001` commit-before-print;
-- the final real-printer/offline cross-check relevant to the local-first product boundary.
+Authoritative closure facts:
 
-`AC-PRINT-009` archived-order printing remains M12.
+- PR #14 — `M08: printing and reprinting` — CLOSED / MERGED;
+- merge commit: `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`;
+- accepted production candidate: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`;
+- final pass-record head: `5f8c92c29116e17a3365ecd8801f7e13f107269c`;
+- final exact-head CI #675: SUCCESS;
+- B-PC Customer R10, B-PC Kitchen R11 and A-PC automatic-print evidence: accepted;
+- controller final-pass disposition: accepted before owner merge approval.
 
-The controlling M08 preparation/authorization package is:
+Any older living-status/Issue wording stating “M08 merge-ready / PR #14 not yet merged” is superseded by GitHub merge metadata and this reconciled current-state record. Historical M08 evidence is not rewritten.
 
-- `implementation/milestone-08-printing-reprinting.md`;
-- `implementation/milestone-08-contract-addendum-print-layout-identity.md`;
-- `decisions/m08-print-layout-and-receipt-identity.md`;
-- `implementation/milestone-08-preparation-readiness.md`;
-- `implementation/milestone-08-authorization.md`;
-- `implementation/milestone-08-worklog.md`;
-- `implementation/milestone-08-final-manual-acceptance.md`.
+## 4. M09 controlling scope and approved amendment
 
-The supplied `modèle impression.pdf` is an owner visual source translated durably into the M08 decision/addendum: page 1 semantics control the kitchen-ticket target and page 2 Hiboutik-style semantics control the customer-ticket target. Repository text remains the executable specification; Codex is not required to access the external project-file attachment directly.
+M09 primary acceptance ownership remains AC-HIB-001 through AC-HIB-009, as amended by:
 
-## 4. M08 owner-approved receipt/layout decision
+- `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md`;
+- `decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`.
 
-The customer receipt identity is frozen as authoritative business configuration:
+The consolidated operational specification is `paste-order-import.md` (amended 2026-09-14).
 
-- `Sushi 81`;
-- `12 Rue Gaston Darley`;
-- `77140 Nemours - FRA`;
-- SIRET `90805211100014`;
-- TVA `FR03908052111`;
-- APE/NAF `5610C`.
+The approved M09 preparation package is:
 
-These values belong to authoritative SQLite `BusinessSettings` and follow normal authority/handoff/DR data semantics. Kitchen/customer Windows printer queue selections remain local per-device technical configuration.
+- `implementation/milestone-09-preparation-readiness.md`;
+- `implementation/milestone-09-hiboutik-paste-fallback.md`;
+- `implementation/milestone-09-final-manual-acceptance.md`.
 
-The customer visual target is a narrow monospaced thermal-receipt appearance comparable to the owner-supplied Hiboutik sample. The exact Hiboutik printer-resident font is not a frozen portable font-family requirement; physical printed similarity is part of project-owner manual acceptance.
+Key frozen M09 semantics:
 
-## 5. M08 governance gate
+- operator pastes the Hiboutik product-detail block directly;
+- per-item source `Total` lines/final `TOTAL` are tolerated without manual cleanup;
+- exact-code automatic product resolution only;
+- unknown/material lines become explicit unresolved state;
+- every unresolved line requires operator product selection or explicit ignore before confirmation;
+- ordinary option workflow is reused;
+- ordinary order-level fields are entered manually;
+- ordinary POS pricing remains authoritative;
+- nullable read-only `source_total_ttc` may retain a reliably determined Hiboutik source amount for reconciliation only;
+- passive read-only `Hiboutik` source identification is allowed in ordinary order list/detail;
+- anti-double-counting exclusions remain unchanged;
+- no old emergency-order/discrepancy/duplicate/payment subsystem is reintroduced.
 
-Project-owner implementation authorization is durable in `implementation/milestone-08-authorization.md` and records exact authorized preparation head `b983efa7ef4e2591575fa662f9d433652b97e4aa`.
+A synthetic structural source sample is recorded at:
 
-Codex must still fail closed unless all of the following are simultaneously true:
+`samples/pasted-orders/hiboutik-product-block-synthetic.txt`
 
-- Issue #4 is OPEN;
-- Issue #4 points to the exact active M08 PR and branch;
-- the M08 authorization record exists and is AUTHORIZED;
-- the active PR contains exactly one valid unprocessed top-level `CODEX_HANDOFF_READY` for the current task;
-- the handoff ID, contract/addendum and branch/PR identity are unambiguous.
+No real customer/order screenshots or production details are committed.
 
-Authorization does not authorize merge. M08 is Passed / merge-ready on the recorded evidence and controller disposition, but remains unmerged pending separate explicit project-owner approval. The owner checklist remains governed by the acceptance record; its checkmarks record evidence/controller acceptance and do not claim that Codex exercised owner authority.
+## 5. M09 readiness/gate state
 
-M09 must not start during M08.
+Preparation audit conclusion:
 
-## 6. Evidence preservation
+- M08 dependency: satisfied/merged;
+- M09 business specification: frozen;
+- real Hiboutik product-block source structure: verified by owner examples and translated to synthetic fixture;
+- implementation seams: available in ordinary order entry/catalogue/options/pricing/authority/recovery/M08 printing;
+- material M09 questions: none open;
+- readiness: **READY FOR PROJECT-OWNER IMPLEMENTATION AUTHORIZATION**.
+
+This readiness state is **not authorization**.
+
+Until the project owner separately authorizes M09 implementation:
+
+- Issue #4 stays CLOSED;
+- no executable `CODEX_HANDOFF_READY` is published;
+- no M09 production-code branch/PR is required;
+- Codex must make no M09 project changes;
+- M10+ remain unauthorized.
+
+## 6. Proposed M09 execution topology after authorization
+
+After separate owner authorization:
+
+- branch: `codex/m09-hiboutik-paste-fallback`;
+- PR: `M09: Hiboutik paste-order fallback`;
+- PR top-level Conversation comments: durable mailbox;
+- prepare/publish the first complete executable handoff while Issue #4 remains CLOSED;
+- then ask the owner to reopen Issue #4 so Codex can immediately consume the queued work;
+- Codex processes only authorized M09 work packages serially;
+- completion of M09 never authorizes M10 or merge;
+- merge requires separate explicit owner approval.
+
+## 7. Evidence preservation
 
 Historical milestone worklogs, acceptance records, decision records, PR discussions and accepted exact-head evidence remain authoritative in place. Current-state cleanup must not rewrite historical failures/remediation as though they never occurred.
