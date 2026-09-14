@@ -4,15 +4,15 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M07 Passed/merged; M08 — Printing and reprinting — is in Preparation only and is NOT implementation-authorized.**
+**Phase 6 implementation active: M01–M08 Passed/merged; M09 — Hiboutik paste-order fallback — preparation/readiness complete and ready for separate project-owner implementation authorization.**
 
-M07 — Pairing, target-directed formal handoff and disaster recovery — Passed project-owner Windows/WPF multi-device acceptance and was merged through PR #13 to `main` at merge commit `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`. Accepted production implementation head: `e971580ef43d3b50366d51733ca9431ca0997e8d`; final closure docs/evidence head: `d586c847f2dd541815b8c00565c58b3685a3e4be`; exact-head CI #631 / run `34698627867` succeeded; Release tests 541/541 Passed.
+M08 — Printing and reprinting — Passed project-owner Windows/WPF/physical-print acceptance and was merged through PR #14 to `main` at merge commit `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. Accepted production candidate: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; final pass-record head: `5f8c92c29116e17a3365ecd8801f7e13f107269c`; final exact-head CI #675 succeeded.
 
-M08 preparation documents are present under `implementation/`. The owner-approved print-layout/receipt-identity decision is `decisions/m08-print-layout-and-receipt-identity.md`. M08 implementation remains unauthorized: Issue #4 is CLOSED, no M08 implementation branch/PR exists, and no executable handoff exists.
+M09 preparation is complete. The owner-approved 2026-09-14 amendment narrows paste input to the Hiboutik product-detail block, requires fail-safe unresolved-line operator handling, permits passive read-only Hiboutik source identification, and permits nullable read-only `source_total_ttc` as a reconciliation reference while keeping ordinary POS pricing authoritative.
 
-M09 and later milestones are not started/authorized.
+M09 implementation is **NOT YET AUTHORIZED**. Issue #4 is CLOSED, no M09 implementation branch/PR exists, and no executable handoff exists. M10 and later milestones remain unauthorized.
 
-The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`.
+The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`; the living current control state is `implementation-status.md`.
 
 ## V1 documentation baseline
 
@@ -30,24 +30,25 @@ The V1 Specification remains frozen-and-amended. The formal freeze record is `v1
 ### Phase 3 — Core technical architecture
 
 - `architecture.md` — Approved — Phase 3 baseline, including later approved handoff amendments.
-- `data-model.md` — Approved — Phase 3 baseline.
+- `data-model.md` — Approved — Phase 3 baseline, subject to later approved decision amendments where explicitly stated.
 - `storage-strategy.md` — Approved — Phase 3 baseline, including later approved GitHub handoff and M07 self-join/DR decisions.
 
 A separate `sync-and-backup.md` is not part of V1 because live storage, local recovery, GitHub target-directed normal handoff, OneDrive disaster-recovery/archive behavior and annual archive behavior are already authoritative in the applicable baseline/decision documents.
 
 ### Phase 4 — Input, printing and export specifications
 
-- `paste-order-import.md` — Approved — Phase 4 baseline.
+- `paste-order-import.md` — Approved — Phase 4 baseline, amended 2026-09-14 for M09 product-block/operator-resolution/source-reference semantics.
 - `printing.md` — Approved — Phase 4 baseline.
 - `export.md` — Approved — Phase 4 baseline.
 
 M08 owner-selected visual/identity detail is frozen in `decisions/m08-print-layout-and-receipt-identity.md` and the matching implementation-contract addendum.
 
-### Phase 5 — V1 specification freeze
+### Phase 5 — V1 specification freeze and acceptance amendments
 
 - `acceptance-criteria.md` — Approved — Phase 5 baseline (V1 Specification).
 - `acceptance-criteria-amendment-filtered-catalogue-bulk-activation.md` — Approved amendment adding AC-CAT-013.
 - `acceptance-criteria-amendment-m07-self-join-disaster-recovery.md` — Approved M07 amendment.
+- `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md` — Approved 2026-09-14 M09 acceptance amendment for AC-HIB-001 through AC-HIB-009 where stated.
 - `v1-specification-freeze.md` — Approved — Phase 5 baseline, amended through approved post-freeze decisions.
 
 ### Phase 6 — Implementation planning and controlled execution
@@ -67,21 +68,24 @@ Historical completed milestone records remain under `implementation/` and in the
 - M04 — Passed/merged through PR #6;
 - M05 — Passed/merged through PR #10;
 - M06 — Passed/merged through PR #11;
-- M07 — Passed/merged through PR #13.
+- M07 — Passed/merged through PR #13;
+- M08 — Passed/merged through PR #14.
 
-Current M08 preparation package:
+Current M09 preparation package:
 
-- `implementation/milestone-08-printing-reprinting.md` — detailed base contract, non-executable until authorization;
-- `implementation/milestone-08-contract-addendum-print-layout-identity.md` — controlling owner layout/identity addendum;
-- `implementation/milestone-08-preparation-readiness.md` — readiness/control checklist;
-- `implementation/milestone-08-authorization.md` — currently **NOT AUTHORIZED**;
-- `implementation/milestone-08-worklog.md` — preparation/evidence log;
-- `implementation/milestone-08-final-manual-acceptance.md` — prepared owner Windows/WPF/real-print checklist;
-- `decisions/m08-print-layout-and-receipt-identity.md` — owner-approved visual/receipt-identity decision.
+- `decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md` — owner-approved V1 amendment;
+- `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md` — amended AC-HIB acceptance contract;
+- `paste-order-import.md` — consolidated amended operational specification;
+- `implementation/milestone-09-preparation-readiness.md` — readiness/control record;
+- `implementation/milestone-09-hiboutik-paste-fallback.md` — detailed implementation contract, non-executable until owner authorization;
+- `implementation/milestone-09-final-manual-acceptance.md` — prepared owner Windows/WPF checklist;
+- `samples/pasted-orders/hiboutik-product-block-synthetic.txt` — synthetic source-structure fixture only.
+
+No M09 authorization record exists yet because the owner has not separately authorized implementation.
 
 ## Decision records
 
-Approved materially constraining decisions live under `decisions/` and supplement the baseline documents.
+Approved materially constraining decisions live under `decisions/` and supplement/amend the baseline documents.
 
 Relevant later decisions include:
 
@@ -89,7 +93,10 @@ Relevant later decisions include:
 - M04/M05 implementation clarification decisions;
 - `decisions/target-directed-authority-handoff.md` and `decisions/github-handoff-transport.md`;
 - M07 self-join/DR/recovery-ordering decisions;
-- `decisions/m08-print-layout-and-receipt-identity.md` — owner-selected kitchen/customer ticket visual targets plus customer receipt business identity and storage semantics.
+- `decisions/m08-print-layout-and-receipt-identity.md`;
+- `decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`.
+
+Where a later Approved decision explicitly supersedes a narrow older clause, the later decision controls until the next complete consolidation pass. A genuine unresolved contradiction still requires implementation to stop rather than guess.
 
 ## Implementation authority rule
 
