@@ -10,7 +10,7 @@ M08 — Printing and reprinting — Passed project-owner Windows/WPF/physical-pr
 
 M09 preparation is complete. The owner-approved 2026-09-14 amendment narrows paste input to the Hiboutik product-detail block, requires fail-safe unresolved-line operator handling, permits passive read-only Hiboutik source identification, and permits nullable read-only `source_total_ttc` as a reconciliation reference while keeping ordinary POS pricing authoritative.
 
-M09 implementation is authorized by `implementation/milestone-09-authorization.md`. Authorization is not the Codex execution switch: Issue #4 must still remain CLOSED until the dedicated M09 branch/PR/mailbox exists and a complete executable handoff is queued. M10 and later milestones remain unauthorized.
+M09 implementation is authorized by `implementation/milestone-09-authorization.md`. Authorization is not the Codex execution switch: Issue #4 must remain CLOSED until the dedicated M09 branch/PR/mailbox exists and a complete executable handoff is queued. M10 and later milestones remain unauthorized.
 
 The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`; the living current control state is `implementation-status.md`.
 
