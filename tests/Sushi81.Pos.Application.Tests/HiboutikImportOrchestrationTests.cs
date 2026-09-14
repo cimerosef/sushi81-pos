@@ -1,9 +1,11 @@
+using System.Text.Json;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.OrderEntry;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Domain;
 
@@ -34,6 +36,47 @@ public sealed class HiboutikImportOrchestrationTests
         Assert.AreEqual(2, catalogue.ExactCodeCalls);
         Assert.AreEqual(0, catalogue.BroadListCalls);
         Assert.IsFalse(session.CanConfirm);
+    }
+
+    [TestMethod]
+    public async Task KnownIgnoredDeliveryAndFinalTotalNeverBecomeOrderLines()
+    {
+        var product = Product(Guid.NewGuid(), "AA1", Money.FromCents(3590));
+        var orchestrator = new HiboutikImportOrchestrator(new FakeCatalogue(product), new FakeSettingsStore());
+
+        var session = await orchestrator.StartImportAsync("1 x Livraison (0)\n1 x AA1 Source label (35.90)\nTOTAL 35.90");
+
+        Assert.AreEqual(HiboutikImportLineResolution.KnownIgnored, session.Lines[0].Resolution);
+        Assert.AreEqual(HiboutikImportLineResolution.Resolved, session.Lines[1].Resolution);
+        Assert.AreEqual(HiboutikImportLineResolution.KnownIgnored, session.Lines[2].Resolution);
+        Assert.IsTrue(session.CanConfirm);
+        var lines = session.MaterializeOrderLines();
+        Assert.HasCount(1, lines);
+        Assert.AreEqual(product.Product.Id, lines.Single().Product.Product.Id);
+        Assert.AreEqual(3590L, session.SourceTotalTtc!.Value.Cents);
+    }
+
+    [TestMethod]
+    public async Task RepeatedProductRowsRemainSeparateAndOrdered()
+    {
+        var product = Product(Guid.NewGuid(), "AA1", Money.FromCents(1000));
+        var catalogue = new FakeCatalogue(product);
+        var orchestrator = new HiboutikImportOrchestrator(catalogue, new FakeSettingsStore());
+
+        var session = await orchestrator.StartImportAsync("1 x AA1 First source (1.00)\n2 x AA1 Second source (2.00)");
+
+        Assert.HasCount(2, session.Lines);
+        Assert.AreEqual(1, session.Lines[0].SourceLineNumber);
+        Assert.AreEqual(2, session.Lines[1].SourceLineNumber);
+        Assert.AreEqual("1 x AA1 First source (1.00)", session.Lines[0].SourceText);
+        Assert.AreEqual("2 x AA1 Second source (2.00)", session.Lines[1].SourceText);
+        var lines = session.MaterializeOrderLines();
+        Assert.HasCount(2, lines);
+        Assert.AreEqual(1, lines[0].Quantity);
+        Assert.AreEqual(2, lines[1].Quantity);
+        Assert.AreEqual(product.Product.Id, lines[0].Product.Product.Id);
+        Assert.AreEqual(product.Product.Id, lines[1].Product.Product.Id);
+        Assert.AreEqual(2, catalogue.ExactCodeCalls);
     }
 
     [TestMethod]
@@ -77,6 +120,38 @@ public sealed class HiboutikImportOrchestrationTests
 
         Assert.IsFalse(result.Succeeded);
         Assert.AreEqual(ValidationCodes.Required, result.Issues.Single().StableCode);
+    }
+
+    [TestMethod]
+    public async Task FailedManualSelectionLeavesTheUnresolvedStateUnchanged()
+    {
+        var product = Product(Guid.NewGuid(), "CURRENT", Money.FromCents(1250));
+        var missingCatalogue = new FakeCatalogue(product);
+        var missingOrchestrator = new HiboutikImportOrchestrator(missingCatalogue, new FakeSettingsStore());
+        var missingSession = await missingOrchestrator.StartImportAsync("3 x UNKNOWN Source label");
+        var originalMissingLine = missingSession.Lines.Single();
+
+        var missing = await missingOrchestrator.ResolveUnresolvedLineAsync(missingSession, 1, Guid.NewGuid());
+
+        Assert.IsFalse(missing.Succeeded);
+        Assert.AreEqual(ValidationCodes.ProductMissing, missing.Issues.Single().StableCode);
+        Assert.AreEqual(originalMissingLine, missingSession.Lines.Single());
+        Assert.IsNull(missingSession.Lines.Single().Product);
+        Assert.AreEqual(HiboutikImportLineResolution.Unresolved, missingSession.Lines.Single().Resolution);
+        Assert.AreEqual(3, missingSession.Lines.Single().Quantity);
+
+        var inactive = product with { Product = product.Product with { IsActive = false } };
+        var inactiveOrchestrator = new HiboutikImportOrchestrator(new FakeCatalogue(inactive), new FakeSettingsStore());
+        var inactiveSession = await inactiveOrchestrator.StartImportAsync("3 x UNKNOWN Source label");
+        var originalInactiveLine = inactiveSession.Lines.Single();
+
+        var inactiveResult = await inactiveOrchestrator.ResolveUnresolvedLineAsync(inactiveSession, 1, product.Product.Id);
+
+        Assert.IsFalse(inactiveResult.Succeeded);
+        Assert.AreEqual(ValidationCodes.ProductMissing, inactiveResult.Issues.Single().StableCode);
+        Assert.AreEqual(originalInactiveLine, inactiveSession.Lines.Single());
+        Assert.IsNull(inactiveSession.Lines.Single().Product);
+        Assert.AreEqual(HiboutikImportLineResolution.Unresolved, inactiveSession.Lines.Single().Resolution);
     }
 
     [TestMethod]
@@ -127,6 +202,28 @@ public sealed class HiboutikImportOrchestrationTests
         Assert.IsTrue(accepted.Succeeded, accepted.ErrorMessage);
         Assert.IsTrue(accepted.Value!.CanConfirm);
         CollectionAssert.AreEqual(new[] { optionId }, accepted.Value.Lines.Single().SelectedOptionIds.ToArray());
+        var materialized = accepted.Value.MaterializeOrderLines().Single();
+        Assert.AreEqual(product.Product.Id, materialized.Product.Product.Id);
+        Assert.AreEqual("Plats", materialized.CategoryName);
+        Assert.AreEqual(1, materialized.Quantity);
+        CollectionAssert.AreEqual(new[] { optionId }, materialized.SelectedOptionIds.ToArray());
+    }
+
+    [TestMethod]
+    public async Task ProductWithoutOptionsIsReadyAndMaterializesCurrentCategoryAndQuantity()
+    {
+        var product = Product(Guid.NewGuid(), "NOOPT", Money.FromCents(1275));
+        var orchestrator = new HiboutikImportOrchestrator(new FakeCatalogue(product), new FakeSettingsStore());
+
+        var session = await orchestrator.StartImportAsync("2 x NOOPT Source label");
+
+        Assert.IsTrue(session.CanConfirm);
+        Assert.IsTrue(session.Lines.Single().OptionReviewCompleted);
+        var materialized = session.MaterializeOrderLines().Single();
+        Assert.AreEqual(product.Product.Id, materialized.Product.Product.Id);
+        Assert.AreEqual("Plats", materialized.CategoryName);
+        Assert.AreEqual(2, materialized.Quantity);
+        Assert.IsEmpty(materialized.SelectedOptionIds);
     }
 
     [TestMethod]
@@ -149,7 +246,7 @@ public sealed class HiboutikImportOrchestrationTests
     [TestMethod]
     public async Task HiboutikConfirmationUsesCurrentPricingAndTransfersReferenceTotalOnly()
     {
-        var product = Product(Guid.NewGuid(), "AA1", Money.FromCents(1000));
+        var product = Product(Guid.NewGuid(), "AA1", Money.FromCents(3590));
         var catalogue = new FakeCatalogue(product);
         var orchestrator = new HiboutikImportOrchestrator(catalogue, new FakeSettingsStore());
         var session = await orchestrator.StartImportAsync("1 x AA1 Source price (35.90)\nTOTAL 35.90");
@@ -162,8 +259,114 @@ public sealed class HiboutikImportOrchestrationTests
         Assert.IsTrue(result.Succeeded, string.Join("; ", result.Issues.Select(issue => issue.Message)));
         Assert.AreEqual(OrderSourceType.HiboutikPaste, result.CommittedOrder!.SourceType);
         Assert.AreEqual(3590L, result.CommittedOrder.SourceTotalTtc!.Value.Cents);
-        Assert.AreEqual(900L, result.CommittedOrder.TotalTtc.Cents);
+        Assert.AreEqual(3231L, result.CommittedOrder.TotalTtc.Cents);
+        Assert.AreEqual(3590L, result.CommittedOrder.Items.Single().ProductBasePriceTtc.Cents);
+        Assert.AreEqual(3231L, result.CommittedOrder.Items.Single().CalculatedLineTotalTtc.Cents);
+        Assert.AreEqual("AA1", result.CommittedOrder.Items.Single().ProductCode);
+        Assert.IsNull(result.CommittedOrder.Comment);
+        var serializedSnapshot = JsonSerializer.Serialize(result.CommittedOrder);
+        Assert.IsFalse(serializedSnapshot.Contains("Source price", StringComparison.Ordinal));
         Assert.AreEqual(1, store.SaveCalls);
+    }
+
+    [TestMethod]
+    public async Task OrdinaryConfirmationRemainsPosOriginatedWithoutSourceTotal()
+    {
+        var product = Product(Guid.NewGuid(), "POS-1", Money.FromCents(3590));
+        var store = new RecordingOrderStore();
+        using var service = CreateOrderService(new FakeCatalogue(product), store, new TestAuthorityGuard(WriteAuthorityState.Authoritative));
+
+        var result = await service.ConfirmNewOrderAsync(Draft(product));
+
+        Assert.IsTrue(result.Succeeded, string.Join("; ", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(OrderSourceType.Pos, result.CommittedOrder!.SourceType);
+        Assert.IsNull(result.CommittedOrder.SourceTotalTtc);
+        Assert.AreEqual(1, store.SaveCalls);
+    }
+
+    [TestMethod]
+    public async Task HiboutikConfirmationWithoutReliableParserTotalPersistsNullSourceTotal()
+    {
+        var product = Product(Guid.NewGuid(), "AA1", Money.FromCents(3590));
+        var catalogue = new FakeCatalogue(product);
+        var orchestrator = new HiboutikImportOrchestrator(catalogue, new FakeSettingsStore());
+        var session = await orchestrator.StartImportAsync("1 x AA1 Source label");
+        var store = new RecordingOrderStore();
+        using var service = CreateOrderService(catalogue, store, new TestAuthorityGuard(WriteAuthorityState.Authoritative));
+
+        var result = await service.ConfirmHiboutikImportAsync(session, session.TryCreateDraft(FulfilmentMode.Retrait, BusinessDate, new TimeOnly(11, 0)).Value!);
+
+        Assert.IsTrue(result.Succeeded, string.Join("; ", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(OrderSourceType.HiboutikPaste, result.CommittedOrder!.SourceType);
+        Assert.IsNull(result.CommittedOrder.SourceTotalTtc);
+    }
+
+    [TestMethod]
+    public async Task FinalConfirmationRefetchesCurrentCatalogueAndKeepsSourceTotalSeparate()
+    {
+        var productId = Guid.NewGuid();
+        var importedProduct = ProductNamed(productId, "AA1", "Earlier catalogue", Money.FromCents(1000));
+        var currentProduct = ProductNamed(productId, "AA1", "Current catalogue", Money.FromCents(2000));
+        var catalogue = new MutableCatalogue(importedProduct, currentProduct);
+        var orchestrator = new HiboutikImportOrchestrator(catalogue, new FakeSettingsStore());
+        var session = await orchestrator.StartImportAsync("1 x AA1 Source label\nTOTAL 35.90");
+        var store = new RecordingOrderStore();
+        using var service = CreateOrderService(catalogue, store, new TestAuthorityGuard(WriteAuthorityState.Authoritative));
+
+        var result = await service.ConfirmHiboutikImportAsync(session, session.TryCreateDraft(FulfilmentMode.Retrait, BusinessDate, new TimeOnly(11, 0)).Value!);
+
+        Assert.IsTrue(result.Succeeded, string.Join("; ", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(3590L, result.CommittedOrder!.SourceTotalTtc!.Value.Cents);
+        Assert.AreEqual(2000L, result.CommittedOrder.TotalTtc.Cents);
+        Assert.AreEqual("Current catalogue", result.CommittedOrder.Items.Single().ProductName);
+        Assert.AreEqual(2000L, result.CommittedOrder.Items.Single().ProductBasePriceTtc.Cents);
+        Assert.AreEqual(1, catalogue.GetByIdCalls);
+    }
+
+    [TestMethod]
+    public async Task HiboutikConfirmationReloadsCommittedSnapshotBeforeInitialDispatch()
+    {
+        var product = Product(Guid.NewGuid(), "AA1", Money.FromCents(3590));
+        var catalogue = new FakeCatalogue(product);
+        var orchestrator = new HiboutikImportOrchestrator(catalogue, new FakeSettingsStore());
+        var session = await orchestrator.StartImportAsync("1 x AA1 Source label\nTOTAL 35.90");
+        var store = new RecordingOrderStore();
+        var dispatcher = new RecordingOutcomeDispatcher();
+        using var service = CreateOrderService(catalogue, store, new TestAuthorityGuard(WriteAuthorityState.Authoritative), dispatcher);
+
+        var result = await service.ConfirmHiboutikImportAsync(session, session.TryCreateDraft(FulfilmentMode.Retrait, BusinessDate, new TimeOnly(11, 0)).Value!);
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsTrue(result.OutputSucceeded);
+        Assert.IsTrue(result.Output!.Succeeded);
+        Assert.AreSame(result.CommittedOrder, dispatcher.LastOrder);
+        Assert.AreSame(store.Snapshot, dispatcher.LastOrder);
+        Assert.AreEqual(OrderSourceType.HiboutikPaste, dispatcher.LastOrder!.SourceType);
+        Assert.AreEqual(3590L, dispatcher.LastOrder.SourceTotalTtc!.Value.Cents);
+        Assert.AreEqual(1, dispatcher.InitialCalls);
+    }
+
+    [TestMethod]
+    public async Task OutputFailureAfterSaveLeavesCommittedHiboutikOrderRetrievable()
+    {
+        var product = Product(Guid.NewGuid(), "AA1", Money.FromCents(3590));
+        var catalogue = new FakeCatalogue(product);
+        var orchestrator = new HiboutikImportOrchestrator(catalogue, new FakeSettingsStore());
+        var session = await orchestrator.StartImportAsync("1 x AA1 Source label\nTOTAL 35.90");
+        var store = new RecordingOrderStore();
+        using var service = CreateOrderService(catalogue, store, new TestAuthorityGuard(WriteAuthorityState.Authoritative), new ThrowingOutcomeDispatcher());
+
+        var result = await service.ConfirmHiboutikImportAsync(session, session.TryCreateDraft(FulfilmentMode.Retrait, BusinessDate, new TimeOnly(11, 0)).Value!);
+        var reloaded = await service.GetOrderByIdAsync(result.CommittedOrder!.Id);
+
+        Assert.IsTrue(result.PersistenceSucceeded);
+        Assert.IsFalse(result.DispatchSucceeded);
+        Assert.IsTrue(result.HasOutputFailure);
+        Assert.IsTrue(result.Issues.Any(issue => issue.Field == "output"));
+        Assert.IsNotNull(reloaded);
+        Assert.AreEqual(result.CommittedOrder.Id, reloaded!.Id);
+        Assert.AreEqual(OrderSourceType.HiboutikPaste, reloaded.SourceType);
+        Assert.AreEqual(3590L, reloaded.SourceTotalTtc!.Value.Cents);
     }
 
     [TestMethod]
@@ -183,14 +386,20 @@ public sealed class HiboutikImportOrchestrationTests
         Assert.AreEqual(0, store.SaveCalls);
     }
 
-    private static OrderEntryService CreateOrderService(IOrderEntryCatalogueQueries catalogue, IOrderStore store, IWriteAuthorityGuard guard) =>
-        new(catalogue, new FakeSettingsStore(), store, new RecordingDispatcher(), new DeterministicIds(), new FixedClock(), guard, new RecordingNotifier());
+    private static OrderEntryService CreateOrderService(
+        IOrderEntryCatalogueQueries catalogue,
+        IOrderStore store,
+        IWriteAuthorityGuard guard,
+        IOrderPrintDispatcher? dispatcher = null) =>
+        new(catalogue, new FakeSettingsStore(), store, dispatcher ?? new RecordingDispatcher(), new DeterministicIds(), new FixedClock(), guard, new RecordingNotifier());
 
     private static NewOrderDraft Draft(ProductAggregate product) =>
         new([OrderLineDraft.Create(product) with { CategoryName = "Plats" }], FulfilmentMode.Retrait, BusinessDate, new TimeOnly(11, 0), null, null, null, false);
 
-    private static ProductAggregate Product(Guid id, string code, Money price) =>
-        ProductAggregate.Empty(new Product(id, code, code, Guid.NewGuid(), price, 10m, true, true, false, default, default));
+    private static ProductAggregate Product(Guid id, string code, Money price) => ProductNamed(id, code, code, price);
+
+    private static ProductAggregate ProductNamed(Guid id, string code, string name, Money price) =>
+        ProductAggregate.Empty(new Product(id, code, name, Guid.NewGuid(), price, 10m, true, true, false, default, default));
 
     private static ProductAggregate ProductWithGroup(Guid id, string code, bool required, Guid? optionId = null)
     {
@@ -224,6 +433,25 @@ public sealed class HiboutikImportOrchestrationTests
         }
     }
 
+    private sealed class MutableCatalogue(ProductAggregate importedProduct, ProductAggregate currentProduct) : IOrderEntryCatalogueQueries
+    {
+        public ProductAggregate CurrentProduct { get; set; } = currentProduct;
+        public int GetByIdCalls { get; private set; }
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? categoryId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ProductSummary>>([]);
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default)
+        {
+            GetByIdCalls++;
+            return Task.FromResult<OrderEntryProduct?>(productId == CurrentProduct.Product.Id && CurrentProduct.Product.IsActive ? Entry(CurrentProduct) : null);
+        }
+        public Task<OrderEntryProduct?> GetActiveProductByCodeAsync(string? productCode, CancellationToken cancellationToken = default) =>
+            Task.FromResult<OrderEntryProduct?>(
+                importedProduct.Product.IsActive && string.Equals(productCode?.Trim(), importedProduct.Product.Code, StringComparison.OrdinalIgnoreCase)
+                    ? Entry(importedProduct)
+                    : null);
+    }
+
     private static OrderEntryProduct Entry(ProductAggregate product) => new(product, "Plats");
 
     private sealed class FakeSettingsStore : IBusinessSettingsStore
@@ -235,6 +463,7 @@ public sealed class HiboutikImportOrchestrationTests
     private sealed class RecordingOrderStore : IOrderStore
     {
         public int SaveCalls { get; private set; }
+        public OrderSnapshot? Snapshot => snapshot;
         private OrderSnapshot? snapshot;
         public Task SaveAsync(OrderSnapshot value, CancellationToken cancellationToken = default) { SaveCalls++; snapshot = value; return Task.CompletedTask; }
         public Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default) => Task.FromResult(snapshot);
@@ -244,6 +473,32 @@ public sealed class HiboutikImportOrchestrationTests
     private sealed class RecordingDispatcher : IOrderPrintDispatcher
     {
         public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class RecordingOutcomeDispatcher : IOrderPrintOutcomeDispatcher
+    {
+        public int InitialCalls { get; private set; }
+        public OrderSnapshot? LastOrder { get; private set; }
+        public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<PrintDispatchResult> DispatchInitialAsync(OrderSnapshot committedOrder, PrintIntent intent = PrintIntent.InitialAutomatic, CancellationToken cancellationToken = default)
+        {
+            InitialCalls++;
+            LastOrder = committedOrder;
+            var kitchen = new OrderPrintDocument(PrintDocumentKind.Kitchen, intent, committedOrder.Id, committedOrder.Reference, "synthetic", false, false);
+            var customer = kitchen with { Kind = PrintDocumentKind.Customer };
+            return Task.FromResult(PrintDispatchResult.From(PrintDocumentResult.Success(kitchen), PrintDocumentResult.Success(customer)));
+        }
+        public Task<PrintDocumentResult> PrintDocumentAsync(OrderSnapshot committedOrder, PrintDocumentKind kind, PrintIntent intent = PrintIntent.ExplicitReprint, CancellationToken cancellationToken = default) =>
+            Task.FromResult(PrintDocumentResult.Success(new(kind, intent, committedOrder.Id, committedOrder.Reference, "synthetic", false, false)));
+    }
+
+    private sealed class ThrowingOutcomeDispatcher : IOrderPrintOutcomeDispatcher
+    {
+        public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<PrintDispatchResult> DispatchInitialAsync(OrderSnapshot committedOrder, PrintIntent intent = PrintIntent.InitialAutomatic, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("synthetic initial print failure");
+        public Task<PrintDocumentResult> PrintDocumentAsync(OrderSnapshot committedOrder, PrintDocumentKind kind, PrintIntent intent = PrintIntent.ExplicitReprint, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("synthetic print failure");
     }
 
     private sealed class RecordingNotifier : IDurableChangeNotifier

@@ -93,3 +93,13 @@ Status: **Implemented; evidence captured; awaiting controller review**.
 - Verification: targeted WP3 orchestration tests passed **10/10**; full `Sushi81.Pos.sln` Release test suite passed **621/621**; standalone Release build passed with **0 warnings, 0 errors**; `git diff --check` passed.
 - Execution topology: serial main-agent implementation and review; no subagents used because WP3 changes shared Application confirmation contracts and the transient import-session layer.
 - Scope boundary: no WPF workflow/localization, reporting/export, clipboard/network integration, WP4+, M10+, or business/specification changes. No Windows/WPF owner manual acceptance is claimed for this non-UI handoff.
+
+### WP3 remediation — contract evidence
+
+Status: **Implemented; focused contract evidence captured; awaiting controller review**.
+
+- Added focused Application regressions for the remaining WP3 contract clauses: `1 x Livraison (0)` and final `TOTAL` are ignored and never materialized; repeated rows remain ordered and independently materializable; missing/inactive manual selections leave unresolved state unchanged; no-options products are immediately ready; optional reviewed-empty and required valid option paths materialize ordinary drafts with current category, quantity and selected option IDs.
+- Added confirmation evidence for ordinary POS provenance (`SourceType.Pos`, null source total), completed Hiboutik provenance with both reliable and null source totals, the frozen €35.90 source/current-cart separation with Retrait 10% discount (`TotalTtc` €32.31, `SourceTotalTtc` €35.90), final current-catalogue re-fetch, committed-snapshot reload before ordinary initial dispatch, post-save output failure/retrievability, and absence of raw pasted source text from the durable snapshot.
+- Production defect exposed/fixed: **none**. This remediation is test/evidence-only; the existing WP3 implementation remained unchanged.
+- Verification: targeted WP3 remediation/orchestration tests passed **19/19**; accepted WP2 parser tests passed **27/27**; accepted M09 WP1 Infrastructure IntegrationTests passed **3/3**; full `Sushi81.Pos.sln` Release suite passed **630/630**; standalone Release build passed with **0 warnings, 0 errors**; `git diff --check` passed.
+- Scope/topology: no WP4+, WPF/localization, reporting/export, M10+, business/specification or merge work; serial main-agent execution; no owner manual acceptance claimed.
