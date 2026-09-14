@@ -208,19 +208,20 @@ public sealed class M07ConfigurationSetupService(
             }
         }
 
-        var updated = current with
-        {
-            OneDriveRoot = normalizedRoot,
-            GitHubOwner = NormalizeOptional(input.GitHubOwner),
-            GitHubRepository = NormalizeOptional(input.GitHubRepository),
-            GitHubReleaseTag = NormalizeWithDefault(input.GitHubReleaseTag, current.GitHubReleaseTag),
-            GitHubReleaseName = NormalizeWithDefault(input.GitHubReleaseName, current.GitHubReleaseName),
-            GitHubCredentialTarget = NormalizeOptional(input.GitHubCredentialTarget)
-        };
-
+        LocalConfiguration updated;
         try
         {
-            await configurationService.SaveAsync(updated, cancellationToken);
+            updated = await configurationService.UpdateAsync(
+                latest => latest with
+                {
+                    OneDriveRoot = normalizedRoot,
+                    GitHubOwner = NormalizeOptional(input.GitHubOwner),
+                    GitHubRepository = NormalizeOptional(input.GitHubRepository),
+                    GitHubReleaseTag = NormalizeWithDefault(input.GitHubReleaseTag, latest.GitHubReleaseTag),
+                    GitHubReleaseName = NormalizeWithDefault(input.GitHubReleaseName, latest.GitHubReleaseName),
+                    GitHubCredentialTarget = NormalizeOptional(input.GitHubCredentialTarget)
+                },
+                cancellationToken);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
         {

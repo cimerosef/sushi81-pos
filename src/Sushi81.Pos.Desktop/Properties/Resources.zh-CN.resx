@@ -298,4 +298,22 @@
   <data name="M07PendingCandidateId" xml:space="preserve"><value>精确候选项</value></data>
   <data name="M07PendingCandidateType" xml:space="preserve"><value>精确类型</value></data>
   <data name="M07RetrySameRecovery" xml:space="preserve"><value>重试同一次恢复</value></data>
+  <data name="KitchenPrinter" xml:space="preserve"><value>厨房打印机</value></data>
+  <data name="CustomerPrinter" xml:space="preserve"><value>客户打印机</value></data>
+  <data name="RefreshPrinters" xml:space="preserve"><value>刷新打印机</value></data>
+  <data name="PrinterSaved" xml:space="preserve"><value>打印机选择已在本地保存。</value></data>
+  <data name="PrinterRefreshSucceeded" xml:space="preserve"><value>已刷新已安装的打印队列。</value></data>
+  <data name="PrinterRefreshFailed" xml:space="preserve"><value>无法列出已安装的打印队列。</value></data>
+  <data name="PrinterSaveFailed" xml:space="preserve"><value>无法保存打印机选择。</value></data>
+  <data name="PrinterQueueUnavailable" xml:space="preserve"><value>配置的打印队列不可用。打印前请重新选择。</value></data>
+  <data name="OrderReprintKitchen" xml:space="preserve"><value>重印厨房单</value></data>
+  <data name="OrderReprintCustomer" xml:space="preserve"><value>重印客户单</value></data>
+  <data name="OrderPrintSuccess" xml:space="preserve"><value>文档已被打印机接受。</value></data>
+  <data name="OrderPrintFailure" xml:space="preserve"><value>打印失败：</value></data>
+  <data name="OrderPrintKitchenFailure" xml:space="preserve"><value>厨房打印不可用或失败。请检查队列后重印。</value></data>
+  <data name="OrderPrintCustomerFailure" xml:space="preserve"><value>客户打印不可用或失败。请检查队列后重印。</value></data>
+  <data name="OrderPrintAmbiguous" xml:space="preserve"><value>打印结果不确定。请勿重试初始输出；如需额外副本，请使用明确的重印操作。</value></data>
+  <data name="OrderPrintSaveOrAbandon" xml:space="preserve"><value>请先保存或放弃修改，再打印已保存状态。</value></data>
+  <data name="OrderRetryInitialKitchen" xml:space="preserve"><value>重试厨房输出</value></data>
+  <data name="OrderRetryInitialCustomer" xml:space="preserve"><value>重试客户输出</value></data>
 </root>

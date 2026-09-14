@@ -109,7 +109,35 @@ public sealed record BusinessSettings(
     Money DeliveryFeeAmountTtc,
     DateTimeOffset UpdatedAt)
 {
+    public ReceiptIdentity ReceiptIdentity { get; init; } = ReceiptIdentity.Default;
+
     public static BusinessSettings Defaults(DateTimeOffset now) => new(0.10m, Money.FromCents(1500), Money.FromCents(3000), false, Money.Zero, now);
+}
+
+/// <summary>Authoritative business identity printed on customer receipts.</summary>
+public sealed record ReceiptIdentity(
+    string BusinessName,
+    string AddressLine1,
+    string AddressLine2,
+    string Siret,
+    string VatNumber,
+    string ActivityCode)
+{
+    public static ReceiptIdentity Default { get; } = new(
+        "Sushi 81",
+        "12 Rue Gaston Darley",
+        "77140 Nemours - FRA",
+        "90805211100014",
+        "FR03908052111",
+        "5610C");
+
+    public bool IsComplete =>
+        !string.IsNullOrWhiteSpace(BusinessName)
+        && !string.IsNullOrWhiteSpace(AddressLine1)
+        && !string.IsNullOrWhiteSpace(AddressLine2)
+        && !string.IsNullOrWhiteSpace(Siret)
+        && !string.IsNullOrWhiteSpace(VatNumber)
+        && !string.IsNullOrWhiteSpace(ActivityCode);
 }
 
 public static class CatalogueValidation
@@ -159,6 +187,7 @@ public static class CatalogueValidation
         if (settings.PickupDiscountRate is < 0m or > 1m) return "Pickup discount rate must be between 0 and 100 percent.";
         if (settings.PickupDiscountMinTotalTtc < Money.Zero || settings.DeliveryMinMerchandiseTotalTtc < Money.Zero || settings.DeliveryFeeAmountTtc < Money.Zero)
             return "Settings money values cannot be negative.";
+        if (!settings.ReceiptIdentity.IsComplete) return "Customer receipt identity is incomplete.";
         return null;
     }
 

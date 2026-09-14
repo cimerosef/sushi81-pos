@@ -32,6 +32,7 @@ public static class ValidationCodes
     public const string PaymentNegative = "payment-negative";
     public const string PaymentMismatch = "payment-mismatch";
     public const string AuthorityBlocked = "authority-blocked";
+    public const string PrintAmbiguous = "print-ambiguous";
 
     public static string Infer(string message) => message switch
     {

@@ -48,6 +48,13 @@ public static class M03Presentation
 
     public static string Message(ValidationIssue issue, IReadOnlyDictionary<string, string> localized)
     {
+        if (issue.Field is "kitchen-print" or "customer-print")
+        {
+            var printKey = issue.StableCode == ValidationCodes.PrintAmbiguous
+                ? "OrderPrintAmbiguous"
+                : issue.Field == "kitchen-print" ? "OrderPrintKitchenFailure" : "OrderPrintCustomerFailure";
+            return localized.TryGetValue(printKey, out var printMessage) ? printMessage : issue.Message;
+        }
         var key = issue.StableCode switch
         {
             ValidationCodes.CategoryDuplicate => "ValidationCategoryDuplicate",

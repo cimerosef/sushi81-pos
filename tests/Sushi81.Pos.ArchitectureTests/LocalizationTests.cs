@@ -1,8 +1,10 @@
 using System.IO;
 using System.Globalization;
 using System.Text.Json;
+using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Configuration;
 using Sushi81.Pos.Application.Foundation.Paths;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Desktop;
 using Sushi81.Pos.Infrastructure.Configuration;
 
@@ -79,6 +81,44 @@ public sealed class LocalizationTests
     }
 
     [TestMethod]
+    public async Task ConcurrentLanguageAndPrinterWritersPreserveEachOthersLatestFields()
+    {
+        using var paths = new TemporaryAppPaths();
+        using var configurationService = new JsonLocalConfigurationService(paths);
+        var initial = await configurationService.LoadAsync();
+        var cultureStore = new ConfigurationSelectedCultureStore(initial, configurationService);
+        var printerSetup = new PrinterSetupViewModel(initial, configurationService, new FixedQueueCatalog());
+        printerSetup.KitchenQueueId = "kitchen-queue";
+        printerSetup.KitchenQueueName = "Kitchen";
+        printerSetup.CustomerQueueId = "customer-queue";
+        printerSetup.CustomerQueueName = "Customer";
+
+        await Task.WhenAll(
+            cultureStore.SaveAsync(CultureInfo.GetCultureInfo("zh-CN")),
+            printerSetup.SaveAsync());
+
+        var persisted = await configurationService.LoadAsync();
+        Assert.AreEqual("zh-CN", persisted.UiCulture);
+        Assert.AreEqual("kitchen-queue", persisted.KitchenPrinterQueueId);
+        Assert.AreEqual("customer-queue", persisted.CustomerPrinterQueueId);
+    }
+
+    [TestMethod]
+    public async Task AmbiguousPrintOutcomeIsLocalizedInFrenchAndChinese()
+    {
+        var fr = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+        var zh = new ShellViewModel(new InMemorySelectedCultureStore(), true);
+        await zh.ChangeLanguageAsync(zh.Languages.Single(language => language.CultureName == "zh-CN"));
+        var frIssue = new ValidationIssue("kitchen-print", "uncertain", ValidationCodes.PrintAmbiguous);
+        var zhIssue = new ValidationIssue("customer-print", "uncertain", ValidationCodes.PrintAmbiguous);
+
+        Assert.AreEqual(fr.Localized["OrderPrintAmbiguous"], M03Presentation.Message(frIssue, fr.Localized));
+        Assert.AreEqual(zh.Localized["OrderPrintAmbiguous"], M03Presentation.Message(zhIssue, zh.Localized));
+        Assert.AreNotEqual(fr.Localized["OrderPrintKitchenFailure"], M03Presentation.Message(frIssue, fr.Localized));
+        Assert.AreNotEqual(zh.Localized["OrderPrintCustomerFailure"], M03Presentation.Message(zhIssue, zh.Localized));
+    }
+
+    [TestMethod]
     public void LanguageSwitchIsAwaitableOnASynchronizationContextWithoutBlockingIt()
     {
         var synchronizationContext = new QueuedSynchronizationContext();
@@ -145,6 +185,14 @@ public sealed class LocalizationTests
 
         public Task SaveAsync(CultureInfo selectedCulture, CancellationToken cancellationToken = default) =>
             Task.FromException(new InvalidOperationException("Synthetic persistence failure."));
+    }
+
+    private sealed class FixedQueueCatalog : IPrintQueueCatalog
+    {
+        public Task<IReadOnlyList<PrintQueueInfo>> ListAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PrintQueueInfo>>([
+                new("kitchen-queue", "Kitchen"),
+                new("customer-queue", "Customer")]);
     }
 
     private sealed class QueuedSynchronizationContext : SynchronizationContext

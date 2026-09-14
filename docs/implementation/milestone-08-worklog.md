@@ -1,13 +1,15 @@
 # M08 worklog — printing and reprinting
 
-**Status:** **AUTHORIZED / execution setup in progress**  
+**Status:** **M08-FINAL-PASS-RECORD-13 IMPLEMENTED — M08 PASSED / merge-ready, not yet merged**
 **Prepared:** 2026-09-12  
 **Authorized:** 2026-09-12  
 **Exact authorized preparation head:** `b983efa7ef4e2591575fa662f9d433652b97e4aa`  
-**Preparation entry baseline:** `main@9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`  
+**Authorized governance/execution baseline:** `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`  
+**Implementation branch:** `codex/m08-printing-reprinting`  
+**Implementation PR:** #14 — `M08: printing and reprinting`  
 **Contract:** `docs/implementation/milestone-08-printing-reprinting.md` + `milestone-08-contract-addendum-print-layout-identity.md`  
 **Authorization:** `docs/implementation/milestone-08-authorization.md` — AUTHORIZED  
-**Execution gate:** CLOSED until branch/PR/handoff cross-check completes
+**Execution gate:** OPEN during the authorized M08-FINAL-PASS-RECORD-13 docs/evidence-only pass record; no merge or later milestone is authorized
 
 This worklog records M08 preparation, authorization, implementation and evidence. Project-owner implementation authorization does not authorize merge or M09.
 
@@ -19,6 +21,11 @@ This worklog records M08 preparation, authorization, implementation and evidence
 - Accepted M07 production implementation head: `e971580ef43d3b50366d51733ca9431ca0997e8d`.
 - Final M07 closure docs/evidence head: `d586c847f2dd541815b8c00565c58b3685a3e4be`.
 - Final accepted M07 CI: #631 / run `34698627867`, success; 541/541 tests Passed; build 0 warnings / 0 errors.
+- M08 exact authorized preparation head: `b983efa7ef4e2591575fa662f9d433652b97e4aa`.
+- M08 governance/execution baseline after authorization/current-state bookkeeping: `e46d2a3c0988076a19ea7431bdb65d3d719a54c0`.
+- Dedicated branch: `codex/m08-printing-reprinting`.
+- Dedicated implementation PR: #14.
+- Issue #4 is OPEN for the single active handoff M08-FINAL-PASS-RECORD-13; all earlier M08 handoffs are complete and are not being reprocessed.
 - M09+: not authorized.
 
 ## 2. Preparation audit — complete
@@ -96,22 +103,377 @@ Implementation must preserve:
 - M07 authority/generation/handoff/DR/write-guard semantics;
 - no M12 archive printing implementation and no M09+ work.
 
-## 6. Execution setup
+## 6. Execution setup and handoff cross-check
 
-Controller sequence after authorization:
+The authorized serial-execution prerequisites are complete:
 
-1. advance governance-only `main` with authorization/current-state records;
-2. create dedicated branch `codex/m08-printing-reprinting` from the resulting execution baseline;
-3. create the dedicated M08 implementation PR targeting `main`;
-4. update Issue #4 pointer while keeping it CLOSED;
-5. publish exactly one top-level executable handoff `CODEX_HANDOFF_READY: M08-IMPLEMENTATION-01` with `POST_TASK_POWER_ACTION: NONE`;
-6. cross-check branch/PR/comment/authorization pointers;
-7. only then reopen Issue #4.
+1. [x] governance-only main records and current-state pointers established;
+2. [x] dedicated branch codex/m08-printing-reprinting created from the authorized baseline;
+3. [x] dedicated M08 implementation PR #14 targets main;
+4. [x] Issue #4 names the branch/PR and is OPEN;
+5. [x] the historical top-level executable handoff CODEX_HANDOFF_READY: M08-IMPLEMENTATION-01 was consumed exactly once;
+6. [x] branch/PR/comment/authorization pointers cross-checked;
+7. [x] serial oldest-first execution has consumed only M08-IMPLEMENTATION-01.
 
-## 7. Implementation evidence
+## 7. Initial implementation evidence — completed handoff
 
-**None yet.**
+The initial authorized implementation was completed on codex/m08-printing-reprinting, PR #14. The branch contains only the M08 printing/reprinting implementation and its focused evidence; no M09+ work has started.
 
-Codex must not claim production implementation evidence until Issue #4 is OPEN and the matching handoff is active.
+Implemented seams/evidence so far:
+
+- deterministic Application kitchen/customer document models with committed historical facts, future-order prominence and RÉIMPRESSION/DUPLICATA/ANNULÉ markings;
+- authoritative SQLite receipt identity migration v6 and pre-v6 settings-store compatibility;
+- local technical kitchen/customer Windows queue configuration;
+- Windows/WPF System.Printing queue enumeration and fixed-document submission boundary;
+- post-commit automatic dispatch wiring and independent output outcomes;
+- latest-committed explicit kitchen/customer reprint actions;
+- FR/zh-CN printer setup, reprint and failure/status localization;
+- focused Application and Infrastructure M08 tests.
+
+Final automated evidence for the initial implementation candidate, before the later controller remediation:
+
+- implementation/evidence head: `4e5d9b39d4db4ad55e2f7ee6bc83e0c4d89a4ca8`;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- Release tests: **Passed**, 546/546;
+- focused M08 tests: **Passed**, 4 Application + 1 Infrastructure integration;
+- self-contained win-x64 publish: **Passed**, `artifacts/m08-win-x64`;
+- published executable SHA-256: `A2FB8591A4FFAD67046FBC0886249E21122A806C4F54387209DE2C4837FD2B97`;
+- exact-head CI: **Passed**, run #654 / workflow run `34704258456`, job build-and-test;
+- owner Windows/physical-printer acceptance: **Pending / must remain unchecked**.
+
+No merge, no M09+ implementation, and POST_TASK_POWER_ACTION: NONE.
+
+## 8. Controller remediation — M08-CONTROLLER-REMEDIATION-02
+
+The active controller remediation was limited to the scope recorded in Issue #4 and PR review `5187117563`:
+
+- local technical configuration writers now use an atomic latest-snapshot update path, preserving unrelated language, printer and M07 fields;
+- known failed Kitchen/Customer initial output can be retried independently with the same initial intent; ambiguous output remains on the explicit `RÉIMPRESSION`/`DUPLICATA` path;
+- Windows printing now executes on a dedicated STA thread, reads the selected queue imageable area and paginates content to that bounded surface instead of using a hardcoded page size;
+- duplicate customer `ANNULÉ` output was removed;
+- FR/zh-CN initial-retry controls and evidence were added.
+
+Remediation implementation commit: `50a6245e0818461a51662fe7a97fdef47d8c433d`.
+
+Remediation evidence:
+
+- Release build: **Passed**, 0 warnings / 0 errors;
+- full Release tests: **Passed**, 550/550;
+- focused M08 application tests: **Passed**, 6/6;
+- focused M08 infrastructure tests: **Passed**, 2/2;
+- focused localization/configuration tests: **Passed**, 6/6;
+- `git diff --check`: **Passed**;
+- owner Windows/physical-printer acceptance: **Pending / must remain unchecked**.
+
+The final pushed head and exact-head CI result are recorded in the matching `CODEX_DONE: M08-CONTROLLER-REMEDIATION-02` PR comment. No merge, no M09+ implementation, and `POST_TASK_POWER_ACTION: NONE`.
+
+## 9. Controller remediation — M08-CONTROLLER-REMEDIATION-03
+
+This remediation was limited to the residual findings in controller review `5187831217` and the active Issue #4 handoff. It did not reopen product/business semantics and did not add M09+, archive/M12, B2B invoice work or merge activity.
+
+Implemented:
+
+- Windows thermal geometry now prefers the selected queue's imageable area, then the strongest valid media dimensions, and finally a bounded thermal-safe fallback. Fallback dimensions are constrained to 72–576 DIP width and 144–1440 DIP height, with a 288×1440 DIP default; content height still trims each fixed page to the rendered content plus the media margin.
+- `AmbiguousSubmission` now carries the stable `print-ambiguous` issue code through Application, lifecycle reprint and WPF presentation. French and Simplified Chinese messages explicitly state that the initial output must not be retried and that an additional copy requires explicit reprint semantics.
+- Independent Kitchen/Customer outcome vectors, known-failed initial retry eligibility, ambiguous duplicate safety, read-only reprint availability, no-auto-reprint lifecycle save behavior, localization and the production STA print thread are covered by focused automated evidence.
+- No subagents were used: this was a serial implementation on the authorized shared branch so the controller's exact-head and mailbox protocol remained unambiguous.
+
+Implementation/evidence commit: `bbae8680353dd1b8f9679b3849db2fb373489a34`.
+
+Automated evidence for this remediation:
+
+- Release build: **Passed**, 0 warnings / 0 errors;
+- full Release tests: **Passed**, 559/559, 0 failed, 0 skipped;
+- focused M08 Application tests: **Passed**, 8/8;
+- focused M08 Infrastructure integration tests: **Passed**, 5/5;
+- focused localization/configuration tests: **Passed**, 7/7;
+- focused STA/WPF M08 tests: **Passed**, 3/3;
+- `git diff --check`: **Passed**;
+- self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64`;
+- published executable SHA-256: `213FA7655D064D55904BE3372FE40FD6FD480E8FE6CD02DAA3748E7D15901028`;
+- exact-head implementation CI: **Passed**, run #659 / workflow run `34717646994`, job `build-and-test` `103617865931`;
+- owner Windows/physical-printer acceptance: **Pending / must remain unchecked**;
+- merge: **Not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 10. Owner preflight queue-discovery remediation — M08-MANUAL-ACCEPTANCE-REMEDIATION-04
+
+The project-owner A-PC preflight found a real Windows compatibility blocker before any order or physical print was attempted. `Get-Printer` listed installed queues, while the filtered `LocalPrintServer.GetPrintQueues([Local, Connections, Shared])` overload returned zero queues on the same machine; the parameterless `GetPrintQueues()` path returned the installed queues. The finding and the exact remediation scope are recorded in PR #14 comments `5648756898` and `5648758990`.
+
+Implemented only the authorized R04 queue-discovery/resolution correction:
+
+- `WindowsPrintQueueCatalog` now uses parameterless `LocalPrintServer.GetPrintQueues()`, safely disposes each discovered queue, preserves deterministic sorting and returns a stable empty result when no queues are exposed;
+- configured queue resolution in `WindowsPrintDocumentSubmitter` uses the same parameterless enumeration path and shared ID/name matching semantics, preserving `QueueUnavailable` for an unmatched configuration and all existing submission/ambiguous/STA/layout behavior;
+- duplicate queue records are normalized deterministically by stable ID/name key;
+- focused Infrastructure tests cover multiple queue normalization/sorting, ID/name/FullName-compatible resolution and unmatched configured-queue behavior without claiming the owner's installed-queue result in CI.
+
+Implementation commit: `dc834da70d66d842334453345e1a3e9a6678f42c`.
+
+Automated evidence for this remediation:
+
+- Release restore: **Passed**;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- full Release tests: **Passed**, 561/561, 0 failed, 0 skipped;
+- focused M08 Infrastructure integration tests: **Passed**, 7/7;
+- `git diff --check`: **Passed**;
+- self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r04`;
+- published executable SHA-256: `DFF644F8CB85308C2604D98232B331A9CB22DBADBC4AAC86C6687F8A23CE7AC3`;
+- exact-head CI and final PR-head SHA are recorded in the matching `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-04` comment;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner A-PC queue-discovery retest and all PDF/physical-printer acceptance remain **blocked/pending and must remain unchecked**;
+- merge: **Not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 11. Owner Scenario-A startup-hydration remediation — M08-MANUAL-ACCEPTANCE-REMEDIATION-05
+
+The owner’s R04 A-PC retest confirmed that saved Kitchen/Customer queue values were persisted, but both selectors were blank after application restart until `Actualiser les imprimantes` was clicked. The finding and exact scope are recorded in PR #14 comments `5649001583` and `5649002909`.
+
+Implemented only the authorized R05 startup-visibility correction:
+
+- `MainWindow.OnLoaded` now invokes the existing `PrinterSetupViewModel.RefreshAsync()` through the repaired R04 queue-discovery path during normal asynchronous window initialization;
+- saved queue IDs/names are mapped to visible Kitchen/Customer selector values automatically when the queues still exist;
+- unavailable saved selections remain preserved and show the existing truthful unavailable status;
+- discovery failures remain contained by the existing printer-setup error path, so startup remains usable and local/M07 configuration is not rewritten;
+- the manual refresh action remains available and was exercised after automatic startup hydration.
+
+Implementation commit: `bdfb2c73bf533f94583a7592be126fae46f4ddcc`.
+
+Automated evidence for this remediation:
+
+- Release restore: **Passed**;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- full Release tests: **Passed**, 564/564, 0 failed, 0 skipped;
+- focused M08 Application tests: **Passed**, 8/8;
+- focused M08 Infrastructure integration tests: **Passed**, 7/7;
+- focused localization + M08 WPF tests: **Passed**, 13/13, including three startup-hydration/operator-path tests;
+- `git diff --check`: **Passed**;
+- self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r05`;
+- published executable SHA-256: `E553802B321879A55B9B93303FC28FFC1054C9E81944FEB0B1DB22B4568AA550`;
+- exact-head CI, final PR-head SHA, and any runner-infrastructure outcome are recorded in the matching `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-05` comment;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner restart hydration retest remains pending and all PDF/physical-printer acceptance remain **blocked/pending and must remain unchecked**;
+- merge: **Not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 12. Owner PDF/layout remediation — M08-MANUAL-ACCEPTANCE-REMEDIATION-06
+
+The owner’s A-PC PDF preflight produced one Kitchen and one Customer PDF but found that the current implementation preformatted fixed-width text in Application while Infrastructure/WPF independently wrapped the same text. The finding is recorded in PR #14 comment `5649184980`; the exact authorized scope is recorded in handoff comment `5649187093`.
+
+Implemented only the authorized R06 print-layout correction:
+
+- Application now builds printer-independent semantic receipt blocks from committed order snapshots, persisted tax breakdowns, payment snapshots and the approved receipt identity;
+- the compatibility `OrderPrintDocument.Text` value is an unaligned diagnostic view only; the Windows print boundary consumes `OrderPrintDocument.Content`;
+- Infrastructure/WPF now owns alignment, centered headings/identity/markers/totals, label/value wrapping, item/option attachment, driver-width separator sizing and pagination;
+- atomic header/ticket/total/payment/footer groups remain together when the imageable page can contain them, while overlong values split safely at the physical boundary;
+- the existing R04 queue discovery/resolution path, R05 asynchronous startup hydration, durable-first output semantics, retry/reprint/ambiguous handling and receipt identity source remain unchanged;
+- the renderer no longer submits Application’s pre-centered/pre-wrapped fixed-width text to WPF.
+
+Implementation commit: `16a7a39`.
+
+Automated evidence for this remediation:
+
+- Release restore: **Passed**;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- full Release tests: **Passed**, 566/566, 0 failed, 0 skipped;
+- focused M08 Application tests: **Passed**, 8/8;
+- focused M08 Infrastructure integration tests: **Passed**, 9/9, including narrow/broad semantic rendering and atomic-header checks;
+- `git diff --check`: **Passed**;
+- self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r06`;
+- published executable SHA-256: `6BC018787E52F7359C9568F2AE75C33DBCCAE827501AA3FDF617D49BB9764F47`;
+- exact-head CI and any runner-infrastructure outcome are recorded truthfully in the matching `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-06` comment; no green CI result is inferred from local evidence;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner PDF/physical-printer retest is pending on this replacement candidate and all manual acceptance boxes remain **unchecked**;
+- merge: **Not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 13. Owner PDF/layout remediation — M08-MANUAL-ACCEPTANCE-REMEDIATION-07
+
+The owner’s R06 A-PC PDF retest still found residual physical visual-layout defects in the customer receipt. The exact authorized R07 scope was published in PR #14 comment `5651873489`, with payment-visibility clarifications in comments `5651930116` and `5651951816`.
+
+Implemented only the authorized R07 thermal customer-receipt visual correction:
+
+- wide queues now use an effective 80mm-class receipt content width while narrower queue geometry remains respected;
+- the Windows/WPF boundary now renders structured receipt visuals instead of one uniform TextBlock, including a customer item grid with quantity, description, unit price and line total columns;
+- customer hierarchy is explicit: larger Sushi 81 heading, centered customer information, one unlabeled legal-identity line, left-aligned reference/date row, VAT hierarchy, prominent total and centered footer;
+- options use physical indentation and legal numbers remain on one unlabeled line;
+- unpaid/unsettled receipts do not display payment rows or a paid sentence; settled receipts display only positive committed methods and a truthful payment confirmation;
+- R06 semantic Application receipt blocks, durable-first printing, queue behavior, pagination and reprint semantics remain preserved;
+- no product/business semantics, M09+ work or merge activity was introduced.
+
+Implementation commit: `3429b865ea4b80649064b1a69a021433dc6e8469`.
+
+Automated evidence for this remediation:
+
+- Release restore: **Passed**;
+- full Release tests: **Passed**, 570/570, 0 failed, 0 skipped;
+- focused M08 Application tests: **Passed**, 10/10;
+- focused M08 Infrastructure integration tests: **Passed**, 11/11;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- `git diff --check`: **Passed**;
+- self-contained `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r07`;
+- published executable SHA-256: `3BF9B835D230B64481B6FB8827A653E83F6D7A466D2CA060E62FB8DBABE6B387`;
+- exact-head implementation CI, final PR-head SHA and job/step results are recorded truthfully in the matching `CODEX_DONE: M08-MANUAL-ACCEPTANCE-REMEDIATION-07` comment;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner A-PC PDF/physical-printer retest remains pending and all manual acceptance boxes remain **unchecked**;
+- merge: **Not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 14. Owner Customer PDF refinement — M08-MANUAL-ACCEPTANCE-REMEDIATION-08
+
+The owner’s R07 A-PC PDF retest materially accepted the Kitchen layout for later B-PC physical validation but found a narrow remaining Customer presentation issue. The exact finding is PR #14 comment `5652256091`; the authorized R08 handoff is comment `5652257452`, with clarifications in comments `5652260536` and `5652282919`.
+
+Implemented only the authorized R08 Customer presentation refinement:
+
+- structural spacing now separates the identity block from the ticket/date row and the ticket/date row from `DUPLICATA`/status markers;
+- quantity-one Customer items show one product price; quantity-greater-than-one items show unit price plus the persisted base-product quantity-multiplied total, not the option-adjusted total;
+- long Customer descriptions are single-line and ellipsis-trimmed so price columns retain priority;
+- literal `EUR` is omitted only from Customer item/option rows;
+- settled payment rows and the truthful `Payé en ... TVA incluse` line remain left-aligned;
+- the prominent Customer grand total is now a structured left/right row (`Total` / `EUR <amount>`) with a flexible gap;
+- a structural two-body-line gap precedes the centered two-line footer `Merci de votre visite !` / `www.sushi81.fr`;
+- R07 Kitchen layout/semantics, 80-mm width cap, identity/VAT/payment gating, durable-first printing, reprint/retry/ambiguity and M07 authority boundaries remain preserved.
+
+Implementation commit: `9da90ea26fcea00a954e2a8c45d429c42e67e89b`.
+
+Automated evidence for this remediation:
+
+- Release restore: **Passed** with `-r win-x64 -p:NuGetAudit=false`;
+- focused M08 Application tests: **Passed**, 11/11;
+- focused M08 Infrastructure integration tests: **Passed**, 12/12;
+- full Release solution tests: **Passed**, 572/572, 0 failed, 0 skipped;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- `git diff --check`: **Passed**;
+- self-contained single-file `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r08-final`;
+- published executable SHA-256: `72355B2CDFF106346B4B865972107BC85452CE4C385126222B70DCF9B3B5CA1E`;
+- exact-head GitHub Actions run `34746337035` / run #664 attempt #2 / job `103694926738` failed before any workflow step because of the account billing/spending-limit blocker; the workflow was retried once and did not execute checkout/restore/build/test;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner Customer A-PC PDF retest remains pending; Kitchen physical B-PC validation remains pending; no physical acceptance is claimed;
+- M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 15. Owner Customer option-price alignment — M08-MANUAL-ACCEPTANCE-REMEDIATION-09
+
+The owner’s R08 A-PC PDF review accepted the targeted Customer refinements except for one residual option-price alignment issue. The exact finding is PR #14 comment `5653897755`; the authorized R09 handoff is comment `5653900316`, starting from `d8a65c14f424d4f920ace6ad692588d5b321ac1e`.
+
+Implemented only the authorized R09 Customer option presentation refinement:
+
+- Customer option/adjustment labels remain indented under their parent product;
+- each option amount now uses a dedicated right-aligned price column aligned with ordinary Customer price columns;
+- Customer item/option rows continue to omit literal `EUR`;
+- long option labels remain single-line and use deterministic ellipsis trimming so their signed amounts remain visible and never overlap;
+- Kitchen options remain on the existing text renderer and Kitchen output is unchanged;
+- all accepted R08 identity/ticket spacing, product-price semantics, payment/total/footer presentation, geometry, durable-first/retry/reprint/ambiguity and M07 authority behavior remain preserved.
+
+Implementation commit: `cf96ea397784e611e81c3b00c611d8b972217deb`.
+
+Automated evidence for this remediation:
+
+- focused M08 Application tests: **Passed**, 11/11;
+- focused M08 Infrastructure integration tests: **Passed**, 13/13;
+- full Release solution tests: **Passed**, 573/573, 0 failed, 0 skipped;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- `git diff --check`: **Passed**;
+- self-contained single-file `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r09-final`;
+- published executable SHA-256: `9E8F21A7C47BE7ACFE8BD79BBC811EC11E33F3DAB822E52D76E22A8716079F32`;
+- exact-head GitHub Actions CI for the pushed R09 implementation/evidence head: run `34763794421` / run #667 / job `103741070545`, **SUCCESS**; checkout, restore, build and test steps passed. The corrected R09 final-head record is run `34763988836` / run #668 / job `103741587693`, **SUCCESS**;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- owner Customer A-PC replacement PDF retest remains pending; Kitchen/Customer physical B-PC validation remains pending; no physical acceptance is claimed;
+- M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 16. B-PC thermal typography and safe-width remediation — M08-MANUAL-ACCEPTANCE-REMEDIATION-10
+
+The owner’s R09 B-PC comparison on the `GP-C200 Series` queue accepted the Customer/Kitchen content semantics and structure but found that both receipts were materially too small for practical store use and that the Customer rightmost amount column extended beyond the reliable physical print area. The active R10 handoff is PR #14 comment `5654692567`, with owner evidence in comment `5654607708`, starting from `50201b656c08f9125bdfb63547339b01d4b05828`.
+
+Implemented only the authorized R10 thermal presentation remediation:
+
+- all receipt measurement and WPF visuals now use the standard Windows `Arial` family with normal stretch;
+- Kitchen typography is enlarged to body 18, heading 22 and total 20 bold;
+- Customer typography is enlarged to body 12, business name 17 bold, legal identity 10 and grand total 17 bold;
+- receipt content is capped at the 72 mm printable width, centered inside wider driver imageable areas, and reserves approximately 2 mm left / 3 mm right thermal-safe insets;
+- pagination, wrapping, separators and character-capacity measurement use the same safe width and typography as the rendered visuals;
+- R08/R09 Customer option alignment, quantity-aware pricing, ellipsis trimming, total/footer/payment semantics and all Kitchen/authority/persistence behavior remain preserved.
+
+Implementation commit: `fbfbd42480512f26fb05c7b418f9c138dc886fe6`.
+
+Automated evidence for this remediation:
+
+- focused M08 Application tests: **Passed**, 11/11;
+- focused M08 Infrastructure/STA-WPF integration tests: **Passed**, 14/14;
+- full Release solution tests: **Passed**, 574/574, 0 failed, 0 skipped;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- `git diff --check`: **Passed**;
+- self-contained single-file `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r10-final`;
+- published executable SHA-256: `F5166C2F7A4B94A768CFA25DA2CFAFD015D799EDD279F48209292CBE082DA28B`;
+- exact-head R10 implementation-commit CI: run `34778772484` / run #669 failed before workflow steps with no job steps/logs available; the failed-job retry also failed before workflow steps as job `103781910099` (initial job `103781803903`). The account-level billing/spending-limit blocker remains unresolved. Final pushed evidence-head CI then completed successfully as run `34778902457` / run #670 / job `103782154836`;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- B-PC physical Kitchen and Customer retest remains pending; owner manual checkboxes remain unchecked and no physical acceptance is claimed;
+- M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 17. B-PC Kitchen metadata and list-spacing refinement — M08-MANUAL-ACCEPTANCE-REMEDIATION-11
+
+The owner’s R10 B-PC result accepted the Customer output as-is and found the Kitchen output materially successful, with only smaller ordinary metadata typography and slightly tighter item/option list breathing room still to refine. The R11 finding is recorded in PR #14 comment `5656194132`; the authorized handoff is comment `5656196142`, starting from R10 head `afbef48c9218f51a2364b18d7a6f854c40a7665e`.
+
+Implemented only the authorized Kitchen-only presentation refinement:
+
+- Kitchen ordinary `Cmd`/`Heure`/`Mode`/`Prévu`/`Tél`/`Adresse`/`Note` and equivalent identity/reference/timestamp metadata remain at 12 DIP;
+- Kitchen heading remains 22 DIP, item and option text remains 18 DIP, the total remains 20 DIP bold, and markers remain prominent;
+- the first rendered line of each logical item receives approximately 3 DIP top spacing and each logical option receives approximately 2 DIP top spacing; wrapped continuation lines receive no repeated margin;
+- Customer rendering is unchanged by R11, including its existing typography, spacing and safe-width output.
+
+Production source and the Infrastructure STA/WPF regression coverage were updated together. The R11 evidence is:
+
+- focused M08 Application tests: **Passed**, 11/11;
+- focused M08 Infrastructure/STA-WPF integration tests: **Passed**, 15/15;
+- full Release solution tests: **Passed**, 575/575, 0 failed, 0 skipped;
+- Release build: **Passed**, 0 warnings / 0 errors;
+- `git diff --check`: **Passed**;
+- self-contained single-file `win-x64` publish: **Passed**, `artifacts/m08-win-x64-r11-final`;
+- published executable SHA-256: `715167295642AAFADE0356644066C891893B6004ED04DA47A0793962F0C1E79C`;
+- historical entry state: exact-head R11 CI was pending until the final R11 head was pushed; the final result is recorded in §18;
+- execution topology: no subagents were used; the remediation remained serial on the authorized shared branch;
+- historical entry state: the B-PC Kitchen-only physical retest was pending; the final Kitchen PASS and accepted-as-is Customer result are recorded in §18;
+- M08 is **not passed**; merge is **not authorized**; M09+ remain **not authorized**.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 18. Final acceptance evidence reconciliation — M08-FINAL-ACCEPTANCE-CLOSURE-12
+
+This closure handoff changed documentation/evidence only. Production source, tests, business behavior, printing behavior, authority/recovery behavior, installer behavior and M09+ scope were not changed.
+
+Final evidence recorded for the M08 candidate:
+
+- R11 production/evidence head: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`.
+- R11 implementation commit: `7ab74655977faaf70f95c91188d5a69486a378e6`.
+- Exact-head CI: run #673 / workflow run `34784638478` / job `103797769200`, **SUCCESS**; 575/575 Release tests passed, 0 failed, 0 skipped; build 0 warnings / 0 errors.
+- Codex self-contained publish: `artifacts/m08-win-x64-r11-final`; SHA-256 `715167295642AAFADE0356644066C891893B6004ED04DA47A0793962F0C1E79C`.
+- B-PC Customer R10: **PASS / accepted as-is and frozen**; B-PC Kitchen R11: **PASS / final** on `GP-C200 Series` / `USB001`; owner evidence is PR #14 comment `5656535282`.
+- A-PC automatic print: **PASS**; fresh synthetic order `20260914-001`, Retrait, `2x TST001A Produit test simple`, total EUR 19.00; Microsoft Print to PDF for both queues; exactly one Kitchen and one Customer prompt, no duplicates, no `RÉIMPRESSION`/`DUPLICATA`, and persisted VAT plus quantity-two pricing checked; owner evidence is PR #14 comment `5661259453`.
+- A-PC local publish SHA-256: `94D60E3BA2399EFEC73D47C82BC01F7BBBC9D122C3AB615526881F7306AD27EE`; this environment-specific hash does not replace the Codex artifact hash.
+- Scenario A–O evidence reconciliation is recorded in `milestone-08-final-manual-acceptance.md` §18. Owner checklist boxes remain unchecked because Codex does not exercise owner authority; final controller/project-owner disposition and separate merge approval remain pending.
+- At the closure-record stage, M08 was not yet declared Passed; §19 records the subsequent controller disposition. PR #14 remained unmerged, and M09+ remained unauthorized/not started.
+
+`POST_TASK_POWER_ACTION: NONE`
+
+## 19. Final pass record — M08-FINAL-PASS-RECORD-13
+
+Controller review `5195806765` accepted the §18 evidence reconciliation as sufficient for final M08 **PASSED / merge-ready** disposition. This handoff makes that disposition durable in the living governance documents before the project owner makes the separate merge decision.
+
+- Starting closure-docs head: `935efad5b8609a51acc8eef09387b2a017b55504`.
+- Accepted production candidate: R11 head `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; production implementation commit `7ab74655977faaf70f95c91188d5a69486a378e6`.
+- R11 exact-head CI: #673 / run `34784638478` / job `103797769200`, SUCCESS; 575/575; build 0/0.
+- Closure exact-head CI: #674 / run `34824945898` / job `103914804236`, SUCCESS.
+- Owner evidence remains Customer R10 PASS/frozen, Kitchen R11 PASS/final, and A-PC fresh automatic print PASS with exactly one Kitchen plus one Customer and no duplicate/reprint markers.
+- This pass-record handoff changed only the living M08 status/acceptance evidence documents; production-source diff = 0 and test-source diff = 0. No new testing claim is added.
+- M08 is **Passed / merge-ready, not yet merged**. PR #14 remains OPEN / unmerged; merge requires separate explicit project-owner approval. M09+ remain unauthorized/not started.
 
 `POST_TASK_POWER_ACTION: NONE`

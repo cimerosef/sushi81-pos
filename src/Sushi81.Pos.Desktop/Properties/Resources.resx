@@ -298,4 +298,22 @@ Changements effectifs : {2}</value></data>
   <data name="M07PendingCandidateId" xml:space="preserve"><value>Candidat exact</value></data>
   <data name="M07PendingCandidateType" xml:space="preserve"><value>Type exact</value></data>
   <data name="M07RetrySameRecovery" xml:space="preserve"><value>Réessayer la même récupération</value></data>
+  <data name="KitchenPrinter" xml:space="preserve"><value>Imprimante cuisine</value></data>
+  <data name="CustomerPrinter" xml:space="preserve"><value>Imprimante client</value></data>
+  <data name="RefreshPrinters" xml:space="preserve"><value>Actualiser les imprimantes</value></data>
+  <data name="PrinterSaved" xml:space="preserve"><value>Les choix d’imprimantes ont été enregistrés localement.</value></data>
+  <data name="PrinterRefreshSucceeded" xml:space="preserve"><value>Les files d’impression installées ont été actualisées.</value></data>
+  <data name="PrinterRefreshFailed" xml:space="preserve"><value>Les files d’impression installées n’ont pas pu être listées.</value></data>
+  <data name="PrinterSaveFailed" xml:space="preserve"><value>Les choix d’imprimantes n’ont pas pu être enregistrés.</value></data>
+  <data name="PrinterQueueUnavailable" xml:space="preserve"><value>Une file configurée est indisponible. Sélectionnez-en une autre avant d’imprimer.</value></data>
+  <data name="OrderReprintKitchen" xml:space="preserve"><value>Réimprimer cuisine</value></data>
+  <data name="OrderReprintCustomer" xml:space="preserve"><value>Réimprimer client</value></data>
+  <data name="OrderPrintSuccess" xml:space="preserve"><value>Le document a été accepté par l’imprimante.</value></data>
+  <data name="OrderPrintFailure" xml:space="preserve"><value>L’impression a échoué :</value></data>
+  <data name="OrderPrintKitchenFailure" xml:space="preserve"><value>L’impression cuisine est indisponible ou a échoué. Vérifiez la file puis réimprimez.</value></data>
+  <data name="OrderPrintCustomerFailure" xml:space="preserve"><value>L’impression client est indisponible ou a échoué. Vérifiez la file puis réimprimez.</value></data>
+  <data name="OrderPrintAmbiguous" xml:space="preserve"><value>Le résultat d’impression est incertain. Ne réessayez pas la sortie initiale ; utilisez une réimpression explicite pour toute copie supplémentaire.</value></data>
+  <data name="OrderPrintSaveOrAbandon" xml:space="preserve"><value>Enregistrez ou abandonnez la modification avant d’imprimer l’état enregistré.</value></data>
+  <data name="OrderRetryInitialKitchen" xml:space="preserve"><value>Réessayer sortie cuisine</value></data>
+  <data name="OrderRetryInitialCustomer" xml:space="preserve"><value>Réessayer sortie client</value></data>
 </root>

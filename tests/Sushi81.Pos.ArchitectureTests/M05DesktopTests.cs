@@ -8,9 +8,12 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.Foundation.Authority;
+using Sushi81.Pos.Application.Foundation.Configuration;
 using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.OrderEntry;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Desktop;
 using Sushi81.Pos.Domain;
@@ -1705,6 +1708,277 @@ public sealed class M05DesktopTests
         Assert.IsFalse(viewModel.CommittedMessage.Contains(result.CommittedOrder!.Id.ToString(), StringComparison.Ordinal), "The normal output-failure path must not expose the technical GUID when a human reference is available.");
     }
 
+    [TestMethod]
+    public void M08AmbiguousReprintIsLocalizedAndRemainsAvailableOnReadOnlyStaWpfPath()
+    {
+        RunOnSta(() =>
+        {
+            var order = Snapshot(new DateOnly(2026, 9, 2));
+            var store = new LifecycleStore(order);
+            using var lifecycleService = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                true,
+                new CatalogueService(new EmptyCatalogueStore()),
+                new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))),
+                orderLifecycleService: lifecycleService,
+                authorityGuard: new FixedAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly),
+                printService: new AmbiguousPrintService());
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var lifecycle = shell.Lifecycle!;
+                var commandes = VisualDescendants<TabItem>(window).Single(item => item.DataContext is OrderLifecycleShellViewModel);
+                commandes.IsSelected = true;
+                var row = new OrderManagementRowViewModel(new OrderBrowserRow(
+                    order.Id,
+                    order.PlannedFulfilmentDate,
+                    order.PlannedFulfilmentTime,
+                    order.Fulfilment,
+                    order.Status,
+                    order.TotalTtc,
+                    order.Telephone)
+                {
+                    Reference = order.Reference
+                });
+                lifecycle.SelectAsync(row).GetAwaiter().GetResult();
+                window.UpdateLayout();
+
+                Assert.IsTrue(lifecycle.CanReprintKitchen, "Printing must remain available on a non-authoritative local copy.");
+                var reprint = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["OrderReprintKitchen"]));
+                Assert.IsTrue(reprint.IsEnabled);
+                reprint.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.AreEqual(shell.Localized["OrderPrintAmbiguous"], lifecycle.PrintStatusMessage);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public async Task M08InitialRetryMatrixOffersOnlyTheKnownFailedDestination()
+    {
+        var categoryId = Guid.NewGuid();
+        var product = new OrderEntryProduct(new ProductAggregate(
+            new Product(Guid.NewGuid(), "P", "Plat", categoryId, Money.FromCents(1000), 10m, true, true, false, default, default),
+            [],
+            new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Plats");
+        var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountMinTotalTtc = Money.Zero });
+        var store = new ReferenceOrderStore("20260902-001");
+        var dispatcher = new AmbiguousInitialDispatcher();
+        using var service = new OrderEntryService(new SingleEntryCatalogue(product), settings, store, dispatcher, new DeterministicIds(), new FixedClock());
+        using var viewModel = new OrderEntryShellViewModel(service);
+        viewModel.AddConfiguredLine(product, [], [], 1);
+        viewModel.SelectedFulfilment = FulfilmentMode.Retrait;
+        viewModel.SelectedPlannedHour = 11;
+        viewModel.SelectedPlannedMinute = 0;
+        await viewModel.RepriceAsync(clearManualOverride: true);
+
+        var result = await viewModel.ConfirmAsync();
+
+        Assert.IsTrue(result!.Succeeded);
+        Assert.IsFalse(viewModel.CanRetryInitialKitchen, "Ambiguous Kitchen output must not be retried as an indistinguishable initial ticket.");
+        Assert.IsTrue(viewModel.CanRetryInitialCustomer, "Known Customer failure must remain independently retryable.");
+        await viewModel.RetryInitialPrintAsync(PrintDocumentKind.Kitchen);
+        await viewModel.RetryInitialPrintAsync(PrintDocumentKind.Customer);
+        Assert.AreEqual(0, dispatcher.InitialRetryCalls.Count(call => call == PrintDocumentKind.Kitchen));
+        Assert.AreEqual(1, dispatcher.InitialRetryCalls.Count(call => call == PrintDocumentKind.Customer));
+        Assert.IsFalse(viewModel.CanRetryInitialCustomer);
+    }
+
+    [TestMethod]
+    public async Task M08InitialRetryUsesTheRealWpfButtonForOnlyTheKnownFailedDocument()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(Guid.NewGuid(), "P", "Plat", categoryId, Money.FromCents(1000), 10m, true, true, false, default, default),
+                [],
+                new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Plats");
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountMinTotalTtc = Money.Zero });
+            var store = new ReferenceOrderStore("20260902-002");
+            var dispatcher = new KnownFailureInitialDispatcher();
+            using var entryService = new OrderEntryService(new SingleEntryCatalogue(product), settings, store, dispatcher, new DeterministicIds(), new FixedClock());
+            var localConfiguration = new LocalConfiguration();
+            var configurationService = new InMemoryLocalConfigurationService(localConfiguration);
+            var printerSetup = new PrinterSetupViewModel(localConfiguration, configurationService, new FixedQueueCatalog());
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                true,
+                new CatalogueService(new EmptyCatalogueStore()),
+                new BusinessSettingsService(settings),
+                entryService,
+                configuration: localConfiguration,
+                printerSetup: printerSetup);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var settingsTab = VisualDescendants<TabItem>(window).Single(item => Equals(item.Header, shell.Localized["Settings"]));
+                settingsTab.IsSelected = true;
+                window.UpdateLayout();
+                var printerSelectors = VisualDescendants<ComboBox>(window)
+                    .Where(combo => ReferenceEquals(combo.ItemsSource, printerSetup.Queues))
+                    .ToArray();
+                Assert.HasCount(2, printerSelectors);
+
+                var entry = shell.Entry!;
+                entry.AddConfiguredLine(product, [], [], 1);
+                entry.SelectedFulfilment = FulfilmentMode.Retrait;
+                entry.SelectedPlannedHour = 11;
+                entry.SelectedPlannedMinute = 0;
+                entry.RepriceAsync(clearManualOverride: true).GetAwaiter().GetResult();
+                var result = entry.ConfirmAsync().GetAwaiter().GetResult();
+                Assert.IsTrue(result!.Succeeded);
+                var caisse = VisualDescendants<TabItem>(window).Single(item => Equals(item.Header, shell.Localized["Caisse"]));
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+
+                var kitchenRetry = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["OrderRetryInitialKitchen"]));
+                var customerRetry = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["OrderRetryInitialCustomer"]));
+                Assert.IsTrue(kitchenRetry.IsEnabled);
+                Assert.IsFalse(customerRetry.IsEnabled);
+
+                kitchenRetry.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                CollectionAssert.AreEqual(new[] { PrintDocumentKind.Kitchen }, dispatcher.InitialRetryCalls);
+                Assert.IsFalse(entry.CanRetryInitialKitchen);
+                Assert.IsFalse(entry.CanRetryInitialCustomer);
+            }
+            finally { window.Close(); }
+        });
+        await Task.CompletedTask;
+    }
+
+    [TestMethod]
+    public void M08PrinterSelectionsHydrateDuringWindowLoadAndManualRefreshRemainsAvailable()
+    {
+        RunOnSta(() =>
+        {
+            var initial = new LocalConfiguration(
+                KitchenPrinterQueueId: "kitchen-queue",
+                KitchenPrinterQueueName: "Kitchen",
+                CustomerPrinterQueueId: "customer-queue",
+                CustomerPrinterQueueName: "Customer");
+            var configurationService = new InMemoryLocalConfigurationService(initial);
+            var queueCatalog = new MutableQueueCatalog([
+                new PrintQueueInfo("kitchen-queue", "Kitchen"),
+                new PrintQueueInfo("customer-queue", "Customer")]);
+            var printerSetup = new PrinterSetupViewModel(initial, configurationService, queueCatalog);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                true,
+                catalogueService: new CatalogueService(new EmptyCatalogueStore()),
+                settingsService: new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))),
+                configuration: initial,
+                printerSetup: printerSetup);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.AreEqual(1, queueCatalog.CallCount, "Window load must refresh printer queues without an operator click.");
+                Assert.AreEqual("kitchen-queue", printerSetup.KitchenQueueId);
+                Assert.AreEqual("customer-queue", printerSetup.CustomerQueueId);
+                Assert.AreEqual(initial, configurationService.Current, "Startup hydration must not rewrite local or M07 configuration.");
+
+                var settingsTab = VisualDescendants<TabItem>(window).Single(item => Equals(item.Header, shell.Localized["Settings"]));
+                settingsTab.IsSelected = true;
+                window.UpdateLayout();
+                var selectors = VisualDescendants<ComboBox>(window)
+                    .Where(combo => ReferenceEquals(combo.ItemsSource, printerSetup.Queues))
+                    .ToArray();
+                Assert.HasCount(2, selectors);
+                Assert.AreEqual("kitchen-queue", ((PrintQueueInfo)selectors[0].SelectedItem!).Id);
+                Assert.AreEqual("customer-queue", ((PrintQueueInfo)selectors[1].SelectedItem!).Id);
+
+                var refresh = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["RefreshPrinters"]));
+                refresh.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.AreEqual(2, queueCatalog.CallCount, "The manual refresh action must remain available after automatic startup hydration.");
+                Assert.AreEqual("kitchen-queue", ((PrintQueueInfo)selectors[0].SelectedItem!).Id);
+                Assert.AreEqual("customer-queue", ((PrintQueueInfo)selectors[1].SelectedItem!).Id);
+                Assert.AreEqual(initial, configurationService.Current, "Refreshing queues must not rewrite saved local configuration.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void M08PrinterStartupPreservesUnavailableSavedSelectionAndReportsItTruthfully()
+    {
+        RunOnSta(() =>
+        {
+            var initial = new LocalConfiguration(
+                KitchenPrinterQueueId: "missing-kitchen",
+                KitchenPrinterQueueName: "Missing Kitchen",
+                CustomerPrinterQueueId: "customer-queue",
+                CustomerPrinterQueueName: "Customer");
+            var configurationService = new InMemoryLocalConfigurationService(initial);
+            var queueCatalog = new MutableQueueCatalog([new PrintQueueInfo("customer-queue", "Customer")]);
+            var printerSetup = new PrinterSetupViewModel(initial, configurationService, queueCatalog);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                true,
+                catalogueService: new CatalogueService(new EmptyCatalogueStore()),
+                settingsService: new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))),
+                configuration: initial,
+                printerSetup: printerSetup);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.AreEqual(1, queueCatalog.CallCount);
+                Assert.AreEqual("missing-kitchen", printerSetup.KitchenQueueId);
+                Assert.AreEqual("Missing Kitchen", printerSetup.KitchenQueueName);
+                Assert.AreEqual(shell.Localized["PrinterQueueUnavailable"], printerSetup.StatusMessage);
+                Assert.AreEqual(initial, configurationService.Current, "Unavailable startup discovery must not erase the saved queue selection.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void M08PrinterStartupKeepsTheWindowUsableWhenQueueDiscoveryFails()
+    {
+        RunOnSta(() =>
+        {
+            var initial = new LocalConfiguration(
+                KitchenPrinterQueueId: "kitchen-queue",
+                KitchenPrinterQueueName: "Kitchen",
+                CustomerPrinterQueueId: "customer-queue",
+                CustomerPrinterQueueName: "Customer");
+            var configurationService = new InMemoryLocalConfigurationService(initial);
+            var printerSetup = new PrinterSetupViewModel(initial, configurationService, new ThrowingQueueCatalog());
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                true,
+                catalogueService: new CatalogueService(new EmptyCatalogueStore()),
+                settingsService: new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))),
+                configuration: initial,
+                printerSetup: printerSetup);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+                Assert.AreEqual(shell.Localized["PrinterRefreshFailed"], printerSetup.StatusMessage);
+                Assert.AreEqual(initial, configurationService.Current, "A discovery failure must not rewrite local or M07 configuration.");
+                Assert.IsTrue(window.IsLoaded, "Printer discovery failure must not prevent the normal window from loading.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
     private static OrderSnapshot Snapshot(DateOnly plannedDate) => new(
         Guid.NewGuid(), OrderSourceType.Pos, OrderStatus.Open,
         new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero),
@@ -1806,6 +2080,103 @@ public sealed class M05DesktopTests
     private sealed class ThrowingDispatcher : IOrderPrintDispatcher
     {
         public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) => throw new InvalidOperationException("synthetic output failure");
+    }
+
+    private sealed class FixedAuthorityGuard(WriteAuthorityState state) : IWriteAuthorityGuard
+    {
+        public WriteAuthorityState State { get; } = state;
+        public void RequireWriteAuthority() => throw new WriteAuthorityException(State);
+    }
+
+    private sealed class AmbiguousPrintService : IOrderPrintApplicationService
+    {
+        public Task<PrintDocumentResult> ReprintAsync(Guid orderId, PrintDocumentKind kind, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PrintDocumentResult(
+                kind,
+                PrintOutcomeStatus.AmbiguousSubmission,
+                "The print result is uncertain.",
+                new OrderPrintDocument(kind, PrintIntent.ExplicitReprint, orderId, "synthetic", "synthetic", false, false)));
+
+        public Task<PrintDocumentResult> RetryInitialAsync(Guid orderId, PrintDocumentKind kind, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PrintDocumentResult(kind, PrintOutcomeStatus.Unsupported, "Initial retry is not available in this synthetic UI test."));
+    }
+
+    private sealed class AmbiguousInitialDispatcher : IOrderPrintOutcomeDispatcher
+    {
+        public List<PrintDocumentKind> InitialRetryCalls { get; } = [];
+
+        public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<PrintDispatchResult> DispatchInitialAsync(OrderSnapshot committedOrder, PrintIntent intent = PrintIntent.InitialAutomatic, CancellationToken cancellationToken = default) =>
+            Task.FromResult(PrintDispatchResult.From(
+                new PrintDocumentResult(PrintDocumentKind.Kitchen, PrintOutcomeStatus.AmbiguousSubmission, "Kitchen outcome is uncertain."),
+                new PrintDocumentResult(PrintDocumentKind.Customer, PrintOutcomeStatus.QueueUnavailable, "Customer queue is unavailable.")));
+
+        public Task<PrintDocumentResult> PrintDocumentAsync(OrderSnapshot committedOrder, PrintDocumentKind kind, PrintIntent intent = PrintIntent.ExplicitReprint, CancellationToken cancellationToken = default)
+        {
+            if (intent == PrintIntent.InitialRetry) InitialRetryCalls.Add(kind);
+            return Task.FromResult(PrintDocumentResult.Success(new OrderPrintDocument(kind, intent, committedOrder.Id, committedOrder.Reference, "synthetic", false, false)));
+        }
+    }
+
+    private sealed class KnownFailureInitialDispatcher : IOrderPrintOutcomeDispatcher
+    {
+        public List<PrintDocumentKind> InitialRetryCalls { get; } = [];
+
+        public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<PrintDispatchResult> DispatchInitialAsync(OrderSnapshot committedOrder, PrintIntent intent = PrintIntent.InitialAutomatic, CancellationToken cancellationToken = default) =>
+            Task.FromResult(PrintDispatchResult.From(
+                new PrintDocumentResult(PrintDocumentKind.Kitchen, PrintOutcomeStatus.QueueUnavailable, "Kitchen queue is unavailable."),
+                PrintDocumentResult.Success(new OrderPrintDocument(PrintDocumentKind.Customer, PrintIntent.InitialAutomatic, committedOrder.Id, committedOrder.Reference, "synthetic", false, false))));
+
+        public Task<PrintDocumentResult> PrintDocumentAsync(OrderSnapshot committedOrder, PrintDocumentKind kind, PrintIntent intent = PrintIntent.ExplicitReprint, CancellationToken cancellationToken = default)
+        {
+            if (intent == PrintIntent.InitialRetry) InitialRetryCalls.Add(kind);
+            return Task.FromResult(PrintDocumentResult.Success(new OrderPrintDocument(kind, intent, committedOrder.Id, committedOrder.Reference, "synthetic", false, false)));
+        }
+    }
+
+    private sealed class FixedQueueCatalog : IPrintQueueCatalog
+    {
+        public Task<IReadOnlyList<PrintQueueInfo>> ListAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PrintQueueInfo>>([
+                new("kitchen-queue", "Kitchen"),
+                new("customer-queue", "Customer")]);
+    }
+
+    private sealed class MutableQueueCatalog(IReadOnlyList<PrintQueueInfo> initial) : IPrintQueueCatalog
+    {
+        public IReadOnlyList<PrintQueueInfo> Queues { get; set; } = initial;
+        public int CallCount { get; private set; }
+
+        public Task<IReadOnlyList<PrintQueueInfo>> ListAsync(CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return Task.FromResult(Queues);
+        }
+    }
+
+    private sealed class ThrowingQueueCatalog : IPrintQueueCatalog
+    {
+        public Task<IReadOnlyList<PrintQueueInfo>> ListAsync(CancellationToken cancellationToken = default) =>
+            Task.FromException<IReadOnlyList<PrintQueueInfo>>(new InvalidOperationException("synthetic queue discovery failure"));
+    }
+
+    private sealed class InMemoryLocalConfigurationService(LocalConfiguration initial) : ILocalConfigurationService
+    {
+        public LocalConfiguration Current { get; private set; } = initial;
+        public Task<LocalConfiguration> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(Current);
+        public Task SaveAsync(LocalConfiguration configuration, CancellationToken cancellationToken = default)
+        {
+            Current = configuration;
+            return Task.CompletedTask;
+        }
+        public Task<LocalConfiguration> UpdateAsync(Func<LocalConfiguration, LocalConfiguration> update, CancellationToken cancellationToken = default)
+        {
+            Current = update(Current);
+            return Task.FromResult(Current);
+        }
     }
 
     private sealed class SingleEntryCatalogue(OrderEntryProduct product) : IOrderEntryCatalogueQueries
