@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Last updated:** 2026-09-14  
-**Current state:** M01 through M08 are Passed and merged. M09 — Hiboutik paste-order fallback — is **Authorized** by explicit project-owner approval. Execution remains gated by Issue #4: Codex may execute only after the dedicated M09 branch/PR/mailbox and one complete queued handoff are prepared and Issue #4 is reopened. M10 and later milestones remain unauthorized.
+**Current state:** M01 through M08 are Passed and merged. M09 — Hiboutik paste-order fallback — is **Authorized** by explicit project-owner approval. Dedicated implementation branch `codex/m09-hiboutik-paste-fallback` and PR #17 exist. Codex execution remains gated by Issue #4 and may begin only after the complete queued M09 handoff exists and the owner reopens the gate. M10 and later milestones remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07/M08 evidence remains authoritative in milestone-specific worklogs/manual-acceptance/PR records. This living document states current control state only.
 
@@ -32,7 +32,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M06 — Local recovery/read-only enforcement | Passed | Merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; final Windows/WPF acceptance Passed. |
 | M07 — Pairing, target-directed handoff and disaster recovery | Passed | Accepted production head `e971580ef43d3b50366d51733ca9431ca0997e8d`; closure docs/evidence head `d586c847f2dd541815b8c00565c58b3685a3e4be`; PR #13 merged to `main` at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`; exact-head CI #631 succeeded with 541/541 tests and 0 warnings/errors. |
 | M08 — Printing and reprinting | Passed | Accepted production candidate `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; production implementation commit `7ab74655977faaf70f95c91188d5a69486a378e6`; final pass-record head `5f8c92c29116e17a3365ecd8801f7e13f107269c`; exact-head CI #675 succeeded; project-owner physical/manual acceptance Passed; PR #14 merged to `main` at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. |
-| M09 — Hiboutik paste fallback | Authorized | Preparation/specification package complete. Project owner explicitly authorized implementation on 2026-09-14. Durable authorization: `implementation/milestone-09-authorization.md`. Codex execution remains subject to dedicated branch/PR/mailbox setup and Issue #4 OPEN gate. |
+| M09 — Hiboutik paste fallback | Authorized | Preparation/specification package complete. Project owner explicitly authorized implementation on 2026-09-14. Durable authorization: `implementation/milestone-09-authorization.md`. Active branch `codex/m09-hiboutik-paste-fallback`; active PR/mailbox #17. Codex execution remains blocked while Issue #4 is CLOSED. |
 | M10 — Catalogue `.xlsx` | Not started | Unauthorized; pending M09. |
 | M11 — Gestion export | Not started | Unauthorized; pending M10. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
@@ -101,27 +101,28 @@ Preparation audit conclusion:
 - implementation seams: available in ordinary order entry/catalogue/options/pricing/authority/recovery/M08 printing;
 - material M09 questions: none open;
 - readiness: PASS;
-- implementation authorization: **AUTHORIZED by project owner on 2026-09-14**.
+- implementation authorization: **AUTHORIZED by project owner on 2026-09-14**;
+- branch: `codex/m09-hiboutik-paste-fallback`;
+- PR/mailbox: #17.
 
-Authorization is not execution permission by itself.
+Authorization is not execution permission by itself. While Issue #4 remains CLOSED, Codex makes no M09 production-code changes.
 
 Before Codex may execute M09:
 
-- dedicated branch `codex/m09-hiboutik-paste-fallback` must exist;
-- dedicated PR/mailbox `M09: Hiboutik paste-order fallback` must exist;
-- Issue #4 must point to that exact branch/PR;
-- exactly one complete unprocessed top-level `CODEX_HANDOFF_READY` must be queued;
-- Issue #4 must then be reopened.
+- Issue #4 must point to branch `codex/m09-hiboutik-paste-fallback` and PR #17;
+- exactly one complete unprocessed top-level `CODEX_HANDOFF_READY` must be queued on PR #17;
+- Issue #4 must then be reopened by the owner/operator.
 
-While Issue #4 remains CLOSED, Codex makes no M09 production-code changes. M10+ remain unauthorized.
+M10+ remain unauthorized.
 
 ## 6. M09 execution topology
 
 Authorized topology:
 
 - branch: `codex/m09-hiboutik-paste-fallback`;
-- PR: `M09: Hiboutik paste-order fallback`;
+- PR: `M09: Hiboutik paste-order fallback` (#17);
 - PR top-level Conversation comments: durable mailbox;
+- first work package: WP1 — domain/data migration and exact-code seam;
 - prepare/publish the first complete executable handoff while Issue #4 remains CLOSED;
 - then ask the owner to reopen Issue #4 so Codex can immediately consume the queued work;
 - Codex processes only authorized M09 work packages serially;
