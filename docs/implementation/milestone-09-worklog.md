@@ -61,11 +61,22 @@ Status: **Implemented; awaiting controller review**.
 
 ### WP2 — Pure parser and synthetic fixtures
 
-Status: **Implemented; evidence captured; awaiting controller review**.
+Status: **Implemented; remediation evidence captured; awaiting controller review**.
 
 - Added the pure Application-layer `HiboutikProductBlockParser` and immutable parse DTOs. The parser performs only deterministic text normalization and line classification into product candidates, specifically known ignored lines, or unresolved lines; it has no catalogue, persistence, authority, clipboard, WPF, network, or business-write dependency.
-- Implemented the approved product grammar with ordered quantity/code candidates, repeated-code preservation, the exact `1 x Livraison (0)` ignored service row, strict per-item/final total recognition, and cent-precise source-total reliability. A unique parseable final `TOTAL` takes precedence; otherwise complete, unambiguous associated per-item totals are summed; malformed, incomplete, stray, competing, or ambiguous evidence fails safe to null.
+- Implemented the approved product grammar with ordered quantity/code candidates, repeated-code preservation, the exact `1 x Livraison (0)` ignored service row, strict per-item/final total recognition, and cent-precise source-total reliability. A unique parseable final `TOTAL` takes precedence unless final-total evidence is malformed or competing; without that final total, complete and unambiguous associated per-item totals are summed, while malformed, incomplete, or stray per-item evidence makes only that fallback derivation unavailable.
 - Added 24 focused parser tests covering the 21 required cases plus committed-fixture regression, transient unresolved context, and delivery derivation. The committed synthetic fixture remains the only copied fixture and yields a reliable **€24.30** source total with delivery excluded from product candidates; the privacy test confirms no customer/contact data.
 - Verification: targeted parser/Application tests passed **24/24**; targeted M09 WP1 Infrastructure IntegrationTests passed **3/3**; full `Sushi81.Pos.sln` Release suite passed **608/608**; standalone Release build passed with **0 warnings, 0 errors**; `git diff --check` passed.
 - Execution topology: serial main-agent implementation and review; no subagents used because the pure parser and its focused tests share one narrow contract.
 - Scope boundary: no WP3 orchestration, catalogue resolution, source-aware confirmation, WPF workflow/localization, reporting/export, clipboard integration, or M10+ work. No Windows/WPF owner manual acceptance is claimed for this non-UI handoff.
+
+### WP2 remediation — strict money grammar and final-total precedence evidence
+
+Status: **Implemented; evidence captured; awaiting controller review**.
+
+- Rejected dangling decimal separators in `HiboutikProductBlockParser.TryParseMoney`; `5.` and `0.` are now unresolved rather than normalized to whole euros, while the approved integer, one-decimal, and two-decimal forms remain unchanged.
+- Added focused synthetic tests for dangling final/per-item totals and for the approved precedence rule: a unique valid final `TOTAL 24.30` remains reliable when a malformed per-item `Total : 5.` is also present, and that malformed line remains unresolved.
+- Corrected the WP2 evidence wording above so malformed per-item evidence is described as blocking only fallback per-item derivation; malformed or competing final-total evidence remains the final-total reliability failure case.
+- Verification: targeted parser/Application tests passed **27/27**; targeted M09 WP1 Infrastructure IntegrationTests passed **3/3**; full `Sushi81.Pos.sln` Release suite passed **611/611**; standalone Release build passed with **0 warnings, 0 errors**; `git diff --check` passed.
+- Execution topology: serial main-agent implementation and review; no subagents used.
+- Scope boundary: no WP3 orchestration, catalogue lookup, persistence, WPF/localization, reporting/export, clipboard/network integration, M10+, or business/specification changes. No Windows/WPF owner manual acceptance is claimed for this non-UI remediation.

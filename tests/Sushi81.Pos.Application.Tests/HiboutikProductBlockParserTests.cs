@@ -229,6 +229,33 @@ public sealed class HiboutikProductBlockParserTests
     }
 
     [TestMethod]
+    public void DanglingDecimalFinalTotalIsUnresolvedAndNotReliable()
+    {
+        var result = HiboutikProductBlockParser.Parse("1 x AA1 Produit\nTOTAL 5.");
+
+        Assert.AreEqual(HiboutikPasteLineKind.UnresolvedLine, result.Lines[1].Kind);
+        Assert.IsNull(result.SourceTotalTtc);
+    }
+
+    [TestMethod]
+    public void DanglingDecimalPerItemTotalIsUnresolvedAndCannotBeDerived()
+    {
+        var result = HiboutikProductBlockParser.Parse("1 x AA1 Produit\nTotal : 5.");
+
+        Assert.AreEqual(HiboutikPasteLineKind.UnresolvedLine, result.Lines[1].Kind);
+        Assert.IsNull(result.SourceTotalTtc);
+    }
+
+    [TestMethod]
+    public void UniqueValidFinalTotalRemainsReliableWithMalformedPerItemEvidence()
+    {
+        var result = HiboutikProductBlockParser.Parse("1 x AA1 Produit\nTotal : 5.\nTOTAL 24.30");
+
+        Assert.AreEqual(HiboutikPasteLineKind.UnresolvedLine, result.Lines[1].Kind);
+        Assert.AreEqual(2430, result.SourceTotalTtc!.Value.Cents);
+    }
+
+    [TestMethod]
     public void UnresolvedProductSyntaxRetainsReliableTransientContext()
     {
         var result = HiboutikProductBlockParser.Parse("2 x (missing-code) source description");

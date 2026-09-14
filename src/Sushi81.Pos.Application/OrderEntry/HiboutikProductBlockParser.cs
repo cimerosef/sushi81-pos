@@ -253,6 +253,7 @@ public static class HiboutikProductBlockParser
         var wholeEnd = decimalSeparator < 0 ? text.Length : decimalSeparator;
         if (decimalSeparator >= 0 && text.IndexOf('.', decimalSeparator + 1) >= 0) return false;
         var fractionLength = decimalSeparator < 0 ? 0 : text.Length - decimalSeparator - 1;
+        if (decimalSeparator >= 0 && fractionLength == 0) return false;
         if (fractionLength is < 0 or > 2 || wholeEnd == 0) return false;
 
         long whole = 0;
