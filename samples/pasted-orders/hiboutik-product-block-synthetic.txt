@@ -1,0 +1,9 @@
+1 x AA1 Produit Exemple Alpha (5.50)
+Total : 5.5
+2 x BB2 Produit Exemple Beta (5.00)
+Total : 10
+1 x CC3 Produit Exemple Gamma (8.80)
+Total : 8.8
+1 x Livraison (0)
+Total : 0
+TOTAL 24.3
