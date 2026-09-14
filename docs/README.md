@@ -4,13 +4,13 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M08 Passed/merged; M09 — Hiboutik paste-order fallback — preparation/readiness complete and ready for separate project-owner implementation authorization.**
+**Phase 6 implementation active: M01–M08 Passed/merged; M09 — Hiboutik paste-order fallback — implementation AUTHORIZED by explicit project-owner approval on 2026-09-14.**
 
 M08 — Printing and reprinting — Passed project-owner Windows/WPF/physical-print acceptance and was merged through PR #14 to `main` at merge commit `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. Accepted production candidate: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; final pass-record head: `5f8c92c29116e17a3365ecd8801f7e13f107269c`; final exact-head CI #675 succeeded.
 
 M09 preparation is complete. The owner-approved 2026-09-14 amendment narrows paste input to the Hiboutik product-detail block, requires fail-safe unresolved-line operator handling, permits passive read-only Hiboutik source identification, and permits nullable read-only `source_total_ttc` as a reconciliation reference while keeping ordinary POS pricing authoritative.
 
-M09 implementation is **NOT YET AUTHORIZED**. Issue #4 is CLOSED, no M09 implementation branch/PR exists, and no executable handoff exists. M10 and later milestones remain unauthorized.
+M09 implementation is authorized by `implementation/milestone-09-authorization.md`. Authorization is not the Codex execution switch: Issue #4 must still remain CLOSED until the dedicated M09 branch/PR/mailbox exists and a complete executable handoff is queued. M10 and later milestones remain unauthorized.
 
 The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`; the living current control state is `implementation-status.md`.
 
@@ -71,17 +71,16 @@ Historical completed milestone records remain under `implementation/` and in the
 - M07 — Passed/merged through PR #13;
 - M08 — Passed/merged through PR #14.
 
-Current M09 preparation package:
+Current M09 control package:
 
 - `decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md` — owner-approved V1 amendment;
 - `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md` — amended AC-HIB acceptance contract;
 - `paste-order-import.md` — consolidated amended operational specification;
 - `implementation/milestone-09-preparation-readiness.md` — readiness/control record;
-- `implementation/milestone-09-hiboutik-paste-fallback.md` — detailed implementation contract, non-executable until owner authorization;
+- `implementation/milestone-09-hiboutik-paste-fallback.md` — detailed authorized implementation contract;
 - `implementation/milestone-09-final-manual-acceptance.md` — prepared owner Windows/WPF checklist;
+- `implementation/milestone-09-authorization.md` — durable explicit project-owner implementation authorization;
 - `samples/pasted-orders/hiboutik-product-block-synthetic.txt` — synthetic source-structure fixture only.
-
-No M09 authorization record exists yet because the owner has not separately authorized implementation.
 
 ## Decision records
 
