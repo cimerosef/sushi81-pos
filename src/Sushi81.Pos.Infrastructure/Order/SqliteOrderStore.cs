@@ -39,7 +39,11 @@ public sealed class SqliteOrderStore(
         await transactionRunner.ExecuteAsync(async (transaction, token) =>
         {
             var sqlite = RequireSqlite(transaction);
-            if (!await HasColumnAsync(sqlite.Connection, "orders", "order_reference", token))
+            var hasReference = await HasColumnAsync(sqlite.Connection, "orders", "order_reference", token);
+            var hasSourceTotal = await HasColumnAsync(sqlite.Connection, "orders", "source_total_ttc_cents", token);
+            if (snapshot.SourceTotalTtc is not null && !hasSourceTotal)
+                throw new InvalidOperationException("The database must be migrated before persisting an order source total.");
+            if (!hasReference)
             {
                 await SaveLegacyAsync(sqlite, snapshot, token);
                 return;
@@ -51,28 +55,45 @@ public sealed class SqliteOrderStore(
             Inject("order");
             if (isExisting)
             {
-                await ExecuteAsync(sqlite, """
+                var sql = hasSourceTotal ? """
+                    UPDATE orders SET source_type=$source,status=$status,created_at_utc=$created,updated_at_utc=$updated,
+                    closed_at_utc=$closed,cancelled_at_utc=$cancelled,fulfilment_mode=$fulfilment,planned_fulfilment_date=$date,
+                    planned_fulfilment_time=$time,advance_order_marker=$advance,telephone=$telephone,delivery_address=$address,
+                    comment=$comment,total_ttc_cents=$total,manual_total_override_active=$manual,pickup_discount_applied=$discount,
+                    pickup_discount_rate=$rate,delivery_fee_ttc_cents=$fee,card_payment_ttc_cents=$card,cash_payment_ttc_cents=$cash,
+                    source_total_ttc_cents=$sourceTotal,
+                    order_reference=$reference WHERE order_id=$id;
+                    """ : """
                     UPDATE orders SET source_type=$source,status=$status,created_at_utc=$created,updated_at_utc=$updated,
                     closed_at_utc=$closed,cancelled_at_utc=$cancelled,fulfilment_mode=$fulfilment,planned_fulfilment_date=$date,
                     planned_fulfilment_time=$time,advance_order_marker=$advance,telephone=$telephone,delivery_address=$address,
                     comment=$comment,total_ttc_cents=$total,manual_total_override_active=$manual,pickup_discount_applied=$discount,
                     pickup_discount_rate=$rate,delivery_fee_ttc_cents=$fee,card_payment_ttc_cents=$card,cash_payment_ttc_cents=$cash,
                     order_reference=$reference WHERE order_id=$id;
-                    """, token, Parameters(snapshot, reference));
+                    """;
+                await ExecuteAsync(sqlite, sql, token, Parameters(snapshot, reference));
                 Inject("order-after-parent");
                 await ExecuteAsync(sqlite, "DELETE FROM order_items WHERE order_id=$id;", token, ("$id", snapshot.Id.ToString()));
                 await ExecuteAsync(sqlite, "DELETE FROM order_tax_breakdown WHERE order_id=$id;", token, ("$id", snapshot.Id.ToString()));
             }
             else
             {
-                await ExecuteAsync(sqlite, """
+                var sql = hasSourceTotal ? """
+                    INSERT INTO orders(order_id,source_type,status,created_at_utc,updated_at_utc,closed_at_utc,cancelled_at_utc,
+                    fulfilment_mode,planned_fulfilment_date,planned_fulfilment_time,advance_order_marker,telephone,delivery_address,
+                    comment,total_ttc_cents,manual_total_override_active,pickup_discount_applied,pickup_discount_rate,
+                    delivery_fee_ttc_cents,order_reference,card_payment_ttc_cents,cash_payment_ttc_cents,source_total_ttc_cents)
+                    VALUES ($id,$source,$status,$created,$updated,$closed,$cancelled,$fulfilment,$date,$time,$advance,$telephone,
+                    $address,$comment,$total,$manual,$discount,$rate,$fee,$reference,$card,$cash,$sourceTotal);
+                    """ : """
                     INSERT INTO orders(order_id,source_type,status,created_at_utc,updated_at_utc,closed_at_utc,cancelled_at_utc,
                     fulfilment_mode,planned_fulfilment_date,planned_fulfilment_time,advance_order_marker,telephone,delivery_address,
                     comment,total_ttc_cents,manual_total_override_active,pickup_discount_applied,pickup_discount_rate,
                     delivery_fee_ttc_cents,order_reference,card_payment_ttc_cents,cash_payment_ttc_cents)
                     VALUES ($id,$source,$status,$created,$updated,$closed,$cancelled,$fulfilment,$date,$time,$advance,$telephone,
                     $address,$comment,$total,$manual,$discount,$rate,$fee,$reference,$card,$cash);
-                    """, token, Parameters(snapshot, reference));
+                    """;
+                await ExecuteAsync(sqlite, sql, token, Parameters(snapshot, reference));
             }
 
             await WriteChildrenAsync(sqlite, snapshot, token);
@@ -111,6 +132,7 @@ public sealed class SqliteOrderStore(
             reader.GetInt64(reader.GetOrdinal("pickup_discount_applied")) == 1, ReadNullableDecimal(reader, reader.GetOrdinal("pickup_discount_rate")),
             Money.FromCents(reader.GetInt64(reader.GetOrdinal("delivery_fee_ttc_cents"))), [], [])
         {
+            SourceTotalTtc = ReadOptionalInt64(reader, "source_total_ttc_cents") is { } sourceTotal ? Money.FromCents(sourceTotal) : null,
             Reference = ReadOptionalColumn(reader, "order_reference") ?? string.Empty,
             CardPaymentTtc = Money.FromCents(ReadOptionalInt64(reader, "card_payment_ttc_cents") ?? 0),
             CashPaymentTtc = Money.FromCents(ReadOptionalInt64(reader, "cash_payment_ttc_cents") ?? 0)
@@ -306,7 +328,7 @@ public sealed class SqliteOrderStore(
     private static Guid ParseGuid(string value) => Guid.TryParse(value, out var id) ? id : throw new InvalidDataException("The database contains an invalid opaque identifier.");
     private static (string Name, object? Value)[] Parameters(OrderSnapshot snapshot, string? reference) =>
     [
-        ("$id", snapshot.Id.ToString()), ("$source", SourceName(snapshot.SourceType)), ("$status", StatusName(snapshot.Status)), ("$created", Format(snapshot.CreatedAt)), ("$updated", Format(snapshot.UpdatedAt)), ("$closed", FormatNullable(snapshot.ClosedAt)), ("$cancelled", FormatNullable(snapshot.CancelledAt)), ("$fulfilment", FulfilmentName(snapshot.Fulfilment)), ("$date", snapshot.PlannedFulfilmentDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)), ("$time", snapshot.PlannedFulfilmentTime?.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture)), ("$advance", snapshot.AdvanceOrderMarker ? 1 : 0), ("$telephone", snapshot.Telephone), ("$address", snapshot.DeliveryAddress), ("$comment", snapshot.Comment), ("$total", snapshot.TotalTtc.Cents), ("$manual", snapshot.ManualTotalOverrideActive ? 1 : 0), ("$discount", snapshot.PickupDiscountApplied ? 1 : 0), ("$rate", FormatDecimalNullable(snapshot.PickupDiscountRate)), ("$fee", snapshot.DeliveryFeeTtc.Cents), ("$reference", reference), ("$card", snapshot.CardPaymentTtc.Cents), ("$cash", snapshot.CashPaymentTtc.Cents)
+        ("$id", snapshot.Id.ToString()), ("$source", SourceName(snapshot.SourceType)), ("$status", StatusName(snapshot.Status)), ("$created", Format(snapshot.CreatedAt)), ("$updated", Format(snapshot.UpdatedAt)), ("$closed", FormatNullable(snapshot.ClosedAt)), ("$cancelled", FormatNullable(snapshot.CancelledAt)), ("$fulfilment", FulfilmentName(snapshot.Fulfilment)), ("$date", snapshot.PlannedFulfilmentDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)), ("$time", snapshot.PlannedFulfilmentTime?.ToString("HH:mm:ss.fffffff", CultureInfo.InvariantCulture)), ("$advance", snapshot.AdvanceOrderMarker ? 1 : 0), ("$telephone", snapshot.Telephone), ("$address", snapshot.DeliveryAddress), ("$comment", snapshot.Comment), ("$total", snapshot.TotalTtc.Cents), ("$manual", snapshot.ManualTotalOverrideActive ? 1 : 0), ("$discount", snapshot.PickupDiscountApplied ? 1 : 0), ("$rate", FormatDecimalNullable(snapshot.PickupDiscountRate)), ("$fee", snapshot.DeliveryFeeTtc.Cents), ("$reference", reference), ("$card", snapshot.CardPaymentTtc.Cents), ("$cash", snapshot.CashPaymentTtc.Cents), ("$sourceTotal", snapshot.SourceTotalTtc?.Cents)
     ];
     private static string SourceName(OrderSourceType value) => value switch { OrderSourceType.Pos => "POS", OrderSourceType.HiboutikPaste => "HIBOUTIK_PASTE", _ => throw new ArgumentOutOfRangeException(nameof(value)) };
     private static string StatusName(OrderStatus value) => value switch { OrderStatus.Open => "OPEN", OrderStatus.Closed => "CLOSED", OrderStatus.Cancelled => "CANCELLED", _ => throw new ArgumentOutOfRangeException(nameof(value)) };

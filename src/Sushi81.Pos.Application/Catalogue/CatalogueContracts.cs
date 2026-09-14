@@ -149,6 +149,12 @@ public sealed record ProductDraft(
     bool OptionsEnabled,
     IReadOnlyList<OptionGroupDraft> Groups);
 
+/// <summary>Dedicated exact lookup used by order-entry/import flows against the current active catalogue.</summary>
+public interface IActiveProductCodeQueries
+{
+    Task<ProductDraft?> GetActiveProductByCodeAsync(string? productCode, CancellationToken cancellationToken = default);
+}
+
 public sealed record BulkProductActiveStateItem(Guid ProductId, bool ExpectedIsActive);
 
 public sealed record BulkProductActiveStateRequest(
@@ -201,6 +207,17 @@ public sealed class CatalogueService
     public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => store.ListCategoriesAsync(cancellationToken);
     public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default) => store.ListProductsAsync(search, categoryId, active, cancellationToken);
     public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => store.GetProductForEditAsync(productId, cancellationToken);
+    public async Task<ProductDraft?> GetActiveProductByCodeAsync(string? productCode, CancellationToken cancellationToken = default)
+    {
+        var key = CatalogueNormalization.Key(productCode);
+        if (key.Length == 0) return null;
+        if (store is IActiveProductCodeQueries exactQueries)
+            return await exactQueries.GetActiveProductByCodeAsync(productCode, cancellationToken);
+
+        var match = (await store.ListProductsAsync(active: true, cancellationToken: cancellationToken))
+            .SingleOrDefault(product => string.Equals(CatalogueNormalization.Key(product.Code), key, StringComparison.Ordinal));
+        return match is null ? null : await store.GetProductForEditAsync(match.Id, cancellationToken) is { IsActive: true } draft ? draft : null;
+    }
     public Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default) => MutateAsync(() => store.CreateCategoryAsync(name, cancellationToken));
     public Task<OperationResult<CategorySummary>> RenameCategoryAsync(Guid id, string name, CancellationToken cancellationToken = default) => MutateAsync(() => store.RenameCategoryAsync(id, name, cancellationToken));
     public Task<OperationResult<CategorySummary>> CreateCategoryWithCodeAsync(string name, string? shortCode, CancellationToken cancellationToken = default) => ValidateAndCreateCategoryAsync(name, shortCode, cancellationToken);

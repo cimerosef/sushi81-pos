@@ -212,6 +212,9 @@ public sealed record OrderSnapshot(
     IReadOnlyList<OrderItemSnapshot> Items,
     IReadOnlyList<OrderTaxBreakdown> TaxBreakdown)
 {
+    /// <summary>Nullable read-only reference amount reported by the source order, never pricing authority.</summary>
+    public Money? SourceTotalTtc { get; init; }
+
     /// <summary>Immutable operator-facing reference allocated by SQLite at creation.</summary>
     public string Reference { get; init; } = string.Empty;
 

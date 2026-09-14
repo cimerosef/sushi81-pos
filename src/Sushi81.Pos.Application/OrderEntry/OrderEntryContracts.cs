@@ -16,6 +16,15 @@ public interface IOrderEntryCatalogueQueries
     Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? categoryId = null, CancellationToken cancellationToken = default);
     Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default);
+
+    async Task<OrderEntryProduct?> GetActiveProductByCodeAsync(string? productCode, CancellationToken cancellationToken = default)
+    {
+        var key = CatalogueNormalization.Key(productCode);
+        if (key.Length == 0) return null;
+        var match = (await ListActiveProductsAsync(cancellationToken: cancellationToken))
+            .SingleOrDefault(product => string.Equals(CatalogueNormalization.Key(product.Code), key, StringComparison.Ordinal));
+        return match is null ? null : await GetActiveProductAsync(match.Id, cancellationToken);
+    }
 }
 
 public sealed record OrderEntryProduct(ProductAggregate Aggregate, string CategoryName);
@@ -32,7 +41,28 @@ public sealed class OrderEntryCatalogueService(ICatalogueQueries catalogue) : IO
     public async Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default)
     {
         var draft = await catalogue.GetProductForEditAsync(productId, cancellationToken);
-        if (draft is null || !draft.IsActive) return null;
+        return draft is null || !draft.IsActive ? null : await BuildProductAsync(draft, cancellationToken);
+    }
+
+    public async Task<OrderEntryProduct?> GetActiveProductByCodeAsync(string? productCode, CancellationToken cancellationToken = default)
+    {
+        var key = CatalogueNormalization.Key(productCode);
+        if (key.Length == 0) return null;
+        var draft = catalogue is IActiveProductCodeQueries exactQueries
+            ? await exactQueries.GetActiveProductByCodeAsync(productCode, cancellationToken)
+            : await ResolveFromActiveSummariesAsync(key, cancellationToken);
+        return draft is null || !draft.IsActive ? null : await BuildProductAsync(draft, cancellationToken);
+    }
+
+    private async Task<ProductDraft?> ResolveFromActiveSummariesAsync(string key, CancellationToken cancellationToken)
+    {
+        var match = (await catalogue.ListProductsAsync(active: true, cancellationToken: cancellationToken))
+            .SingleOrDefault(product => string.Equals(CatalogueNormalization.Key(product.Code), key, StringComparison.Ordinal));
+        return match is null ? null : await catalogue.GetProductForEditAsync(match.Id, cancellationToken);
+    }
+
+    private async Task<OrderEntryProduct> BuildProductAsync(ProductDraft draft, CancellationToken cancellationToken)
+    {
         var categories = await catalogue.ListCategoriesAsync(cancellationToken);
         var categoryName = categories.FirstOrDefault(category => category.Id == draft.CategoryId)?.Name ?? string.Empty;
         var product = new Product(
@@ -118,6 +148,7 @@ public sealed class OrderEntryService(
     public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => catalogue.ListCategoriesAsync(cancellationToken);
     public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? categoryId = null, CancellationToken cancellationToken = default) => catalogue.ListActiveProductsAsync(search, categoryId, cancellationToken);
     public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => catalogue.GetActiveProductAsync(productId, cancellationToken);
+    public Task<OrderEntryProduct?> GetActiveProductByCodeAsync(string? productCode, CancellationToken cancellationToken = default) => catalogue.GetActiveProductByCodeAsync(productCode, cancellationToken);
 
     public async Task<OrderPricingResult> PriceAsync(NewOrderDraft draft, CancellationToken cancellationToken = default)
     {

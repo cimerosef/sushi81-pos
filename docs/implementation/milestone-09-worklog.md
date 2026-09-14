@@ -29,7 +29,7 @@
 
 ### WP1 — Domain/data migration and exact-code seam
 
-Status: **Queued / not yet executed**.
+Status: **Implemented; evidence captured; awaiting PR review**.
 
 Required scope:
 
@@ -41,4 +41,11 @@ Required scope:
 - no parser/UI implementation yet;
 - no M10+ work.
 
-Evidence will be appended after the matching `CODEX_DONE` and controller review.
+Implementation evidence (2026-09-14):
+
+- Added nullable cent-precise `OrderSnapshot.SourceTotalTtc`, persisted by production SQLite migration version 7 as `orders.source_total_ttc_cents`; existing M08 databases migrate additively and retain authoritative `total_ttc_cents`.
+- Added migration-aware order read/write behavior, including a clear pre-migration failure when a non-null source reference is supplied, and preserved the field through ordinary modification/close/cancel lifecycle paths.
+- Added the dedicated exact active product-code query seam at the catalogue storage/application boundary; matching is normalized exact-code equality and excludes inactive, name, and prefix matches.
+- Added focused M09 WP1 migration, round-trip, exact-code, and lifecycle-preservation evidence; updated existing snapshot comparisons and production migration expectations for version 7.
+- Verification: targeted Infrastructure IntegrationTests passed **225/225**; full `Sushi81.Pos.sln` Release test suite passed **579/579**; standalone Release build passed with **0 warnings, 0 errors**; `git diff --check` passed.
+- Scope boundary: parser, unresolved-line/session/UI, source-aware provenance, reporting/export, and M10+ remain unimplemented. No manual WPF acceptance is claimed for this WP1 handoff.

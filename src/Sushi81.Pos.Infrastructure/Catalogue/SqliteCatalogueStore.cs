@@ -95,6 +95,19 @@ public sealed class SqliteCatalogueStore(
         return draft with { Groups = groups };
     }
 
+    public async Task<ProductDraft?> GetActiveProductByCodeAsync(string? productCode, CancellationToken cancellationToken = default)
+    {
+        var normalizedCode = CatalogueNormalization.Key(productCode);
+        if (normalizedCode.Length == 0) return null;
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT product_id FROM products WHERE normalized_code=$code AND is_active=1;";
+        command.Parameters.AddWithValue("$code", normalizedCode);
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        if (value is null or DBNull || !Guid.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), out var productId)) return null;
+        return await GetProductForEditAsync(productId, cancellationToken);
+    }
+
     public async Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default)
     {
         var display = CatalogueNormalization.Display(name);

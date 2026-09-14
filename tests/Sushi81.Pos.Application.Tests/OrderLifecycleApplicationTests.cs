@@ -59,6 +59,20 @@ public sealed class OrderLifecycleApplicationTests
     }
 
     [TestMethod]
+    public async Task OrdinaryModificationPreservesNonAuthoritativeSourceTotal()
+    {
+        var current = Snapshot(BusinessDate, total: 3231) with { SourceTotalTtc = Money.FromCents(3590) };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow)));
+
+        var result = await service.SaveModificationAsync(current with { SourceTotalTtc = null, Comment = "ordinary edit" });
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(Money.FromCents(3590), store.Snapshot!.SourceTotalTtc);
+        Assert.AreEqual("ordinary edit", store.Snapshot.Comment);
+    }
+
+    [TestMethod]
     public async Task NonAuthoritativeLifecycleMutationIsRejectedBeforePersistence()
     {
         var current = Snapshot(BusinessDate, total: 1000) with { CardPaymentTtc = Money.FromCents(1000) };
