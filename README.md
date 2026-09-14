@@ -1,6 +1,6 @@
 # Sushi81 POS
 
-Private repository for the design and implementation of a Windows local point-of-sale and order-management application for Sushi 81.
+Repository for the design and implementation of a Windows local point-of-sale and order-management application for Sushi 81.
 
 ## Project status
 
@@ -9,17 +9,31 @@ Private repository for the design and implementation of a Windows local point-of
 The approved V1 product, business, architecture, data, storage, paste-import, printing, export and acceptance specifications are frozen/amended in `docs/`.
 
 Formal freeze record: `docs/v1-specification-freeze.md`  
-Implementation acceptance contract: `docs/acceptance-criteria.md`
+Implementation acceptance contract: `docs/acceptance-criteria.md` plus approved acceptance amendments.
 
-M01 through M06 are Passed and merged. M04 merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a` after complete Windows/WPF manual acceptance.
+M01 through M08 are **Passed and merged**.
 
-M05 — Lifecycle, payments, search and operational dashboard — Passed implementation and project-owner Windows/WPF acceptance and was merged through PR #10 to `main` at merge commit `79499d7c6ed65a74f524097c1507ca648dc151c3`. Accepted M05 production-code head: `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`; final M05 documentation head: `217d187dd3ef5498c11f21bc516eccc6737fa952`. M05 is no longer open work.
+Recent merge baselines:
 
-M06 — Local recovery and authoritative/read-only enforcement — Passed implementation and project-owner Windows/WPF acceptance and was merged through PR #11 to `main` at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e`. Accepted M06 production repair head: `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`; final M06 documentation/PR head: `86326d81551aa4cb5cdcbc6826b8c740317b34c4`; Release tests: 364/364 Passed.
+- M05 — Lifecycle, payments, search and operational dashboard — merged through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`;
+- M06 — Local recovery and authoritative/read-only enforcement — merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`;
+- M07 — Pairing, target-directed handoff and disaster recovery — merged through PR #13 at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`;
+- M08 — Printing and reprinting — Passed owner/manual acceptance and merged through PR #14 at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`.
 
-M07 — Pairing, target-directed formal handoff and disaster recovery — is the next planned milestone and is **not yet implementation-authorized**. There is no active implementation PR/branch/handoff, and Codex execution gate issue #4 is CLOSED. M08 and later milestones are not started.
+M09 — Hiboutik paste-order fallback — has completed **preparation/readiness** only. The owner approved the 2026-09-14 M09 specification amendment covering product-detail-block paste input, fail-safe unresolved-line operator handling, passive Hiboutik source identification and nullable read-only `source_total_ttc` reference amount.
 
-Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. Historical OneDrive feasibility evidence is retained and is not the normal authority gate. Real pairing/handoff/target acquisition/disaster recovery belong to M07.
+M09 is **ready for separate project-owner implementation authorization**, but implementation is not yet authorized. There is no active M09 branch/PR/executable handoff and Codex execution gate issue #4 remains CLOSED. M10 and later milestones remain unauthorized.
+
+Controlling M09 preparation records:
+
+- `docs/decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`;
+- `docs/acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md`;
+- `docs/paste-order-import.md`;
+- `docs/implementation/milestone-09-preparation-readiness.md`;
+- `docs/implementation/milestone-09-hiboutik-paste-fallback.md`;
+- `docs/implementation/milestone-09-final-manual-acceptance.md`.
+
+Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. OneDrive remains recovery/archive storage and historical diagnostic transport rather than the normal authority gate.
 
 ## Working model
 
@@ -47,6 +61,7 @@ sushi81-pos/
 ├── .gitignore
 ├── docs/
 │   ├── decisions/
+│   ├── implementation/
 │   ├── acceptance-criteria.md
 │   ├── v1-specification-freeze.md
 │   └── ...
