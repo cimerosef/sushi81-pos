@@ -46,3 +46,14 @@ The M07 implementation must read these Approved records together:
 - `m07-recovery-candidate-ordering-clarification.md` — controlling technical consistency clarification: eligible M07 handoff/checkpoint recovery candidates carry a durable monotonic business-data revision, so freshness is mechanically ordered rather than guessed from timestamps/operator choice.
 
 The two self-join/self-service records were produced during the same closed-gate preparation pass and are not competing product decisions. Where an older sentence in the detailed companion or prepared implementation material allows manual selection solely because two M07 candidates cannot be durably ordered, the recovery-candidate-ordering clarification supersedes that fallback. Otherwise the records are complementary.
+
+## Current M09 Hiboutik paste decisions
+
+M09 must read the original Phase 4 Hiboutik decisions together with the later owner-approved preparation amendment:
+
+- `hiboutik-paste-simplification.md` — ordinary-order fallback rather than a separate emergency-order subsystem;
+- `hiboutik-paste-option-confirmation.md` — exact product-code matching and ordinary option confirmation;
+- `hiboutik-paste-total-calculation.md` — ordinary Sushi81 pricing remains authoritative;
+- `m09-hiboutik-paste-operator-workflow-and-source-reference.md` — **Approved 2026-09-14 V1 amendment** controlling the product-detail-block paste scope, explicit unresolved-line operator handoff, passive `Hiboutik` identification, and nullable read-only `source_total_ttc` reconciliation reference.
+
+Where the older Phase 4 records require the source discriminator to be completely invisible or forbid retaining any Hiboutik source total, the 2026-09-14 M09 amendment supersedes those narrow clauses. It does **not** restore the former emergency-order UI/model, discrepancy workflow, dedicated Hiboutik reference field or Hiboutik-specific payment/reconciliation subsystem.
