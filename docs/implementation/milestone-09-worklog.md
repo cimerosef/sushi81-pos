@@ -80,3 +80,16 @@ Status: **Implemented; evidence captured; awaiting controller review**.
 - Verification: targeted parser/Application tests passed **27/27**; targeted M09 WP1 Infrastructure IntegrationTests passed **3/3**; full `Sushi81.Pos.sln` Release suite passed **611/611**; standalone Release build passed with **0 warnings, 0 errors**; `git diff --check` passed.
 - Execution topology: serial main-agent implementation and review; no subagents used.
 - Scope boundary: no WP3 orchestration, catalogue lookup, persistence, WPF/localization, reporting/export, clipboard/network integration, M10+, or business/specification changes. No Windows/WPF owner manual acceptance is claimed for this non-UI remediation.
+
+### WP3 — Application import orchestration
+
+Status: **Implemented; evidence captured; awaiting controller review**.
+
+- Added the transient `HiboutikImportSession` and per-line state model. Start/import preserves source-row order, repeated rows, source text, parsed quantity/code, ignored-row classification, and the nullable reliable source total without retaining any durable raw paste data.
+- Added exact active-code resolution, explicit unresolved-line product selection or ignore transitions, current-product re-fetch on manual selection, and deterministic blockers for unresolved rows, missing positive quantities, empty imports, and pending option review.
+- Added explicit option-review completeness, including reviewed-empty optional groups, while delegating ordinary active/required/min/max option validation to the shared pricing service. Resolved lines materialize as ordinary `OrderLineDraft` values suitable for the existing order-entry workflow.
+- Added the dedicated `ConfirmHiboutikImportAsync` route. It assigns `OrderSourceType.HiboutikPaste` and the session's nullable `SourceTotalTtc` inside the existing authority/current-catalogue/pricing/persistence/notifier/reload/print pipeline; ordinary `ConfirmNewOrderAsync` remains POS-originated with no source total.
+- Added 10 focused Application tests covering exact/no-fuzzy resolution, unresolved/manual quantity, explicit ignore/materialization, option-review completeness, no-write incomplete confirmation, source-vs-POS pricing, source metadata, and authority blocking.
+- Verification: targeted WP3 orchestration tests passed **10/10**; full `Sushi81.Pos.sln` Release test suite passed **621/621**; standalone Release build passed with **0 warnings, 0 errors**; `git diff --check` passed.
+- Execution topology: serial main-agent implementation and review; no subagents used because WP3 changes shared Application confirmation contracts and the transient import-session layer.
+- Scope boundary: no WPF workflow/localization, reporting/export, clipboard/network integration, WP4+, M10+, or business/specification changes. No Windows/WPF owner manual acceptance is claimed for this non-UI handoff.

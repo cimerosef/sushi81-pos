@@ -164,9 +164,42 @@ public sealed class OrderEntryService(
         return OrderPricingService.Calculate(draft, businessSettings);
     }
 
-    public async Task<ConfirmOrderResult> ConfirmNewOrderAsync(NewOrderDraft draft, CancellationToken cancellationToken = default)
+    public Task<ConfirmOrderResult> ConfirmNewOrderAsync(NewOrderDraft draft, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
+        return ConfirmOrderCoreAsync(draft, OrderSourceType.Pos, null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Confirms a completed transient Hiboutik import through the same ordinary
+    /// authority, catalogue, pricing, persistence and print pipeline as a POS
+    /// order. Source metadata is assigned here and cannot be supplied by the
+    /// ordinary editable draft.
+    /// </summary>
+    public Task<ConfirmOrderResult> ConfirmHiboutikImportAsync(
+        HiboutikImportSession session,
+        NewOrderDraft draft,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(draft);
+        if (!session.CanConfirm)
+        {
+            var issues = session.Blockers
+                .Select(blocker => new ValidationIssue("import", blocker.Message, blocker.Code))
+                .ToArray();
+            return Task.FromResult(ConfirmOrderResult.Failure(issues));
+        }
+
+        return ConfirmOrderCoreAsync(draft, OrderSourceType.HiboutikPaste, session.SourceTotalTtc, cancellationToken);
+    }
+
+    private async Task<ConfirmOrderResult> ConfirmOrderCoreAsync(
+        NewOrderDraft draft,
+        OrderSourceType sourceType,
+        Money? sourceTotalTtc,
+        CancellationToken cancellationToken)
+    {
         lock (lifecycleLock)
         {
             if (disposed) return ConfirmOrderResult.Failure(new ValidationIssue("order", "The order entry service is unavailable.", ValidationCodes.Generic));
@@ -234,13 +267,16 @@ public sealed class OrderEntryService(
                     CatalogueNormalization.Display(adjustment.GroupName), CatalogueNormalization.Display(adjustment.Label),
                     adjustment.AmountTtcPerUnit, adjustment.VatRate)).ToArray())).ToArray();
             var snapshot = new OrderSnapshot(
-                orderId, OrderSourceType.Pos, OrderStatus.Open, now, now, null, null,
+                orderId, sourceType, OrderStatus.Open, now, now, null, null,
                 normalizedDraft.Fulfilment.Value, normalizedDraft.PlannedFulfilmentDate.Value, normalizedDraft.PlannedFulfilmentTime,
                 normalizedDraft.PlannedFulfilmentDate.Value > clock.BusinessDate,
                 normalizedDraft.Telephone, normalizedDraft.DeliveryAddress, normalizedDraft.Comment,
                 pricing.TotalTtc, pricing.ManualTotalOverrideActive, pricing.PickupDiscountApplied, pricing.PickupDiscountRate,
                 pricing.DeliveryFeeTtc, itemSnapshots,
-                pricing.TaxBreakdown.Select(tax => tax with { Id = idGenerator.NewId() }).ToArray());
+                pricing.TaxBreakdown.Select(tax => tax with { Id = idGenerator.NewId() }).ToArray())
+            {
+                SourceTotalTtc = sourceTotalTtc
+            };
 
             await orders.SaveAsync(snapshot, cancellationToken);
             try { await notifier.NotifyCommittedAsync(CancellationToken.None); }
