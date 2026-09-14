@@ -2070,24 +2070,37 @@ public sealed class M05DesktopTests
     [TestMethod]
     public void M09HiboutikSourceLabelsArePassiveAndLocalizationKeysHaveFrZhParity()
     {
-        var row = new OrderBrowserRow(Guid.NewGuid(), new DateOnly(2026, 8, 31), new TimeOnly(11, 0), FulfilmentMode.Retrait, OrderStatus.Open, Money.FromCents(1000), null)
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUiCulture = CultureInfo.CurrentUICulture;
+        try
         {
-            SourceType = OrderSourceType.HiboutikPaste,
-            SourceTotalTtc = Money.FromCents(1250),
-            Reference = "20260831-001"
-        };
-        var values = new OrderManagementRowViewModel(row);
-        using var fr = new ShellViewModel(new InMemorySelectedCultureStore(), false);
-        values.ApplyLocalization(fr.Localized);
-        Assert.IsTrue(values.HasHiboutikSource);
-        Assert.AreEqual("Hiboutik", values.SourceText);
-        Assert.AreEqual("12,50", values.SourceTotalText);
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
 
-        var required = new[] { "HiboutikPasteAction", "HiboutikPasteInstructions", "HiboutikParse", "HiboutikReset", "HiboutikSelectProduct", "HiboutikIgnoreLine", "HiboutikConfigureOptions", "HiboutikResolutionUnresolved", "HiboutikOptionReviewPending", "OrderSourceHiboutik", "OrderSourceTotalUnavailable" };
-        foreach (var key in required) Assert.IsTrue(fr.Localized.TryGetValue(key, out var french) && !string.IsNullOrWhiteSpace(french), key);
-        fr.ChangeLanguageAsync(fr.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
-        foreach (var key in required) Assert.IsTrue(fr.Localized.TryGetValue(key, out var chinese) && !string.IsNullOrWhiteSpace(chinese), key);
-        Assert.AreNotEqual("Commande Hiboutik", fr.Localized["HiboutikPasteAction"]);
+            var row = new OrderBrowserRow(Guid.NewGuid(), new DateOnly(2026, 8, 31), new TimeOnly(11, 0), FulfilmentMode.Retrait, OrderStatus.Open, Money.FromCents(1000), null)
+            {
+                SourceType = OrderSourceType.HiboutikPaste,
+                SourceTotalTtc = Money.FromCents(1250),
+                Reference = "20260831-001"
+            };
+            var values = new OrderManagementRowViewModel(row);
+            using var fr = new ShellViewModel(new InMemorySelectedCultureStore(), false);
+            values.ApplyLocalization(fr.Localized);
+            Assert.IsTrue(values.HasHiboutikSource);
+            Assert.AreEqual("Hiboutik", values.SourceText);
+            Assert.AreEqual("12,50", values.SourceTotalText);
+
+            var required = new[] { "HiboutikPasteAction", "HiboutikPasteInstructions", "HiboutikParse", "HiboutikReset", "HiboutikSelectProduct", "HiboutikIgnoreLine", "HiboutikConfigureOptions", "HiboutikResolutionUnresolved", "HiboutikOptionReviewPending", "OrderSourceHiboutik", "OrderSourceTotalUnavailable" };
+            foreach (var key in required) Assert.IsTrue(fr.Localized.TryGetValue(key, out var french) && !string.IsNullOrWhiteSpace(french), key);
+            fr.ChangeLanguageAsync(fr.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+            foreach (var key in required) Assert.IsTrue(fr.Localized.TryGetValue(key, out var chinese) && !string.IsNullOrWhiteSpace(chinese), key);
+            Assert.AreNotEqual("Commande Hiboutik", fr.Localized["HiboutikPasteAction"]);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUiCulture;
+        }
     }
 
     private static OrderSnapshot Snapshot(DateOnly plannedDate) => new(
