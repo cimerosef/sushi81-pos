@@ -20,18 +20,19 @@ Recent merge baselines:
 - M07 — Pairing, target-directed handoff and disaster recovery — merged through PR #13 at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`;
 - M08 — Printing and reprinting — Passed owner/manual acceptance and merged through PR #14 at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`.
 
-M09 — Hiboutik paste-order fallback — has completed **preparation/readiness** only. The owner approved the 2026-09-14 M09 specification amendment covering product-detail-block paste input, fail-safe unresolved-line operator handling, passive Hiboutik source identification and nullable read-only `source_total_ttc` reference amount.
+M09 — Hiboutik paste-order fallback — completed preparation/readiness and was **explicitly authorized for implementation by the project owner on 2026-09-14**. The approved amendment covers product-detail-block paste input, fail-safe unresolved-line operator handling, passive Hiboutik source identification and nullable read-only `source_total_ttc` reference amount while keeping ordinary POS pricing authoritative.
 
-M09 is **ready for separate project-owner implementation authorization**, but implementation is not yet authorized. There is no active M09 branch/PR/executable handoff and Codex execution gate issue #4 remains CLOSED. M10 and later milestones remain unauthorized.
+Execution remains controlled by the dedicated M09 branch/PR mailbox and GitHub Issue #4. Authorization does not by itself permit Codex execution: the executable handoff must be queued while Issue #4 is CLOSED, then the owner reopens the gate. M10 and later milestones remain unauthorized.
 
-Controlling M09 preparation records:
+Controlling M09 records:
 
 - `docs/decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`;
 - `docs/acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md`;
 - `docs/paste-order-import.md`;
 - `docs/implementation/milestone-09-preparation-readiness.md`;
 - `docs/implementation/milestone-09-hiboutik-paste-fallback.md`;
-- `docs/implementation/milestone-09-final-manual-acceptance.md`.
+- `docs/implementation/milestone-09-final-manual-acceptance.md`;
+- `docs/implementation/milestone-09-authorization.md`.
 
 Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. OneDrive remains recovery/archive storage and historical diagnostic transport rather than the normal authority gate.
 
