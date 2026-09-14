@@ -479,7 +479,7 @@ public partial class MainWindow : Window
     {
         var dialog = new OptionSelectionDialog(this, product, line.State.Quantity ?? 1, line.State.SelectedOptionIds, line.State.CustomAdjustments);
         if (dialog.ShowDialog() == true)
-            await entry.CompleteHiboutikOptionReviewAsync(line.SourceLineNumber, dialog.SelectedOptionIds, dialog.CustomAdjustments);
+            await entry.CompleteHiboutikOptionReviewAsync(line.SourceLineNumber, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
     }
 
     private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject

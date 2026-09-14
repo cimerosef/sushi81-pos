@@ -238,6 +238,7 @@ public sealed class HiboutikImportOrchestrator(
         int sourceLineNumber,
         IReadOnlyList<Guid>? selectedOptionIds = null,
         IReadOnlyList<OrderLineAdjustmentDraft>? customAdjustments = null,
+        int? quantity = null,
         CancellationToken cancellationToken = default)
     {
         var lineResult = FindLine(session, sourceLineNumber, requireUnresolved: false);
@@ -248,9 +249,11 @@ public sealed class HiboutikImportOrchestrator(
 
         var selected = (selectedOptionIds ?? []).ToArray();
         var adjustments = (customAdjustments ?? []).ToArray();
-        var quantity = line.Quantity ?? 0;
+        var resolvedQuantity = quantity ?? line.Quantity ?? 0;
+        if (resolvedQuantity <= 0)
+            return OperationResult<HiboutikImportSession>.Failure(new ValidationIssue("quantity", $"Source line {sourceLineNumber} requires an explicit positive quantity.", ValidationCodes.Required));
         var validationDraft = new NewOrderDraft(
-            [OrderLineDraft.Create(line.Product.Aggregate, quantity) with
+            [OrderLineDraft.Create(line.Product.Aggregate, resolvedQuantity) with
             {
                 CategoryName = line.Product.CategoryName,
                 SelectedOptionIds = selected,
@@ -265,6 +268,7 @@ public sealed class HiboutikImportOrchestrator(
 
         return OperationResult<HiboutikImportSession>.Success(Replace(session!, line with
         {
+            Quantity = resolvedQuantity,
             SelectedOptionIds = selected,
             CustomAdjustments = adjustments,
             OptionReviewCompleted = true
@@ -277,7 +281,7 @@ public sealed class HiboutikImportOrchestrator(
         IReadOnlyList<Guid>? selectedOptionIds = null,
         IReadOnlyList<OrderLineAdjustmentDraft>? customAdjustments = null,
         CancellationToken cancellationToken = default) =>
-        CompleteOptionReviewAsync(session, sourceLineNumber, selectedOptionIds, customAdjustments, cancellationToken);
+        CompleteOptionReviewAsync(session, sourceLineNumber, selectedOptionIds, customAdjustments, cancellationToken: cancellationToken);
 
     private static OperationResult<HiboutikImportLineState> FindLine(
         HiboutikImportSession? session,

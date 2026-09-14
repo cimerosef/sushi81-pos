@@ -151,6 +151,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private readonly IWriteAuthorityGuard? authorityGuard;
     private readonly HiboutikImportOrchestrator? hiboutikImportOrchestrator;
     private readonly Dictionary<int, OrderEntryCartLineViewModel> hiboutikCartLines = [];
+    private readonly HashSet<int> removedHiboutikCartLineSourceNumbers = [];
     private HiboutikImportSession? hiboutikImportSession;
     private string hiboutikSourceText = string.Empty;
     private ProductSummary? selectedProduct;
@@ -703,10 +704,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         return true;
     }
 
-    public async Task<bool> CompleteHiboutikOptionReviewAsync(int sourceLineNumber, IReadOnlyList<Guid> selectedOptionIds, IReadOnlyList<OrderLineAdjustmentDraft> customAdjustments, CancellationToken cancellationToken = default)
+    public async Task<bool> CompleteHiboutikOptionReviewAsync(int sourceLineNumber, IReadOnlyList<Guid> selectedOptionIds, IReadOnlyList<OrderLineAdjustmentDraft> customAdjustments, int? quantity = null, CancellationToken cancellationToken = default)
     {
         if (hiboutikImportOrchestrator is null || hiboutikImportSession is null || IsCommitted) return false;
-        var result = await hiboutikImportOrchestrator.CompleteOptionReviewAsync(hiboutikImportSession, sourceLineNumber, selectedOptionIds, customAdjustments, cancellationToken);
+        var result = await hiboutikImportOrchestrator.CompleteOptionReviewAsync(hiboutikImportSession, sourceLineNumber, selectedOptionIds, customAdjustments, quantity, cancellationToken);
         if (!result.Succeeded || result.Value is null) { SetValidationIssues(result.Issues); return false; }
         hiboutikImportSession = result.Value;
         ApplyHiboutikSession(hiboutikImportSession);
@@ -725,7 +726,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public void RemoveLine(OrderEntryCartLineViewModel line)
     {
         if (IsCommitted) return;
-        if (Cart.Remove(line)) _ = RepriceAsync(clearManualOverride: true);
+        if (!Cart.Remove(line)) return;
+        foreach (var mapping in hiboutikCartLines.Where(mapping => ReferenceEquals(mapping.Value, line)))
+            removedHiboutikCartLineSourceNumbers.Add(mapping.Key);
+        _ = RepriceAsync(clearManualOverride: true);
     }
 
     public void ChangeQuantity(OrderEntryCartLineViewModel line, int quantity)
@@ -1126,10 +1130,11 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
                     if (ReferenceEquals(SelectedCartLine, removed)) SelectedCartLine = null;
                     Cart.Remove(removed);
                 }
+                removedHiboutikCartLineSourceNumbers.Remove(state.SourceLineNumber);
                 continue;
             }
-            if (hiboutikCartLines.TryGetValue(state.SourceLineNumber, out var existing)) existing.Replace(draft);
-            else
+            if (removedHiboutikCartLineSourceNumbers.Contains(state.SourceLineNumber)) continue;
+            if (!hiboutikCartLines.ContainsKey(state.SourceLineNumber))
             {
                 var added = new OrderEntryCartLineViewModel(draft);
                 added.SetQuantityLabel(quantityLabel);
@@ -1153,6 +1158,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             }
         }
         hiboutikCartLines.Clear();
+        removedHiboutikCartLineSourceNumbers.Clear();
         hiboutikImportSession = null;
         hiboutikSourceText = string.Empty;
         HiboutikLines.Clear();

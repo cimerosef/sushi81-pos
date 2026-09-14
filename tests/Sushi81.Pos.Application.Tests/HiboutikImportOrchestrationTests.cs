@@ -210,6 +210,21 @@ public sealed class HiboutikImportOrchestrationTests
     }
 
     [TestMethod]
+    public async Task OptionReviewUsesTheAcceptedQuantityForTheOrdinaryMaterializedLine()
+    {
+        var optionId = Guid.NewGuid();
+        var product = ProductWithGroup(Guid.NewGuid(), "QUANTITY", required: true, optionId);
+        var orchestrator = new HiboutikImportOrchestrator(new FakeCatalogue(product), new FakeSettingsStore());
+        var session = await orchestrator.StartImportAsync("1 x QUANTITY Product");
+
+        var result = await orchestrator.CompleteOptionReviewAsync(session, 1, [optionId], [], quantity: 3);
+
+        Assert.IsTrue(result.Succeeded, result.ErrorMessage);
+        Assert.AreEqual(3, result.Value!.Lines.Single().Quantity);
+        Assert.AreEqual(3, result.Value.MaterializeOrderLines().Single().Quantity);
+    }
+
+    [TestMethod]
     public async Task ProductWithoutOptionsIsReadyAndMaterializesCurrentCategoryAndQuantity()
     {
         var product = Product(Guid.NewGuid(), "NOOPT", Money.FromCents(1275));
