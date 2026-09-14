@@ -10,4 +10,9 @@
     <ProjectReference Include="../../src/Sushi81.Pos.Domain/Sushi81.Pos.Domain.csproj" />
     <ProjectReference Include="../../src/Sushi81.Pos.Application/Sushi81.Pos.Application.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../../samples/pasted-orders/hiboutik-product-block-synthetic.txt"
+          Link="samples/pasted-orders/hiboutik-product-block-synthetic.txt"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

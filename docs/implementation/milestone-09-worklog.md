@@ -57,4 +57,15 @@ Status: **Implemented; awaiting controller review**.
 - Wired production `SqliteCatalogueStore` through `IActiveProductCodeQueries`, so `OrderEntryCatalogueService` reaches the direct SQLite exact-code provider path; retained the existing safe summary fallback for non-provider implementations.
 - Added an instrumented application test that fails if the direct-provider lookup silently enumerates active products or reloads through the edit query.
 - Added focused lifecycle evidence proving a non-null `SourceTotalTtc` survives payment modification, price-affecting repricing, `CloseAsync`, and `CancelAsync` without changing authoritative POS total semantics.
-- Verification for this remediation is pending below after the required targeted/full Release test and build runs.
+- Verification for this remediation was accepted by the controller at `08ec453f2f91eadf671faf6aeb239e891dc7da91`: exact-head GitHub CI run #699 is green, the Release build completed with 0 warnings / 0 errors, and the exact-head CI total is 584 passed / 0 failed / 0 skipped. Local `CODEX_DONE` reported 492/492 because the local count omitted one 92-test OneDrive-feasibility project; the controller accepted GitHub CI as the controlling verification.
+
+### WP2 — Pure parser and synthetic fixtures
+
+Status: **Implemented; evidence captured; awaiting controller review**.
+
+- Added the pure Application-layer `HiboutikProductBlockParser` and immutable parse DTOs. The parser performs only deterministic text normalization and line classification into product candidates, specifically known ignored lines, or unresolved lines; it has no catalogue, persistence, authority, clipboard, WPF, network, or business-write dependency.
+- Implemented the approved product grammar with ordered quantity/code candidates, repeated-code preservation, the exact `1 x Livraison (0)` ignored service row, strict per-item/final total recognition, and cent-precise source-total reliability. A unique parseable final `TOTAL` takes precedence; otherwise complete, unambiguous associated per-item totals are summed; malformed, incomplete, stray, competing, or ambiguous evidence fails safe to null.
+- Added 24 focused parser tests covering the 21 required cases plus committed-fixture regression, transient unresolved context, and delivery derivation. The committed synthetic fixture remains the only copied fixture and yields a reliable **€24.30** source total with delivery excluded from product candidates; the privacy test confirms no customer/contact data.
+- Verification: targeted parser/Application tests passed **24/24**; targeted M09 WP1 Infrastructure IntegrationTests passed **3/3**; full `Sushi81.Pos.sln` Release suite passed **608/608**; standalone Release build passed with **0 warnings, 0 errors**; `git diff --check` passed.
+- Execution topology: serial main-agent implementation and review; no subagents used because the pure parser and its focused tests share one narrow contract.
+- Scope boundary: no WP3 orchestration, catalogue resolution, source-aware confirmation, WPF workflow/localization, reporting/export, clipboard integration, or M10+ work. No Windows/WPF owner manual acceptance is claimed for this non-UI handoff.
