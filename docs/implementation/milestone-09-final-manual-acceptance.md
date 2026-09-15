@@ -1,10 +1,10 @@
 # M09 — Hiboutik paste-order fallback — final Windows/WPF manual acceptance
 
-**Status:** WP6 candidate prepared — not yet manually accepted
+**Status:** Acceptance paused — replacement candidate required; not yet manually accepted
 **Milestone:** M09
 **Owner:** project owner / manual acceptance executor
-**Accepted build/head:** Not yet accepted; the final exact WP6 candidate head and artifact hashes are authoritative in the matching durable `CODEX_DONE: M09-WP6-EVIDENCE-MANUAL-ACCEPTANCE-BUILD-11` record on PR #17.
-**Result:** NOT YET EXECUTED
+**Accepted build/head:** Not accepted: owner checklist A found a reset-availability defect on candidate `18ec621d077c1da61994e1cb8657ddb67ab752eb`. The replacement remediation candidate head and artifact hashes will be authoritative in the matching durable `CODEX_DONE: M09-MANUAL-A-HIBOUTIK-RESET-ENABLEMENT-FIX-12` record on PR #17.
+**Result:** PAUSED — NOT PASSED
 
 This checklist is the owner-facing manual acceptance for the production Windows/WPF implementation. It does not authorize implementation or merge.
 
@@ -13,6 +13,10 @@ This checklist is the owner-facing manual acceptance for the production Windows/
 WP1–WP5 implementation and automated evidence have been accepted by controller review. WP6 prepares the exact self-contained `win-x64` Windows/WPF candidate and reconciles the M09 evidence matrix; it is not the owner acceptance itself.
 
 Codex/CI may prepare documentation, verification evidence and the candidate artifact, but may not check any owner-manual box, claim physical/operator observations, change `Result` to `PASSED`, or approve the merge. The owner must execute sections A–N on the exact candidate and record the final disposition. Until then, the status remains **not yet manually accepted**.
+
+## Active remediation boundary
+
+The owner verified candidate `18ec621d077c1da61994e1cb8657ddb67ab752eb` and found that an unresolved parse left **Réinitialiser / réimporter** disabled after returning to Caisse. This blocks checklist A and invalidates that candidate for final acceptance. The active remediation `M09-MANUAL-A-HIBOUTIK-RESET-ENABLEMENT-FIX-12` is limited to refreshing the existing `CanResetHiboutikImport` / `CanStartHiboutikImport` bindings when their `IsBusy`, `IsCommitted`, or authority dependencies change, plus focused regression evidence and a replacement publish. The owner, not Codex, must resume A–N on the replacement candidate; all existing checkboxes and final disposition remain unchecked.
 
 Use only the matching durable WP6 `CODEX_DONE` record on PR #17 for the final candidate head, executable/ZIP paths, hashes and sizes. The documentation commit cannot safely embed its own final commit SHA before that commit exists. The M11 `Gestion SUSHI 81` export-exclusion cross-check remains outside this M09 owner checklist's implementation scope.
 

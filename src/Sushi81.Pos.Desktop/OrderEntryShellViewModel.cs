@@ -407,8 +407,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     }
     public bool CanWrite => !businessPresentationRefreshBlocked
         && (authorityGuard is null || authorityGuard.State == WriteAuthorityState.Authoritative);
-    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanAddSelectedProduct)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); RaiseInitialRetryProperties(); } }
-    public bool IsCommitted { get => isCommitted; private set { isCommitted = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
+    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanAddSelectedProduct)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); OnPropertyChanged(nameof(CanStartHiboutikImport)); OnPropertyChanged(nameof(CanResetHiboutikImport)); RaiseInitialRetryProperties(); } }
+    public bool IsCommitted { get => isCommitted; private set { isCommitted = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); OnPropertyChanged(nameof(CanStartHiboutikImport)); OnPropertyChanged(nameof(CanResetHiboutikImport)); } }
     public bool CanAddSelectedProduct => CanWrite && !IsBusy && !IsCommitted && SelectedProduct is not null;
     public bool CanConfirm => CanWrite && !IsBusy && !IsCommitted && PlannedDateValid && PlannedTimeValid && pricing?.IsValid == true && (hiboutikImportSession is null || hiboutikImportSession.CanConfirm);
     public bool CanStartNewOrder => IsCommitted && !IsBusy;
@@ -422,6 +422,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         OnPropertyChanged(nameof(CanConfirm));
         OnPropertyChanged(nameof(CanStartNewOrder));
         OnPropertyChanged(nameof(IsPickupDiscountEnabled));
+        OnPropertyChanged(nameof(CanStartHiboutikImport));
+        OnPropertyChanged(nameof(CanResetHiboutikImport));
     }
 
     public void SetBusinessPresentationRefreshBlocked(bool blocked)

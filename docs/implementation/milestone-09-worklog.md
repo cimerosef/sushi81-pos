@@ -181,3 +181,15 @@ The accepted WP1–WP5 evidence is mechanically traced below. Each row records t
 The amended M09 semantics control this matrix: product-block paste only, ordinary manually entered fulfilment/date/time/customer fields, exact active-code matching with explicit unresolved disposition, POS-authoritative pricing, optional nullable reference-only source total, passive read-only source visibility, and system-controlled anti-double-counting. The M11 export implementation/cross-check is not claimed here.
 
 The WP6 exact candidate head and the SHA-256/size values of its self-contained executable and ZIP are intentionally not self-referenced before the documentation commit exists. They are authoritative in the matching durable `CODEX_DONE: M09-WP6-EVIDENCE-MANUAL-ACCEPTANCE-BUILD-11` comment on PR #17 after the final exact-head build/publish.
+
+### M09 manual-acceptance remediation — reset availability after unresolved parse
+
+Status: **Active narrow remediation; owner acceptance paused**.
+
+The controller recorded a reproducible owner-observed defect while starting checklist A on the exact WP6 candidate `18ec621d077c1da61994e1cb8657ddb67ab752eb`: synthetic invalid text correctly produced one visible unresolved transient line with no durable order, but after returning to Caisse the `Réinitialiser / réimporter` action remained disabled. The candidate is therefore not eligible for final owner acceptance, and no owner checklist box or final disposition is changed here.
+
+The active handoff is `M09-MANUAL-A-HIBOUTIK-RESET-ENABLEMENT-FIX-12`. The code review diagnosis is that `CanResetHiboutikImport` and `CanStartHiboutikImport` depend on `IsBusy`, while the `IsBusy` setter did not notify those dependent properties when asynchronous parsing returned to idle. The narrow fix adds the missing `CanStartHiboutikImport` / `CanResetHiboutikImport` notifications to the `IsBusy`, `IsCommitted`, and authority-refresh paths. The existing XAML binding remains on `CanResetHiboutikImport`; no import, pricing, persistence, or business semantics change.
+
+Focused presentation regression evidence now covers the owner-observed sequence on a real STA/WPF binding boundary: normal analyze availability, disabled duplicate actions during an asynchronous lookup, reset enabled after an unresolved session returns from busy, reset clearing transient source/session/lines/cart without durable order creation, and a subsequent import remaining available. The focused regression passed **1/1** locally after the remediation. Final exact-head full-suite, build, CI, replacement publish, hash, and safety-audit results are authoritative in the matching durable `CODEX_DONE: M09-MANUAL-A-HIBOUTIK-RESET-ENABLEMENT-FIX-12` record on PR #17.
+
+Owner Windows/WPF acceptance must resume only on the replacement exact candidate. M09 remains `Partial` / not Passed; PR #17 remains open/unmerged; merge, M10+, M11 implementation, and speculative cleanup remain out of scope.

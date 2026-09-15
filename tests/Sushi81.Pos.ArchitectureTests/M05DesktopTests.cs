@@ -2034,6 +2034,82 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
+    public void M09HiboutikResetAvailabilityRefreshesAfterAsyncParseAndClearsTransientStateOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var catalogue = new BlockingImportCatalogue();
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            var orders = new ReferenceOrderStore("20260831-001");
+            using var entryService = new OrderEntryService(catalogue, settings, orders, new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: entryService,
+                hiboutikImportOrchestrator: new HiboutikImportOrchestrator(catalogue, settings));
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var caisse = VisualDescendants<TabItem>(window).Single(item => Equals(item.Header, shell.Localized["Caisse"]));
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+
+                var entry = shell.Entry!;
+                var pasteExpander = Field<Expander>(window, "hiboutikPasteExpander");
+                pasteExpander.IsExpanded = true;
+                window.UpdateLayout();
+                var parse = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["HiboutikParse"]));
+                var reset = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["HiboutikReset"]));
+                var changedProperties = new List<string?>();
+                entry.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+                SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
+
+                entry.HiboutikSourceText = "1 x UNKNOWN Source label";
+                Assert.IsTrue(entry.CanStartHiboutikImport);
+                Assert.IsTrue(parse.IsEnabled);
+
+                var startTask = entry.StartHiboutikImportAsync();
+                Assert.IsTrue(entry.IsBusy, "The parse action must keep unsafe duplicate actions disabled while async work is active.");
+                Assert.IsFalse(entry.CanStartHiboutikImport);
+                Assert.IsFalse(entry.CanResetHiboutikImport);
+                Assert.IsFalse(parse.IsEnabled);
+                Assert.IsFalse(reset.IsEnabled);
+
+                var completionFrame = new DispatcherFrame();
+                _ = startTask.ContinueWith(
+                    _ => window.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => completionFrame.Continue = false)),
+                    TaskScheduler.Default);
+                catalogue.CompleteUnresolved();
+                Dispatcher.PushFrame(completionFrame);
+
+                Assert.IsTrue(startTask.GetAwaiter().GetResult(), entry.ValidationMessage);
+                window.UpdateLayout();
+                Assert.IsFalse(entry.IsBusy);
+                Assert.IsNotNull(entry.HiboutikImportSession);
+                Assert.IsTrue(entry.CanResetHiboutikImport);
+                Assert.IsTrue(reset.IsEnabled, "The bound reset button must refresh when IsBusy returns false.");
+                Assert.IsFalse(parse.IsEnabled);
+                Assert.Contains(nameof(entry.CanResetHiboutikImport), changedProperties, "The busy transition must notify the bound reset availability property.");
+
+                reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+                Assert.IsNull(entry.HiboutikImportSession);
+                Assert.IsEmpty(entry.HiboutikSourceText);
+                Assert.IsEmpty(entry.HiboutikLines);
+                Assert.IsEmpty(entry.Cart);
+                Assert.IsNull(orders.Snapshot, "Parsing and reset must never create a durable order.");
+
+                entry.HiboutikSourceText = "1 x UNKNOWN Source label - second import";
+                Assert.IsTrue(parse.IsEnabled, "Reset must leave the normal next-import path available.");
+                Assert.IsTrue(entry.StartHiboutikImportAsync().GetAwaiter().GetResult());
+                Assert.IsNotNull(entry.HiboutikImportSession);
+                Assert.IsTrue(reset.IsEnabled);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
     public void M09HiboutikMaterializedCartEditsRemainOrdinaryAcrossLaterImportTransitionsOnSta()
     {
         RunOnSta(() =>
@@ -2722,6 +2798,18 @@ public sealed class M05DesktopTests
             var key = CatalogueNormalization.Key(productCode);
             return Task.FromResult(items.SingleOrDefault(item => item.Aggregate.Product.IsActive && string.Equals(CatalogueNormalization.Key(item.Aggregate.Product.Code), key, StringComparison.Ordinal)));
         }
+    }
+
+    private sealed class BlockingImportCatalogue : IOrderEntryCatalogueQueries
+    {
+        public TaskCompletionSource<OrderEntryProduct?> ExactLookup { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? categoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([]);
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(null);
+        public Task<OrderEntryProduct?> GetActiveProductByCodeAsync(string? productCode, CancellationToken cancellationToken = default) => ExactLookup.Task;
+
+        public void CompleteUnresolved() => ExactLookup.TrySetResult(null);
     }
 
     private sealed class EmptyCatalogueStore : ICatalogueStore
