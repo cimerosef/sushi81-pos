@@ -1,12 +1,20 @@
 # M09 — Hiboutik paste-order fallback — final Windows/WPF manual acceptance
 
-**Status:** Prepared checklist — not yet executed  
-**Milestone:** M09  
-**Owner:** project owner / manual acceptance executor  
-**Accepted build/head:** TBD after implementation  
+**Status:** WP6 candidate prepared — not yet manually accepted
+**Milestone:** M09
+**Owner:** project owner / manual acceptance executor
+**Accepted build/head:** Not yet accepted; the final exact WP6 candidate head and artifact hashes are authoritative in the matching durable `CODEX_DONE: M09-WP6-EVIDENCE-MANUAL-ACCEPTANCE-BUILD-11` record on PR #17.
 **Result:** NOT YET EXECUTED
 
 This checklist is the owner-facing manual acceptance for the production Windows/WPF implementation. It does not authorize implementation or merge.
+
+## WP6 candidate-preparation note
+
+WP1–WP5 implementation and automated evidence have been accepted by controller review. WP6 prepares the exact self-contained `win-x64` Windows/WPF candidate and reconciles the M09 evidence matrix; it is not the owner acceptance itself.
+
+Codex/CI may prepare documentation, verification evidence and the candidate artifact, but may not check any owner-manual box, claim physical/operator observations, change `Result` to `PASSED`, or approve the merge. The owner must execute sections A–N on the exact candidate and record the final disposition. Until then, the status remains **not yet manually accepted**.
+
+Use only the matching durable WP6 `CODEX_DONE` record on PR #17 for the final candidate head, executable/ZIP paths, hashes and sizes. The documentation commit cannot safely embed its own final commit SHA before that commit exists. The M11 `Gestion SUSHI 81` export-exclusion cross-check remains outside this M09 owner checklist's implementation scope.
 
 Use synthetic/sanitized pasted text only during recorded acceptance unless the owner deliberately performs a local unrecorded real-store check. Do not commit screenshots/logs containing real customer/order data.
 

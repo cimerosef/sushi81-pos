@@ -140,9 +140,44 @@ Status: **Implemented; evidence captured; awaiting controller review**.
 
 ### WP5 remediation — notifier failure and direct operational inclusion
 
-Status: **Implemented; verification in progress**.
+Status: **Verified; accepted by controller review**.
 
 - Added `HiboutikNotifierFailureAfterCommitLeavesOrderReloadable`: the real `HiboutikImportOrchestrator` plus `ConfirmHiboutikImportAsync` path commits one SQLite order before an injected `IDurableChangeNotifier` exception; the order remains reloadable with `HIBOUTIK_PASTE`, its non-null source total, its child row, ordinary initial-dispatch semantics, and no duplicate parent row.
 - Added `PasteCreatedHiboutikOrderRemainsInFutureDueAndOverdueOperationalViews`: one genuinely paste-created future order is paid through the ordinary lifecycle seam and queried at successive business dates. It remains present in future, due-today advance, and overdue-unsettled lists/counts with `SourceType.HiboutikPaste`; source classification is not changed to POS, while POS-originated turnover/received-card totals remain zero.
 - The previously accepted `HiboutikIsExcludedFromPosReportingButRemainsSearchableAndPaid` regression remains the focused evidence for search/planned-date inclusion and the broader POS money-total exclusion; no distinct current “CB amount to newly represent in Hiboutik” seam exists and no M11 export path was added. Accepted WP1 lifecycle evidence remains reused for the lower-level cancel/source-total preservation contract.
 - Production code changed: **none**. This remediation is test/worklog-only; no operational rule, parser, WPF, WP6, M10+, M11, merge, or business/specification behavior was changed. Execution topology remains serial main-agent work with no subagents.
+
+- Final accepted head: `bc6639e4bb4f0f48a74be7155a9de5d9010a79f1`.
+- Exact-head GitHub Actions CI #708 succeeded with **646/646** tests passed, 0 failed, 0 skipped; the Release build reported **0 warnings, 0 errors**.
+- Controller disposition: **WP5 FINAL DISPOSITION: ACCEPTED** at the exact head above. The self-contained `win-x64` publish smoke from the parent WP5 candidate remains reusable because this remediation changed only tests and evidence documentation.
+
+### WP6 — exact owner-manual-acceptance candidate and M09 traceability
+
+Status: **Documentation/evidence preparation; owner manual acceptance not yet executed**.
+
+WP6 is the final executable M09 preparation package. It does not perform owner Windows/WPF acceptance, check owner checklist boxes, declare M09 Passed, merge PR #17, or authorize M10+.
+
+Repository scope for the WP6 candidate is documentation/evidence-only:
+
+- reconcile this worklog's WP5 remediation status and accepted exact-head evidence;
+- reconcile `docs/implementation-status.md` to `Partial` while preserving the accepted WP1–WP5 history;
+- prepare `docs/implementation/milestone-09-final-manual-acceptance.md` for owner execution while leaving every A–N and final-disposition checkbox unchecked;
+- produce the final exact-head self-contained `win-x64` Desktop candidate after the documentation commit, without committing binaries or real business data.
+
+The accepted WP1–WP5 evidence is mechanically traced below. Each row records the automated evidence already accepted, the manual checklist sections still requiring owner execution, and the WP6 preparation status. No row is a final `Passed` declaration.
+
+| Criterion | Accepted automated evidence reused | Owner manual sections still pending | WP6 preparation status |
+|---|---|---|---|
+| AC-HIB-001 — paste is an order-creation aid only | WP2 parser tests; WP3 `IncompleteSessionIsBlockedBeforeOrderWrite`; WP5 `NonAuthoritativeHiboutikConfirmationWritesNothingAndMalformedPasteStaysTransient`; WP5 real SQLite no-write/abandon evidence. | A, B, C | Automated evidence accepted / owner manual pending; not Passed. |
+| AC-HIB-002 — ordinary order UI/model | WP3 ordinary confirmation/provenance tests; WP4 normal Caisse composition, ordinary cart/option path and architecture evidence; WP5 ordinary lifecycle and print/reprint integration. No emergency entity/workflow was added. | A, D, I, L | Automated evidence accepted / owner manual pending; not Passed. |
+| AC-HIB-003 — untrusted plain-text boundary | Pure WP2 parser boundary tests and `SyntheticFixtureContainsNoCustomerOrContactData`; WP4 transient-only/raw-source-clearing and no-clipboard/API architecture evidence; WP5 durable privacy audit. | A, N | Automated evidence accepted / owner manual pending; not Passed. |
+| AC-HIB-004 — exact active code plus explicit unresolved disposition | WP1 `ExactActiveProductCodeLookupUsesCurrentCatalogueIdentityOnly`; WP2 exact/no-fuzzy parser tests; WP3 exact resolution, manual selection, explicit ignore and blocker tests; WP4 unresolved review evidence. | B, C | Automated evidence accepted / owner manual pending; not Passed. |
+| AC-HIB-005 — mandatory option confirmation | WP3 option-review completeness tests, including reviewed-empty optional groups and required selections; WP4 reused ordinary option dialog, quantity and cancel/pending evidence. | D | Automated evidence accepted / owner manual pending; not Passed. |
+| AC-HIB-006 — POS pricing authoritative and source total reference-only | WP1 source-total persistence/lifecycle tests; WP3 `HiboutikConfirmationUsesCurrentPricingAndTransfersReferenceTotalOnly`; WP5 real SQLite €35.90 source reference versus €32.31 Retrait authoritative total and €40.00 manual override. | F, G, I, L | Automated evidence accepted / owner manual pending; not Passed. |
+| AC-HIB-007 — product-block scope and ordinary future fulfilment | WP3 ordinary order-field boundary; WP4 normal Caisse workflow and structured ordinary fulfilment-field evidence; WP5 paste-created future/due/overdue operational inclusion regression. Full operator confirmation of ordinary fields remains manual. | E, J | Automated evidence accepted / owner manual pending; not Passed. |
+| AC-HIB-008 — system-controlled source discriminator with passive visibility | WP1 browser/search passive source evidence; WP3 provenance/authority tests; WP4 passive Hiboutik/source-total display; WP5 reporting exclusion, search/planned-date and future/due/overdue inclusion. M11 owns the final Gestion export-exclusion cross-check. | I, J, K, N | Automated evidence accepted / owner manual pending; not Passed. |
+| AC-HIB-009 — minimal retained source metadata | WP1 nullable cent-precise persistence and lifecycle preservation; WP3 source type plus nullable source total assignment and raw-source absence; WP4 transient-state clearing/passive display; WP5 durable privacy audit. Only system source type and nullable reference total are retained. | I, N | Automated evidence accepted / owner manual pending; not Passed. |
+
+The amended M09 semantics control this matrix: product-block paste only, ordinary manually entered fulfilment/date/time/customer fields, exact active-code matching with explicit unresolved disposition, POS-authoritative pricing, optional nullable reference-only source total, passive read-only source visibility, and system-controlled anti-double-counting. The M11 export implementation/cross-check is not claimed here.
+
+The WP6 exact candidate head and the SHA-256/size values of its self-contained executable and ZIP are intentionally not self-referenced before the documentation commit exists. They are authoritative in the matching durable `CODEX_DONE: M09-WP6-EVIDENCE-MANUAL-ACCEPTANCE-BUILD-11` comment on PR #17 after the final exact-head build/publish.
