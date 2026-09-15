@@ -43,6 +43,7 @@ public sealed class OrderManagementRowViewModel(OrderBrowserRow row) : INotifyPr
 public sealed class OrderDetailLineViewModel(OrderItemSnapshot item) : INotifyPropertyChanged
 {
     private int quantity = item.Quantity;
+    private bool quantityChanged;
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>();
     public event PropertyChangedEventHandler? PropertyChanged;
     public OrderItemSnapshot Item { get; private set; } = item ?? throw new ArgumentNullException(nameof(item));
@@ -50,9 +51,25 @@ public sealed class OrderDetailLineViewModel(OrderItemSnapshot item) : INotifyPr
     public string PriceBreakdownText => string.Format(CultureInfo.CurrentCulture, "{0:0.00} € × {1} = {2:0.00} €", Item.ProductBasePriceTtc.Euros, Quantity, Item.ProductBasePriceTtc.Euros * Quantity);
     public string OptionsText => string.Join(", ", Item.Adjustments.OrderBy(adjustment => adjustment.DisplayOrder).Select(adjustment =>
         $"{adjustment.Label} ({adjustment.AdjustmentTtcPerUnit.Euros:+0.00;-0.00;0.00} €/{Text("Unit", "unité")})"));
-    public int Quantity { get => quantity; set { if (value <= 0 || quantity == value) return; quantity = value; PropertyChanged?.Invoke(this, new(nameof(Quantity))); PropertyChanged?.Invoke(this, new(nameof(PriceBreakdownText))); } }
+    public int Quantity
+    {
+        get => quantity;
+        set
+        {
+            if (value <= 0 || quantity == value) return;
+            quantity = value;
+            quantityChanged = true;
+            PropertyChanged?.Invoke(this, new(nameof(Quantity)));
+            PropertyChanged?.Invoke(this, new(nameof(PriceBreakdownText)));
+        }
+    }
     public OrderItemSnapshot ToSnapshot()
     {
+        // An unchanged persisted line already contains the sale-time pricing snapshot,
+        // including any Retrait discount. Rebuilding it here would make a payment-only
+        // edit look price-affecting to the lifecycle service.
+        if (!quantityChanged && quantity == Item.Quantity) return Item;
+
         var unitBase = Item.ProductBasePriceTtc;
         var adjustmentUnit = Item.Adjustments.Aggregate(Money.Zero, (sum, adjustment) => sum + adjustment.AdjustmentTtcPerUnit);
         return Item with { Quantity = quantity, ExtendedBaseTtc = unitBase * quantity, CalculatedLineTotalTtc = unitBase * quantity + adjustmentUnit * quantity };

@@ -684,6 +684,64 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
+    public void PaymentOnlyModificationPreservesDiscountedManualTotalThroughWpfPathOnSta()
+    {
+        RunOnSta(() =>
+        {
+            foreach (var sourceType in new[] { OrderSourceType.Pos, OrderSourceType.HiboutikPaste })
+            {
+                var option = new OrderLineAdjustmentSnapshot(Guid.NewGuid(), 0, OrderAdjustmentKind.PredefinedOption, Guid.NewGuid(), "Sauce", "Sans sauce", Money.Zero, 10m);
+                var item = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "TST001A", "Produit test", "Tests", Money.FromCents(950), 10m, true, 4, Money.FromCents(3800), Money.FromCents(3230), [option]);
+                var order = Snapshot(new DateOnly(2026, 8, 31)) with
+                {
+                    SourceType = sourceType,
+                    SourceTotalTtc = sourceType == OrderSourceType.HiboutikPaste ? Money.FromCents(3590) : null,
+                    Items = [item],
+                    TotalTtc = Money.FromCents(3100),
+                    ManualTotalOverrideActive = true,
+                    PickupDiscountApplied = true,
+                    PickupDiscountRate = 0.15m,
+                    TaxBreakdown = [new OrderTaxBreakdown(10m, Money.FromCents(3100), Money.FromCents(282), Guid.NewGuid())]
+                };
+                var store = new LifecycleStore(order);
+                var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountRate = 0.15m, PickupDiscountMinTotalTtc = Money.Zero });
+                using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
+                using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), orderLifecycleService: service);
+                var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+                window.Show();
+                try
+                {
+                    var lifecycle = shell.Lifecycle!;
+                    lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                    lifecycle.BeginModification();
+                    lifecycle.EditCard = "31";
+                    lifecycle.EditCash = "0";
+
+                    Assert.IsTrue(lifecycle.CanSave, $"{sourceType}: payment-only edit must remain saveable.");
+                    lifecycle.SaveModificationAsync().GetAwaiter().GetResult();
+
+                    Assert.AreEqual(3100L, store.Snapshot.TotalTtc.Cents, sourceType.ToString());
+                    Assert.IsTrue(store.Snapshot.ManualTotalOverrideActive, sourceType.ToString());
+                    Assert.IsTrue(store.Snapshot.PickupDiscountApplied, sourceType.ToString());
+                    Assert.AreEqual(0.15m, store.Snapshot.PickupDiscountRate, sourceType.ToString());
+                    Assert.AreEqual(order.SourceTotalTtc, store.Snapshot.SourceTotalTtc, sourceType.ToString());
+                    Assert.AreEqual(3100L, store.Snapshot.CardPaymentTtc.Cents, sourceType.ToString());
+                    CollectionAssert.AreEqual(order.Items.ToArray(), store.Snapshot.Items.ToArray(), sourceType.ToString());
+                    CollectionAssert.AreEqual(order.TaxBreakdown.ToArray(), store.Snapshot.TaxBreakdown.ToArray(), sourceType.ToString());
+                    Assert.IsTrue(lifecycle.CanClose, $"{sourceType}: exact payment must make Close eligible against the active manual total.");
+
+                    lifecycle.CloseSelectedAsync().GetAwaiter().GetResult();
+
+                    Assert.AreEqual(OrderStatus.Closed, store.Snapshot.Status, sourceType.ToString());
+                    Assert.AreEqual(3100L, store.Snapshot.TotalTtc.Cents, sourceType.ToString());
+                    Assert.IsTrue(store.Snapshot.ManualTotalOverrideActive, sourceType.ToString());
+                }
+                finally { window.Close(); }
+            }
+        });
+    }
+
+    [TestMethod]
     public void ExistingOrderHalfCentRepriceKeepsVisibleAndPersistedTotalsOnSta()
     {
         RunOnSta(() =>
