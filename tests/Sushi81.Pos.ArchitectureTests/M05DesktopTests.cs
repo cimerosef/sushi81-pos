@@ -684,6 +684,19 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
+    public void ExistingLineQuantityRevertPreservesPersistedSaleTimeSnapshot()
+    {
+        var option = new OrderLineAdjustmentSnapshot(Guid.NewGuid(), 0, OrderAdjustmentKind.PredefinedOption, Guid.NewGuid(), "Sauce", "Sans sauce", Money.Zero, 10m);
+        var historical = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "TST001A", "Produit test", "Tests", Money.FromCents(950), 10m, true, 4, Money.FromCents(3800), Money.FromCents(3230), [option]);
+        var line = new OrderDetailLineViewModel(historical);
+
+        line.Quantity = 5;
+        line.Quantity = 4;
+
+        Assert.AreEqual(historical, line.ToSnapshot(), "A reverted quantity edit must preserve every persisted sale-time value.");
+    }
+
+    [TestMethod]
     public void PaymentOnlyModificationPreservesDiscountedManualTotalThroughWpfPathOnSta()
     {
         RunOnSta(() =>
@@ -714,6 +727,9 @@ public sealed class M05DesktopTests
                     var lifecycle = shell.Lifecycle!;
                     lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
                     lifecycle.BeginModification();
+                    var editableLine = lifecycle.DetailLines.Single(line => line.Item.ProductCode == "TST001A");
+                    editableLine.Quantity = 5;
+                    editableLine.Quantity = 4;
                     lifecycle.EditCard = "31";
                     lifecycle.EditCash = "0";
 
@@ -752,7 +768,7 @@ public sealed class M05DesktopTests
                 new OrderLineAdjustmentSnapshot(Guid.NewGuid(), 1, OrderAdjustmentKind.CustomAdjustment, null, null, "Sauce premium", Money.FromCents(100), 5.5m)
             };
             var first = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "TST002", "Produit 12", "Tests", Money.FromCents(1200), 10m, true, 1, Money.FromCents(1200), Money.FromCents(1062), firstAdjustments);
-            var second = new OrderItemSnapshot(Guid.NewGuid(), 1, Guid.NewGuid(), "TST001A", "Produit 8.50", "Tests", Money.FromCents(850), 10m, true, 2, Money.FromCents(1700), Money.FromCents(1487), []);
+            var second = new OrderItemSnapshot(Guid.NewGuid(), 1, Guid.NewGuid(), "TST001A", "Produit 8.50", "Tests", Money.FromCents(850), 10m, true, 1, Money.FromCents(850), Money.FromCents(744), []);
             var order = Snapshot(new DateOnly(2026, 8, 31)) with
             {
                 Items = [first, second],

@@ -43,7 +43,6 @@ public sealed class OrderManagementRowViewModel(OrderBrowserRow row) : INotifyPr
 public sealed class OrderDetailLineViewModel(OrderItemSnapshot item) : INotifyPropertyChanged
 {
     private int quantity = item.Quantity;
-    private bool quantityChanged;
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>();
     public event PropertyChangedEventHandler? PropertyChanged;
     public OrderItemSnapshot Item { get; private set; } = item ?? throw new ArgumentNullException(nameof(item));
@@ -58,7 +57,6 @@ public sealed class OrderDetailLineViewModel(OrderItemSnapshot item) : INotifyPr
         {
             if (value <= 0 || quantity == value) return;
             quantity = value;
-            quantityChanged = true;
             PropertyChanged?.Invoke(this, new(nameof(Quantity)));
             PropertyChanged?.Invoke(this, new(nameof(PriceBreakdownText)));
         }
@@ -68,7 +66,9 @@ public sealed class OrderDetailLineViewModel(OrderItemSnapshot item) : INotifyPr
         // An unchanged persisted line already contains the sale-time pricing snapshot,
         // including any Retrait discount. Rebuilding it here would make a payment-only
         // edit look price-affecting to the lifecycle service.
-        if (!quantityChanged && quantity == Item.Quantity) return Item;
+        // The comparison is intentionally based on the final business state. An
+        // operator may temporarily change quantity and then restore it before saving.
+        if (quantity == Item.Quantity) return Item;
 
         var unitBase = Item.ProductBasePriceTtc;
         var adjustmentUnit = Item.Adjustments.Aggregate(Money.Zero, (sum, adjustment) => sum + adjustment.AdjustmentTtcPerUnit);

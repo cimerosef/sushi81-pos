@@ -205,3 +205,13 @@ The controller diagnosis was confirmed in the current code: `OrderDetailLineView
 The active handoff is `M09-MANUAL-F-MANUAL-TOTAL-PAYMENT-PRESERVATION-FIX-13`. The narrow fix preserves the complete persisted `OrderItemSnapshot` when its quantity is unchanged; quantity/configuration/product/fulfilment/discount changes continue through the existing price-affecting detection and repricing path. Focused synthetic Application and STA/WPF evidence covers POS and Hiboutik source orders, manual-total/tax/pickup/source preservation, exact Close reconciliation, rejection of the calculated discounted total as a substitute, and genuine quantity repricing/manual-override clearing. No schema, parser, printing, reporting, M10+, or business-rule change is introduced.
 
 Final exact-head verification, CI, replacement publish, hashes, safety audit and browser-notification outcome will be recorded in the matching durable `CODEX_DONE: M09-MANUAL-F-MANUAL-TOTAL-PAYMENT-PRESERVATION-FIX-13` record. Owner Windows/WPF acceptance remains **PAUSED / NOT PASSED** and must resume only on that replacement candidate; no owner checklist box is checked by Codex.
+
+### M09 checklist-F remediation — quantity revert must use net final state
+
+Status: **Active narrow remediation; owner acceptance paused at checklist F**.
+
+Controller review of `M09-MANUAL-F-MANUAL-TOTAL-PAYMENT-PRESERVATION-FIX-13` accepted the payment-only fix at `3269a27f6a5ff41be9085abc36cee39a2258eb32`, but identified one remaining final-state defect: `OrderDetailLineViewModel` retained a sticky quantity-touch flag. An operator sequence of quantity `4 -> 5 -> 4` before saving could therefore rebuild the unchanged discounted line, falsely trigger repricing, and clear an active manual authoritative total.
+
+The active handoff is `M09-MANUAL-F-REVIEW-QUANTITY-REVERT-NET-STATE-FIX-14`. The narrow correction makes `ToSnapshot()` return the persisted sale-time `OrderItemSnapshot` whenever the final quantity equals the persisted quantity; a genuinely different final quantity continues through the existing repricing path. Added synthetic direct view-model evidence for exact snapshot preservation after `4 -> 5 -> 4`, and extended the exact STA/WPF POS and Hiboutik payment-only path to exercise that sequence before saving and closing. No parser, schema, source-total, printing, reporting, M10+, or business-rule change is introduced.
+
+Owner Windows/WPF acceptance remains **PAUSED / NOT PASSED** at checklist F and must resume only on the replacement candidate from the matching durable `CODEX_DONE` record. No owner checklist box is checked by Codex.
