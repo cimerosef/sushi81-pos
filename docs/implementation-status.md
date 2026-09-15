@@ -101,7 +101,9 @@ Preparation audit conclusion:
 - implementation seams: available in ordinary order entry/catalogue/options/pricing/authority/recovery/M08 printing;
 - material M09 questions: none open;
 - readiness: PASS;
-- implementation authorization: **AUTHORIZED by project owner on 2026-09-14**.
+- implementation authorization: **AUTHORIZED by project owner on 2026-09-14**;
+- branch: `codex/m09-hiboutik-paste-fallback`;
+- PR/mailbox: #17.
 
 Authorization is not merge approval. The active execution state is now:
 
@@ -117,7 +119,7 @@ Authorization is not merge approval. The active execution state is now:
 Authorized topology:
 
 - branch: `codex/m09-hiboutik-paste-fallback`;
-- PR: `M09: Hiboutik paste-order fallback`;
+- PR: `M09: Hiboutik paste-order fallback` (#17);
 - PR top-level Conversation comments: durable mailbox;
 - Codex processes only authorized M09 work packages serially;
 - the active WP6 handoff is `M09-WP6-EVIDENCE-MANUAL-ACCEPTANCE-BUILD-11`;

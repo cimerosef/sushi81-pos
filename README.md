@@ -22,7 +22,7 @@ Recent merge baselines:
 
 M09 — Hiboutik paste-order fallback — completed preparation/readiness and was **explicitly authorized for implementation by the project owner on 2026-09-14**. The approved amendment covers product-detail-block paste input, fail-safe unresolved-line operator handling, passive Hiboutik source identification and nullable read-only `source_total_ttc` reference amount while keeping ordinary POS pricing authoritative.
 
-Execution remains controlled by the dedicated M09 branch/PR mailbox and GitHub Issue #4. Authorization does not by itself permit Codex execution: the executable handoff must be queued while Issue #4 is CLOSED, then the owner reopens the gate. M10 and later milestones remain unauthorized.
+Execution remains controlled by dedicated branch `codex/m09-hiboutik-paste-fallback`, PR #17 and GitHub Issue #4. Authorization does not by itself permit Codex execution: the executable handoff is prepared while Issue #4 is CLOSED, then the owner reopens the gate. M10 and later milestones remain unauthorized.
 
 Controlling M09 records:
 

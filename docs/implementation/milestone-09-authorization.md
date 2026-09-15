@@ -5,9 +5,9 @@
 **Authorized:** 2026-09-14 by explicit project-owner approval  
 **Milestone:** M09 — Hiboutik paste-order fallback  
 **Exact authorized preparation head:** `aa1c5a58025f96fef3a4505721186eb1ad05552b`  
-**Execution gate at authorization record time:** CLOSED — must remain closed until branch/PR/mailbox/handoff pointers are cross-verified  
-**Active M09 implementation PR at authorization record time:** none  
-**Active handoff at authorization record time:** none
+**Execution gate:** CLOSED until the complete queued handoff is published and owner/operator reopens Issue #4  
+**Active M09 implementation branch:** `codex/m09-hiboutik-paste-fallback`  
+**Active M09 implementation PR/mailbox:** #17 — `M09: Hiboutik paste-order fallback`
 
 ## Project-owner authorization
 
@@ -62,18 +62,17 @@ M09 does **not** authorize:
 - M12 archive work;
 - M13 installer/final-acceptance work.
 
-## Execution setup required after this authorization record
+## Execution setup and gate
 
-Before Issue #4 may be opened, the governance controller must complete and cross-check all of the following:
+The dedicated M09 branch and PR/mailbox now exist. Before Issue #4 may be opened, the governance controller must still complete and cross-check all of the following:
 
-1. create dedicated branch `codex/m09-hiboutik-paste-fallback` from the latest governance-only `main` baseline descending from the exact authorized preparation head;
-2. create dedicated PR `M09: Hiboutik paste-order fallback` targeting `main`;
-3. update Issue #4 to name exactly that branch/PR/milestone while keeping the issue CLOSED;
-4. publish exactly one valid unprocessed top-level `CODEX_HANDOFF_READY: <id>` on that PR;
-5. include `POST_TASK_POWER_ACTION: NONE` unless the owner explicitly requests another one-shot action;
-6. make the first handoff execute only WP1 from `milestone-09-hiboutik-paste-fallback.md` unless the handoff explicitly states another prepared work package;
-7. forbid M10+ and any business/spec invention;
-8. verify no conflicting active implementation PR/handoff exists;
-9. only then ask the owner to reopen Issue #4.
+1. keep Issue #4 CLOSED while preparing the executable task;
+2. ensure Issue #4 points exactly to branch `codex/m09-hiboutik-paste-fallback` and PR #17;
+3. publish exactly one valid unprocessed top-level `CODEX_HANDOFF_READY: <id>` on PR #17;
+4. include `POST_TASK_POWER_ACTION: NONE` unless the owner explicitly requests another one-shot action;
+5. make the first handoff execute only WP1 from `milestone-09-hiboutik-paste-fallback.md`;
+6. forbid M10+ and any business/spec invention;
+7. verify no conflicting active implementation PR/handoff exists;
+8. only then ask the owner to reopen Issue #4.
 
 Once Issue #4 is OPEN with all pointers consistent, Codex may execute the single active M09 handoff. A `CODEX_DONE` never authorizes merge or the next work package automatically.
