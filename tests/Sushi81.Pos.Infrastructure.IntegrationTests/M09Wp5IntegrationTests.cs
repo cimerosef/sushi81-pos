@@ -130,6 +130,86 @@ public sealed class M09Wp5IntegrationTests
     }
 
     [TestMethod]
+    public async Task HiboutikNotifierFailureAfterCommitLeavesOrderReloadable()
+    {
+        using var fixture = await TestFixture.CreateAsync();
+        await fixture.CreateProductAsync("HIB-WP5-NOTIFIER", Money.FromCents(3590));
+        using var entry = fixture.CreateEntryService();
+        var session = await fixture.Importer.StartImportAsync("1 x HIB-WP5-NOTIFIER Notifier source (35.90)\nTOTAL 35.90");
+        var draft = session.TryCreateDraft(FulfilmentMode.Retrait, BusinessDate, new TimeOnly(11, 30), pickupDiscountRequested: true).Value!;
+
+        fixture.Notifier.ThrowOnNotify = true;
+        var result = await entry.ConfirmHiboutikImportAsync(session, draft);
+
+        Assert.IsTrue(result.PersistenceSucceeded, string.Join("; ", result.Issues.Select(issue => issue.Message)));
+        Assert.IsTrue(result.DispatchSucceeded, string.Join("; ", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(1, fixture.Notifier.Calls);
+        Assert.IsNotNull(result.CommittedOrder);
+        Assert.IsNotNull(result.PersistedOrderId);
+        Assert.IsTrue(fixture.Dispatcher.SawCommittedOrderDuringInitialDispatch);
+
+        var reloaded = await fixture.OrderStore.GetByIdAsync(result.PersistedOrderId!.Value);
+        Assert.IsNotNull(reloaded);
+        Assert.AreEqual(result.CommittedOrder!.Id, reloaded!.Id);
+        Assert.AreEqual(OrderSourceType.HiboutikPaste, reloaded.SourceType);
+        Assert.AreEqual(Money.FromCents(3590), reloaded.SourceTotalTtc);
+        Assert.AreEqual(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM orders;"));
+        Assert.AreEqual(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM order_items WHERE order_id='" + reloaded.Id + "';"));
+    }
+
+    [TestMethod]
+    public async Task PasteCreatedHiboutikOrderRemainsInFutureDueAndOverdueOperationalViews()
+    {
+        using var fixture = await TestFixture.CreateAsync();
+        await fixture.CreateProductAsync("HIB-WP5-OPERATIONAL", Money.FromCents(3590));
+        using var entry = fixture.CreateEntryService();
+        var plannedDate = BusinessDate.AddDays(2);
+        var session = await fixture.Importer.StartImportAsync("1 x HIB-WP5-OPERATIONAL Operational source (35.90)\nTOTAL 35.90");
+        var confirmed = await entry.ConfirmHiboutikImportAsync(
+            session, session.TryCreateDraft(FulfilmentMode.Retrait, plannedDate, new TimeOnly(12, 0), pickupDiscountRequested: true).Value!);
+        Assert.IsTrue(confirmed.Succeeded, string.Join("; ", confirmed.Issues.Select(issue => issue.Message)));
+        var hiboutik = confirmed.CommittedOrder!;
+
+        using var lifecycle = fixture.CreateLifecycleService();
+        var paid = await lifecycle.SaveModificationAsync(hiboutik with { CardPaymentTtc = hiboutik.TotalTtc }, BusinessDate);
+        Assert.IsTrue(paid.Succeeded, string.Join("; ", paid.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(OrderSourceType.HiboutikPaste, paid.Snapshot!.SourceType);
+
+        var future = await lifecycle.ListOperationalAsync(OperationalOrderView.Future, BusinessDate);
+        Assert.HasCount(1, future);
+        Assert.AreEqual(hiboutik.Id, future.Single().Id);
+        Assert.AreEqual(OrderSourceType.HiboutikPaste, future.Single().SourceType);
+        Assert.AreEqual(1, (await lifecycle.GetOperationalSummaryAsync(BusinessDate)).FutureOrderCount);
+
+        var due = await lifecycle.ListOperationalAsync(OperationalOrderView.DueToday, plannedDate);
+        Assert.HasCount(1, due);
+        Assert.AreEqual(hiboutik.Id, due.Single().Id);
+        Assert.IsTrue(due.Single().AdvanceOrderMarker);
+        Assert.AreEqual(OrderSourceType.HiboutikPaste, due.Single().SourceType);
+        var dueSummary = await lifecycle.GetOperationalSummaryAsync(plannedDate);
+        Assert.AreEqual(1, dueSummary.DueTodayAdvanceOrderCount);
+        Assert.AreEqual(Money.Zero, dueSummary.TurnoverTtc);
+        Assert.AreEqual(Money.Zero, dueSummary.ReceivedTtc);
+        Assert.AreEqual(Money.Zero, dueSummary.ReceivedCardTtc);
+
+        var overdueDate = plannedDate.AddDays(1);
+        var overdue = await lifecycle.ListOperationalAsync(OperationalOrderView.OverdueUnsettled, overdueDate);
+        Assert.HasCount(1, overdue);
+        Assert.AreEqual(hiboutik.Id, overdue.Single().Id);
+        Assert.AreEqual(OrderSourceType.HiboutikPaste, overdue.Single().SourceType);
+        var overdueSummary = await lifecycle.GetOperationalSummaryAsync(overdueDate);
+        Assert.AreEqual(1, overdueSummary.OverdueUnsettledOrderCount);
+        Assert.AreEqual(Money.Zero, overdueSummary.TurnoverTtc);
+        Assert.AreEqual(Money.Zero, overdueSummary.ReceivedTtc);
+        Assert.AreEqual(Money.Zero, overdueSummary.ReceivedCardTtc);
+
+        var reloaded = await fixture.OrderStore.GetByIdAsync(hiboutik.Id);
+        Assert.IsNotNull(reloaded);
+        Assert.AreEqual(OrderSourceType.HiboutikPaste, reloaded!.SourceType);
+        Assert.AreEqual(Money.FromCents(3590), reloaded.SourceTotalTtc);
+    }
+
+    [TestMethod]
     public async Task HiboutikIsExcludedFromPosReportingButRemainsSearchableAndPaid()
     {
         using var fixture = await TestFixture.CreateAsync();
@@ -297,7 +377,13 @@ public sealed class M09Wp5IntegrationTests
     private sealed class RecordingNotifier : IDurableChangeNotifier
     {
         public int Calls { get; private set; }
-        public Task NotifyCommittedAsync(CancellationToken cancellationToken = default) { Calls++; return Task.CompletedTask; }
+        public bool ThrowOnNotify { get; set; }
+        public Task NotifyCommittedAsync(CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            if (ThrowOnNotify) throw new InvalidOperationException("WP5 injected notifier failure");
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class RecordingOutputDispatcher(SqliteOrderStore orders, IBusinessClock clock) : IOrderPrintOutcomeDispatcher
