@@ -2,7 +2,9 @@
 
 **Status:** Prepared — owner execution pending  
 **Owner:** project owner / manual acceptance executor  
-**Accepted candidate:** TBD after implementation  
+**Executable candidate source checkout:** `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`
+**EXE:** `Sushi81.Pos.Desktop.exe` — 162816 bytes — SHA-256 `5DA02D47C0854F993FC461AF1936300BB1DB455B9EABAC30CACABE31FC4FB7AB`
+**ZIP:** `post-m09-dashboard-win-x64.zip` — 67042116 bytes — SHA-256 `97D9ACC23C6356A68158E749762EEAF4689BA5803BCF0E237AC73A6E64B48145`
 **Result:** NOT YET EXECUTED
 
 This checklist verifies only the approved post-M09 dashboard enhancement. It does not reopen M09 and does not authorize merge or M10+.

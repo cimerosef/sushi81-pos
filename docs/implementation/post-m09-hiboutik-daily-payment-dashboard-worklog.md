@@ -43,6 +43,16 @@ Focused evidence passed:
 
 Owner manual acceptance remains pending and must be performed against the exact candidate. Codex does not declare the owner checklist passed.
 
+## Evidence-gap remediation
+
+The controller identified two evidence-only gaps in comment `5705566720`. This remediation remains test/docs-only and does not change production source, behavior, schema, migration, dependency, write path, authority path or the owner candidate.
+
+- Added a direct `SqliteOrderStore.GetOperationalSummaryAsync` no-match test proving both Hiboutik daily values are exactly `Money.Zero` while the ordinary summary remains zero for an empty synthetic database; the focused class passed 2/2.
+- Added an STA presentation/localization test with non-zero Hiboutik values. It switches FR -> zh-CN -> FR through `ShellViewModel.ChangeLanguageAsync`, verifies the localized labels, compares numeric values using the active culture rather than localized strings, and proves no summary requery or write occurred; the focused test passed 1/1 and the full M07 presentation-refresh class passed 3/3.
+- Relevant post-M09 M09 Hiboutik desktop tests passed 8/8. The full Release solution suite passed 656/656: Domain 33, Application 119, Infrastructure 235, Architecture 145, and OneDrive feasibility 32 + 92; 0 failed and 0 skipped. The Release build passed with 0 warnings and 0 errors, and `git diff --check` passed.
+- Updated the manual-acceptance candidate header with the already-built owner candidate identity from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`; this remains `NOT YET EXECUTED / owner execution pending`.
+- The later remediation head is not a replacement executable candidate; no rebuild or republish was performed.
+
 ## Merge boundary
 
 Implementation completion/manual acceptance never authorizes merge automatically. Separate project-owner merge approval remains required.

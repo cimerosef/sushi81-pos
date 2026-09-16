@@ -55,6 +55,25 @@ public sealed class PostM09HiboutikDashboardIntegrationTests
         Assert.AreEqual(7L, await ScalarAsync(factory, "SELECT COUNT(*) FROM payment_adjustments WHERE effective_business_date=$date AND order_id IN ($open,$closed,$cancelled);", ("$date", (object)BusinessDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)), ("$open", (object)hiboutikOpen.Id.ToString()), ("$closed", (object)hiboutikClosed.Id.ToString()), ("$cancelled", (object)hiboutikCancelled.Id.ToString())));
     }
 
+    [TestMethod]
+    public async Task SqliteHiboutikDailyPaymentSummaryReturnsExactZeroWhenNoMatchingRows()
+    {
+        using var paths = new TestPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteOrderStore(factory, new SqliteTransactionRunner(factory), idGenerator: new DeterministicIds(), clock: clock);
+
+        var summary = await store.GetOperationalSummaryAsync(BusinessDate);
+
+        Assert.AreEqual(Money.Zero, summary.HiboutikReceivedCardTtc, "The real SQLite aggregation must return exact zero when no Hiboutik rows match the requested date.");
+        Assert.AreEqual(Money.Zero, summary.HiboutikReceivedCashTtc, "The real SQLite aggregation must return exact zero when no Hiboutik rows match the requested date.");
+        Assert.AreEqual(Money.Zero, summary.TurnoverTtc, "The ordinary summary remains zero for an empty synthetic database.");
+        Assert.AreEqual(Money.Zero, summary.ReceivedTtc);
+        Assert.AreEqual(Money.Zero, summary.ReceivedCardTtc);
+        Assert.AreEqual(Money.Zero, summary.ReceivedCashTtc);
+    }
+
     private static OrderSnapshot Snapshot(Guid id, OrderSourceType source, OrderStatus status, long total) => new(
         id, source, status, new DateTimeOffset(2026, 9, 17, 8, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 9, 17, 8, 0, 0, TimeSpan.Zero),
         status == OrderStatus.Closed ? new DateTimeOffset(2026, 9, 17, 9, 0, 0, TimeSpan.Zero) : null,
