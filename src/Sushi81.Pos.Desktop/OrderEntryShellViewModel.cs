@@ -15,6 +15,81 @@ public sealed record FulfilmentChoice(FulfilmentMode? Mode, string Label);
 
 public sealed record TimeChoice(int? Value, string Label);
 
+/// <summary>Localized, transient presentation of one Hiboutik import row.</summary>
+public sealed class HiboutikImportLineViewModel(HiboutikImportLineState state) : INotifyPropertyChanged
+{
+    private string unresolvedLabel = "Non résolue";
+    private string resolvedLabel = "Résolue";
+    private string ignoredLabel = "Ignorée";
+    private string optionPendingLabel = "Options à revoir";
+    private string sourceLineLabel = "Ligne source";
+    private string sourceCodeLabel = "Code";
+    private string sourceQuantityLabel = "Quantité";
+    private string sourceAmountLabel = "Montant source";
+    private string unavailableLabel = "Indisponible";
+    private string selectProductLabel = "Sélectionner un produit";
+    private string ignoreLabel = "Ignorer";
+    private string configureLabel = "Configurer les options";
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public HiboutikImportLineState State { get; private set; } = state ?? throw new ArgumentNullException(nameof(state));
+    public int SourceLineNumber => State.SourceLineNumber;
+    public string SourceText => State.SourceText;
+    public string SourceContextText => string.Join(" · ", new[]
+    {
+        $"{sourceLineLabel} {State.SourceLineNumber}",
+        string.IsNullOrWhiteSpace(State.CandidateCode) ? null : $"{sourceCodeLabel}: {State.CandidateCode}",
+        State.Quantity is { } quantity ? $"{sourceQuantityLabel}: {quantity}" : null
+    }.Where(value => value is not null));
+    public string SourceAmountText => State.SourceAmountTtc is { } amount
+        ? $"{sourceAmountLabel}: {amount.Euros:0.00} €"
+        : $"{sourceAmountLabel}: {unavailableLabel}";
+    public string ResolutionText => State.IsOptionReviewPending ? optionPendingLabel
+        : State.IsResolved ? resolvedLabel
+        : State.IsIgnored ? ignoredLabel
+        : unresolvedLabel;
+    public bool IsUnresolved => State.IsUnresolved;
+    public bool IsOptionReviewPending => State.IsOptionReviewPending;
+    public bool CanSelectProduct => State.IsUnresolved;
+    public bool CanIgnore => State.IsUnresolved;
+    public bool CanConfigureOptions => State.IsOptionReviewPending && State.Product is not null;
+    public string SelectProductLabel => selectProductLabel;
+    public string IgnoreLabel => ignoreLabel;
+    public string ConfigureLabel => configureLabel;
+
+    public void Replace(HiboutikImportLineState state)
+    {
+        State = state ?? throw new ArgumentNullException(nameof(state));
+        RaiseAll();
+    }
+
+    public void ApplyLocalization(IReadOnlyDictionary<string, string> labels)
+    {
+        unresolvedLabel = Read(labels, "HiboutikResolutionUnresolved", "Non résolue");
+        resolvedLabel = Read(labels, "HiboutikResolutionResolved", "Résolue");
+        ignoredLabel = Read(labels, "HiboutikResolutionIgnored", "Ignorée");
+        optionPendingLabel = Read(labels, "HiboutikOptionReviewPending", "Options à revoir");
+        sourceLineLabel = Read(labels, "HiboutikSourceLine", "Ligne source");
+        sourceCodeLabel = Read(labels, "HiboutikSourceCode", "Code");
+        sourceQuantityLabel = Read(labels, "HiboutikSourceQuantity", "Quantité");
+        sourceAmountLabel = Read(labels, "HiboutikSourceAmountLabel", "Montant source");
+        unavailableLabel = Read(labels, "HiboutikSourceTotalUnavailable", "Indisponible");
+        selectProductLabel = Read(labels, "HiboutikSelectProduct", "Sélectionner un produit");
+        ignoreLabel = Read(labels, "HiboutikIgnoreLine", "Ignorer");
+        configureLabel = Read(labels, "HiboutikConfigureOptions", "Configurer les options");
+        RaiseAll();
+    }
+
+    private void RaiseAll()
+    {
+        foreach (var name in new[] { nameof(State), nameof(SourceLineNumber), nameof(SourceText), nameof(SourceContextText), nameof(SourceAmountText), nameof(ResolutionText), nameof(IsUnresolved), nameof(IsOptionReviewPending), nameof(CanSelectProduct), nameof(CanIgnore), nameof(CanConfigureOptions), nameof(SelectProductLabel), nameof(IgnoreLabel), nameof(ConfigureLabel) })
+            PropertyChanged?.Invoke(this, new(name));
+    }
+
+    private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) =>
+        labels.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? value : fallback;
+}
+
 /// <summary>Localized read-only presentation of one persisted order-browser row.</summary>
 public sealed class OrderBrowserRowViewModel(OrderBrowserRow row) : INotifyPropertyChanged
 {
@@ -39,6 +114,12 @@ public sealed class OrderBrowserRowViewModel(OrderBrowserRow row) : INotifyPrope
     };
     public string TotalText => Row.TotalTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string TelephoneText => string.IsNullOrWhiteSpace(Row.Telephone) ? emptyTelephoneLabel : Row.Telephone;
+    public string SourceText => Row.SourceType == OrderSourceType.HiboutikPaste ? Read(localizedLabels, "OrderSourceHiboutik", "Hiboutik") : Read(localizedLabels, "OrderSourcePos", "POS");
+    public string SourceTotalText => Row.SourceTotalTtc is { } amount
+        ? amount.Euros.ToString("0.00", CultureInfo.CurrentCulture)
+        : Read(localizedLabels, "OrderSourceTotalUnavailable", "—");
+    public bool HasSourceTotal => Row.SourceTotalTtc is not null;
+    private IReadOnlyDictionary<string, string> localizedLabels = new Dictionary<string, string>();
 
     public void ApplyLocalization(IReadOnlyDictionary<string, string> labels)
     {
@@ -48,9 +129,13 @@ public sealed class OrderBrowserRowViewModel(OrderBrowserRow row) : INotifyPrope
         closedLabel = Read(labels, "OrderStatusClosed", "Clôturée");
         cancelledLabel = Read(labels, "OrderStatusCancelled", "Annulée");
         emptyTelephoneLabel = Read(labels, "OrderBrowserEmptyTelephone", string.Empty);
+        localizedLabels = labels;
         OnPropertyChanged(nameof(FulfilmentText));
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(TelephoneText));
+        OnPropertyChanged(nameof(SourceText));
+        OnPropertyChanged(nameof(SourceTotalText));
+        OnPropertyChanged(nameof(HasSourceTotal));
     }
 
     private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) =>
@@ -64,6 +149,11 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 {
     private readonly OrderEntryService service;
     private readonly IWriteAuthorityGuard? authorityGuard;
+    private readonly HiboutikImportOrchestrator? hiboutikImportOrchestrator;
+    private readonly Dictionary<int, OrderEntryCartLineViewModel> hiboutikCartLines = [];
+    private readonly HashSet<int> removedHiboutikCartLineSourceNumbers = [];
+    private HiboutikImportSession? hiboutikImportSession;
+    private string hiboutikSourceText = string.Empty;
     private ProductSummary? selectedProduct;
     private OrderEntryCartLineViewModel? selectedCartLine;
     private Guid selectedCategoryId;
@@ -115,14 +205,16 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private string quantityLabel = "Quantité";
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>(StringComparer.Ordinal);
 
-    public OrderEntryShellViewModel(OrderEntryService service, IWriteAuthorityGuard? authorityGuard = null)
+    public OrderEntryShellViewModel(OrderEntryService service, IWriteAuthorityGuard? authorityGuard = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
         this.authorityGuard = authorityGuard;
+        this.hiboutikImportOrchestrator = hiboutikImportOrchestrator;
         Categories = new ObservableCollection<CategorySummary>();
         Products = new ObservableCollection<ProductSummary>();
         Cart = new ObservableCollection<OrderEntryCartLineViewModel>();
         BrowserOrders = new ObservableCollection<OrderBrowserRowViewModel>();
+        HiboutikLines = new ObservableCollection<HiboutikImportLineViewModel>();
         PlannedHourChoices = new ObservableCollection<TimeChoice>(BuildTimeChoices([11, 12, 13, 14, 18, 19, 20, 21, 22]));
         PlannedMinuteChoices = new ObservableCollection<TimeChoice>(BuildTimeChoices([0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]));
         FulfilmentChoices = new ObservableCollection<FulfilmentChoice>
@@ -144,6 +236,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public ObservableCollection<TimeChoice> PlannedHourChoices { get; }
     public ObservableCollection<TimeChoice> PlannedMinuteChoices { get; }
     public ObservableCollection<OrderBrowserRowViewModel> BrowserOrders { get; }
+    public ObservableCollection<HiboutikImportLineViewModel> HiboutikLines { get; }
     public string AllCategoriesLabel => allCategoriesLabel;
 
     public void ApplyLocalization(
@@ -193,6 +286,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         pickupDiscountRequested = previousPickupDiscount;
         foreach (var line in Cart) line.SetQuantityLabel(this.quantityLabel);
         foreach (var row in BrowserOrders) row.ApplyLocalization(localized);
+        foreach (var line in HiboutikLines) line.ApplyLocalization(localized);
         if (pricingValidationActive) RenderPricingValidationMessage();
         else if (activeValidationIssues is { Count: > 0 }) RenderValidationIssues();
         OnPropertyChanged(nameof(AllCategoriesLabel));
@@ -207,6 +301,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         OnPropertyChanged(nameof(NewOrderLabel));
         OnPropertyChanged(nameof(ReloadedOrderDisplay));
         OnPropertyChanged(nameof(HasReloadedOrder));
+        RaiseHiboutikProperties();
     }
 
     public ProductSummary? SelectedProduct { get => selectedProduct; set { selectedProduct = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanAddSelectedProduct)); } }
@@ -312,10 +407,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     }
     public bool CanWrite => !businessPresentationRefreshBlocked
         && (authorityGuard is null || authorityGuard.State == WriteAuthorityState.Authoritative);
-    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanAddSelectedProduct)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); RaiseInitialRetryProperties(); } }
-    public bool IsCommitted { get => isCommitted; private set { isCommitted = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); } }
+    public bool IsBusy { get => isBusy; private set { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanAddSelectedProduct)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); OnPropertyChanged(nameof(CanStartHiboutikImport)); OnPropertyChanged(nameof(CanResetHiboutikImport)); RaiseInitialRetryProperties(); } }
+    public bool IsCommitted { get => isCommitted; private set { isCommitted = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanConfirm)); OnPropertyChanged(nameof(CanStartNewOrder)); OnPropertyChanged(nameof(IsPickupDiscountEnabled)); OnPropertyChanged(nameof(CanStartHiboutikImport)); OnPropertyChanged(nameof(CanResetHiboutikImport)); } }
     public bool CanAddSelectedProduct => CanWrite && !IsBusy && !IsCommitted && SelectedProduct is not null;
-    public bool CanConfirm => CanWrite && !IsBusy && !IsCommitted && PlannedDateValid && PlannedTimeValid && pricing?.IsValid == true;
+    public bool CanConfirm => CanWrite && !IsBusy && !IsCommitted && PlannedDateValid && PlannedTimeValid && pricing?.IsValid == true && (hiboutikImportSession is null || hiboutikImportSession.CanConfirm);
     public bool CanStartNewOrder => IsCommitted && !IsBusy;
     public bool CanRetryInitialKitchen => CanRetryInitial(PrintDocumentKind.Kitchen);
     public bool CanRetryInitialCustomer => CanRetryInitial(PrintDocumentKind.Customer);
@@ -327,6 +422,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         OnPropertyChanged(nameof(CanConfirm));
         OnPropertyChanged(nameof(CanStartNewOrder));
         OnPropertyChanged(nameof(IsPickupDiscountEnabled));
+        OnPropertyChanged(nameof(CanStartHiboutikImport));
+        OnPropertyChanged(nameof(CanResetHiboutikImport));
     }
 
     public void SetBusinessPresentationRefreshBlocked(bool blocked)
@@ -336,7 +433,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         RefreshAuthorityState();
     }
 
-    public bool HasUncommittedDraft => !IsCommitted && (Cart.Count > 0 || SelectedFulfilment is not null || !string.IsNullOrWhiteSpace(Telephone) || !string.IsNullOrWhiteSpace(DeliveryAddress) || !string.IsNullOrWhiteSpace(Comment));
+    public bool HasUncommittedDraft => !IsCommitted && (hiboutikImportSession is not null || !string.IsNullOrWhiteSpace(HiboutikSourceText) || Cart.Count > 0 || SelectedFulfilment is not null || !string.IsNullOrWhiteSpace(Telephone) || !string.IsNullOrWhiteSpace(DeliveryAddress) || !string.IsNullOrWhiteSpace(Comment));
 
     public void ApplyCustomerDetailsFromOrder(OrderSnapshot source)
     {
@@ -348,6 +445,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public void StartNewOrderFromCustomer(OrderSnapshot source)
     {
         ArgumentNullException.ThrowIfNull(source);
+        ClearHiboutikImport(removeCartLines: true);
         Cart.Clear(); SelectedCartLine = null; selectedFulfilment = null; plannedDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue); plannedTime = null; selectedPlannedHour = null; selectedPlannedMinute = null;
         telephone = source.Telephone ?? string.Empty; deliveryAddress = source.DeliveryAddress ?? string.Empty; comment = source.Comment ?? string.Empty; pickupDiscountRequested = false; manualTotalOverride = null; pricing = null; totalText = "0.00"; isCommitted = false; reloadOrderIdText = string.Empty; reloadedOrder = null;
         activeValidationIssues = null; pricingValidationActive = false;
@@ -389,6 +487,20 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public string NewOrderLabel => newOrderLabel;
     public bool HasReloadedOrder => reloadedOrder is not null;
     public string ReloadedOrderDisplay => reloadedOrder is null ? string.Empty : FormatSnapshot(reloadedOrder);
+
+    public string HiboutikSourceText { get => hiboutikSourceText; set { hiboutikSourceText = value ?? string.Empty; OnPropertyChanged(); OnPropertyChanged(nameof(CanStartHiboutikImport)); OnPropertyChanged(nameof(HasUncommittedDraft)); } }
+    public HiboutikImportSession? HiboutikImportSession => hiboutikImportSession;
+    public bool HasHiboutikImport => hiboutikImportSession is not null;
+    public bool HasHiboutikSourceTotal => hiboutikImportSession?.SourceTotalTtc is not null;
+    public string HiboutikSourceTotalText => hiboutikImportSession?.SourceTotalTtc is { } amount
+        ? string.Format(CultureInfo.CurrentCulture, Localized("HiboutikSourceTotalFormat", "Montant source : {0:0.00} €"), amount.Euros)
+        : Localized("HiboutikSourceTotalUnavailable", "Montant source : indisponible");
+    public string HiboutikImportStatusText => hiboutikImportSession is null ? string.Empty
+        : string.Format(CultureInfo.CurrentCulture, Localized("HiboutikImportStatusFormat", "Lignes non résolues : {0} · Bloquants : {1}"), hiboutikImportSession.UnresolvedLines.Count, hiboutikImportSession.Blockers.Count);
+    public int HiboutikUnresolvedCount => hiboutikImportSession?.UnresolvedLines.Count ?? 0;
+    public bool HasHiboutikImportBlockers => hiboutikImportSession?.CanConfirm == false;
+    public bool CanStartHiboutikImport => hiboutikImportOrchestrator is not null && CanWrite && !IsBusy && !IsCommitted && hiboutikImportSession is null && !string.IsNullOrWhiteSpace(HiboutikSourceText);
+    public bool CanResetHiboutikImport => hiboutikImportSession is not null && !IsBusy && !IsCommitted;
 
     public Task RefreshAsync(CancellationToken cancellationToken = default) =>
         RefreshAsyncCore(throwOnFailure: false, cancellationToken: cancellationToken);
@@ -546,6 +658,66 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public Task<OrderEntryProduct?> GetActiveProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => service.GetActiveProductAsync(productId, cancellationToken);
     public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, CancellationToken cancellationToken = default) => service.ListActiveProductsAsync(search, null, cancellationToken);
 
+    public async Task<bool> StartHiboutikImportAsync(CancellationToken cancellationToken = default)
+    {
+        if (!CanStartHiboutikImport || hiboutikImportOrchestrator is null) return false;
+        IsBusy = true;
+        try
+        {
+            var session = await hiboutikImportOrchestrator.StartImportAsync(HiboutikSourceText, cancellationToken);
+            hiboutikImportSession = session;
+            ApplyHiboutikSession(session);
+            SetImportValidation(session);
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return false; }
+        catch (Exception exception) { ValidationMessage = exception.Message; return false; }
+        finally { if (!disposed) IsBusy = false; }
+    }
+
+    public void ResetHiboutikImport()
+    {
+        if (!CanResetHiboutikImport) return;
+        ClearHiboutikImport(removeCartLines: true);
+        ValidationMessage = string.Empty;
+        _ = RepriceAsync(clearManualOverride: true);
+    }
+
+    public async Task<bool> ResolveHiboutikLineAsync(int sourceLineNumber, Guid productId, int? quantity = null, CancellationToken cancellationToken = default)
+    {
+        if (hiboutikImportOrchestrator is null || hiboutikImportSession is null || IsCommitted) return false;
+        var result = await hiboutikImportOrchestrator.ResolveUnresolvedLineAsync(hiboutikImportSession, sourceLineNumber, productId, quantity, cancellationToken);
+        if (!result.Succeeded || result.Value is null) { SetValidationIssues(result.Issues); return false; }
+        hiboutikImportSession = result.Value;
+        ApplyHiboutikSession(hiboutikImportSession);
+        SetImportValidation(hiboutikImportSession);
+        return true;
+    }
+
+    public bool IgnoreHiboutikLine(int sourceLineNumber)
+    {
+        if (hiboutikImportSession is null || IsCommitted) return false;
+        var result = HiboutikImportOrchestrator.IgnoreUnresolvedLine(hiboutikImportSession, sourceLineNumber);
+        if (!result.Succeeded || result.Value is null) { SetValidationIssues(result.Issues); return false; }
+        hiboutikImportSession = result.Value;
+        ApplyHiboutikSession(hiboutikImportSession);
+        SetImportValidation(hiboutikImportSession);
+        _ = RepriceAsync(clearManualOverride: true);
+        return true;
+    }
+
+    public async Task<bool> CompleteHiboutikOptionReviewAsync(int sourceLineNumber, IReadOnlyList<Guid> selectedOptionIds, IReadOnlyList<OrderLineAdjustmentDraft> customAdjustments, int? quantity = null, CancellationToken cancellationToken = default)
+    {
+        if (hiboutikImportOrchestrator is null || hiboutikImportSession is null || IsCommitted) return false;
+        var result = await hiboutikImportOrchestrator.CompleteOptionReviewAsync(hiboutikImportSession, sourceLineNumber, selectedOptionIds, customAdjustments, quantity, cancellationToken);
+        if (!result.Succeeded || result.Value is null) { SetValidationIssues(result.Issues); return false; }
+        hiboutikImportSession = result.Value;
+        ApplyHiboutikSession(hiboutikImportSession);
+        SetImportValidation(hiboutikImportSession);
+        _ = RepriceAsync(clearManualOverride: true, cancellationToken);
+        return true;
+    }
+
     public void UpdateConfiguredLine(OrderEntryCartLineViewModel line, IReadOnlyList<Guid> selectedOptionIds, IReadOnlyList<OrderLineAdjustmentDraft> customAdjustments, int? quantity = null)
     {
         ArgumentNullException.ThrowIfNull(line);
@@ -556,7 +728,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     public void RemoveLine(OrderEntryCartLineViewModel line)
     {
         if (IsCommitted) return;
-        if (Cart.Remove(line)) _ = RepriceAsync(clearManualOverride: true);
+        if (!Cart.Remove(line)) return;
+        foreach (var mapping in hiboutikCartLines.Where(mapping => ReferenceEquals(mapping.Value, line)))
+            removedHiboutikCartLineSourceNumbers.Add(mapping.Key);
+        _ = RepriceAsync(clearManualOverride: true);
     }
 
     public void ChangeQuantity(OrderEntryCartLineViewModel line, int quantity)
@@ -637,12 +812,21 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             SetValidationIssues(invalidTime.Issues);
             return invalidTime;
         }
+        if (hiboutikImportSession is { CanConfirm: false } incomplete)
+        {
+            var blocked = ConfirmOrderResult.Failure(incomplete.Blockers.Select(blocker => new ValidationIssue("import", blocker.Message, blocker.Code)).ToArray());
+            SetValidationIssues(blocked.Issues);
+            OnPropertyChanged(nameof(CanConfirm));
+            return blocked;
+        }
         using var operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetimeCancellation.Token);
         var operationToken = operationCancellation.Token;
         IsBusy = true;
         try
         {
-            var result = await service.ConfirmNewOrderAsync(BuildDraft(), operationToken);
+            var result = hiboutikImportSession is { } importSession
+                ? await service.ConfirmHiboutikImportAsync(importSession, BuildDraft(), operationToken)
+                : await service.ConfirmNewOrderAsync(BuildDraft(), operationToken);
             if (disposed) return result;
             if (!result.Succeeded)
             {
@@ -650,6 +834,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
                 return result;
             }
             IsCommitted = true;
+            ClearHiboutikImport(removeCartLines: false);
             lastConfirmationResult = result;
             RaiseInitialRetryProperties();
             var committedId = result.CommittedOrder?.Id ?? result.PersistedOrderId;
@@ -725,6 +910,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     {
         if (!CanStartNewOrder) return;
         CancelBrowserSelection();
+        ClearHiboutikImport(removeCartLines: true);
         lock (priceLock) priceCancellation?.Cancel();
         Cart.Clear();
         SelectedCartLine = null;
@@ -798,6 +984,16 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         pricing = result;
         TotalText = pricing.TotalTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
         for (var index = 0; index < Math.Min(Cart.Count, pricing.Lines.Count); index++) Cart[index].SetLineTotal(pricing.Lines[index].CalculatedLineTotalTtc);
+        if (hiboutikImportSession is { CanConfirm: false } importSession)
+        {
+            pricingValidationActive = false;
+            activeValidationIssues = importSession.Blockers.Select(blocker => new ValidationIssue("import", blocker.Message, blocker.Code)).ToArray();
+            RenderValidationIssues();
+            OnPropertyChanged(nameof(IsManualTotalOverrideActive));
+            OnPropertyChanged(nameof(ManualTotalStateText));
+            OnPropertyChanged(nameof(CanConfirm));
+            return;
+        }
         pricingValidationActive = true;
         activeValidationIssues = null;
         RenderPricingValidationMessage();
@@ -902,8 +1098,84 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         {
             ValidationCodes.Busy => Localized("ValidationBusy", "Une opération est déjà en cours."),
             ValidationCodes.AuthorityBlocked => Localized("ValidationAuthorityBlocked", "Les écritures sont bloquées : cette instance n’a pas l’autorité locale."),
+            "import-empty" => Localized("HiboutikImportEmpty", "Le bloc Hiboutik ne contient aucune ligne exploitable."),
+            "import-no-product-lines" => Localized("HiboutikImportNoProduct", "Résolvez au moins une ligne produit avant de confirmer."),
+            "import-unresolved" => Localized("HiboutikImportUnresolved", "Chaque ligne source doit être sélectionnée ou ignorée explicitement."),
+            "import-options-pending" => Localized("HiboutikImportOptionsPending", "Les options de chaque produit doivent être revues explicitement."),
+            "import-quantity-required" or ValidationCodes.Required => Localized("HiboutikQuantityRequired", "Saisissez une quantité positive."),
             _ => LocalizeOrderMessage(issue.Message)
         };
+    }
+
+    private void ApplyHiboutikSession(HiboutikImportSession session)
+    {
+        var byNumber = session.Lines.ToDictionary(line => line.SourceLineNumber);
+        foreach (var line in HiboutikLines.ToArray())
+        {
+            if (byNumber.TryGetValue(line.SourceLineNumber, out var state)) line.Replace(state);
+            else HiboutikLines.Remove(line);
+        }
+        foreach (var state in session.Lines.Where(state => HiboutikLines.All(line => line.SourceLineNumber != state.SourceLineNumber)))
+        {
+            var line = new HiboutikImportLineViewModel(state);
+            line.ApplyLocalization(localized);
+            HiboutikLines.Add(line);
+        }
+
+        foreach (var state in session.Lines)
+        {
+            var draft = state.IsOptionReviewPending ? null : state.ToOrderLineDraft();
+            if (draft is null)
+            {
+                if (hiboutikCartLines.Remove(state.SourceLineNumber, out var removed))
+                {
+                    if (ReferenceEquals(SelectedCartLine, removed)) SelectedCartLine = null;
+                    Cart.Remove(removed);
+                }
+                removedHiboutikCartLineSourceNumbers.Remove(state.SourceLineNumber);
+                continue;
+            }
+            if (removedHiboutikCartLineSourceNumbers.Contains(state.SourceLineNumber)) continue;
+            if (!hiboutikCartLines.ContainsKey(state.SourceLineNumber))
+            {
+                var added = new OrderEntryCartLineViewModel(draft);
+                added.SetQuantityLabel(quantityLabel);
+                hiboutikCartLines[state.SourceLineNumber] = added;
+                Cart.Add(added);
+            }
+        }
+        OnPropertyChanged(nameof(HiboutikLines));
+        RaiseHiboutikProperties();
+        _ = RepriceAsync(clearManualOverride: true);
+    }
+
+    private void ClearHiboutikImport(bool removeCartLines)
+    {
+        if (removeCartLines)
+        {
+            foreach (var line in hiboutikCartLines.Values.ToArray())
+            {
+                if (ReferenceEquals(SelectedCartLine, line)) SelectedCartLine = null;
+                Cart.Remove(line);
+            }
+        }
+        hiboutikCartLines.Clear();
+        removedHiboutikCartLineSourceNumbers.Clear();
+        hiboutikImportSession = null;
+        hiboutikSourceText = string.Empty;
+        HiboutikLines.Clear();
+        RaiseHiboutikProperties();
+    }
+
+    private void SetImportValidation(HiboutikImportSession session)
+    {
+        if (session.Blockers.Count == 0) SetValidationIssues([]);
+        else SetValidationIssues(session.Blockers.Select(blocker => new ValidationIssue("import", blocker.Message, blocker.Code)).ToArray());
+    }
+
+    private void RaiseHiboutikProperties()
+    {
+        foreach (var name in new[] { nameof(HiboutikSourceText), nameof(HiboutikImportSession), nameof(HasHiboutikImport), nameof(HasHiboutikSourceTotal), nameof(HiboutikSourceTotalText), nameof(HiboutikImportStatusText), nameof(HiboutikUnresolvedCount), nameof(HasHiboutikImportBlockers), nameof(CanStartHiboutikImport), nameof(CanResetHiboutikImport), nameof(CanConfirm), nameof(HasUncommittedDraft) }) OnPropertyChanged(name);
     }
 
     private string FormatSnapshot(OrderSnapshot snapshot)

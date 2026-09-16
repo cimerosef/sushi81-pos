@@ -200,6 +200,7 @@ public sealed class OrderLifecycleService(
                 Status = status,
                 ClosedAt = closedAt,
                 CancelledAt = current.CancelledAt,
+                SourceTotalTtc = current.SourceTotalTtc,
                 AdvanceOrderMarker = stickyAdvance,
                 Telephone = TelephoneNormalization.Normalize(proposed.Telephone),
                 DeliveryAddress = NormalizeOptional(proposed.DeliveryAddress),
@@ -372,6 +373,7 @@ public sealed class OrderLifecycleService(
         && string.Equals(left.DeliveryAddress, right.DeliveryAddress, StringComparison.Ordinal)
         && string.Equals(left.Comment, right.Comment, StringComparison.Ordinal)
         && left.TotalTtc == right.TotalTtc
+        && left.SourceTotalTtc == right.SourceTotalTtc
         && left.ManualTotalOverrideActive == right.ManualTotalOverrideActive
         && left.PickupDiscountApplied == right.PickupDiscountApplied
         && left.PickupDiscountRate == right.PickupDiscountRate

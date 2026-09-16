@@ -316,4 +316,31 @@ Changements effectifs : {2}</value></data>
   <data name="OrderPrintSaveOrAbandon" xml:space="preserve"><value>Enregistrez ou abandonnez la modification avant d’imprimer l’état enregistré.</value></data>
   <data name="OrderRetryInitialKitchen" xml:space="preserve"><value>Réessayer sortie cuisine</value></data>
   <data name="OrderRetryInitialCustomer" xml:space="preserve"><value>Réessayer sortie client</value></data>
+  <data name="HiboutikPasteAction" xml:space="preserve"><value>Commande Hiboutik</value></data>
+  <data name="HiboutikPasteInstructions" xml:space="preserve"><value>Collez le bloc complet de produits Hiboutik puis analysez-le. Les lignes Total sont traitées automatiquement. Rien n’est lu dans le presse-papiers et aucune donnée n’est enregistrée pendant l’analyse.</value></data>
+  <data name="HiboutikSourceText" xml:space="preserve"><value>Texte source Hiboutik</value></data>
+  <data name="HiboutikParse" xml:space="preserve"><value>Analyser la commande Hiboutik</value></data>
+  <data name="HiboutikReset" xml:space="preserve"><value>Réinitialiser / réimporter</value></data>
+  <data name="HiboutikSourceTotalFormat" xml:space="preserve"><value>Montant source : {0:0.00} €</value></data>
+  <data name="HiboutikSourceTotalUnavailable" xml:space="preserve"><value>Montant source : indisponible</value></data>
+  <data name="HiboutikImportStatusFormat" xml:space="preserve"><value>Lignes non résolues : {0} · Bloquants : {1}</value></data>
+  <data name="HiboutikSourceLine" xml:space="preserve"><value>Ligne source</value></data>
+  <data name="HiboutikSourceCode" xml:space="preserve"><value>Code</value></data>
+  <data name="HiboutikSourceQuantity" xml:space="preserve"><value>Quantité</value></data>
+  <data name="HiboutikSourceAmountLabel" xml:space="preserve"><value>Montant source</value></data>
+  <data name="HiboutikSelectProduct" xml:space="preserve"><value>Sélectionner un produit</value></data>
+  <data name="HiboutikIgnoreLine" xml:space="preserve"><value>Ignorer</value></data>
+  <data name="HiboutikConfigureOptions" xml:space="preserve"><value>Configurer les options</value></data>
+  <data name="HiboutikResolutionUnresolved" xml:space="preserve"><value>Non résolue</value></data>
+  <data name="HiboutikResolutionResolved" xml:space="preserve"><value>Résolue</value></data>
+  <data name="HiboutikResolutionIgnored" xml:space="preserve"><value>Ignorée</value></data>
+  <data name="HiboutikOptionReviewPending" xml:space="preserve"><value>Options à revoir</value></data>
+  <data name="HiboutikImportEmpty" xml:space="preserve"><value>Le bloc Hiboutik ne contient aucune ligne exploitable.</value></data>
+  <data name="HiboutikImportNoProduct" xml:space="preserve"><value>Résolvez au moins une ligne produit avant de confirmer.</value></data>
+  <data name="HiboutikImportUnresolved" xml:space="preserve"><value>Chaque ligne source doit être sélectionnée ou ignorée explicitement.</value></data>
+  <data name="HiboutikImportOptionsPending" xml:space="preserve"><value>Les options de chaque produit doivent être revues explicitement.</value></data>
+  <data name="HiboutikQuantityRequired" xml:space="preserve"><value>Saisissez une quantité positive.</value></data>
+  <data name="OrderSourcePos" xml:space="preserve"><value>POS</value></data>
+  <data name="OrderSourceHiboutik" xml:space="preserve"><value>Hiboutik</value></data>
+  <data name="OrderSourceTotalUnavailable" xml:space="preserve"><value>—</value></data>
 </root>

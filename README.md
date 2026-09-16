@@ -20,9 +20,9 @@ Recent merge baselines:
 - M07 — Pairing, target-directed handoff and disaster recovery — merged through PR #13 at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`;
 - M08 — Printing and reprinting — Passed owner/manual acceptance and merged through PR #14 at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`.
 
-M09 — Hiboutik paste-order fallback — completed preparation/readiness and was **explicitly authorized for implementation by the project owner on 2026-09-14**. The approved amendment covers product-detail-block paste input, fail-safe unresolved-line operator handling, passive Hiboutik source identification and nullable read-only `source_total_ttc` reference amount while keeping ordinary POS pricing authoritative.
+M09 — Hiboutik paste-order fallback — implementation, automated evidence and owner Windows/WPF manual acceptance are **Passed / ready for separate merge approval**. The accepted production candidate is `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d` with EXE SHA-256 `CDC1257A698FE90237316FFE92361BF20EEF97CB44065AFBF70202EE0D0A26BA` and ZIP SHA-256 `00CEFAECB56666FABB03B7D141A4B75D18CF4DAA1A270358E7D3C457D5736319`. The approved amendment covers product-detail-block paste input, fail-safe unresolved-line operator handling, passive Hiboutik source identification and nullable read-only `source_total_ttc` reference amount while keeping ordinary POS pricing authoritative.
 
-Execution remains controlled by dedicated branch `codex/m09-hiboutik-paste-fallback`, PR #17 and GitHub Issue #4. Authorization does not by itself permit Codex execution: the executable handoff is prepared while Issue #4 is CLOSED, then the owner reopens the gate. M10 and later milestones remain unauthorized.
+The final documentation-only closure is being recorded on dedicated branch `codex/m09-hiboutik-paste-fallback` / PR #17. PR #17 remains OPEN / unmerged pending separate explicit project-owner merge approval; the later documentation head is not a replacement for the accepted production candidate. GitHub Issue #4 remains the sole execution gate. M10 and later milestones remain unauthorized.
 
 Controlling M09 records:
 

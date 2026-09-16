@@ -428,6 +428,60 @@ public partial class MainWindow : Window
         finally { orderProductAddInProgress = false; }
     }
 
+    private async void OnStartHiboutikImport(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Entry: { } entry }) return;
+        try { await entry.StartHiboutikImportAsync(); }
+        catch (Exception exception) { MessageBox.Show(this, exception.Message, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private void OnResetHiboutikImport(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry }) entry.ResetHiboutikImport();
+    }
+
+    private async void OnResolveHiboutikLine(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Entry: { } entry } || (sender as Button)?.Tag is not HiboutikImportLineViewModel line) return;
+        try
+        {
+            var products = await entry.ListActiveProductsAsync();
+            var picker = new CatalogueProductPickerDialog(this, products);
+            if (picker.ShowDialog() != true || picker.SelectedProduct is not { } selected) return;
+            var quantity = line.State.Quantity;
+            if (quantity is not > 0)
+            {
+                var quantityDialog = new HiboutikQuantityDialog(this, line.SourceText);
+                if (quantityDialog.ShowDialog() != true) return;
+                quantity = quantityDialog.Quantity;
+            }
+            if (!await entry.ResolveHiboutikLineAsync(line.SourceLineNumber, selected.Id, quantity)) return;
+            if (entry.HiboutikLines.SingleOrDefault(item => item.SourceLineNumber == line.SourceLineNumber) is { IsOptionReviewPending: true } pending && pending.State.Product is { } product)
+                await ConfigureHiboutikOptionsAsync(entry, pending, product);
+        }
+        catch (Exception exception) { MessageBox.Show(this, exception.Message, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private void OnIgnoreHiboutikLine(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { Entry: { } entry } && (sender as Button)?.Tag is HiboutikImportLineViewModel line)
+            entry.IgnoreHiboutikLine(line.SourceLineNumber);
+    }
+
+    private async void OnConfigureHiboutikOptions(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { Entry: { } entry } || (sender as Button)?.Tag is not HiboutikImportLineViewModel line || line.State.Product is not { } product) return;
+        try { await ConfigureHiboutikOptionsAsync(entry, line, product); }
+        catch (Exception exception) { MessageBox.Show(this, exception.Message, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
+    }
+
+    private async Task ConfigureHiboutikOptionsAsync(OrderEntryShellViewModel entry, HiboutikImportLineViewModel line, OrderEntryProduct product)
+    {
+        var dialog = new OptionSelectionDialog(this, product, line.State.Quantity ?? 1, line.State.SelectedOptionIds, line.State.CustomAdjustments);
+        if (dialog.ShowDialog() == true)
+            await entry.CompleteHiboutikOptionReviewAsync(line.SourceLineNumber, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
+    }
+
     private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
     {
         while (child is not null)
@@ -936,6 +990,55 @@ public partial class MainWindow : Window
                 custom.Add(new(null, null, label, Money.FromEuros(amount), OrderAdjustmentKind.CustomAdjustment, custom.Count));
             }
             SelectedOptionIds = selected; CustomAdjustments = custom; Quantity = parsedQuantity; DialogResult = true;
+        }
+
+        private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private sealed class HiboutikQuantityDialog : Window
+    {
+        private readonly TextBox quantity;
+        private readonly IReadOnlyDictionary<string, string> localized;
+
+        public HiboutikQuantityDialog(Window owner, string sourceText)
+        {
+            localized = (owner.DataContext as ShellViewModel)?.Localized ?? new Dictionary<string, string>();
+            Owner = owner;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            Title = Label("HiboutikSourceQuantity", "Quantité");
+            Width = 420;
+            Height = 190;
+            var root = new DockPanel { Margin = new Thickness(14) };
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancel = new Button { Content = Label("Cancel", "Annuler"), Padding = new Thickness(12, 5, 12, 5), Margin = new Thickness(0, 0, 8, 0) };
+            cancel.Click += (_, _) => DialogResult = false;
+            var accept = new Button { Content = Label("Confirm", "Confirmer"), Padding = new Thickness(12, 5, 12, 5) };
+            accept.Click += (_, _) => Accept();
+            buttons.Children.Add(cancel);
+            buttons.Children.Add(accept);
+            DockPanel.SetDock(buttons, Dock.Bottom);
+            root.Children.Add(buttons);
+            var panel = new StackPanel();
+            panel.Children.Add(new TextBlock { Text = sourceText, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
+            panel.Children.Add(new TextBlock { Text = Label("HiboutikQuantityRequired", "Saisissez une quantité positive.") });
+            quantity = new TextBox { Width = 90, Text = "1", Margin = new Thickness(0, 5, 0, 0) };
+            NumericInputBehavior.SetSelectAllOnFocus(quantity, true);
+            panel.Children.Add(quantity);
+            root.Children.Add(panel);
+            Content = root;
+        }
+
+        public int Quantity { get; private set; }
+
+        private void Accept()
+        {
+            if (!int.TryParse(quantity.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) || value <= 0)
+            {
+                MessageBox.Show(this, Label("HiboutikQuantityRequired", "Saisissez une quantité positive."));
+                return;
+            }
+            Quantity = value;
+            DialogResult = true;
         }
 
         private string Label(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;

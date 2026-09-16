@@ -82,7 +82,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private readonly M07ConfigurationSetupService? _m07Setup;
     private AuthorityPhase? _authorityPhase;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
         _configuration = configuration ?? new LocalConfiguration();
@@ -96,7 +96,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         RecoveryCandidates = new ObservableCollection<RecoveryCandidate>();
         RefreshResources();
         Admin = startupSucceeded && catalogueService is not null && settingsService is not null ? new M03ShellViewModel(catalogueService, settingsService, authorityGuard) : null;
-        Entry = startupSucceeded && orderEntryService is not null ? new OrderEntryShellViewModel(orderEntryService, authorityGuard) : null;
+        Entry = startupSucceeded && orderEntryService is not null ? new OrderEntryShellViewModel(orderEntryService, authorityGuard, hiboutikImportOrchestrator) : null;
         PrintService = printService;
         PrinterSetup = printerSetup;
         Lifecycle = startupSucceeded && orderLifecycleService is not null ? new OrderLifecycleShellViewModel(orderLifecycleService, authorityGuard, printService) : null;
@@ -352,7 +352,18 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("OrderReprintKitchen").Append("OrderReprintCustomer").Append("OrderPrintSuccess")
              .Append("OrderPrintFailure").Append("OrderPrintKitchenFailure").Append("OrderPrintCustomerFailure").Append("OrderPrintAmbiguous").Append("OrderPrintSaveOrAbandon")
              .Append("OrderRetryInitialKitchen").Append("OrderRetryInitialCustomer")
-             .ToArray();
+            .Append("HiboutikPasteAction").Append("HiboutikPasteInstructions").Append("HiboutikSourceText")
+            .Append("HiboutikParse").Append("HiboutikReset").Append("HiboutikSourceTotalFormat")
+            .Append("HiboutikSourceTotalUnavailable").Append("HiboutikImportStatusFormat")
+            .Append("HiboutikSourceLine").Append("HiboutikSourceCode").Append("HiboutikSourceQuantity")
+            .Append("HiboutikSourceAmountLabel").Append("HiboutikSelectProduct").Append("HiboutikIgnoreLine")
+            .Append("HiboutikConfigureOptions").Append("HiboutikResolutionUnresolved")
+            .Append("HiboutikResolutionResolved").Append("HiboutikResolutionIgnored")
+            .Append("HiboutikOptionReviewPending").Append("HiboutikImportEmpty")
+            .Append("HiboutikImportNoProduct").Append("HiboutikImportUnresolved")
+            .Append("HiboutikImportOptionsPending").Append("HiboutikQuantityRequired")
+            .Append("OrderSourcePos").Append("OrderSourceHiboutik").Append("OrderSourceTotalUnavailable")
+            .ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));

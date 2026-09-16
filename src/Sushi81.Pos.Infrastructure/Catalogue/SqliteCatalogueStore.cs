@@ -15,7 +15,7 @@ public sealed class SqliteCatalogueStore(
     ITransactionRunner transactionRunner,
     IIdGenerator idGenerator,
     IBusinessClock clock,
-    Func<int, Exception?>? bulkWriteFailureInjector = null) : ICatalogueStore
+    Func<int, Exception?>? bulkWriteFailureInjector = null) : ICatalogueStore, IActiveProductCodeQueries
 {
     private readonly SqliteConnectionFactory connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     private readonly ITransactionRunner transactionRunner = transactionRunner ?? throw new ArgumentNullException(nameof(transactionRunner));
@@ -93,6 +93,19 @@ public sealed class SqliteCatalogueStore(
         var groups = new List<OptionGroupDraft>();
         foreach (var row in groupRows) groups.Add(new(row.Id, row.Name, row.Mode, row.Required, row.Min, row.Max, row.Order, await ReadOptionsAsync(connection, row.Id, cancellationToken)));
         return draft with { Groups = groups };
+    }
+
+    public async Task<ProductDraft?> GetActiveProductByCodeAsync(string? productCode, CancellationToken cancellationToken = default)
+    {
+        var normalizedCode = CatalogueNormalization.Key(productCode);
+        if (normalizedCode.Length == 0) return null;
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT product_id FROM products WHERE normalized_code=$code AND is_active=1;";
+        command.Parameters.AddWithValue("$code", normalizedCode);
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        if (value is null or DBNull || !Guid.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), out var productId)) return null;
+        return await GetProductForEditAsync(productId, cancellationToken);
     }
 
     public async Task<OperationResult<CategorySummary>> CreateCategoryAsync(string name, CancellationToken cancellationToken = default)

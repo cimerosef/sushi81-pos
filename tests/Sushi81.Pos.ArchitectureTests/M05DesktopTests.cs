@@ -684,6 +684,80 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
+    public void ExistingLineQuantityRevertPreservesPersistedSaleTimeSnapshot()
+    {
+        var option = new OrderLineAdjustmentSnapshot(Guid.NewGuid(), 0, OrderAdjustmentKind.PredefinedOption, Guid.NewGuid(), "Sauce", "Sans sauce", Money.Zero, 10m);
+        var historical = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "TST001A", "Produit test", "Tests", Money.FromCents(950), 10m, true, 4, Money.FromCents(3800), Money.FromCents(3230), [option]);
+        var line = new OrderDetailLineViewModel(historical);
+
+        line.Quantity = 5;
+        line.Quantity = 4;
+
+        Assert.AreEqual(historical, line.ToSnapshot(), "A reverted quantity edit must preserve every persisted sale-time value.");
+    }
+
+    [TestMethod]
+    public void PaymentOnlyModificationPreservesDiscountedManualTotalThroughWpfPathOnSta()
+    {
+        RunOnSta(() =>
+        {
+            foreach (var sourceType in new[] { OrderSourceType.Pos, OrderSourceType.HiboutikPaste })
+            {
+                var option = new OrderLineAdjustmentSnapshot(Guid.NewGuid(), 0, OrderAdjustmentKind.PredefinedOption, Guid.NewGuid(), "Sauce", "Sans sauce", Money.Zero, 10m);
+                var item = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "TST001A", "Produit test", "Tests", Money.FromCents(950), 10m, true, 4, Money.FromCents(3800), Money.FromCents(3230), [option]);
+                var order = Snapshot(new DateOnly(2026, 8, 31)) with
+                {
+                    SourceType = sourceType,
+                    SourceTotalTtc = sourceType == OrderSourceType.HiboutikPaste ? Money.FromCents(3590) : null,
+                    Items = [item],
+                    TotalTtc = Money.FromCents(3100),
+                    ManualTotalOverrideActive = true,
+                    PickupDiscountApplied = true,
+                    PickupDiscountRate = 0.15m,
+                    TaxBreakdown = [new OrderTaxBreakdown(10m, Money.FromCents(3100), Money.FromCents(282), Guid.NewGuid())]
+                };
+                var store = new LifecycleStore(order);
+                var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountRate = 0.15m, PickupDiscountMinTotalTtc = Money.Zero });
+                using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
+                using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), orderLifecycleService: service);
+                var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+                window.Show();
+                try
+                {
+                    var lifecycle = shell.Lifecycle!;
+                    lifecycle.SelectAsync(new OrderManagementRowViewModel(new OrderBrowserRow(order.Id, order.PlannedFulfilmentDate, order.PlannedFulfilmentTime, order.Fulfilment, order.Status, order.TotalTtc, order.Telephone) { Reference = order.Reference })).GetAwaiter().GetResult();
+                    lifecycle.BeginModification();
+                    var editableLine = lifecycle.DetailLines.Single(line => line.Item.ProductCode == "TST001A");
+                    editableLine.Quantity = 5;
+                    editableLine.Quantity = 4;
+                    lifecycle.EditCard = "31";
+                    lifecycle.EditCash = "0";
+
+                    Assert.IsTrue(lifecycle.CanSave, $"{sourceType}: payment-only edit must remain saveable.");
+                    lifecycle.SaveModificationAsync().GetAwaiter().GetResult();
+
+                    Assert.AreEqual(3100L, store.Snapshot.TotalTtc.Cents, sourceType.ToString());
+                    Assert.IsTrue(store.Snapshot.ManualTotalOverrideActive, sourceType.ToString());
+                    Assert.IsTrue(store.Snapshot.PickupDiscountApplied, sourceType.ToString());
+                    Assert.AreEqual(0.15m, store.Snapshot.PickupDiscountRate, sourceType.ToString());
+                    Assert.AreEqual(order.SourceTotalTtc, store.Snapshot.SourceTotalTtc, sourceType.ToString());
+                    Assert.AreEqual(3100L, store.Snapshot.CardPaymentTtc.Cents, sourceType.ToString());
+                    CollectionAssert.AreEqual(order.Items.ToArray(), store.Snapshot.Items.ToArray(), sourceType.ToString());
+                    CollectionAssert.AreEqual(order.TaxBreakdown.ToArray(), store.Snapshot.TaxBreakdown.ToArray(), sourceType.ToString());
+                    Assert.IsTrue(lifecycle.CanClose, $"{sourceType}: exact payment must make Close eligible against the active manual total.");
+
+                    lifecycle.CloseSelectedAsync().GetAwaiter().GetResult();
+
+                    Assert.AreEqual(OrderStatus.Closed, store.Snapshot.Status, sourceType.ToString());
+                    Assert.AreEqual(3100L, store.Snapshot.TotalTtc.Cents, sourceType.ToString());
+                    Assert.IsTrue(store.Snapshot.ManualTotalOverrideActive, sourceType.ToString());
+                }
+                finally { window.Close(); }
+            }
+        });
+    }
+
+    [TestMethod]
     public void ExistingOrderHalfCentRepriceKeepsVisibleAndPersistedTotalsOnSta()
     {
         RunOnSta(() =>
@@ -694,7 +768,7 @@ public sealed class M05DesktopTests
                 new OrderLineAdjustmentSnapshot(Guid.NewGuid(), 1, OrderAdjustmentKind.CustomAdjustment, null, null, "Sauce premium", Money.FromCents(100), 5.5m)
             };
             var first = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "TST002", "Produit 12", "Tests", Money.FromCents(1200), 10m, true, 1, Money.FromCents(1200), Money.FromCents(1062), firstAdjustments);
-            var second = new OrderItemSnapshot(Guid.NewGuid(), 1, Guid.NewGuid(), "TST001A", "Produit 8.50", "Tests", Money.FromCents(850), 10m, true, 2, Money.FromCents(1700), Money.FromCents(1487), []);
+            var second = new OrderItemSnapshot(Guid.NewGuid(), 1, Guid.NewGuid(), "TST001A", "Produit 8.50", "Tests", Money.FromCents(850), 10m, true, 1, Money.FromCents(850), Money.FromCents(744), []);
             var order = Snapshot(new DateOnly(2026, 8, 31)) with
             {
                 Items = [first, second],
@@ -1979,6 +2053,332 @@ public sealed class M05DesktopTests
         });
     }
 
+    [TestMethod]
+    public void M09HiboutikPasteUsesNormalCaissePresentationAndNoPreConfirmationWriteOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(Guid.NewGuid(), "AA1", "Plat Hiboutik", categoryId, Money.FromCents(1000), 10m, true, true, false, default, default),
+                [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Plats");
+            var catalogue = new ImportCatalogue(product, categoryId);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            var orders = new ReferenceOrderStore("20260831-001");
+            using var entryService = new OrderEntryService(catalogue, settings, orders, new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            var orchestrator = new HiboutikImportOrchestrator(catalogue, settings);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: entryService,
+                hiboutikImportOrchestrator: orchestrator);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var caisse = VisualDescendants<TabItem>(window).Single(item => Equals(item.Header, shell.Localized["Caisse"]));
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+                var entry = shell.Entry!;
+                entry.HiboutikSourceText = "1 x AA1 Source label (99.99)\n1 x Livraison (0)\nTOTAL 99.99";
+                Assert.IsTrue(entry.StartHiboutikImportAsync().GetAwaiter().GetResult());
+                Assert.HasCount(3, entry.HiboutikLines);
+                Assert.HasCount(1, entry.Cart);
+                Assert.IsTrue(entry.HiboutikLines.Single(line => line.SourceLineNumber == 1).State.IsResolved);
+                Assert.IsTrue(entry.HiboutikLines.Single(line => line.SourceLineNumber == 2).State.IsIgnored);
+                Assert.IsFalse(entry.CanStartHiboutikImport);
+                Assert.IsTrue(VisualDescendants<Expander>(window).Any(expander => Equals(expander.Header, shell.Localized["HiboutikPasteAction"])));
+                Assert.IsNotNull(Field<TextBox>(window, "hiboutikSourceBox"));
+                Assert.IsNull(orders.Snapshot);
+
+                var sourceLineText = entry.HiboutikLines.Single(line => line.SourceLineNumber == 1).SourceText;
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                Assert.AreEqual("1 x AA1 Source label (99.99)\n1 x Livraison (0)\nTOTAL 99.99", entry.HiboutikSourceText);
+                Assert.AreEqual(sourceLineText, entry.HiboutikLines.Single(line => line.SourceLineNumber == 1).SourceText);
+                Assert.AreSame(orchestrator, typeof(OrderEntryShellViewModel).GetField("hiboutikImportOrchestrator", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(entry));
+
+                entry.ResetHiboutikImport();
+                Assert.IsNull(entry.HiboutikImportSession);
+                Assert.IsEmpty(entry.HiboutikSourceText);
+                Assert.IsEmpty(entry.HiboutikLines);
+                Assert.IsEmpty(entry.Cart);
+                Assert.IsNull(orders.Snapshot);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void M09HiboutikResetAvailabilityRefreshesAfterAsyncParseAndClearsTransientStateOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var catalogue = new BlockingImportCatalogue();
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            var orders = new ReferenceOrderStore("20260831-001");
+            using var entryService = new OrderEntryService(catalogue, settings, orders, new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: entryService,
+                hiboutikImportOrchestrator: new HiboutikImportOrchestrator(catalogue, settings));
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var caisse = VisualDescendants<TabItem>(window).Single(item => Equals(item.Header, shell.Localized["Caisse"]));
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+
+                var entry = shell.Entry!;
+                var pasteExpander = Field<Expander>(window, "hiboutikPasteExpander");
+                pasteExpander.IsExpanded = true;
+                window.UpdateLayout();
+                var parse = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["HiboutikParse"]));
+                var reset = VisualDescendants<Button>(window).Single(button => Equals(button.Content, shell.Localized["HiboutikReset"]));
+                var changedProperties = new List<string?>();
+                entry.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+                SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
+
+                entry.HiboutikSourceText = "1 x UNKNOWN Source label";
+                Assert.IsTrue(entry.CanStartHiboutikImport);
+                Assert.IsTrue(parse.IsEnabled);
+
+                var startTask = entry.StartHiboutikImportAsync();
+                Assert.IsTrue(entry.IsBusy, "The parse action must keep unsafe duplicate actions disabled while async work is active.");
+                Assert.IsFalse(entry.CanStartHiboutikImport);
+                Assert.IsFalse(entry.CanResetHiboutikImport);
+                Assert.IsFalse(parse.IsEnabled);
+                Assert.IsFalse(reset.IsEnabled);
+
+                var completionFrame = new DispatcherFrame();
+                _ = startTask.ContinueWith(
+                    _ => window.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => completionFrame.Continue = false)),
+                    TaskScheduler.Default);
+                catalogue.CompleteUnresolved();
+                Dispatcher.PushFrame(completionFrame);
+
+                Assert.IsTrue(startTask.GetAwaiter().GetResult(), entry.ValidationMessage);
+                window.UpdateLayout();
+                Assert.IsFalse(entry.IsBusy);
+                Assert.IsNotNull(entry.HiboutikImportSession);
+                Assert.IsTrue(entry.CanResetHiboutikImport);
+                Assert.IsTrue(reset.IsEnabled, "The bound reset button must refresh when IsBusy returns false.");
+                Assert.IsFalse(parse.IsEnabled);
+                Assert.Contains(nameof(entry.CanResetHiboutikImport), changedProperties, "The busy transition must notify the bound reset availability property.");
+
+                reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+                Assert.IsNull(entry.HiboutikImportSession);
+                Assert.IsEmpty(entry.HiboutikSourceText);
+                Assert.IsEmpty(entry.HiboutikLines);
+                Assert.IsEmpty(entry.Cart);
+                Assert.IsNull(orders.Snapshot, "Parsing and reset must never create a durable order.");
+
+                entry.HiboutikSourceText = "1 x UNKNOWN Source label - second import";
+                Assert.IsTrue(parse.IsEnabled, "Reset must leave the normal next-import path available.");
+                Assert.IsTrue(entry.StartHiboutikImportAsync().GetAwaiter().GetResult());
+                Assert.IsNotNull(entry.HiboutikImportSession);
+                Assert.IsTrue(reset.IsEnabled);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void M09HiboutikMaterializedCartEditsRemainOrdinaryAcrossLaterImportTransitionsOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var first = EntryProduct(Guid.NewGuid(), "AA1", "Premier produit");
+            var second = EntryProduct(Guid.NewGuid(), "BB2", "Second produit");
+            var catalogue = new MultiImportCatalogue([first, second]);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var entryService = new OrderEntryService(catalogue, settings, new ReferenceOrderStore("20260831-001"), new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var entry = new OrderEntryShellViewModel(entryService, hiboutikImportOrchestrator: new HiboutikImportOrchestrator(catalogue, settings));
+
+            entry.HiboutikSourceText = "1 x AA1 Premier\n2 x AA1 Doublon\noperator note";
+            Assert.IsTrue(entry.StartHiboutikImportAsync().GetAwaiter().GetResult());
+            Assert.HasCount(2, entry.Cart);
+            var original = entry.Cart[0];
+            var duplicate = entry.Cart[1];
+            Assert.AreNotSame(original, duplicate);
+
+            entry.ChangeQuantity(original, 4);
+            entry.RemoveLine(duplicate);
+            Assert.AreEqual(4, original.Quantity);
+            Assert.IsEmpty(entry.Cart.Where(line => ReferenceEquals(line, duplicate)));
+
+            Assert.IsTrue(entry.IgnoreHiboutikLine(3));
+            Assert.HasCount(1, entry.Cart);
+            Assert.AreSame(original, entry.Cart.Single());
+            Assert.AreEqual(4, entry.Cart.Single().Quantity, "An unrelated import transition must not restore the original imported quantity.");
+        });
+    }
+
+    [TestMethod]
+    public void M09HiboutikOptionReviewKeepsPendingCancelAndAcceptedQuantityOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var optionId = Guid.NewGuid();
+            var product = EntryProductWithOption(Guid.NewGuid(), "OPT1", optionId);
+            var catalogue = new MultiImportCatalogue([product]);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var entryService = new OrderEntryService(catalogue, settings, new ReferenceOrderStore("20260831-001"), new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var entry = new OrderEntryShellViewModel(entryService, hiboutikImportOrchestrator: new HiboutikImportOrchestrator(catalogue, settings));
+
+            entry.HiboutikSourceText = "1 x OPT1 Produit avec option\noperator note";
+            Assert.IsTrue(entry.StartHiboutikImportAsync().GetAwaiter().GetResult());
+            Assert.IsTrue(entry.HiboutikLines.Single(line => line.SourceLineNumber == 1).IsOptionReviewPending);
+            Assert.IsEmpty(entry.Cart, "Cancelling/closing option review is represented by no completion call and must not materialize a line.");
+
+            Assert.IsTrue(entry.CompleteHiboutikOptionReviewAsync(1, [optionId], [], quantity: 3).GetAwaiter().GetResult());
+            var materialized = entry.Cart.Single();
+            Assert.AreEqual(3, materialized.Quantity, "The accepted option-dialog quantity must become the ordinary cart quantity.");
+            Assert.AreEqual(optionId, materialized.Draft.SelectedOptionIds.Single());
+
+            var custom = new OrderLineAdjustmentDraft(null, null, "Ajout synthétique", Money.FromCents(25));
+            entry.UpdateConfiguredLine(materialized, [optionId], [custom], quantity: 4);
+            Assert.IsTrue(entry.IgnoreHiboutikLine(2));
+            Assert.AreEqual(4, materialized.Quantity, "An ordinary quantity edit must survive a later unrelated import transition.");
+            Assert.AreEqual(custom, materialized.Draft.CustomAdjustments.Single());
+        });
+    }
+
+    [TestMethod]
+    public void M09HiboutikOptionReviewValidationStaysPendingUntilExplicitCompletionOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var requiredOptionId = Guid.NewGuid();
+            var optionalOptionId = Guid.NewGuid();
+            var required = EntryProductWithOption(Guid.NewGuid(), "REQ1", requiredOptionId);
+            var optional = EntryProductWithOption(Guid.NewGuid(), "OPT2", optionalOptionId, required: false);
+            var catalogue = new MultiImportCatalogue([required, optional]);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var entryService = new OrderEntryService(catalogue, settings, new ReferenceOrderStore("20260831-001"), new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var entry = new OrderEntryShellViewModel(entryService, hiboutikImportOrchestrator: new HiboutikImportOrchestrator(catalogue, settings));
+
+            entry.HiboutikSourceText = "1 x REQ1 Requis\n2 x OPT2 Optionnel";
+            Assert.IsTrue(entry.StartHiboutikImportAsync().GetAwaiter().GetResult());
+            Assert.IsFalse(entry.CompleteHiboutikOptionReviewAsync(1, [], [], quantity: 3).GetAwaiter().GetResult());
+            Assert.IsTrue(entry.HiboutikLines.Single(line => line.SourceLineNumber == 1).IsOptionReviewPending);
+            Assert.IsEmpty(entry.Cart);
+
+            Assert.IsTrue(entry.CompleteHiboutikOptionReviewAsync(2, [], [], quantity: 2).GetAwaiter().GetResult(), "An explicit reviewed-empty optional group must complete.");
+            Assert.IsTrue(entry.CompleteHiboutikOptionReviewAsync(1, [requiredOptionId], [], quantity: 3).GetAwaiter().GetResult());
+            Assert.HasCount(2, entry.Cart);
+            Assert.AreEqual(2, entry.Cart.Single(line => line.Draft.Product.Product.Id == optional.Aggregate.Product.Id).Quantity);
+            Assert.AreEqual(3, entry.Cart.Single(line => line.Draft.Product.Product.Id == required.Aggregate.Product.Id).Quantity);
+        });
+    }
+
+    [TestMethod]
+    public void M09HiboutikMissingQuantityAndIgnoreRemainExplicitAtTheDesktopBoundaryOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var product = EntryProduct(Guid.NewGuid(), "AA1", "Produit courant");
+            var catalogue = new MultiImportCatalogue([product]);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            using var entryService = new OrderEntryService(catalogue, settings, new ReferenceOrderStore("20260831-001"), new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            using var entry = new OrderEntryShellViewModel(entryService, hiboutikImportOrchestrator: new HiboutikImportOrchestrator(catalogue, settings));
+
+            entry.HiboutikSourceText = "AA1 Source sans quantité\noperator note";
+            Assert.IsTrue(entry.StartHiboutikImportAsync().GetAwaiter().GetResult());
+            Assert.IsFalse(entry.ResolveHiboutikLineAsync(1, product.Aggregate.Product.Id).GetAwaiter().GetResult());
+            Assert.IsTrue(entry.HiboutikLines.Single(line => line.SourceLineNumber == 1).IsUnresolved);
+            Assert.IsTrue(entry.ResolveHiboutikLineAsync(1, product.Aggregate.Product.Id, quantity: 3).GetAwaiter().GetResult());
+            Assert.AreEqual(3, entry.Cart.Single().Quantity);
+
+            Assert.IsTrue(entry.IgnoreHiboutikLine(2));
+            Assert.IsTrue(entry.HiboutikLines.Single(line => line.SourceLineNumber == 2).State.IsIgnored);
+            Assert.HasCount(1, entry.Cart);
+        });
+    }
+
+    [TestMethod]
+    public void M09HiboutikManualResolutionConfirmsThroughOrdinaryCartAndKeepsPassiveSourceEvidenceOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(Guid.NewGuid(), "AA1", "Plat courant", categoryId, Money.FromCents(1000), 10m, true, true, false, default, default),
+                [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Plats");
+            var catalogue = new ImportCatalogue(product, categoryId);
+            var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow));
+            var orders = new ReferenceOrderStore("20260831-001");
+            using var entryService = new OrderEntryService(catalogue, settings, orders, new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+            var orchestrator = new HiboutikImportOrchestrator(catalogue, settings);
+            using var entry = new OrderEntryShellViewModel(entryService, hiboutikImportOrchestrator: orchestrator);
+            using var localizationShell = new ShellViewModel(new InMemorySelectedCultureStore(), false);
+            entry.ApplyLocalization("Toutes", "—", "Retrait", "Livraison", "Total manuel", "Nouvelle commande", "Quantité", localizationShell.Localized);
+            entry.HiboutikSourceText = "2 x UNKNOWN Source label (35.90)\nTOTAL 35.90";
+            Assert.IsTrue(entry.StartHiboutikImportAsync().GetAwaiter().GetResult());
+            Assert.IsFalse(entry.CanConfirm);
+            Assert.IsTrue(entry.ResolveHiboutikLineAsync(1, product.Aggregate.Product.Id).GetAwaiter().GetResult());
+            Assert.HasCount(1, entry.Cart);
+            Assert.AreEqual(2, entry.Cart.Single().Quantity);
+            entry.SelectedFulfilment = FulfilmentMode.Retrait;
+            entry.SelectedPlannedHour = 11;
+            entry.SelectedPlannedMinute = 0;
+            entry.RepriceAsync(clearManualOverride: true).GetAwaiter().GetResult();
+            var result = entry.ConfirmAsync().GetAwaiter().GetResult();
+            Assert.IsNotNull(result);
+            Assert.IsTrue(result!.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+            Assert.AreEqual(OrderSourceType.HiboutikPaste, result.CommittedOrder!.SourceType);
+            Assert.AreEqual(Money.FromCents(3590), result.CommittedOrder.SourceTotalTtc);
+            Assert.IsNull(entry.HiboutikImportSession);
+            Assert.IsEmpty(entry.HiboutikSourceText);
+            var reloaded = orders.GetByIdAsync(result.CommittedOrder.Id).GetAwaiter().GetResult();
+            Assert.AreEqual(OrderSourceType.HiboutikPaste, reloaded!.SourceType);
+            Assert.AreEqual(Money.FromCents(3590), reloaded.SourceTotalTtc);
+        });
+    }
+
+    [TestMethod]
+    public void M09HiboutikSourceLabelsArePassiveAndLocalizationKeysHaveFrZhParity()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUiCulture = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
+
+            var row = new OrderBrowserRow(Guid.NewGuid(), new DateOnly(2026, 8, 31), new TimeOnly(11, 0), FulfilmentMode.Retrait, OrderStatus.Open, Money.FromCents(1000), null)
+            {
+                SourceType = OrderSourceType.HiboutikPaste,
+                SourceTotalTtc = Money.FromCents(1250),
+                Reference = "20260831-001"
+            };
+            var values = new OrderManagementRowViewModel(row);
+            using var fr = new ShellViewModel(new InMemorySelectedCultureStore(), false);
+            values.ApplyLocalization(fr.Localized);
+            Assert.IsTrue(values.HasHiboutikSource);
+            Assert.AreEqual("Hiboutik", values.SourceText);
+            Assert.AreEqual("12,50", values.SourceTotalText);
+
+            var nullSourceRow = row with { SourceTotalTtc = null, TotalTtc = Money.FromCents(1000) };
+            var nullValues = new OrderManagementRowViewModel(nullSourceRow);
+            nullValues.ApplyLocalization(fr.Localized);
+            Assert.IsFalse(nullValues.HasSourceTotal);
+            Assert.AreEqual(fr.Localized["OrderSourceTotalUnavailable"], nullValues.SourceTotalText);
+            Assert.AreNotEqual(nullValues.TotalText, nullValues.SourceTotalText);
+
+            var required = new[] { "HiboutikPasteAction", "HiboutikPasteInstructions", "HiboutikParse", "HiboutikReset", "HiboutikSelectProduct", "HiboutikIgnoreLine", "HiboutikConfigureOptions", "HiboutikResolutionUnresolved", "HiboutikOptionReviewPending", "OrderSourceHiboutik", "OrderSourceTotalUnavailable" };
+            foreach (var key in required) Assert.IsTrue(fr.Localized.TryGetValue(key, out var french) && !string.IsNullOrWhiteSpace(french), key);
+            fr.ChangeLanguageAsync(fr.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+            foreach (var key in required) Assert.IsTrue(fr.Localized.TryGetValue(key, out var chinese) && !string.IsNullOrWhiteSpace(chinese), key);
+            Assert.AreNotEqual("Commande Hiboutik", fr.Localized["HiboutikPasteAction"]);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUiCulture;
+        }
+    }
+
     private static OrderSnapshot Snapshot(DateOnly plannedDate) => new(
         Guid.NewGuid(), OrderSourceType.Pos, OrderStatus.Open,
         new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 8, 30, 8, 0, 0, TimeSpan.Zero),
@@ -1994,6 +2394,23 @@ public sealed class M05DesktopTests
     private static ProductSummary PickerSimpleProduct() => new(Guid.NewGuid(), "TST001A", "Produit test simple", Guid.NewGuid(), "Tests", Money.FromCents(800), 10m, true, true, false);
 
     private static ProductSummary FilterProduct(Guid categoryId, string code, string name) => new(Guid.NewGuid(), code, name, categoryId, "Synthetic", Money.FromCents(1000), 10m, true, true, false);
+
+    private static OrderEntryProduct EntryProduct(Guid id, string code, string name)
+    {
+        var categoryId = Guid.NewGuid();
+        var product = new Product(id, code, name, categoryId, Money.FromCents(1000), 10m, true, true, false, default, default);
+        return new(ProductAggregate.Empty(product), "Plats");
+    }
+
+    private static OrderEntryProduct EntryProductWithOption(Guid id, string code, Guid optionId, bool required = true)
+    {
+        var categoryId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var product = new Product(id, code, "Produit avec option", categoryId, Money.FromCents(1000), 10m, true, true, true, default, default);
+        var group = new OptionGroup(groupId, id, "Choix", Sushi81.Pos.Domain.SelectionMode.Single, required, null, null, 0, default, default);
+        var option = new ProductOption(optionId, groupId, "Option", Money.FromCents(50), true, 0, default, default);
+        return new(new ProductAggregate(product, [group], new Dictionary<Guid, IReadOnlyList<ProductOption>> { [groupId] = [option] }), "Plats");
+    }
 
     private static Window CreateProductPicker(MainWindow owner, IReadOnlyList<ProductSummary> products)
     {
@@ -2392,6 +2809,7 @@ public sealed class M05DesktopTests
     private sealed class ReferenceOrderStore(string reference) : IOrderStore
     {
         private OrderSnapshot? snapshot;
+        public OrderSnapshot? Snapshot => snapshot;
         public Task SaveAsync(OrderSnapshot value, CancellationToken cancellationToken = default) { snapshot = value with { Reference = reference }; return Task.CompletedTask; }
         public Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default) => Task.FromResult<OrderSnapshot?>(snapshot?.Id == orderId ? snapshot : null);
         public Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>([]);
@@ -2408,6 +2826,64 @@ public sealed class M05DesktopTests
     {
         public Task<BusinessSettings> GetAsync(CancellationToken cancellationToken = default) => Task.FromResult(current);
         public Task<OperationResult> UpdateAsync(BusinessSettings settings, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
+    }
+
+    private sealed class ImportCatalogue(OrderEntryProduct product, Guid categoryId) : IOrderEntryCatalogueQueries
+    {
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([new(categoryId, product.CategoryName)]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ProductSummary>>([new(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name, categoryId, product.CategoryName, product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, product.Aggregate.Product.DiscountEligible, product.Aggregate.Product.OptionsEnabled)]);
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(productId == product.Aggregate.Product.Id ? product : null);
+    }
+
+    private sealed class MultiImportCatalogue(IReadOnlyList<OrderEntryProduct> products) : IOrderEntryCatalogueQueries
+    {
+        private readonly IReadOnlyList<OrderEntryProduct> items = products;
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CategorySummary>>(items
+                .Select(item => new CategorySummary(item.Aggregate.Product.CategoryId, item.CategoryName))
+                .DistinctBy(category => category.Id)
+                .ToArray());
+
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? categoryId = null, CancellationToken cancellationToken = default)
+        {
+            IEnumerable<OrderEntryProduct> result = items.Where(item => item.Aggregate.Product.IsActive);
+            if (categoryId is { } category) result = result.Where(item => item.Aggregate.Product.CategoryId == category);
+            if (!string.IsNullOrWhiteSpace(search)) result = result.Where(item => item.Aggregate.Product.Code.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase) || item.Aggregate.Product.Name.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase));
+            return Task.FromResult<IReadOnlyList<ProductSummary>>(result.Select(item => new ProductSummary(
+                item.Aggregate.Product.Id,
+                item.Aggregate.Product.Code,
+                item.Aggregate.Product.Name,
+                item.Aggregate.Product.CategoryId,
+                item.CategoryName,
+                item.Aggregate.Product.PriceTtc,
+                item.Aggregate.Product.VatRate,
+                item.Aggregate.Product.IsActive,
+                item.Aggregate.Product.DiscountEligible,
+                item.Aggregate.Product.OptionsEnabled)).ToArray());
+        }
+
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(items.SingleOrDefault(item => item.Aggregate.Product.Id == productId && item.Aggregate.Product.IsActive));
+
+        public Task<OrderEntryProduct?> GetActiveProductByCodeAsync(string? productCode, CancellationToken cancellationToken = default)
+        {
+            var key = CatalogueNormalization.Key(productCode);
+            return Task.FromResult(items.SingleOrDefault(item => item.Aggregate.Product.IsActive && string.Equals(CatalogueNormalization.Key(item.Aggregate.Product.Code), key, StringComparison.Ordinal)));
+        }
+    }
+
+    private sealed class BlockingImportCatalogue : IOrderEntryCatalogueQueries
+    {
+        public TaskCompletionSource<OrderEntryProduct?> ExactLookup { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? categoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([]);
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(null);
+        public Task<OrderEntryProduct?> GetActiveProductByCodeAsync(string? productCode, CancellationToken cancellationToken = default) => ExactLookup.Task;
+
+        public void CompleteUnresolved() => ExactLookup.TrySetResult(null);
     }
 
     private sealed class EmptyCatalogueStore : ICatalogueStore

@@ -59,6 +59,150 @@ public sealed class OrderLifecycleApplicationTests
     }
 
     [TestMethod]
+    public async Task OrdinaryModificationPreservesNonAuthoritativeSourceTotal()
+    {
+        var current = Snapshot(BusinessDate, total: 3231) with { SourceTotalTtc = Money.FromCents(3590) };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow)));
+
+        var result = await service.SaveModificationAsync(current with { SourceTotalTtc = null, Comment = "ordinary edit" });
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(Money.FromCents(3590), store.Snapshot!.SourceTotalTtc);
+        Assert.AreEqual("ordinary edit", store.Snapshot.Comment);
+    }
+
+    [TestMethod]
+    public async Task PaymentModificationPreservesNonAuthoritativeSourceTotal()
+    {
+        var current = Snapshot(BusinessDate, total: 1000) with { SourceTotalTtc = Money.FromCents(3590) };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow)));
+
+        var result = await service.SaveModificationAsync(current with { CardPaymentTtc = Money.FromCents(500) }, BusinessDate);
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(Money.FromCents(3590), store.Snapshot!.SourceTotalTtc);
+        Assert.AreEqual(500L, store.Snapshot.CardPaymentTtc.Cents);
+    }
+
+    [TestMethod]
+    public async Task PaymentOnlyModificationPreservesDiscountedManualTotalAndSourceFacts()
+    {
+        var option = new OrderLineAdjustmentSnapshot(Guid.NewGuid(), 0, OrderAdjustmentKind.PredefinedOption, Guid.NewGuid(), "Sauce", "Sans sauce", Money.Zero, 10m);
+        var item = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "TST001A", "Produit test", "Tests", Money.FromCents(950), 10m, true, 4, Money.FromCents(3800), Money.FromCents(3230), [option]);
+        var manualTax = new OrderTaxBreakdown(10m, Money.FromCents(3100), Money.FromCents(282), Guid.NewGuid());
+        var current = Snapshot(BusinessDate, total: 3100) with
+        {
+            SourceType = OrderSourceType.HiboutikPaste,
+            SourceTotalTtc = Money.FromCents(3590),
+            Items = [item],
+            ManualTotalOverrideActive = true,
+            PickupDiscountApplied = true,
+            PickupDiscountRate = 0.15m,
+            TaxBreakdown = [manualTax]
+        };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountRate = 0.15m, PickupDiscountMinTotalTtc = Money.Zero }));
+
+        var result = await service.SaveModificationAsync(current with { CardPaymentTtc = Money.FromCents(3100) }, BusinessDate);
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(3100L, store.Snapshot!.TotalTtc.Cents);
+        Assert.IsTrue(store.Snapshot.ManualTotalOverrideActive);
+        Assert.AreEqual(Money.FromCents(3590), store.Snapshot.SourceTotalTtc);
+        Assert.IsTrue(store.Snapshot.PickupDiscountApplied);
+        Assert.AreEqual(0.15m, store.Snapshot.PickupDiscountRate);
+        Assert.AreEqual(3100L, store.Snapshot.CardPaymentTtc.Cents);
+        Assert.AreEqual(manualTax, store.Snapshot.TaxBreakdown.Single());
+        CollectionAssert.AreEqual(current.Items.ToArray(), store.Snapshot.Items.ToArray());
+    }
+
+    [TestMethod]
+    public async Task CloseUsesActiveManualTotalInsteadOfDiscountedCalculatedTotal()
+    {
+        var discountedItem = new OrderItemSnapshot(Guid.NewGuid(), 0, Guid.NewGuid(), "TST001A", "Produit test", "Tests", Money.FromCents(950), 10m, true, 4, Money.FromCents(3800), Money.FromCents(3230), []);
+        var current = Snapshot(BusinessDate, total: 3100) with
+        {
+            Items = [discountedItem],
+            ManualTotalOverrideActive = true,
+            PickupDiscountApplied = true,
+            PickupDiscountRate = 0.15m
+        };
+        var mismatchStore = new LifecycleStore(current with { CardPaymentTtc = Money.FromCents(3230) });
+        using var mismatchService = new OrderLifecycleService(mismatchStore, new DeterministicIds(), new FixedClock());
+
+        var mismatch = await mismatchService.CloseAsync(current.Id);
+
+        Assert.IsFalse(mismatch.Succeeded);
+        Assert.AreEqual(ValidationCodes.PaymentMismatch, mismatch.Issues.Single().StableCode);
+        Assert.AreEqual(0, mismatchStore.SaveCalls);
+
+        var exactStore = new LifecycleStore(current with { CardPaymentTtc = Money.FromCents(3100) });
+        using var exactService = new OrderLifecycleService(exactStore, new DeterministicIds(), new FixedClock());
+
+        var exact = await exactService.CloseAsync(current.Id);
+
+        Assert.IsTrue(exact.Succeeded, string.Join(";", exact.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(OrderStatus.Closed, exactStore.Snapshot!.Status);
+        Assert.AreEqual(3100L, exactStore.Snapshot.TotalTtc.Cents);
+        Assert.IsTrue(exactStore.Snapshot.ManualTotalOverrideActive);
+    }
+
+    [TestMethod]
+    public async Task PriceAffectingModificationPreservesNonAuthoritativeSourceTotal()
+    {
+        var current = Snapshot(BusinessDate, total: 1000) with { SourceTotalTtc = Money.FromCents(3590) };
+        var item = current.Items.Single();
+        var repricedItem = item with
+        {
+            Quantity = 2,
+            ExtendedBaseTtc = Money.FromCents(2000),
+            CalculatedLineTotalTtc = Money.FromCents(2000)
+        };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow)));
+
+        var result = await service.SaveModificationAsync(current with { Items = [repricedItem] });
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(Money.FromCents(3590), store.Snapshot!.SourceTotalTtc);
+        Assert.AreEqual(2000L, store.Snapshot.TotalTtc.Cents);
+    }
+
+    [TestMethod]
+    public async Task ClosePreservesNonAuthoritativeSourceTotal()
+    {
+        var current = Snapshot(BusinessDate, total: 1000) with
+        {
+            SourceTotalTtc = Money.FromCents(3590),
+            CardPaymentTtc = Money.FromCents(1000)
+        };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock());
+
+        var result = await service.CloseAsync(current.Id);
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(OrderStatus.Closed, store.Snapshot!.Status);
+        Assert.AreEqual(Money.FromCents(3590), store.Snapshot.SourceTotalTtc);
+    }
+
+    [TestMethod]
+    public async Task CancelPreservesNonAuthoritativeSourceTotal()
+    {
+        var current = Snapshot(BusinessDate, total: 1000) with { SourceTotalTtc = Money.FromCents(3590) };
+        var store = new LifecycleStore(current);
+        using var service = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock());
+
+        var result = await service.CancelAsync(current.Id);
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Message)));
+        Assert.AreEqual(OrderStatus.Cancelled, store.Snapshot!.Status);
+        Assert.AreEqual(Money.FromCents(3590), store.Snapshot.SourceTotalTtc);
+    }
+
+    [TestMethod]
     public async Task NonAuthoritativeLifecycleMutationIsRejectedBeforePersistence()
     {
         var current = Snapshot(BusinessDate, total: 1000) with { CardPaymentTtc = Money.FromCents(1000) };

@@ -1,8 +1,8 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-14  
-**Current state:** M01 through M08 are Passed and merged. M09 — Hiboutik paste-order fallback — is **Authorized** by explicit project-owner approval. Dedicated implementation branch `codex/m09-hiboutik-paste-fallback` and PR #17 exist. Codex execution remains gated by Issue #4 and may begin only after the complete queued M09 handoff exists and the owner reopens the gate. M10 and later milestones remain unauthorized.
+**Last updated:** 2026-09-16
+**Current state:** M01 through M08 are Passed and merged. M09 — Hiboutik paste-order fallback — is **Passed / ready for separate merge approval**. The accepted production candidate is `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d` (FIX-14), with accepted EXE SHA-256 `CDC1257A698FE90237316FFE92361BF20EEF97CB44065AFBF70202EE0D0A26BA`, ZIP SHA-256 `00CEFAECB56666FABB03B7D141A4B75D18CF4DAA1A270358E7D3C457D5736319`, exact-head CI #712 / `35019616149` successful, 651/651 Release tests passed, and a 0-warning / 0-error Release build. Owner Windows/WPF manual acceptance is PASSED and A–N evidence is reconciled in the final manual-acceptance record and PR #17 Conversation. The final documentation-only closure head is later than the accepted production candidate and is not a replacement executable. PR #17 remains OPEN / unmerged pending separate explicit project-owner merge approval. M10 and later milestones remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07/M08 evidence remains authoritative in milestone-specific worklogs/manual-acceptance/PR records. This living document states current control state only.
 
@@ -32,7 +32,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M06 — Local recovery/read-only enforcement | Passed | Merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; final Windows/WPF acceptance Passed. |
 | M07 — Pairing, target-directed handoff and disaster recovery | Passed | Accepted production head `e971580ef43d3b50366d51733ca9431ca0997e8d`; closure docs/evidence head `d586c847f2dd541815b8c00565c58b3685a3e4be`; PR #13 merged to `main` at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`; exact-head CI #631 succeeded with 541/541 tests and 0 warnings/errors. |
 | M08 — Printing and reprinting | Passed | Accepted production candidate `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; production implementation commit `7ab74655977faaf70f95c91188d5a69486a378e6`; final pass-record head `5f8c92c29116e17a3365ecd8801f7e13f107269c`; exact-head CI #675 succeeded; project-owner physical/manual acceptance Passed; PR #14 merged to `main` at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. |
-| M09 — Hiboutik paste fallback | Authorized | Preparation/specification package complete. Project owner explicitly authorized implementation on 2026-09-14. Durable authorization: `implementation/milestone-09-authorization.md`. Active branch `codex/m09-hiboutik-paste-fallback`; active PR/mailbox #17. Codex execution remains blocked while Issue #4 is CLOSED. |
+| M09 — Hiboutik paste fallback | Passed | Accepted production candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d` (FIX-14); exact-head CI #712 / `35019616149` succeeded with 651/651 Release tests passed and a 0-warning / 0-error Release build. Owner Windows/WPF manual acceptance is PASSED with A–N evidence reconciled; accepted EXE/ZIP hashes are recorded in the final manual-acceptance record. The later docs-only closure head is not a replacement executable. PR #17 remains OPEN / unmerged and merge requires separate explicit project-owner approval. |
 | M10 — Catalogue `.xlsx` | Not started | Unauthorized; pending M09. |
 | M11 — Gestion export | Not started | Unauthorized; pending M10. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
@@ -105,15 +105,14 @@ Preparation audit conclusion:
 - branch: `codex/m09-hiboutik-paste-fallback`;
 - PR/mailbox: #17.
 
-Authorization is not execution permission by itself. While Issue #4 remains CLOSED, Codex makes no M09 production-code changes.
+Authorization is not merge approval. The final M09 execution state is now:
 
-Before Codex may execute M09:
-
-- Issue #4 must point to branch `codex/m09-hiboutik-paste-fallback` and PR #17;
-- exactly one complete unprocessed top-level `CODEX_HANDOFF_READY` must be queued on PR #17;
-- Issue #4 must then be reopened by the owner/operator.
-
-M10+ remain unauthorized.
+- Issue #4 was observed **OPEN** solely for `M09-FINAL-CLOSURE-PASS-READY-FOR-MERGE-15`;
+- branch `codex/m09-hiboutik-paste-fallback` and PR #17 remain the durable M09 mailbox;
+- WP1 through WP5, WP6 preparation and the narrow FIX-12/FIX-13/FIX-14 remediations are preserved as historical implementation evidence;
+- owner Windows/WPF manual acceptance is **PASSED** on accepted candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`, with A–N evidence reconciled in `implementation/milestone-09-final-manual-acceptance.md`;
+- the current handoff is docs/evidence/status-only; its later closure head is not a replacement for the owner-tested executable;
+- M09 is `Passed` / ready for separate merge approval; PR #17 remains OPEN / unmerged and M10+ remain unauthorized.
 
 ## 6. M09 execution topology
 
@@ -122,13 +121,16 @@ Authorized topology:
 - branch: `codex/m09-hiboutik-paste-fallback`;
 - PR: `M09: Hiboutik paste-order fallback` (#17);
 - PR top-level Conversation comments: durable mailbox;
-- first work package: WP1 — domain/data migration and exact-code seam;
-- prepare/publish the first complete executable handoff while Issue #4 remains CLOSED;
-- then ask the owner to reopen Issue #4 so Codex can immediately consume the queued work;
 - Codex processes only authorized M09 work packages serially;
+- the completed WP6 handoff is `M09-WP6-EVIDENCE-MANUAL-ACCEPTANCE-BUILD-11`; the completed reset remediation is `M09-MANUAL-A-HIBOUTIK-RESET-ENABLEMENT-FIX-12`; the completed payment-only remediation is `M09-MANUAL-F-MANUAL-TOTAL-PAYMENT-PRESERVATION-FIX-13`; the completed quantity-revert remediation is `M09-MANUAL-F-REVIEW-QUANTITY-REVERT-NET-STATE-FIX-14`; the current handoff is `M09-FINAL-CLOSURE-PASS-READY-FOR-MERGE-15`;
+- the owner-tested candidate is `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`; the final documentation-only closure head is intentionally later and must not be treated as a replacement owner-tested executable;
 - completion of a work package never authorizes the next milestone or merge;
 - merge requires separate explicit owner approval.
 
-## 7. Evidence preservation
+## 7. M09 evidence and acceptance boundary
+
+The durable WP6 traceability matrix and final A–N reconciliation are recorded in [`implementation/milestone-09-worklog.md`](implementation/milestone-09-worklog.md) and [`implementation/milestone-09-final-manual-acceptance.md`](implementation/milestone-09-final-manual-acceptance.md). The historical remediation chain is preserved, including the earlier candidate evidence and the accepted FIX-14 correction. The owner final disposition is durable in PR #17 comment `5704531105`; no new physical observation is created by the closure docs. The M11 `Gestion SUSHI 81` export-exclusion cross-check remains outside M09 scope.
+
+## 8. Evidence preservation
 
 Historical milestone worklogs, acceptance records, decision records, PR discussions and accepted exact-head evidence remain authoritative in place. Current-state cleanup must not rewrite historical failures/remediation as though they never occurred.

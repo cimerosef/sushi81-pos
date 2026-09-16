@@ -28,10 +28,14 @@ public sealed class OrderManagementRowViewModel(OrderBrowserRow row) : INotifyPr
     public string TelephoneText => Row.Telephone ?? Text("OrderBrowserEmptyTelephone", "—");
     public string AddressText => Row.DeliveryAddress ?? string.Empty;
     public string CommentText => Row.Comment ?? string.Empty;
+    public string SourceText => Row.SourceType == OrderSourceType.HiboutikPaste ? Text("OrderSourceHiboutik", "Hiboutik") : Text("OrderSourcePos", "POS");
+    public string SourceTotalText => Row.SourceTotalTtc is { } amount ? amount.Euros.ToString("0.00", CultureInfo.CurrentCulture) : Text("OrderSourceTotalUnavailable", "—");
+    public bool HasSourceTotal => Row.SourceTotalTtc is not null;
+    public bool HasHiboutikSource => Row.SourceType == OrderSourceType.HiboutikPaste;
     public void ApplyLocalization(IReadOnlyDictionary<string, string> values)
     {
         localized = values ?? new Dictionary<string, string>();
-        foreach (var name in new[] { nameof(FulfilmentText), nameof(StatusText), nameof(TelephoneText), nameof(TotalText), nameof(CardText), nameof(CashText), nameof(DifferenceText) }) PropertyChanged?.Invoke(this, new(name));
+        foreach (var name in new[] { nameof(FulfilmentText), nameof(StatusText), nameof(TelephoneText), nameof(TotalText), nameof(CardText), nameof(CashText), nameof(DifferenceText), nameof(SourceText), nameof(SourceTotalText), nameof(HasSourceTotal), nameof(HasHiboutikSource) }) PropertyChanged?.Invoke(this, new(name));
     }
     private string Text(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
 }
@@ -46,9 +50,26 @@ public sealed class OrderDetailLineViewModel(OrderItemSnapshot item) : INotifyPr
     public string PriceBreakdownText => string.Format(CultureInfo.CurrentCulture, "{0:0.00} € × {1} = {2:0.00} €", Item.ProductBasePriceTtc.Euros, Quantity, Item.ProductBasePriceTtc.Euros * Quantity);
     public string OptionsText => string.Join(", ", Item.Adjustments.OrderBy(adjustment => adjustment.DisplayOrder).Select(adjustment =>
         $"{adjustment.Label} ({adjustment.AdjustmentTtcPerUnit.Euros:+0.00;-0.00;0.00} €/{Text("Unit", "unité")})"));
-    public int Quantity { get => quantity; set { if (value <= 0 || quantity == value) return; quantity = value; PropertyChanged?.Invoke(this, new(nameof(Quantity))); PropertyChanged?.Invoke(this, new(nameof(PriceBreakdownText))); } }
+    public int Quantity
+    {
+        get => quantity;
+        set
+        {
+            if (value <= 0 || quantity == value) return;
+            quantity = value;
+            PropertyChanged?.Invoke(this, new(nameof(Quantity)));
+            PropertyChanged?.Invoke(this, new(nameof(PriceBreakdownText)));
+        }
+    }
     public OrderItemSnapshot ToSnapshot()
     {
+        // An unchanged persisted line already contains the sale-time pricing snapshot,
+        // including any Retrait discount. Rebuilding it here would make a payment-only
+        // edit look price-affecting to the lifecycle service.
+        // The comparison is intentionally based on the final business state. An
+        // operator may temporarily change quantity and then restore it before saving.
+        if (quantity == Item.Quantity) return Item;
+
         var unitBase = Item.ProductBasePriceTtc;
         var adjustmentUnit = Item.Adjustments.Aggregate(Money.Zero, (sum, adjustment) => sum + adjustment.AdjustmentTtcPerUnit);
         return Item with { Quantity = quantity, ExtendedBaseTtc = unitBase * quantity, CalculatedLineTotalTtc = unitBase * quantity + adjustmentUnit * quantity };
@@ -253,6 +274,10 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     public string TotalText => SelectedOrder?.TotalTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture) ?? string.Empty;
     public string PaidText => SelectedOrder is null ? string.Empty : OrderPaymentState.From(SelectedOrder).Total.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string DifferenceText => SelectedOrder is null ? string.Empty : OrderPaymentState.From(SelectedOrder).Difference.Euros.ToString("0.00", CultureInfo.CurrentCulture);
+    public string SourceText => SelectedOrder is null ? string.Empty : SelectedOrder.SourceType == OrderSourceType.HiboutikPaste ? Text("OrderSourceHiboutik", "Hiboutik") : Text("OrderSourcePos", "POS");
+    public string SourceTotalText => SelectedOrder?.SourceTotalTtc is { } amount ? amount.Euros.ToString("0.00", CultureInfo.CurrentCulture) : SelectedOrder is null ? string.Empty : Text("OrderSourceTotalUnavailable", "—");
+    public bool HasSourceTotal => SelectedOrder?.SourceTotalTtc is not null;
+    public bool HasHiboutikSource => SelectedOrder?.SourceType == OrderSourceType.HiboutikPaste;
     public string EditPaidText => TryParse(EditCard, out var card) && TryParse(EditCash, out var cash)
         ? (card + cash).Euros.ToString("0.00", CultureInfo.CurrentCulture)
         : string.Empty;
@@ -579,7 +604,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         time.Hour is 11 or 12 or 13 or 14 or 18 or 19 or 20 or 21 or 22 &&
         time.Minute % 5 == 0 && time.Ticks % TimeSpan.TicksPerMinute == 0;
     private static bool TryParse(string value, out Money money) { if (M03Presentation.TryParseDecimalInput(value, out var parsed)) { money = Money.FromEuros(parsed); return true; } money = Money.Zero; return false; }
-    private void RaiseDetailProperties() { OnPropertyChanged(nameof(HasSelectedOrder)); OnPropertyChanged(nameof(IsOperationalViewActive)); OnPropertyChanged(nameof(MinimumEditPlannedDate)); foreach (var name in new[] { nameof(ReferenceText), nameof(StatusText), nameof(FulfilmentText), nameof(AdvanceText), nameof(ManualTotalText), nameof(PickupDiscountText), nameof(TaxSummaryText), nameof(PlannedDateText), nameof(PlannedTimeText), nameof(TotalText), nameof(PaidText), nameof(DifferenceText), nameof(TelephoneText), nameof(AddressText), nameof(CommentText), nameof(EditPickupDiscountRequested), nameof(IsEditPickupDiscountEnabled) }) OnPropertyChanged(name); RaiseEditPaymentProperties(); RaiseCommandProperties(); }
+    private void RaiseDetailProperties() { OnPropertyChanged(nameof(HasSelectedOrder)); OnPropertyChanged(nameof(IsOperationalViewActive)); OnPropertyChanged(nameof(MinimumEditPlannedDate)); foreach (var name in new[] { nameof(ReferenceText), nameof(StatusText), nameof(FulfilmentText), nameof(AdvanceText), nameof(ManualTotalText), nameof(PickupDiscountText), nameof(TaxSummaryText), nameof(PlannedDateText), nameof(PlannedTimeText), nameof(TotalText), nameof(PaidText), nameof(DifferenceText), nameof(SourceText), nameof(SourceTotalText), nameof(HasSourceTotal), nameof(HasHiboutikSource), nameof(TelephoneText), nameof(AddressText), nameof(CommentText), nameof(EditPickupDiscountRequested), nameof(IsEditPickupDiscountEnabled) }) OnPropertyChanged(name); RaiseEditPaymentProperties(); RaiseCommandProperties(); }
     private void RaiseCommandProperties() { foreach (var name in new[] { nameof(CanModify), nameof(CanSave), nameof(CanAbandon), nameof(CanClose), nameof(CanCancel), nameof(CanReuseCustomer), nameof(CanAddCurrentLine), nameof(CanReprintKitchen), nameof(CanReprintCustomer), nameof(IsEditPickupDiscountEnabled), nameof(EditCloseEligibilityText) }) OnPropertyChanged(name); }
     private void RaiseEditPaymentProperties() { foreach (var name in new[] { nameof(EditPaidText), nameof(EditDifferenceText), nameof(EditCloseEligibilityText) }) OnPropertyChanged(name); }
     private static bool ItemsEquivalent(IReadOnlyList<OrderItemSnapshot> left, OrderItemSnapshot[] right) =>
