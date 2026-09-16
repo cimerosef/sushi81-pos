@@ -39,7 +39,7 @@ Focused evidence passed:
 - Relevant M05 integration tests: 8/8; M09 WP1: 4/4; M09 WP5: 7/7; M05 desktop: 53/53.
 - Presentation/fallback/resource/XAML checks passed: 2 presentation refresh tests, 1 application fallback test, 1 passive-binding test and 1 FR/zh-CN localization test.
 - Full Release solution suite: 654/654 passed, 0 failed, 0 skipped. Release build: 0 warnings, 0 errors.
-- Self-contained `win-x64` `PublishSingleFile=false` verification publish passed from the implementation head. EXE `Sushi81.Pos.Desktop.exe`: 162,816 bytes, SHA-256 `6CDC50DCB9B95E2F7F3E0B228E094EAF9FAC0272690CDD1BFA4CF309CADA675C`. ZIP `post-m09-dashboard-win-x64.zip`: 67,042,068 bytes, SHA-256 `693CE3878434E5CB4B64AFF9945B1E20DB517A11C75D04753EF02D630D69C04A`.
+- Self-contained `win-x64` `PublishSingleFile=false` verification publish passed from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb` (the final implementation checkout before this evidence-only update). EXE `Sushi81.Pos.Desktop.exe`: 162,816 bytes, SHA-256 `5DA02D47C0854F993FC461AF1936300BB1DB455B9EABAC30CACABE31FC4FB7AB`. ZIP `post-m09-dashboard-win-x64.zip`: 67,042,116 bytes, SHA-256 `97D9ACC23C6356A68158E749762EEAF4689BA5803BCF0E237AC73A6E64B48145`.
 
 Owner manual acceptance remains pending and must be performed against the exact candidate. Codex does not declare the owner checklist passed.
 
