@@ -144,7 +144,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>();
     private bool disposed;
     private OperationalOrderView? operationalView;
-    private OrderOperationalSummary summary = new(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0);
+    private OrderOperationalSummary summary = new(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0, Money.Zero, Money.Zero);
 
     public OrderLifecycleShellViewModel(OrderLifecycleService service, IWriteAuthorityGuard? authorityGuard = null, IOrderPrintApplicationService? printService = null)
     {
@@ -327,6 +327,8 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     public string DashboardReceivedText => summary.ReceivedTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string DashboardReceivedCardText => summary.ReceivedCardTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public string DashboardReceivedCashText => summary.ReceivedCashTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
+    public string HiboutikReceivedCardText => summary.HiboutikReceivedCardTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
+    public string HiboutikReceivedCashText => summary.HiboutikReceivedCashTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture);
     public int FutureOrderCount => summary.FutureOrderCount;
     public int DueTodayAdvanceOrderCount => summary.DueTodayAdvanceOrderCount;
     public int OverdueUnsettledOrderCount => summary.OverdueUnsettledOrderCount;
@@ -420,7 +422,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     {
         PerformanceTrace.Log("lifecycle.dashboard.start");
         summary = await service.GetOperationalSummaryAsync(service.BusinessDate, cancellationToken);
-        foreach (var name in new[] { nameof(DashboardTurnoverText), nameof(DashboardReceivedText), nameof(DashboardReceivedCardText), nameof(DashboardReceivedCashText), nameof(FutureOrderCount), nameof(DueTodayAdvanceOrderCount), nameof(OverdueUnsettledOrderCount) }) OnPropertyChanged(name);
+        foreach (var name in new[] { nameof(DashboardTurnoverText), nameof(DashboardReceivedText), nameof(DashboardReceivedCardText), nameof(DashboardReceivedCashText), nameof(HiboutikReceivedCardText), nameof(HiboutikReceivedCashText), nameof(FutureOrderCount), nameof(DueTodayAdvanceOrderCount), nameof(OverdueUnsettledOrderCount) }) OnPropertyChanged(name);
         PerformanceTrace.Log("lifecycle.dashboard.end");
     }
 

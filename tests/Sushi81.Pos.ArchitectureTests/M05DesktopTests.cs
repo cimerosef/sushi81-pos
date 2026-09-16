@@ -1,3 +1,4 @@
+using System.IO;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
@@ -399,6 +400,17 @@ public sealed class M05DesktopTests
         Assert.AreEqual(row.Id, (await service.SearchLiveAsync("6123")).Single().Id);
         Assert.AreEqual(row.Id, (await service.SearchLiveAsync("+33 6 12")).Single().Id);
         Assert.AreEqual(row.Id, (await service.SearchLiveAsync("call-back")).Single().Id);
+    }
+
+    [TestMethod]
+    public async Task ApplicationSummaryFallbackReturnsZeroForTheSeparateHiboutikValues()
+    {
+        using var service = new OrderLifecycleService(new FallbackStore(new OrderBrowserRow(Guid.NewGuid(), new DateOnly(2026, 8, 31), new TimeOnly(11, 0), FulfilmentMode.Retrait, OrderStatus.Open, Money.FromCents(1000), null)), new DeterministicIds(), new FixedClock());
+
+        var summary = await service.GetOperationalSummaryAsync(new DateOnly(2026, 8, 31));
+
+        Assert.AreEqual(Money.Zero, summary.HiboutikReceivedCardTtc);
+        Assert.AreEqual(Money.Zero, summary.HiboutikReceivedCashTtc);
     }
 
     [TestMethod]
@@ -2366,10 +2378,14 @@ public sealed class M05DesktopTests
             Assert.AreEqual(fr.Localized["OrderSourceTotalUnavailable"], nullValues.SourceTotalText);
             Assert.AreNotEqual(nullValues.TotalText, nullValues.SourceTotalText);
 
-            var required = new[] { "HiboutikPasteAction", "HiboutikPasteInstructions", "HiboutikParse", "HiboutikReset", "HiboutikSelectProduct", "HiboutikIgnoreLine", "HiboutikConfigureOptions", "HiboutikResolutionUnresolved", "HiboutikOptionReviewPending", "OrderSourceHiboutik", "OrderSourceTotalUnavailable" };
+            var required = new[] { "HiboutikPasteAction", "HiboutikPasteInstructions", "HiboutikParse", "HiboutikReset", "HiboutikSelectProduct", "HiboutikIgnoreLine", "HiboutikConfigureOptions", "HiboutikResolutionUnresolved", "HiboutikOptionReviewPending", "OrderSourceHiboutik", "OrderSourceTotalUnavailable", "DashboardHiboutikCard", "DashboardHiboutikCash" };
             foreach (var key in required) Assert.IsTrue(fr.Localized.TryGetValue(key, out var french) && !string.IsNullOrWhiteSpace(french), key);
+            Assert.AreEqual("Hiboutik CB aujourd’hui", fr.Localized["DashboardHiboutikCard"]);
+            Assert.AreEqual("Hiboutik Espèce aujourd’hui", fr.Localized["DashboardHiboutikCash"]);
             fr.ChangeLanguageAsync(fr.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
             foreach (var key in required) Assert.IsTrue(fr.Localized.TryGetValue(key, out var chinese) && !string.IsNullOrWhiteSpace(chinese), key);
+            Assert.AreEqual("Hiboutik 今日 CB", fr.Localized["DashboardHiboutikCard"]);
+            Assert.AreEqual("Hiboutik 今日现金", fr.Localized["DashboardHiboutikCash"]);
             Assert.AreNotEqual("Commande Hiboutik", fr.Localized["HiboutikPasteAction"]);
         }
         finally
@@ -2377,6 +2393,38 @@ public sealed class M05DesktopTests
             CultureInfo.CurrentCulture = originalCulture;
             CultureInfo.CurrentUICulture = originalUiCulture;
         }
+    }
+
+    [TestMethod]
+    public void MainWindowCaisseAddsExactlyTwoPassiveHiboutikDashboardBindings()
+    {
+        var xamlPath = Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml");
+        var xaml = File.ReadAllText(xamlPath);
+        var caisseStart = xaml.IndexOf("<TabItem Header=\"{Binding DataContext.Localized[Caisse]", StringComparison.Ordinal);
+        var caisseEnd = xaml.IndexOf("</TabItem>", caisseStart, StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, caisseStart);
+        Assert.IsGreaterThan(caisseStart, caisseEnd);
+        var caisse = xaml[caisseStart..caisseEnd];
+        var cardBinding = "DataContext.Lifecycle.HiboutikReceivedCardText";
+        var cashBinding = "DataContext.Lifecycle.HiboutikReceivedCashText";
+        Assert.AreEqual(1, caisse.Split(cardBinding, StringSplitOptions.None).Length - 1);
+        Assert.AreEqual(1, caisse.Split(cashBinding, StringSplitOptions.None).Length - 1);
+        Assert.AreEqual(1, caisse.Split("Localized[DashboardHiboutikCard]", StringSplitOptions.None).Length - 1);
+        Assert.AreEqual(1, caisse.Split("Localized[DashboardHiboutikCash]", StringSplitOptions.None).Length - 1);
+        Assert.IsFalse(caisse.Contains("HiboutikReceivedCardText\" IsEnabled", StringComparison.Ordinal));
+        Assert.IsFalse(caisse.Contains("HiboutikReceivedCashText\" IsEnabled", StringComparison.Ordinal));
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "Sushi81.Pos.sln"))) return directory.FullName;
+            directory = directory.Parent;
+        }
+
+        throw new InvalidOperationException("Repository root was not found.");
     }
 
     private static OrderSnapshot Snapshot(DateOnly plannedDate) => new(
@@ -2452,7 +2500,7 @@ public sealed class M05DesktopTests
         public Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>(ordinaryRows.Where(row => row.PlannedFulfilmentDate == plannedDate).ToArray());
         public Task SaveLifecycleAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken = default) { Snapshot = snapshot; return Task.CompletedTask; }
         public Task<IReadOnlyList<OrderBrowserRow>> SearchAsync(string? query, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>(query is null ? operationalRows : searchRows);
-        public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) => Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0));
+        public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) => Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0, Money.Zero, Money.Zero));
     }
 
     private sealed class LifecycleStore(OrderSnapshot initial) : IOrderStore, IOrderLifecycleStore
@@ -2464,7 +2512,7 @@ public sealed class M05DesktopTests
         public Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>([Row(Snapshot)]);
         public Task SaveLifecycleAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken = default) { Snapshot = snapshot; LastAdjustments = adjustments; return Task.CompletedTask; }
         public Task<IReadOnlyList<OrderBrowserRow>> SearchAsync(string? query, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>([Row(Snapshot)]);
-        public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) => Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0));
+        public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) => Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0, Money.Zero, Money.Zero));
         private static OrderBrowserRow Row(OrderSnapshot value) => new(value.Id, value.PlannedFulfilmentDate, value.PlannedFulfilmentTime, value.Fulfilment, value.Status, value.TotalTtc, value.Telephone) { Reference = value.Reference, DeliveryAddress = value.DeliveryAddress, Comment = value.Comment };
     }
 
@@ -2485,7 +2533,7 @@ public sealed class M05DesktopTests
             }
             return Task.FromResult<IReadOnlyList<OrderBrowserRow>>([newRow]);
         }
-        public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) => Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0));
+        public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) => Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0, Money.Zero, Money.Zero));
         public void ReleaseOldSearch() => oldSearch.TrySetResult([oldRow]);
     }
 
@@ -2783,7 +2831,7 @@ public sealed class M05DesktopTests
         public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default)
         {
             DashboardCallCount++;
-            return Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0));
+            return Task.FromResult(new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0, Money.Zero, Money.Zero));
         }
 
         private static OrderBrowserRow Row(OrderSnapshot value) => new(value.Id, value.PlannedFulfilmentDate, value.PlannedFulfilmentTime, value.Fulfilment, value.Status, value.TotalTtc, value.Telephone)

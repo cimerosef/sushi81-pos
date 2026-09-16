@@ -69,6 +69,8 @@ public sealed class M07PresentationRefreshTests
             Assert.AreEqual(store.NewRow.Id, shell.Lifecycle.Orders.Single().Id);
             Assert.AreEqual("42.00", shell.Admin.DeliveryMinText);
             Assert.AreEqual(store.NewSummary.TurnoverTtc.Euros.ToString("0.00", System.Globalization.CultureInfo.CurrentCulture), shell.Lifecycle.DashboardTurnoverText);
+            Assert.AreEqual(store.NewSummary.HiboutikReceivedCardTtc.Euros.ToString("0.00", System.Globalization.CultureInfo.CurrentCulture), shell.Lifecycle.HiboutikReceivedCardText);
+            Assert.AreEqual(store.NewSummary.HiboutikReceivedCashTtc.Euros.ToString("0.00", System.Globalization.CultureInfo.CurrentCulture), shell.Lifecycle.HiboutikReceivedCashText);
         });
     }
 
@@ -147,7 +149,7 @@ public sealed class M07PresentationRefreshTests
         public TaskCompletionSource<object?> ReleaseCatalogueRead => releaseCatalogue;
         public bool ThrowOnCatalogueRead { get; init; }
         public BusinessSettings NewSettings { get; } = BusinessSettings.Defaults(new DateTimeOffset(2026, 9, 10, 12, 0, 0, TimeSpan.Zero)) with { DeliveryMinMerchandiseTotalTtc = Money.FromEuros(42) };
-        public OrderOperationalSummary NewSummary { get; } = new(Money.FromEuros(123), Money.FromEuros(100), Money.FromEuros(60), Money.FromEuros(40), 1, 2, 3);
+        public OrderOperationalSummary NewSummary { get; } = new(Money.FromEuros(123), Money.FromEuros(100), Money.FromEuros(60), Money.FromEuros(40), 1, 2, 3, Money.FromEuros(7), Money.FromEuros(8));
 
         public MutablePresentationStore()
         {
