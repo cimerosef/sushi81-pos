@@ -31,13 +31,15 @@ The mandatory docs-first reconciliation was completed and pushed in the first co
 
 The production implementation then extended the existing operational-summary seam with two signed, effective-business-date Hiboutik payment aggregates, read-only view-model projection, two passive Caisse bindings and FR/zh-CN resources. The existing POS summary query and payment/write paths remain unchanged; no schema, migration, dependency, new entity or Hiboutik workflow was added.
 
+Implementation commit: `b10c06e06093f16d2df6335d8431299efe00b081`.
+
 Focused evidence passed:
 
 - Post-M09 SQLite reporting test: 1/1 passed, including POS/Hiboutik separation, Open/Closed eligibility, cancellation exclusion with retained rows, signed corrections, effective-date attribution and recorded-date non-attribution.
 - Relevant M05 integration tests: 8/8; M09 WP1: 4/4; M09 WP5: 7/7; M05 desktop: 53/53.
 - Presentation/fallback/resource/XAML checks passed: 2 presentation refresh tests, 1 application fallback test, 1 passive-binding test and 1 FR/zh-CN localization test.
 - Full Release solution suite: 654/654 passed, 0 failed, 0 skipped. Release build: 0 warnings, 0 errors.
-- Self-contained `win-x64` `PublishSingleFile=false` verification publish passed. The exact candidate artifact hashes and sizes are recorded in the completion handoff comment.
+- Self-contained `win-x64` `PublishSingleFile=false` verification publish passed from the implementation head. EXE `Sushi81.Pos.Desktop.exe`: 162,816 bytes, SHA-256 `6CDC50DCB9B95E2F7F3E0B228E094EAF9FAC0272690CDD1BFA4CF309CADA675C`. ZIP `post-m09-dashboard-win-x64.zip`: 67,042,068 bytes, SHA-256 `693CE3878434E5CB4B64AFF9945B1E20DB517A11C75D04753EF02D630D69C04A`.
 
 Owner manual acceptance remains pending and must be performed against the exact candidate. Codex does not declare the owner checklist passed.
 
