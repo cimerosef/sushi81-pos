@@ -1,7 +1,7 @@
 # Order lifecycle
 
 **Status:** Approved — Phase 2 baseline  
-**Last updated:** 2026-08-27  
+**Last updated:** 2026-09-16
 **Product:** Sushi81 POS  
 **Purpose:** Freeze the target order, modification, cancellation and payment lifecycle before implementation.
 
@@ -49,6 +49,7 @@ The following principles are authoritative for V1:
 18. External card-terminal refund/additional-charge execution remains outside Sushi81 POS V1.
 19. A Hiboutik paste-created order follows the same ordinary order lifecycle and UI as any other order; only a hidden source discriminator remains to enforce anti-double-counting exclusions.
 20. Payment adjustments distinguish the effective business date/time from the technical recording timestamp; the effective date defaults to the current business date but may be changed by the operator for a genuine later-entered/back-dated payment correction.
+21. The approved post-M09 Hiboutik daily CB/Espèce values are a separate passive view of retained payment adjustments and do not alter the ordinary POS-originated daily summaries or lifecycle.
 
 ## 3. Lifecycle dimensions
 
@@ -201,6 +202,19 @@ Examples:
 - an Open order does not block the summary.
 
 Ordinary summaries exclude Cancelled orders and Hiboutik paste-created orders according to the approved source/status boundaries.
+
+### 4.7.1 Separate Hiboutik daily payment values
+
+The approved post-M09 dashboard enhancement adds exactly two passive read-only values alongside the ordinary daily summary:
+
+- `Hiboutik CB aujourd'hui`;
+- `Hiboutik Espèce aujourd'hui`.
+
+For business date D, each value sums signed payment-adjustment deltas whose parent order is `source_type = HIBOUTIK_PASTE`, whose current status is not `CANCELLED`, whose `effective_at` belongs to D and whose bucket is respectively `CB` or `ESPECE`. Open and Closed non-Cancelled Hiboutik orders are included. Cancelled orders contribute zero, but their retained payment-adjustment facts are not deleted.
+
+These values use effective business date rather than `recorded_at`, order creation date or planned fulfilment date. They are not derived from the order total, `source_total_ttc` or current cumulative payment amounts.
+
+This source-specific view does not change ordinary POS-originated `CA opérationnel`, `Encaissé`, `CB` or `Espèce` values, turnover attribution, payment arithmetic, status transitions, cancellation behavior or export eligibility. It adds no combined Hiboutik total, order count, discrepancy, dedicated lifecycle, reconciliation workflow or write action.
 
 ### 4.8 Real-time operational turnover
 

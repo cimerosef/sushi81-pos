@@ -1,8 +1,8 @@
 # V1 Specification freeze
 
-**Status:** Approved — Phase 5 baseline, amended 2026-09-14
+**Status:** Approved — Phase 5 baseline, amended 2026-09-16
 **Freeze date:** 2026-08-27  
-**Latest approved amendment:** 2026-09-14
+**Latest approved amendment:** 2026-09-16
 **Product:** Sushi81 POS  
 **Purpose:** Record completion of the V1 design/specification phase and establish the authoritative implementation baseline for the Codex implementation phase.
 
@@ -193,7 +193,13 @@ M03 owns this extension; M04 remains gated until M03 including AC-CAT-013 is acc
 
 The approved M09 amendment is recorded in `docs/decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`, registered in `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md`, and consolidated in `paste-order-import.md`. Those records are part of the current implementation-authoritative V1 baseline for M09. The amendment's implementation and acceptance status are tracked separately in the M09 implementation records; this freeze record does not change those business semantics.
 
-## 10. Authority and conflict rule for implementation
+## 10. Post-freeze amendment — Post-M09 Hiboutik daily payment dashboard (2026-09-16)
+
+The approved post-M09 amendment is recorded in `docs/decisions/post-m09-hiboutik-daily-payment-dashboard.md` and registered in `docs/acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md`. It authorizes exactly two passive read-only top-Caisse values, `Hiboutik CB aujourd'hui` and `Hiboutik Espèce aujourd'hui`, derived from signed effective-date payment adjustments on non-Cancelled `HIBOUTIK_PASTE` orders. It does not add a schema field, new durable entity, write path, Hiboutik turnover/count/discrepancy metric or dedicated workflow. The implementation and acceptance status are tracked in the post-M09 implementation records.
+
+This amendment preserves the existing ordinary POS-originated turnover and received-payment summaries and does not reopen or alter the approved M09 paste-order semantics. M10 and later milestones remain separate and unauthorized.
+
+## 11. Authority and conflict rule for implementation
 
 Codex and other implementation agents must use the frozen-and-amended GitHub specification rather than prior chat memory or legacy VBA behavior.
 
@@ -210,7 +216,7 @@ Pure implementation details that preserve all approved semantics may be selected
 
 **reliability > simplicity > maintainability > operational clarity > novelty.**
 
-## 11. Change-control rule after freeze
+## 12. Change-control rule after freeze
 
 The V1 Specification is a baseline, not an immutable historical artifact.
 
@@ -218,8 +224,8 @@ A future necessary change is allowed, but any change that alters frozen product/
 
 The 2026-08-28 target-directed authority-handoff amendment and the 2026-08-30 filtered catalogue bulk activation/deactivation amendment demonstrate this process.
 
-## 12. Current exit condition
+## 13. Current exit condition
 
 **Phase 5 remains complete.**
 
-Phase 6 implementation is active. M01 through M06 are Passed and merged. M06 — Local recovery and authoritative/read-only enforcement — was merged through PR #11 to `main` at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; accepted production repair head is `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`, final documentation/PR head is `86326d81551aa4cb5cdcbc6826b8c740317b34c4`, Release tests are 364/364 Passed, and project-owner Windows/WPF manual acceptance is Passed. M07 is the next planned milestone but is not yet implementation-authorized; no M07 implementation branch, PR or active handoff exists and Codex execution gate issue #4 is CLOSED. M08 and later milestones are not started.
+Phase 6 implementation is active. M01 through M09 are Passed and merged; M09 — Hiboutik paste-order fallback — was merged through PR #17 at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`. The independent post-M09 Hiboutik daily payment dashboard enhancement is authorized and in progress through PR #19 under the Issue #4 OPEN gate. Its scope is exactly the two approved passive source-specific payment values; the owner manual acceptance remains pending. M10 and later milestones remain unauthorized.

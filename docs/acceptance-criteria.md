@@ -1,11 +1,11 @@
 # V1 acceptance criteria
 
-**Status:** Approved — Phase 5 baseline (V1 Specification), amended 2026-08-30
-**Last updated:** 2026-08-30
+**Status:** Approved — Phase 5 baseline (V1 Specification), amended 2026-09-16
+**Last updated:** 2026-09-16
 **Product:** Sushi81 POS  
 **Purpose:** Convert the approved V1 product, business, lifecycle, catalogue, data, storage, architecture, paste-import, printing and export specifications into verifiable implementation acceptance criteria.
 
-**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below. `docs/decisions/github-handoff-transport.md` makes a dedicated private GitHub Release Asset API the normal handoff transport and server acknowledgement path; OneDrive remains separately approved for recovery/archive only. `docs/decisions/filtered-catalogue-bulk-activation.md` adds AC-CAT-013 for filtered current-catalogue bulk activation/deactivation.
+**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below. `docs/decisions/github-handoff-transport.md` makes a dedicated private GitHub Release Asset API the normal handoff transport and server acknowledgement path; OneDrive remains separately approved for recovery/archive only. `docs/decisions/filtered-catalogue-bulk-activation.md` adds AC-CAT-013 for filtered current-catalogue bulk activation/deactivation. `docs/acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` adds AC-HIB-010 and clarifies the ordinary POS summary boundary.
 
 ## 1. Acceptance principle
 
@@ -441,6 +441,16 @@ A paste-created order is automatically excluded from:
 V1 does not require raw pasted-email retention, immutable Hiboutik source total, dedicated source reference, parser fingerprint or dedicated duplicate-management subsystem. If desired, the operator may manually write the Hiboutik reference in the ordinary comment field.
 
 **Evidence:** schema review.
+
+### AC-HIB-010 — Hiboutik daily CB/Espèce dashboard
+
+The approved post-M09 amendment adds exactly two passive read-only values to the top Caisse dashboard: `Hiboutik CB aujourd'hui` and `Hiboutik Espèce aujourd'hui`. For business date D, each value sums signed `PaymentAdjustment` deltas whose parent order has `source_type = HIBOUTIK_PASTE`, whose current status is not `CANCELLED`, whose `effective_at` belongs to D and whose bucket is respectively `CB` or `ESPECE`.
+
+Open and Closed non-Cancelled Hiboutik orders are included. Cancelled Hiboutik orders contribute zero while their retained payment-adjustment rows remain durable. Effective business date controls attribution; `recorded_at`, order creation date and planned fulfilment date do not substitute. The two values remain strictly separate from ordinary POS-originated operational turnover, received total, CB and Espèce values. No Hiboutik turnover, combined received total, order count, discrepancy, dedicated lifecycle, reconciliation workflow, schema migration, new durable field or write path is introduced.
+
+The values reuse the existing dashboard refresh/current-business-date behavior, are localized in French and Simplified Chinese, and remain visible/read-only on a non-authoritative device without weakening authority rules.
+
+**Evidence:** focused source/status/date/bucket/signed-delta reporting tests; application and view-model projection tests; XAML/localization parity tests; Windows/WPF manual acceptance on the exact candidate.
 
 ## 7. Printing
 

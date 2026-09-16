@@ -1,8 +1,8 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-16
-**Current state:** M01 through M08 are Passed and merged. M09 — Hiboutik paste-order fallback — is **Passed / ready for separate merge approval**. The accepted production candidate is `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d` (FIX-14), with accepted EXE SHA-256 `CDC1257A698FE90237316FFE92361BF20EEF97CB44065AFBF70202EE0D0A26BA`, ZIP SHA-256 `00CEFAECB56666FABB03B7D141A4B75D18CF4DAA1A270358E7D3C457D5736319`, exact-head CI #712 / `35019616149` successful, 651/651 Release tests passed, and a 0-warning / 0-error Release build. Owner Windows/WPF manual acceptance is PASSED and A–N evidence is reconciled in the final manual-acceptance record and PR #17 Conversation. The final documentation-only closure head is later than the accepted production candidate and is not a replacement executable. PR #17 remains OPEN / unmerged pending separate explicit project-owner merge approval. M10 and later milestones remain unauthorized.
+**Last updated:** 2026-09-17
+**Current state:** M01 through M09 are Passed and merged. The independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement is **In progress** on PR #19 under the OPEN Issue #4 gate. M10 and later milestones remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07/M08 evidence remains authoritative in milestone-specific worklogs/manual-acceptance/PR records. This living document states current control state only.
 
@@ -32,8 +32,9 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M06 — Local recovery/read-only enforcement | Passed | Merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; final Windows/WPF acceptance Passed. |
 | M07 — Pairing, target-directed handoff and disaster recovery | Passed | Accepted production head `e971580ef43d3b50366d51733ca9431ca0997e8d`; closure docs/evidence head `d586c847f2dd541815b8c00565c58b3685a3e4be`; PR #13 merged to `main` at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`; exact-head CI #631 succeeded with 541/541 tests and 0 warnings/errors. |
 | M08 — Printing and reprinting | Passed | Accepted production candidate `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; production implementation commit `7ab74655977faaf70f95c91188d5a69486a378e6`; final pass-record head `5f8c92c29116e17a3365ecd8801f7e13f107269c`; exact-head CI #675 succeeded; project-owner physical/manual acceptance Passed; PR #14 merged to `main` at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. |
-| M09 — Hiboutik paste fallback | Passed | Accepted production candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d` (FIX-14); exact-head CI #712 / `35019616149` succeeded with 651/651 Release tests passed and a 0-warning / 0-error Release build. Owner Windows/WPF manual acceptance is PASSED with A–N evidence reconciled; accepted EXE/ZIP hashes are recorded in the final manual-acceptance record. The later docs-only closure head is not a replacement executable. PR #17 remains OPEN / unmerged and merge requires separate explicit project-owner approval. |
-| M10 — Catalogue `.xlsx` | Not started | Unauthorized; pending M09. |
+| M09 — Hiboutik paste fallback | Passed | Accepted production candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d` (FIX-14); exact-head CI #712 / `35019616149` succeeded with 651/651 Release tests passed and a 0-warning / 0-error Release build. Owner Windows/WPF manual acceptance is PASSED with A–N evidence reconciled. PR #17 merged to `main` at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; the later docs-only closure head is historical closure evidence, not a replacement executable. |
+| Post-M09 — Hiboutik daily CB/Espèce dashboard | In progress | Explicitly authorized independent enhancement on branch `codex/post-m09-hiboutik-daily-payment-dashboard` / PR #19. Current handoff: `POST-M09-HIBOUTIK-DAILY-PAYMENT-DASHBOARD-01`; docs-first reconciliation is required before production edits. |
+| M10 — Catalogue `.xlsx` | Not started | Unauthorized; no M10 handoff exists. |
 | M11 — Gestion export | Not started | Unauthorized; pending M10. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
@@ -107,12 +108,12 @@ Preparation audit conclusion:
 
 Authorization is not merge approval. The final M09 execution state is now:
 
-- Issue #4 was observed **OPEN** solely for `M09-FINAL-CLOSURE-PASS-READY-FOR-MERGE-15`;
-- branch `codex/m09-hiboutik-paste-fallback` and PR #17 remain the durable M09 mailbox;
+- PR #17 is **CLOSED / MERGED** at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`;
+- branch `codex/m09-hiboutik-paste-fallback` remains the historical M09 implementation branch;
 - WP1 through WP5, WP6 preparation and the narrow FIX-12/FIX-13/FIX-14 remediations are preserved as historical implementation evidence;
 - owner Windows/WPF manual acceptance is **PASSED** on accepted candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`, with A–N evidence reconciled in `implementation/milestone-09-final-manual-acceptance.md`;
-- the current handoff is docs/evidence/status-only; its later closure head is not a replacement for the owner-tested executable;
-- M09 is `Passed` / ready for separate merge approval; PR #17 remains OPEN / unmerged and M10+ remain unauthorized.
+- the accepted production candidate remains `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`; the later closure head is historical documentation evidence and was not a replacement executable;
+- M09 is `Passed` and merged; M10+ remain unauthorized.
 
 ## 6. M09 execution topology
 
@@ -131,6 +132,27 @@ Authorized topology:
 
 The durable WP6 traceability matrix and final A–N reconciliation are recorded in [`implementation/milestone-09-worklog.md`](implementation/milestone-09-worklog.md) and [`implementation/milestone-09-final-manual-acceptance.md`](implementation/milestone-09-final-manual-acceptance.md). The historical remediation chain is preserved, including the earlier candidate evidence and the accepted FIX-14 correction. The owner final disposition is durable in PR #17 comment `5704531105`; no new physical observation is created by the closure docs. The M11 `Gestion SUSHI 81` export-exclusion cross-check remains outside M09 scope.
 
-## 8. Evidence preservation
+## 8. Post-M09 Hiboutik daily payment dashboard
+
+The independent post-M09 enhancement is authorized by the project owner and controlled by the following committed records:
+
+- `decisions/post-m09-hiboutik-daily-payment-dashboard.md`;
+- `acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md`;
+- `implementation/post-m09-hiboutik-daily-payment-dashboard-authorization.md`;
+- `implementation/post-m09-hiboutik-daily-payment-dashboard.md`;
+- `implementation/post-m09-hiboutik-daily-payment-dashboard-manual-acceptance.md`;
+- `implementation/post-m09-hiboutik-daily-payment-dashboard-worklog.md`.
+
+Current execution state:
+
+- branch: `codex/post-m09-hiboutik-daily-payment-dashboard`;
+- PR/mailbox: `Post-M09: Hiboutik daily CB/Espèce dashboard` (#19), OPEN / unmerged;
+- active handoff: `POST-M09-HIBOUTIK-DAILY-PAYMENT-DASHBOARD-01`;
+- Issue #4: OPEN and points only to that handoff;
+- required scope: exactly two passive read-only values derived from non-Cancelled `HIBOUTIK_PASTE` payment adjustments by effective business date;
+- no schema/migration, new dependency, new write path, M10/M11 work or additional Hiboutik metric/workflow is authorized;
+- the owner manual checklist remains pending and Codex must not declare it Passed.
+
+## 9. Evidence preservation
 
 Historical milestone worklogs, acceptance records, decision records, PR discussions and accepted exact-head evidence remain authoritative in place. Current-state cleanup must not rewrite historical failures/remediation as though they never occurred.

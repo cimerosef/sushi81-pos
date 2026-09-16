@@ -1,6 +1,6 @@
 # Post-M09 Hiboutik daily payment dashboard — worklog
 
-**Status:** Authorized — implementation not yet executed  
+**Status:** Docs-first reconciliation complete — production implementation not yet started
 **Opened:** 2026-09-16  
 **Issue:** #18  
 **Branch:** `codex/post-m09-hiboutik-daily-payment-dashboard`  
@@ -27,7 +27,9 @@ Both use signed `PaymentAdjustment` deltas attributed by effective business date
 
 ## Evidence log
 
-No implementation evidence yet. Codex must append exact commits/tests/CI/candidate evidence after the authorized handoff executes.
+The mandatory docs-first reconciliation is complete in the first commit of this handoff. It records the M09 merge baseline, the authorized independent post-M09 scope, the 2026-09-16 freeze amendment, the narrow product/acceptance/lifecycle/data-model semantics and the current PR #19 / Issue #4 execution state. No production code, tests, schema, migration, dependency, workflow or business behavior was changed by that commit.
+
+The docs-first commit SHA is recorded in the final implementation evidence after the commit is created. Production implementation may begin only after this documentation/status reconciliation commit.
 
 ## Merge boundary
 
