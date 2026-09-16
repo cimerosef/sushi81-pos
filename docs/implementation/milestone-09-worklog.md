@@ -1,6 +1,6 @@
 # M09 — Hiboutik paste-order fallback — worklog
 
-**Status:** Active implementation evidence log  
+**Status:** Final M09 manual-acceptance closure recorded; ready for separate merge approval
 **Opened:** 2026-09-14  
 **Milestone:** M09 — Hiboutik paste-order fallback  
 **Branch:** `codex/m09-hiboutik-paste-fallback`  
@@ -215,3 +215,18 @@ Controller review of `M09-MANUAL-F-MANUAL-TOTAL-PAYMENT-PRESERVATION-FIX-13` acc
 The active handoff is `M09-MANUAL-F-REVIEW-QUANTITY-REVERT-NET-STATE-FIX-14`. The narrow correction makes `ToSnapshot()` return the persisted sale-time `OrderItemSnapshot` whenever the final quantity equals the persisted quantity; a genuinely different final quantity continues through the existing repricing path. Added synthetic direct view-model evidence for exact snapshot preservation after `4 -> 5 -> 4`, and extended the exact STA/WPF POS and Hiboutik payment-only path to exercise that sequence before saving and closing. No parser, schema, source-total, printing, reporting, M10+, or business-rule change is introduced.
 
 Owner Windows/WPF acceptance remains **PAUSED / NOT PASSED** at checklist F and must resume only on the replacement candidate from the matching durable `CODEX_DONE` record. No owner checklist box is checked by Codex.
+
+### Final M09 manual-acceptance closure
+
+Status: **M09 manual acceptance PASSED / ready for separate merge approval**.
+
+Final closure evidence (2026-09-16):
+
+- Accepted production candidate: `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d` (FIX-14); this remains the owner-tested production identity even though the final documentation-only closure head is later.
+- Accepted artifacts: EXE SHA-256 `CDC1257A698FE90237316FFE92361BF20EEF97CB44065AFBF70202EE0D0A26BA`; ZIP SHA-256 `00CEFAECB56666FABB03B7D141A4B75D18CF4DAA1A270358E7D3C457D5736319`.
+- Accepted exact-head verification: GitHub Actions run #712 / `35019616149` succeeded; Release evidence was **651/651 passed, 0 failed, 0 skipped**, with a Release build of **0 warnings / 0 errors**.
+- Owner final disposition: PR #17 comment `5704531105` records `OWNER_FINAL_ACCEPTANCE: M09 manual acceptance PASSED`. The durable A–N owner/controller/automated evidence remains in the PR Conversation; A–E evidence is preserved as historical replacement-candidate evidence and accepted carry-forward, not represented as a complete rerun on FIX-14.
+- A–N reconciliation: complete on the existing durable evidence, including the FIX-14 quantity `4 -> 5 -> 4` net-state correction, anti-double-counting, authority/read-only, printing/reprinting, localization/data-preservation and privacy/safety evidence. No new physical observation was created by this closure record.
+- Scope: this handoff is documentation/evidence/status-only. Production code, tests, schema/migrations, parser/WPF behavior, reporting/printing semantics and accepted M09 business behavior were not changed; no M10+ or post-M09 dashboard work was started.
+- Delivery state: PR #17 remains **OPEN / unmerged**; separate explicit project-owner merge approval is still pending. M10+ remain unauthorized. Issue #4 was observed **OPEN** for this single handoff.
+- Blockers/unresolved M09 implementation or specification findings: **none**.

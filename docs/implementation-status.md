@@ -1,8 +1,8 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-15
-**Current state:** M01 through M08 are Passed and merged. M09 — Hiboutik paste-order fallback — is **Partial**: WP1 through WP5 implementation/evidence and WP6 candidate preparation were accepted; owner checklists A through E passed on replacement candidate `a18cca2ad51d3676bc9fc2a99d416ad82a1f1a7a`, but acceptance is paused at checklist F after the payment-only manual-total defect and a controller-found quantity-revert edge case. The active narrow remediation is `M09-MANUAL-F-REVIEW-QUANTITY-REVERT-NET-STATE-FIX-14`; a replacement exact candidate is required before owner acceptance can resume. Separate merge approval remains pending. M10 and later milestones remain unauthorized.
+**Last updated:** 2026-09-16
+**Current state:** M01 through M08 are Passed and merged. M09 — Hiboutik paste-order fallback — is **Passed / ready for separate merge approval**. The accepted production candidate is `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d` (FIX-14), with accepted EXE SHA-256 `CDC1257A698FE90237316FFE92361BF20EEF97CB44065AFBF70202EE0D0A26BA`, ZIP SHA-256 `00CEFAECB56666FABB03B7D141A4B75D18CF4DAA1A270358E7D3C457D5736319`, exact-head CI #712 / `35019616149` successful, 651/651 Release tests passed, and a 0-warning / 0-error Release build. Owner Windows/WPF manual acceptance is PASSED and A–N evidence is reconciled in the final manual-acceptance record and PR #17 Conversation. The final documentation-only closure head is later than the accepted production candidate and is not a replacement executable. PR #17 remains OPEN / unmerged pending separate explicit project-owner merge approval. M10 and later milestones remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07/M08 evidence remains authoritative in milestone-specific worklogs/manual-acceptance/PR records. This living document states current control state only.
 
@@ -32,7 +32,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M06 — Local recovery/read-only enforcement | Passed | Merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; final Windows/WPF acceptance Passed. |
 | M07 — Pairing, target-directed handoff and disaster recovery | Passed | Accepted production head `e971580ef43d3b50366d51733ca9431ca0997e8d`; closure docs/evidence head `d586c847f2dd541815b8c00565c58b3685a3e4be`; PR #13 merged to `main` at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`; exact-head CI #631 succeeded with 541/541 tests and 0 warnings/errors. |
 | M08 — Printing and reprinting | Passed | Accepted production candidate `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; production implementation commit `7ab74655977faaf70f95c91188d5a69486a378e6`; final pass-record head `5f8c92c29116e17a3365ecd8801f7e13f107269c`; exact-head CI #675 succeeded; project-owner physical/manual acceptance Passed; PR #14 merged to `main` at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. |
-| M09 — Hiboutik paste fallback | Partial | WP1–WP5 implementation/evidence and WP6 preparation were accepted; checklist A’s reset defect was remediated and A–E passed on `a18cca2ad51d3676bc9fc2a99d416ad82a1f1a7a`. Checklist F’s payment-only manual-total defect was fixed at `3269a27f6a5ff41be9085abc36cee39a2258eb32`, but controller review found a quantity `4 -> 5 -> 4` final-state edge case. The active remediation is `M09-MANUAL-F-REVIEW-QUANTITY-REVERT-NET-STATE-FIX-14`; owner acceptance remains paused pending its replacement candidate. M09 is not Passed, and merge still requires separate explicit project-owner approval. |
+| M09 — Hiboutik paste fallback | Passed | Accepted production candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d` (FIX-14); exact-head CI #712 / `35019616149` succeeded with 651/651 Release tests passed and a 0-warning / 0-error Release build. Owner Windows/WPF manual acceptance is PASSED with A–N evidence reconciled; accepted EXE/ZIP hashes are recorded in the final manual-acceptance record. The later docs-only closure head is not a replacement executable. PR #17 remains OPEN / unmerged and merge requires separate explicit project-owner approval. |
 | M10 — Catalogue `.xlsx` | Not started | Unauthorized; pending M09. |
 | M11 — Gestion export | Not started | Unauthorized; pending M10. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
@@ -105,14 +105,14 @@ Preparation audit conclusion:
 - branch: `codex/m09-hiboutik-paste-fallback`;
 - PR/mailbox: #17.
 
-Authorization is not merge approval. The active execution state is now:
+Authorization is not merge approval. The final M09 execution state is now:
 
-- Issue #4 was observed **OPEN** solely for `M09-MANUAL-F-REVIEW-QUANTITY-REVERT-NET-STATE-FIX-14`;
-- branch `codex/m09-hiboutik-paste-fallback` and PR #17 are the durable M09 mailbox;
-- WP1 through WP5 and WP6 preparation were accepted; checklist A’s reset defect was remediated and A–E passed on candidate `a18cca2ad51d3676bc9fc2a99d416ad82a1f1a7a`, but that candidate is now paused at checklist F after the owner-observed payment-only manual-total defect;
-- the prior payment-only remediation completed at `3269a27f6a5ff41be9085abc36cee39a2258eb32`, and the active remediation is limited to final-state quantity-revert detection, focused regression evidence, and a replacement exact self-contained `win-x64` owner candidate;
-- owner Windows/WPF manual acceptance is **PAUSED / NOT PASSED** at checklist F and no owner checklist box is checked by Codex;
-- M09 remains `Partial`, not `Passed`; M10+ remain unauthorized.
+- Issue #4 was observed **OPEN** solely for `M09-FINAL-CLOSURE-PASS-READY-FOR-MERGE-15`;
+- branch `codex/m09-hiboutik-paste-fallback` and PR #17 remain the durable M09 mailbox;
+- WP1 through WP5, WP6 preparation and the narrow FIX-12/FIX-13/FIX-14 remediations are preserved as historical implementation evidence;
+- owner Windows/WPF manual acceptance is **PASSED** on accepted candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`, with A–N evidence reconciled in `implementation/milestone-09-final-manual-acceptance.md`;
+- the current handoff is docs/evidence/status-only; its later closure head is not a replacement for the owner-tested executable;
+- M09 is `Passed` / ready for separate merge approval; PR #17 remains OPEN / unmerged and M10+ remain unauthorized.
 
 ## 6. M09 execution topology
 
@@ -122,16 +122,14 @@ Authorized topology:
 - PR: `M09: Hiboutik paste-order fallback` (#17);
 - PR top-level Conversation comments: durable mailbox;
 - Codex processes only authorized M09 work packages serially;
-- the completed WP6 handoff is `M09-WP6-EVIDENCE-MANUAL-ACCEPTANCE-BUILD-11`; the completed reset remediation is `M09-MANUAL-A-HIBOUTIK-RESET-ENABLEMENT-FIX-12`; the completed payment-only remediation is `M09-MANUAL-F-MANUAL-TOTAL-PAYMENT-PRESERVATION-FIX-13`; the active remediation handoff is `M09-MANUAL-F-REVIEW-QUANTITY-REVERT-NET-STATE-FIX-14`;
-- the current owner candidate is paused at checklist F by the quantity-revert final-state defect; the active remediation replacement candidate must be built and hashed from its final exact head;
+- the completed WP6 handoff is `M09-WP6-EVIDENCE-MANUAL-ACCEPTANCE-BUILD-11`; the completed reset remediation is `M09-MANUAL-A-HIBOUTIK-RESET-ENABLEMENT-FIX-12`; the completed payment-only remediation is `M09-MANUAL-F-MANUAL-TOTAL-PAYMENT-PRESERVATION-FIX-13`; the completed quantity-revert remediation is `M09-MANUAL-F-REVIEW-QUANTITY-REVERT-NET-STATE-FIX-14`; the current handoff is `M09-FINAL-CLOSURE-PASS-READY-FOR-MERGE-15`;
+- the owner-tested candidate is `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`; the final documentation-only closure head is intentionally later and must not be treated as a replacement owner-tested executable;
 - completion of a work package never authorizes the next milestone or merge;
 - merge requires separate explicit owner approval.
 
 ## 7. M09 evidence and acceptance boundary
 
-The durable WP6 traceability matrix is recorded in [`implementation/milestone-09-worklog.md`](implementation/milestone-09-worklog.md). It maps AC-HIB-001 through AC-HIB-009 to accepted WP1–WP5 automated evidence and the remaining owner-manual sections. WP6 preparation was accepted, but the owner found a checklist-A reset-availability defect on the exact candidate `18ec621d077c1da61994e1cb8657ddb67ab752eb`; its replacement remediation candidate is now the only candidate eligible for resumed owner acceptance.
-
-The automated implementation/evidence baseline remains accepted, and owner checklists A–E are recorded in the PR as passed on the current candidate. Checklist F remains paused: the payment-only manual-total defect was remediated, but controller review found a quantity-revert final-state edge case and authorized `M09-MANUAL-F-REVIEW-QUANTITY-REVERT-NET-STATE-FIX-14`. M09 has not received a `Passed` disposition, Codex must not check or rewrite owner checklist boxes, the replacement candidate must be used for resumed acceptance, and the M11 `Gestion SUSHI 81` export-exclusion cross-check remains outside M09 scope.
+The durable WP6 traceability matrix and final A–N reconciliation are recorded in [`implementation/milestone-09-worklog.md`](implementation/milestone-09-worklog.md) and [`implementation/milestone-09-final-manual-acceptance.md`](implementation/milestone-09-final-manual-acceptance.md). The historical remediation chain is preserved, including the earlier candidate evidence and the accepted FIX-14 correction. The owner final disposition is durable in PR #17 comment `5704531105`; no new physical observation is created by the closure docs. The M11 `Gestion SUSHI 81` export-exclusion cross-check remains outside M09 scope.
 
 ## 8. Evidence preservation
 

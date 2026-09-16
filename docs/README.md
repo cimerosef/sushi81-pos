@@ -4,13 +4,13 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M08 Passed/merged; M09 — Hiboutik paste-order fallback — implementation AUTHORIZED by explicit project-owner approval on 2026-09-14.**
+**Phase 6 implementation active: M01–M08 Passed/merged; M09 — Hiboutik paste-order fallback — Passed / ready for separate merge approval.**
 
 M08 — Printing and reprinting — Passed project-owner Windows/WPF/physical-print acceptance and was merged through PR #14 to `main` at merge commit `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. Accepted production candidate: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; final pass-record head: `5f8c92c29116e17a3365ecd8801f7e13f107269c`; final exact-head CI #675 succeeded.
 
-M09 preparation is complete. The owner-approved 2026-09-14 amendment narrows paste input to the Hiboutik product-detail block, requires fail-safe unresolved-line operator handling, permits passive read-only Hiboutik source identification, and permits nullable read-only `source_total_ttc` as a reconciliation reference while keeping ordinary POS pricing authoritative.
+M09 implementation, automated evidence and owner Windows/WPF manual acceptance are complete on accepted production candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`, with accepted EXE/ZIP hashes recorded in `implementation/milestone-09-final-manual-acceptance.md`. The owner-approved 2026-09-14 amendment narrows paste input to the Hiboutik product-detail block, requires fail-safe unresolved-line operator handling, permits passive read-only Hiboutik source identification, and permits nullable read-only `source_total_ttc` as a reconciliation reference while keeping ordinary POS pricing authoritative.
 
-M09 implementation is authorized by `implementation/milestone-09-authorization.md`. Authorization is not the Codex execution switch: Issue #4 must remain CLOSED until the dedicated M09 branch/PR/mailbox exists and a complete executable handoff is queued. M10 and later milestones remain unauthorized.
+The final M09 documentation/evidence closure is recorded on branch `codex/m09-hiboutik-paste-fallback` / PR #17. PR #17 remains OPEN / unmerged pending separate explicit project-owner merge approval; the closure documentation head must not be treated as a replacement production candidate. Issue #4 remains the sole Codex execution gate, and M10 and later milestones remain unauthorized.
 
 The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`; the living current control state is `implementation-status.md`.
 

@@ -1,26 +1,43 @@
 # M09 — Hiboutik paste-order fallback — final Windows/WPF manual acceptance
 
-**Status:** Acceptance paused — replacement candidate required; not yet manually accepted
+**Status:** **PASSED — owner Windows/WPF manual acceptance complete; ready for separate merge approval**
 **Milestone:** M09
 **Owner:** project owner / manual acceptance executor
-**Accepted build/head:** Not accepted: after checklist A’s reset defect was remediated, owner checklists A–E passed on replacement candidate `a18cca2ad51d3676bc9fc2a99d416ad82a1f1a7a`, but checklist F found a payment-only manual-total defect. That defect was remediated at `3269a27f6a5ff41be9085abc36cee39a2258eb32`; controller review then found a quantity-revert final-state edge case. The replacement remediation candidate head and artifact hashes will be authoritative in the matching durable `CODEX_DONE: M09-MANUAL-F-REVIEW-QUANTITY-REVERT-NET-STATE-FIX-14` record on PR #17.
-**Result:** PAUSED — NOT PASSED
+**Accepted production candidate:** `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d` (FIX-14)
+**Accepted artifacts:** EXE SHA-256 `CDC1257A698FE90237316FFE92361BF20EEF97CB44065AFBF70202EE0D0A26BA`; ZIP SHA-256 `00CEFAECB56666FABB03B7D141A4B75D18CF4DAA1A270358E7D3C457D5736319`
+**Accepted verification:** exact-head CI run #712 / `35019616149` succeeded; Release evidence `651/651` passed, 0 failed, 0 skipped; Release build 0 warnings / 0 errors
+**Result:** **PASSED**
 
 This checklist is the owner-facing manual acceptance for the production Windows/WPF implementation. It does not authorize implementation or merge.
 
 ## WP6 candidate-preparation note
 
-WP1–WP5 implementation and automated evidence have been accepted by controller review. WP6 prepares the exact self-contained `win-x64` Windows/WPF candidate and reconciles the M09 evidence matrix; it is not the owner acceptance itself.
+WP1–WP5 implementation and automated evidence were accepted by controller review. WP6 prepared the exact self-contained `win-x64` Windows/WPF candidate and reconciled the M09 evidence matrix. The owner then completed the A–N acceptance on the accepted FIX-14 candidate and recorded the final disposition `OWNER_FINAL_ACCEPTANCE: M09 manual acceptance PASSED` in PR #17 comment `5704531105`.
 
-Codex/CI may prepare documentation, verification evidence and the candidate artifact, but may not check any owner-manual box, claim physical/operator observations, change `Result` to `PASSED`, or approve the merge. The owner must execute sections A–N on the exact candidate and record the final disposition. Until then, the status remains **not yet manually accepted**.
+This documentation-only closure adds no new physical/operator observation. The section dispositions and evidence matrix below reconcile already-durable owner, controller and automated evidence; the prepared checkbox controls remain an owner-entry template and are not used to manufacture a new observation. Historical evidence recorded on earlier replacement candidates remains identified as historical and is carried forward only where the later controller/owner records accepted it. Separate project-owner merge approval remains required.
 
 ## Active remediation boundary
 
-The owner verified candidate `18ec621d077c1da61994e1cb8657ddb67ab752eb` and found that an unresolved parse left **Réinitialiser / réimporter** disabled after returning to Caisse. That defect was remediated by `M09-MANUAL-A-HIBOUTIK-RESET-ENABLEMENT-FIX-12`, after which owner checklists A–E passed on replacement candidate `a18cca2ad51d3676bc9fc2a99d416ad82a1f1a7a`. Checklist F then found that changing only cumulative CB on a discounted order with an active manual total incorrectly repriced the order and cleared the manual override. The payment-only defect was remediated by `M09-MANUAL-F-MANUAL-TOTAL-PAYMENT-PRESERVATION-FIX-13` at `3269a27f6a5ff41be9085abc36cee39a2258eb32`; controller review then found that a temporary quantity `4 -> 5 -> 4` interaction could still falsely reprice the final unchanged state. The active remediation `M09-MANUAL-F-REVIEW-QUANTITY-REVERT-NET-STATE-FIX-14` is limited to making final quantity/state govern the persisted-line snapshot comparison, plus focused regression evidence and a replacement publish. The owner, not Codex, must resume acceptance on the replacement candidate; all existing checkboxes and final disposition remain unchecked.
+The owner verified candidate `18ec621d077c1da61994e1cb8657ddb67ab752eb` and found that an unresolved parse left **Réinitialiser / réimporter** disabled after returning to Caisse. That defect was remediated by `M09-MANUAL-A-HIBOUTIK-RESET-ENABLEMENT-FIX-12`, after which owner checklists A–E passed on replacement candidate `a18cca2ad51d3676bc9fc2a99d416ad82a1f1a7a`. Checklist F then found that changing only cumulative CB on a discounted order with an active manual total incorrectly repriced the order and cleared the manual override. The payment-only defect was remediated by `M09-MANUAL-F-MANUAL-TOTAL-PAYMENT-PRESERVATION-FIX-13` at `3269a27f6a5ff41be9085abc36cee39a2258eb32`; controller review then found that a temporary quantity `4 -> 5 -> 4` interaction could still falsely reprice the final unchanged state. The `M09-MANUAL-F-REVIEW-QUANTITY-REVERT-NET-STATE-FIX-14` remediation completed at the accepted production candidate recorded above. These historical defects and their narrow remediations remain part of the evidence trail; the final owner disposition accepted the resulting A–N evidence without claiming that every earlier step was rerun on FIX-14.
 
 Use only the matching durable WP6 `CODEX_DONE` record on PR #17 for the final candidate head, executable/ZIP paths, hashes and sizes. The documentation commit cannot safely embed its own final commit SHA before that commit exists. The M11 `Gestion SUSHI 81` export-exclusion cross-check remains outside this M09 owner checklist's implementation scope.
 
 Use synthetic/sanitized pasted text only during recorded acceptance unless the owner deliberately performs a local unrecorded real-store check. Do not commit screenshots/logs containing real customer/order data.
+
+## Evidence basis and traceability
+
+The section dispositions below are a documentation reconciliation of existing durable PR #17 Conversation evidence, not newly performed Codex observations. The authoritative final result is the PASSED disposition above and the owner final-acceptance record in comment `5704531105`; the original owner-entry checkbox controls are retained unchanged.
+
+| Sections | Durable evidence basis |
+|---|---|
+| A–E | Existing owner/controller acceptance evidence, including the historical replacement-candidate A–E record and its accepted carry-forward after the narrow remediations. |
+| F | FIX-14 completion/controller evidence and owner final disposition, including source/POS-total separation, payment/manual-total preservation and the quantity `4 -> 5 -> 4` net-state regression. |
+| G–H | Existing owner/controller evidence for source-total reliability and the known `Livraison (0)` service-line boundary. |
+| I–J | Existing owner/controller evidence for ordinary lifecycle/search/reprint behavior, anti-double-counting, and future/due/overdue operational inclusion. |
+| K–M | Existing owner/controller evidence for authoritative/read-only enforcement, ordinary M08 printing/reprinting, and FR -> zh-CN localization/data preservation. |
+| N | Controller privacy/safety audit in PR #17 comment `5703955265`. |
+
+The owner’s final disposition is recorded in PR #17 comment `5704531105`; the accepted candidate, FIX-14 evidence and exact-head verification are preserved in the preceding durable PR records and matching completion/controller records. PR #17 remains OPEN / unmerged, and M10+ remain unauthorized.
 
 ## A. Entry point and no-write boundary
 

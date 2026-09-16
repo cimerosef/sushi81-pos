@@ -1,6 +1,6 @@
 # M09 — Hiboutik paste-order fallback — implementation contract
 
-**Status:** Prepared — not implementation-authorized  
+**Status:** Implemented; owner manual acceptance Passed; ready for separate merge approval
 **Date:** 2026-09-14  
 **Milestone:** M09  
 **Primary acceptance ownership:** AC-HIB-001 through AC-HIB-009, as amended by `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md`  
@@ -402,13 +402,6 @@ M09 must not implement:
 
 ## 14. Completion gate
 
-M09 cannot be marked Passed until:
+The M09 completion conditions are satisfied for the accepted production candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`: required automated evidence and clean Release build evidence are recorded in PR #17, owner Windows/WPF manual acceptance is **PASSED**, AC-HIB-001 through AC-HIB-009 traceability is reconciled in the final manual-acceptance record, and no unresolved M09 implementation/specification blocker remains.
 
-- all required automated tests pass;
-- Release build is clean;
-- applicable publish/smoke checks pass;
-- owner Windows/WPF manual acceptance is Passed on the accepted exact build;
-- AC-HIB-001 through AC-HIB-009 amended traceability is recorded;
-- Issue #4 is closed after execution work;
-- no unresolved implementation/spec blocker remains;
-- project owner separately approves merge.
+The final documentation/evidence closure head is intentionally later than the accepted production candidate and does not replace it. PR #17 remains OPEN / unmerged pending separate explicit project-owner merge approval. Issue #4 remains the sole Codex execution gate; `CODEX_DONE` does not authorize merge, M10, M11 or any post-M09 enhancement.
