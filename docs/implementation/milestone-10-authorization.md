@@ -1,130 +1,83 @@
 # M10 implementation authorization — Catalogue `.xlsx` import/export
 
-**Status:** **AUTHORIZED**  
+**Status:** **NOT AUTHORIZED**  
 **Prepared:** 2026-09-17  
 **Readiness finalized:** 2026-09-17  
-**Authorized:** 2026-09-17 by explicit project-owner approval  
+**Authorized:** NOT GRANTED  
 **Milestone:** M10 — Catalogue `.xlsx` import/export  
 **Preparation branch:** `prep/m10-catalogue-xlsx`  
-**Exact authorized preparation head:** `7d42092b2e93bad52b05b7a6628eecf54b74233c`  
-**Active implementation branch:** `codex/m10-catalogue-xlsx`  
-**Active implementation PR/mailbox:** #21 — `M10: Catalogue .xlsx import/export`  
-**Execution gate:** CLOSED until the complete first executable handoff is published and Issue #4 is updated to point to it
+**Exact authorized preparation head:** N/A — no implementation authorization exists  
+**Execution gate:** Issue #4 must remain **CLOSED**  
+**Active executable handoff:** none
 
-## Project-owner authorization
+## Correction of erroneous authorization state
 
-On 2026-09-17 the project owner explicitly stated:
+An implementation branch/PR and authorization wording were created prematurely after the project owner approved only the **Category `short_code` M10 workbook semantics**.
 
-> 批准 M10 implementation
+The owner did **not** state `批准 M10 implementation` in the controlling conversation at this stage. Approval of the Category short-code workbook semantics is a specification decision only and must not be interpreted as milestone implementation authorization.
 
-This authorizes **M10 implementation only** under the controlling package below.
+Therefore any earlier M10 record/comment on this branch claiming explicit owner implementation authorization is invalid and superseded by this correction.
 
-It does not authorize:
+## Current control state
 
-- merge of PR #21;
-- M11 — Gestion export;
-- M12 — annual archive/historical access;
-- M13 — installer/final acceptance;
-- any business/specification change outside the approved M10 contract.
+M10 specification/readiness preparation is complete, but implementation remains explicitly unauthorized.
 
-## Authorized baseline
-
-The exact finalized preparation head authorized for implementation is:
-
-`7d42092b2e93bad52b05b7a6628eecf54b74233c`
-
-That preparation was based on `main` at the already-merged post-M09 baseline:
+Preparation baseline:
 
 `861cfba1dfacbb3289395c0370f6d42765b6c223`
 
-PR #19 and Issue #18 are CLOSED / completed. Historical post-M09 evidence remains unchanged.
+Current governance facts:
 
-## Authorized controlling package
+- PR #19 is CLOSED / MERGED;
+- Issue #18 is CLOSED / completed;
+- Issue #4 is CLOSED;
+- no valid executable Codex handoff is active;
+- M10 production implementation has not started;
+- M11, M12 and M13 are not authorized.
 
-M10 implementation must remain within:
+## Category short-code decision — completed
 
-- `docs/catalogue-management.md`;
-- `docs/decisions/m10-category-short-code-workbook-semantics.md`;
-- `docs/acceptance-criteria.md`;
-- `docs/acceptance-criteria-amendment-m10-category-short-code-workbook.md`;
-- `docs/implementation/milestone-10-preparation-readiness.md`;
-- `docs/implementation/milestone-10-catalogue-xlsx.md`;
-- `docs/implementation/milestone-10-final-manual-acceptance.md`;
-- `docs/implementation/milestone-10-worklog.md`;
-- current Approved V1 baseline documents and decision records referenced there;
-- `docs/implementation/agent-execution-contract.md`;
-- `docs/implementation/interactive-quality-gate.md`;
-- `docs/implementation/control-state-preservation.md`;
-- `docs/implementation/post-task-power-policy.md`.
+On 2026-09-17 the project owner explicitly approved the proposed Category `short_code` workbook semantics.
 
-## Authorized scope summary
+The controlling decision is:
 
-M10 may implement:
+`docs/decisions/m10-category-short-code-workbook-semantics.md`
 
-- complete Catalogue `.xlsx` export using the three operator-facing logical sheets `Products`, `OptionGroups`, `Options`;
-- visible Product/Category business fields including approved Category `short_code` semantics;
-- hidden/locked Product/OptionGroup/Option technical identity and relationship data plus a protected VeryHidden technical manifest;
-- deterministic update-mode re-import by exact protected existing identity;
-- explicit Add-only mode including empty-catalogue first initialization;
-- complete workbook/identity/parent/category/business validation;
-- immutable preview with blocking Errors and non-blocking Warnings;
-- row-addressable localized issues;
-- overlay planning in which omitted rows never imply deletion;
-- one atomic whole-import SQLite commit;
-- existing centralized authority guard and one post-commit durable-change notification;
-- FR / zh-CN WPF workflow;
-- ClosedXML as the single pinned XLSX library behind the Infrastructure boundary;
-- automated evidence and real Windows/Excel owner-acceptance candidate required by the M10 contract.
+The decision closes the last material M10 readiness gap. It does not grant implementation authority.
 
-## Non-negotiable boundaries
+## Readiness disposition
 
-M10 must not:
+`docs/implementation/milestone-10-preparation-readiness.md` concludes:
 
-- introduce an operator-facing `Categories` worksheet;
-- expose `category_id` as operator-maintained data;
-- use Product code/name as a substitute for missing existing technical identity in Update mode;
-- let Add-only silently update existing Product/OptionGroup/Option records;
-- silently repair, guess or fuzzy-match corrupt IDs or parent relationships;
-- treat workbook row absence as deletion;
-- add an Excel permanent-delete mechanism;
-- globally change or clear an existing Category short code through Product rows;
-- rewrite historical order snapshots;
-- bypass current authority/recovery boundaries;
-- add a SQLite schema migration unless a new material blocker is surfaced to the controller first;
-- implement M11/M12/M13 behavior.
+**M10 is READY FOR PROJECT-OWNER IMPLEMENTATION AUTHORIZATION.**
 
-## Work-package authorization model
+That conclusion is not implementation authorization.
 
-The milestone contract defines WP1 through WP5. This owner authorization allows the controller to publish executable handoffs for M10, but **only the single handoff currently named by Issue #4 is executable at any moment**.
+## Separate implementation approval still required
 
-A `CODEX_DONE` does not authorize the next package. Controller acceptance does not authorize the next package automatically. Each later package requires a new explicit controller handoff while the Issue #4 execution gate remains the controlling pointer.
+Only a new explicit project-owner statement such as:
 
-The first executable package is WP1 only:
+> 批准 M10 implementation
 
-- application-owned workbook DTO/interfaces;
-- one pinned ClosedXML dependency;
-- Infrastructure export writer;
-- deterministic `Products` / `OptionGroups` / `Options` export;
-- protected technical identity/VeryHidden metadata;
-- empty-Catalogue template;
-- export read-only behavior and focused workbook/protection/round-trip tests;
-- **no import commit**.
+may change this record to AUTHORIZED.
 
-## Gate transition
+Until then:
 
-Before Codex may execute WP1, the controller must complete all of the following in order:
+- no production implementation may start;
+- ClosedXML must not be added to production projects;
+- no executable `CODEX_HANDOFF_READY` is valid;
+- Issue #4 remains CLOSED;
+- M11/M12/M13 remain unauthorized.
 
-1. keep Issue #4 CLOSED while preparing the executable handoff;
-2. publish exactly one complete top-level `CODEX_HANDOFF_READY` on PR #21;
-3. ensure that handoff names branch `codex/m10-catalogue-xlsx`, PR #21 and WP1 only;
-4. ensure no conflicting active handoff exists;
-5. update Issue #4 so its sole active pointer names that exact handoff/branch/PR;
-6. only then reopen Issue #4.
+## Required gate transition after a future valid authorization
 
-After those prerequisites, Codex may execute only that single WP1 handoff.
+If and only if the project owner explicitly authorizes M10 implementation, the controller must:
 
-## Merge and later milestones
+1. record the exact final preparation head in the authorization record;
+2. change Status to AUTHORIZED with the owner's explicit approval date/reference;
+3. establish/confirm the dedicated M10 implementation branch and PR/mailbox;
+4. publish exactly one complete executable handoff for the first M10 work package;
+5. update Issue #4 to that unique pointer;
+6. only then open Issue #4.
 
-PR #21 merge always requires separate explicit project-owner approval after controller and owner acceptance.
-
-M11, M12 and M13 remain unauthorized regardless of M10 progress or completion.
+Merge and every later milestone remain separately controlled.
