@@ -17,7 +17,9 @@ public sealed record OrderOperationalSummary(
     Money ReceivedCashTtc,
     int FutureOrderCount,
     int DueTodayAdvanceOrderCount,
-    int OverdueUnsettledOrderCount);
+    int OverdueUnsettledOrderCount,
+    Money HiboutikReceivedCardTtc,
+    Money HiboutikReceivedCashTtc);
 
 public enum OperationalOrderView
 {
@@ -123,7 +125,7 @@ public sealed class OrderLifecycleService(
         if (orders is IOrderLifecycleStore lifecycleStore)
             return await lifecycleStore.GetOperationalSummaryAsync(businessDate, cancellationToken);
 
-        return new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0);
+        return new OrderOperationalSummary(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0, Money.Zero, Money.Zero);
     }
 
     /// <summary>Builds one new immutable line from the current active Catalogue, never from historical values.</summary>

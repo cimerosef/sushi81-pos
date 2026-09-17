@@ -243,10 +243,11 @@ public sealed class SqliteOrderStore(
         var date = businessDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var turnover = await ScalarLongAsync(connection, "SELECT COALESCE(SUM(total_ttc_cents),0) FROM orders WHERE source_type='POS' AND status <> 'CANCELLED' AND planned_fulfilment_date=$date;", date, cancellationToken);
         var received = await ReadReceivedAsync(connection, date, cancellationToken);
+        var hiboutikReceived = await ReadHiboutikReceivedAsync(connection, date, cancellationToken);
         var future = await ScalarLongAsync(connection, "SELECT COUNT(*) FROM orders WHERE status <> 'CANCELLED' AND planned_fulfilment_date > $date;", date, cancellationToken);
         var due = await ScalarLongAsync(connection, "SELECT COUNT(*) FROM orders WHERE status <> 'CANCELLED' AND planned_fulfilment_date=$date AND advance_order_marker=1;", date, cancellationToken);
         var overdue = await ScalarLongAsync(connection, "SELECT COUNT(*) FROM orders WHERE status <> 'CANCELLED' AND planned_fulfilment_date < $date AND NOT (status='CLOSED' AND card_payment_ttc_cents + cash_payment_ttc_cents = total_ttc_cents);", date, cancellationToken);
-        return new(Money.FromCents(turnover), Money.FromCents(received.Total), Money.FromCents(received.Card), Money.FromCents(received.Cash), checked((int)future), checked((int)due), checked((int)overdue));
+        return new(Money.FromCents(turnover), Money.FromCents(received.Total), Money.FromCents(received.Card), Money.FromCents(received.Cash), checked((int)future), checked((int)due), checked((int)overdue), Money.FromCents(hiboutikReceived.Card), Money.FromCents(hiboutikReceived.Cash));
     }
 
     private async Task SaveLegacyAsync(SqliteApplicationTransaction sqlite, OrderSnapshot snapshot, CancellationToken token)
@@ -308,6 +309,11 @@ public sealed class SqliteOrderStore(
     private static async Task<(long Total, long Card, long Cash)> ReadReceivedAsync(SqliteConnection connection, string date, CancellationToken token)
     {
         await using var command = connection.CreateCommand(); command.CommandText = "SELECT COALESCE(SUM(pa.delta_cents),0),COALESCE(SUM(CASE WHEN pa.bucket='CB' THEN pa.delta_cents ELSE 0 END),0),COALESCE(SUM(CASE WHEN pa.bucket='ESPECE' THEN pa.delta_cents ELSE 0 END),0) FROM payment_adjustments pa JOIN orders o ON o.order_id=pa.order_id WHERE pa.effective_business_date=$date AND o.source_type='POS' AND o.status <> 'CANCELLED';"; command.Parameters.AddWithValue("$date", date); await using var reader = await command.ExecuteReaderAsync(token); return await reader.ReadAsync(token) ? (reader.GetInt64(0), reader.GetInt64(1), reader.GetInt64(2)) : (0, 0, 0);
+    }
+
+    private static async Task<(long Card, long Cash)> ReadHiboutikReceivedAsync(SqliteConnection connection, string date, CancellationToken token)
+    {
+        await using var command = connection.CreateCommand(); command.CommandText = "SELECT COALESCE(SUM(CASE WHEN pa.bucket='CB' THEN pa.delta_cents ELSE 0 END),0),COALESCE(SUM(CASE WHEN pa.bucket='ESPECE' THEN pa.delta_cents ELSE 0 END),0) FROM payment_adjustments pa JOIN orders o ON o.order_id=pa.order_id WHERE pa.effective_business_date=$date AND o.source_type='HIBOUTIK_PASTE' AND o.status <> 'CANCELLED';"; command.Parameters.AddWithValue("$date", date); await using var reader = await command.ExecuteReaderAsync(token); return await reader.ReadAsync(token) ? (reader.GetInt64(0), reader.GetInt64(1)) : (0, 0);
     }
 
     private static async Task<long> ScalarLongAsync(SqliteConnection connection, string sql, string date, CancellationToken token) { await using var command = connection.CreateCommand(); command.CommandText = sql; command.Parameters.AddWithValue("$date", date); return Convert.ToInt64(await command.ExecuteScalarAsync(token), CultureInfo.InvariantCulture); }

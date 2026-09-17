@@ -1,7 +1,7 @@
 # Product requirements
 
 **Status:** Approved — Phase 1 baseline  
-**Last updated:** 2026-08-27  
+**Last updated:** 2026-09-16
 **Product:** Sushi81 POS  
 **Target use:** Internal operational use by Sushi 81
 
@@ -91,6 +91,10 @@ Backup/recovery, handoff, schema migration, deployment, diagnostics and automate
 ### G-10 — Provide switchable French/Chinese UI
 
 French and Chinese software interface strings are switchable. Catalogue/business-entered data is not translated by the UI language switch.
+
+### G-11 — Provide a narrow Hiboutik daily payment reference view
+
+The top Caisse dashboard provides exactly two additional passive read-only values for the current business date: `Hiboutik CB aujourd'hui` and `Hiboutik Espèce aujourd'hui`. They are derived from signed effective-date payment adjustments on non-Cancelled `HIBOUTIK_PASTE` orders and remain separate from ordinary POS-originated turnover and received-payment summaries.
 
 ## 5. Functional requirements
 
@@ -251,6 +255,11 @@ A Hiboutik paste-created order uses the same ordinary order UI/lifecycle/printin
 
 **FR-057 — Hidden anti-double-counting source marker**  
 The application retains only the non-user-facing source discriminator required to distinguish a Hiboutik paste-created order from an ordinary POS-originated sale. This marker is automatic and is used to exclude the pasted order from ordinary POS-originated turnover, received-payment summaries, new Hiboutik CB-entry totals and `Gestion SUSHI 81` export.
+
+**FR-058 — Hiboutik daily CB/Espèce reference values**
+For business date D, the top Caisse dashboard displays exactly `Hiboutik CB aujourd'hui` and `Hiboutik Espèce aujourd'hui`. Each value sums signed `PaymentAdjustment` deltas whose parent order has `source_type = HIBOUTIK_PASTE`, whose current status is not `CANCELLED`, whose `effective_at` belongs to D and whose bucket is respectively `CB` or `ESPECE`. Open and Closed non-Cancelled Hiboutik orders are included; Cancelled orders contribute zero while their adjustment facts remain retained. The values use effective business date rather than `recorded_at`, order creation date or planned fulfilment date, and do not use order totals or current cumulative payment amounts.
+
+This is a separate passive reporting view. It does not change ordinary POS-originated turnover, received-payment, CB or Espèce values and does not introduce a Hiboutik turnover/count/discrepancy metric, special status, dedicated lifecycle, payment workflow, drill-down or emergency dashboard.
 
 Detailed parser behavior is frozen in `paste-order-import.md`.
 

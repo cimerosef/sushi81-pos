@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -69,6 +70,8 @@ public sealed class M07PresentationRefreshTests
             Assert.AreEqual(store.NewRow.Id, shell.Lifecycle.Orders.Single().Id);
             Assert.AreEqual("42.00", shell.Admin.DeliveryMinText);
             Assert.AreEqual(store.NewSummary.TurnoverTtc.Euros.ToString("0.00", System.Globalization.CultureInfo.CurrentCulture), shell.Lifecycle.DashboardTurnoverText);
+            Assert.AreEqual(store.NewSummary.HiboutikReceivedCardTtc.Euros.ToString("0.00", System.Globalization.CultureInfo.CurrentCulture), shell.Lifecycle.HiboutikReceivedCardText);
+            Assert.AreEqual(store.NewSummary.HiboutikReceivedCashTtc.Euros.ToString("0.00", System.Globalization.CultureInfo.CurrentCulture), shell.Lifecycle.HiboutikReceivedCashText);
         });
     }
 
@@ -109,6 +112,57 @@ public sealed class M07PresentationRefreshTests
         });
     }
 
+    [TestMethod]
+    public void HiboutikDashboardAmountsSurviveFrZhLanguageSwitchWithoutRequeryOrWriteOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var store = new MutablePresentationStore();
+            using var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+            var notifier = new NoOpNotifier();
+            var catalogue = new CatalogueService(store, guard, notifier);
+            var settings = new BusinessSettingsService(store, guard, notifier);
+            var entryCatalogue = new OrderEntryCatalogueService(store);
+            var clock = new FixedClock();
+            using var entryService = new OrderEntryService(
+                entryCatalogue, store, store, new NoOpPrinter(), new DeterministicIds(), clock, guard, notifier);
+            using var lifecycleService = new OrderLifecycleService(
+                store, new DeterministicIds(), clock, guard, notifier, entryCatalogue, store);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true, catalogue, settings, entryService, lifecycleService,
+                guard, WriteAuthorityState.Authoritative);
+
+            shell.Lifecycle!.RefreshDashboardAsync().GetAwaiter().GetResult();
+            var expectedCard = store.NewSummary.HiboutikReceivedCardTtc.Euros;
+            var expectedCash = store.NewSummary.HiboutikReceivedCashTtc.Euros;
+            var summaryCalls = store.SummaryCallCount;
+            var writes = store.SaveCallCount;
+
+            Assert.AreEqual("Hiboutik CB aujourd’hui", shell.Localized["DashboardHiboutikCard"]);
+            Assert.AreEqual("Hiboutik Espèce aujourd’hui", shell.Localized["DashboardHiboutikCash"]);
+            Assert.AreEqual(expectedCard, ParseDashboardAmount(shell.Lifecycle.HiboutikReceivedCardText));
+            Assert.AreEqual(expectedCash, ParseDashboardAmount(shell.Lifecycle.HiboutikReceivedCashText));
+
+            shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+            Assert.AreEqual("Hiboutik 今日 CB", shell.Localized["DashboardHiboutikCard"]);
+            Assert.AreEqual("Hiboutik 今日现金", shell.Localized["DashboardHiboutikCash"]);
+            Assert.AreEqual(expectedCard, ParseDashboardAmount(shell.Lifecycle.HiboutikReceivedCardText), "Language switching may change formatting, but not the numeric Hiboutik amount.");
+            Assert.AreEqual(expectedCash, ParseDashboardAmount(shell.Lifecycle.HiboutikReceivedCashText), "Language switching may change formatting, but not the numeric Hiboutik amount.");
+            Assert.AreEqual(summaryCalls, store.SummaryCallCount, "Language switching must not requery the dashboard summary.");
+            Assert.AreEqual(writes, store.SaveCallCount, "Language switching must not create a write path.");
+
+            shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+            Assert.AreEqual("Hiboutik CB aujourd’hui", shell.Localized["DashboardHiboutikCard"]);
+            Assert.AreEqual("Hiboutik Espèce aujourd’hui", shell.Localized["DashboardHiboutikCash"]);
+            Assert.AreEqual(expectedCard, ParseDashboardAmount(shell.Lifecycle.HiboutikReceivedCardText));
+            Assert.AreEqual(expectedCash, ParseDashboardAmount(shell.Lifecycle.HiboutikReceivedCashText));
+            Assert.AreEqual(summaryCalls, store.SummaryCallCount);
+            Assert.AreEqual(writes, store.SaveCallCount);
+        });
+    }
+
+    private static decimal ParseDashboardAmount(string value) => decimal.Parse(value, NumberStyles.Number, CultureInfo.CurrentCulture);
+
     private static void RunOnSta(Action action)
     {
         Exception? failure = null;
@@ -146,8 +200,10 @@ public sealed class M07PresentationRefreshTests
         public TaskCompletionSource<object?> CatalogueReadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<object?> ReleaseCatalogueRead => releaseCatalogue;
         public bool ThrowOnCatalogueRead { get; init; }
+        public int SummaryCallCount { get; private set; }
+        public int SaveCallCount { get; private set; }
         public BusinessSettings NewSettings { get; } = BusinessSettings.Defaults(new DateTimeOffset(2026, 9, 10, 12, 0, 0, TimeSpan.Zero)) with { DeliveryMinMerchandiseTotalTtc = Money.FromEuros(42) };
-        public OrderOperationalSummary NewSummary { get; } = new(Money.FromEuros(123), Money.FromEuros(100), Money.FromEuros(60), Money.FromEuros(40), 1, 2, 3);
+        public OrderOperationalSummary NewSummary { get; } = new(Money.FromEuros(123), Money.FromEuros(100), Money.FromEuros(60), Money.FromEuros(40), 1, 2, 3, Money.FromEuros(7), Money.FromEuros(8));
 
         public MutablePresentationStore()
         {
@@ -184,10 +240,10 @@ public sealed class M07PresentationRefreshTests
 
         public Task<BusinessSettings> GetAsync(CancellationToken cancellationToken = default) => Task.FromResult(NewSettings);
         public Task<OperationResult> UpdateAsync(BusinessSettings settings, CancellationToken cancellationToken = default) => Task.FromResult(OperationResult.Success());
-        public Task SaveLifecycleAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task SaveLifecycleAsync(OrderSnapshot snapshot, IReadOnlyList<PaymentAdjustment> adjustments, CancellationToken cancellationToken = default) { SaveCallCount++; return Task.CompletedTask; }
         public Task<IReadOnlyList<OrderBrowserRow>> SearchAsync(string? query, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>([NewRow]);
-        public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) => Task.FromResult(NewSummary);
-        public Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<OrderOperationalSummary> GetOperationalSummaryAsync(DateOnly businessDate, CancellationToken cancellationToken = default) { SummaryCallCount++; return Task.FromResult(NewSummary); }
+        public Task SaveAsync(OrderSnapshot snapshot, CancellationToken cancellationToken = default) { SaveCallCount++; return Task.CompletedTask; }
         public Task<OrderSnapshot?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default) => Task.FromResult<OrderSnapshot?>(null);
         public Task<IReadOnlyList<OrderBrowserRow>> ListByPlannedDateAsync(DateOnly plannedDate, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<OrderBrowserRow>>([NewRow]);
     }

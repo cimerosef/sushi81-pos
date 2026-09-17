@@ -255,6 +255,8 @@
   <data name="DashboardReceived" xml:space="preserve"><value>今日收款</value></data>
   <data name="DashboardReceivedCard" xml:space="preserve"><value>今日银行卡</value></data>
   <data name="DashboardReceivedCash" xml:space="preserve"><value>今日现金</value></data>
+  <data name="DashboardHiboutikCard" xml:space="preserve"><value>Hiboutik 今日 CB</value></data>
+  <data name="DashboardHiboutikCash" xml:space="preserve"><value>Hiboutik 今日现金</value></data>
   <data name="DashboardFuture" xml:space="preserve"><value>未来订单</value></data>
   <data name="DashboardDueToday" xml:space="preserve"><value>今日待处理预订</value></data>
   <data name="DashboardOverdue" xml:space="preserve"><value>逾期未结算</value></data>

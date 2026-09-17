@@ -255,6 +255,8 @@ Changements effectifs : {2}</value></data>
   <data name="DashboardReceived" xml:space="preserve"><value>Encaissé aujourd’hui</value></data>
   <data name="DashboardReceivedCard" xml:space="preserve"><value>CB aujourd’hui</value></data>
   <data name="DashboardReceivedCash" xml:space="preserve"><value>Espèce aujourd’hui</value></data>
+  <data name="DashboardHiboutikCard" xml:space="preserve"><value>Hiboutik CB aujourd’hui</value></data>
+  <data name="DashboardHiboutikCash" xml:space="preserve"><value>Hiboutik Espèce aujourd’hui</value></data>
   <data name="DashboardFuture" xml:space="preserve"><value>Commandes futures</value></data>
   <data name="DashboardDueToday" xml:space="preserve"><value>Anticipées à servir</value></data>
   <data name="DashboardOverdue" xml:space="preserve"><value>En retard non réglées</value></data>

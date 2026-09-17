@@ -1,7 +1,7 @@
 # Data model
 
 **Status:** Approved — Phase 3 baseline  
-**Last updated:** 2026-08-27  
+**Last updated:** 2026-09-16
 **Product:** Sushi81 POS  
 **Purpose:** Define the logical V1 business-data model required to implement the approved catalogue, order lifecycle, payment attribution, historical snapshots, source boundary and archive behavior.
 
@@ -48,6 +48,7 @@ The logical model must preserve these approved semantics:
 15. While a manual total override is authoritative, the complete authoritative TTC amount uses one 10% VAT bucket.
 16. A non-zero enabled delivery fee uses fixed 10% VAT under normal calculated pricing.
 17. Once an order has been saved as a future order, `advance_order_marker` remains true permanently for that order.
+18. The approved post-M09 Hiboutik daily CB/Espèce values are derived reporting views over existing `PaymentAdjustment` facts; they require no new durable field, entity or schema migration.
 18. Export tracking is technical integration metadata and must not create a second order lifecycle.
 
 ## 3. Data-design principles
@@ -513,6 +514,17 @@ For date D:
 
 The technical `recorded_at` timestamp does not move a legitimately back-dated effective payment into the later day's business summary.
 
+### 10.7 Source-specific Hiboutik daily payment values
+
+For business date D, the approved post-M09 dashboard derives exactly two passive values from the same persisted facts:
+
+- `Hiboutik CB aujourd'hui` — signed deltas in bucket `CB`;
+- `Hiboutik Espèce aujourd'hui` — signed deltas in bucket `ESPECE`.
+
+Both views include only adjustments whose parent order has `source_type = HIBOUTIK_PASTE`, whose current status is not `CANCELLED` and whose `effective_at` belongs to D. Open and Closed non-Cancelled orders are included; Cancelled orders contribute zero while their `PaymentAdjustment` rows remain retained. Effective date, not `recorded_at`, order creation date or planned fulfilment date, controls attribution.
+
+These are derived read-only presentation values. They do not change the ordinary POS-originated daily summaries, operational turnover, current payment composition, lifecycle state or export eligibility. They do not use `Order.total_ttc`, `source_total_ttc` or current cumulative payment amounts as the daily contribution, and they add no schema/table/column/migration or write path.
+
 ## 11. Minimal Hiboutik source boundary
 
 A Hiboutik paste-created order uses the same ordinary entities and editable fields as a manually created order.
@@ -521,7 +533,7 @@ The only source-specific persisted business distinction required in V1 is:
 
 `Order.source_type = HIBOUTIK_PASTE`
 
-Its sole business purpose is automatic anti-double-counting. A Hiboutik paste-created order is excluded from:
+Its source-specific business boundary remains automatic anti-double-counting. The same existing discriminator is also the approved selector for the separate passive Hiboutik daily CB/Espèce derived view; it does not create a new order subtype or durable reporting entity. A Hiboutik paste-created order is excluded from:
 
 - ordinary POS-originated operational turnover;
 - ordinary POS-originated received-payment totals;
