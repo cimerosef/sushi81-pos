@@ -190,3 +190,22 @@ A worklog entry, `CODEX_DONE`, controller acceptance, owner manual PASSED or gre
 - Blockers/unresolved items: none for WP1 implementation; later import workflow remains unimplemented by explicit scope.
 - Execution topology: isolated worktree `m10-authorized`; root worktree preserved.
 - Browser notification result: pending durable `CODEX_DONE` delivery.
+
+## Entry 2026-09-17 — `M10-WP1-REPAIR-WORKBOOK-SAFETY-02`
+
+- Authorization/gate state observed: Issue #4 OPEN and pointing to PR #22; repair handoff comment `5717108498` matched the controller findings in `5717100264`.
+- Starting PR head: `3d6403a977ac8836a43cb05ab393456aa3a4683c`.
+- Ending pushed PR head: recorded in the matching durable repair `CODEX_DONE` after push.
+- Exact technical repairs: business-column and blank-next-row unlock under worksheet protection; protected technical columns with InsertRows permission; full business-plus-technical filter range for binding-preserving sort; one-connection read transaction snapshot seam; length/type-prefixed canonical SHA-256 baseline encoding; invariant `CatalogueWorkbookSchema` descriptors and metadata rows.
+- Files changed: `CatalogueWorkbookSchema.cs`; `CatalogueWorkbookContracts.cs`; `SqliteCatalogueStore.cs`; `ClosedXmlCatalogueWorkbookGateway.cs`; focused Application/Infrastructure workbook tests; M10 contract technical wording; this appended worklog entry.
+- Focused tests: Application workbook tests **3/3 passed** and Infrastructure workbook tests **4/4 passed**, including snapshot-seam use, empty/new-row protection, sort/insertion binding, metadata descriptors and delimiter/Unicode fingerprint distinction.
+- Full Release tests: **663/663 passed** across all six Release test assemblies.
+- Release build: **passed with zero warnings and zero errors** for the full solution.
+- `git diff --check`: **passed**.
+- Dependency/schema impact: ClosedXML remains the single pinned `0.105.1` XLSX dependency; no COM/Interop and no SQLite migration/new durable business field.
+- Authority/recovery impact: export remains read-only; the snapshot transaction is read-only and acquires no write authority or durable-change notification.
+- Privacy/synthetic-data audit: generated IDs and synthetic catalogue values only.
+- CI run / exact head: pending repair push.
+- Remaining manual evidence: owner Windows/Excel inspection remains required; import parser/planner, preview, atomic commit and WPF workflow remain excluded.
+- Blockers/unresolved items: none identified within the narrow repair scope.
+- Browser notification result: pending durable repair `CODEX_DONE` delivery.

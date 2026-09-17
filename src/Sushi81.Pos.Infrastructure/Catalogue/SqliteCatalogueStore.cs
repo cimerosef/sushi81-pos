@@ -15,7 +15,7 @@ public sealed class SqliteCatalogueStore(
     ITransactionRunner transactionRunner,
     IIdGenerator idGenerator,
     IBusinessClock clock,
-    Func<int, Exception?>? bulkWriteFailureInjector = null) : ICatalogueStore, IActiveProductCodeQueries
+    Func<int, Exception?>? bulkWriteFailureInjector = null) : ICatalogueStore, IActiveProductCodeQueries, ICatalogueWorkbookSnapshotQueries
 {
     private readonly SqliteConnectionFactory connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     private readonly ITransactionRunner transactionRunner = transactionRunner ?? throw new ArgumentNullException(nameof(transactionRunner));
@@ -73,6 +73,149 @@ public sealed class SqliteCatalogueStore(
             result.Add(row);
         }
         return result;
+    }
+
+    public async Task<IReadOnlyList<CatalogueWorkbookProduct>> ReadCatalogueWorkbookSnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+
+        var products = new List<SnapshotProduct>();
+        await using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = """
+                SELECT p.product_id, p.code, p.name, c.name, c.short_code, p.price_ttc_cents, p.vat_rate,
+                       p.is_active, p.discount_eligible, p.options_enabled
+                FROM products p JOIN categories c ON c.category_id = p.category_id
+                ORDER BY p.code COLLATE NOCASE, p.product_id;
+                """;
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                products.Add(new(
+                    ParseGuid(reader.GetString(0)),
+                    reader.GetString(1),
+                    reader.GetString(2),
+                    reader.GetString(3),
+                    reader.IsDBNull(4) ? null : reader.GetString(4),
+                    Money.FromCents(reader.GetInt64(5)),
+                    ParseDecimal(reader.GetString(6)),
+                    reader.GetInt64(7) == 1,
+                    reader.GetInt64(8) == 1,
+                    reader.GetInt64(9) == 1));
+            }
+        }
+
+        var groups = new Dictionary<Guid, List<SnapshotGroup>>();
+        await using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = """
+                SELECT option_group_id, product_id, name, selection_mode, is_required,
+                       min_selections, max_selections, display_order
+                FROM option_groups
+                ORDER BY product_id, display_order, option_group_id;
+                """;
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var productId = ParseGuid(reader.GetString(1));
+                if (!groups.TryGetValue(productId, out var productGroups))
+                {
+                    productGroups = [];
+                    groups.Add(productId, productGroups);
+                }
+
+                productGroups.Add(new(
+                    ParseGuid(reader.GetString(0)),
+                    productId,
+                    reader.GetString(2),
+                    ParseSelectionMode(reader.GetString(3)),
+                    reader.GetInt64(4) == 1,
+                    reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                    reader.IsDBNull(6) ? null : reader.GetInt32(6),
+                    reader.GetInt32(7),
+                    []));
+            }
+        }
+
+        var options = new Dictionary<Guid, List<SnapshotOption>>();
+        await using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = """
+                SELECT option_id, option_group_id, name, price_adjustment_ttc_cents, is_active, display_order
+                FROM options
+                ORDER BY option_group_id, display_order, option_id;
+                """;
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var groupId = ParseGuid(reader.GetString(1));
+                if (!options.TryGetValue(groupId, out var groupOptions))
+                {
+                    groupOptions = [];
+                    options.Add(groupId, groupOptions);
+                }
+
+                groupOptions.Add(new(
+                    ParseGuid(reader.GetString(0)),
+                    groupId,
+                    reader.GetString(2),
+                    Money.FromCents(reader.GetInt64(3)),
+                    reader.GetInt64(4) == 1,
+                    reader.GetInt32(5)));
+            }
+        }
+
+        foreach (var group in groups.Values.SelectMany(value => value))
+            group.Options.AddRange(options.TryGetValue(group.Id, out var values) ? values : []);
+
+        await transaction.CommitAsync(cancellationToken);
+
+        return products.Select(product => new CatalogueWorkbookProduct(
+            product.Id,
+            product.Code,
+            product.Name,
+            product.CategoryName,
+            product.CategoryShortCode,
+            product.PriceTtc,
+            product.VatRate,
+            product.IsActive,
+            product.DiscountEligible,
+            product.OptionsEnabled,
+            groups.TryGetValue(product.Id, out var productGroups)
+                ? productGroups
+                    .OrderBy(group => group.DisplayOrder)
+                    .ThenBy(group => group.Id)
+                    .Select(group => new CatalogueWorkbookOptionGroup(
+                        group.Id,
+                        product.Id,
+                        product.Code,
+                        product.Name,
+                        group.Name,
+                        group.SelectionMode,
+                        group.IsRequired,
+                        group.MinSelections,
+                        group.MaxSelections,
+                        group.DisplayOrder,
+                        group.Options
+                            .OrderBy(option => option.DisplayOrder)
+                            .ThenBy(option => option.Id)
+                            .Select(option => new CatalogueWorkbookOption(
+                                option.Id,
+                                group.Id,
+                                product.Code,
+                                product.Name,
+                                group.Name,
+                                option.Name,
+                                option.PriceAdjustmentTtc,
+                                option.IsActive,
+                                option.DisplayOrder))
+                            .ToArray()))
+                    .ToArray()
+                : [])).ToArray();
     }
 
     public async Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default)
@@ -453,6 +596,37 @@ public sealed class SqliteCatalogueStore(
             ? new("shortCode", "A category with that short code already exists.", ValidationCodes.CategoryShortCodeDuplicate)
             : new("name", "A category with that name already exists.", ValidationCodes.CategoryDuplicate);
     private static ValidationIssue MapConstraint(SqliteException exception) => exception.Message.Contains("normalized_code", StringComparison.OrdinalIgnoreCase) || exception.Message.Contains("code", StringComparison.OrdinalIgnoreCase) ? new("code", "A product with that code already exists.") : new("product", "The catalogue change conflicts with existing data.");
+
+    private sealed record SnapshotProduct(
+        Guid Id,
+        string Code,
+        string Name,
+        string CategoryName,
+        string? CategoryShortCode,
+        Money PriceTtc,
+        decimal VatRate,
+        bool IsActive,
+        bool DiscountEligible,
+        bool OptionsEnabled);
+
+    private sealed record SnapshotOption(
+        Guid Id,
+        Guid GroupId,
+        string Name,
+        Money PriceAdjustmentTtc,
+        bool IsActive,
+        int DisplayOrder);
+
+    private sealed record SnapshotGroup(
+        Guid Id,
+        Guid ProductId,
+        string Name,
+        SelectionMode SelectionMode,
+        bool IsRequired,
+        int? MinSelections,
+        int? MaxSelections,
+        int DisplayOrder,
+        List<SnapshotOption> Options);
 
     private sealed class CatalogueConflictException(string message) : Exception(message);
 }

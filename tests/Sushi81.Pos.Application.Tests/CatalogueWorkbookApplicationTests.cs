@@ -49,6 +49,20 @@ public sealed class CatalogueWorkbookApplicationTests
             .Any(reference => string.Equals(reference.Name, "ClosedXML", StringComparison.OrdinalIgnoreCase)));
     }
 
+    [TestMethod]
+    public async Task ProductionSnapshotSeamAvoidsIndependentPerProductLookups()
+    {
+        var snapshot = new CatalogueWorkbookProduct(
+            Guid.NewGuid(), "P", "Product", "Plats", "PL", Money.FromCents(100), 20m, true, false, false, []);
+        var queries = new SnapshotQueries([snapshot]);
+        var gateway = new RecordingGateway();
+
+        await new CatalogueWorkbookService(queries, gateway).ExportAsync(new MemoryStream());
+
+        Assert.AreEqual(1, queries.SnapshotCalls);
+        Assert.AreEqual(snapshot, gateway.Model!.Products.Single());
+    }
+
     private sealed class RecordingGateway : ICatalogueWorkbookGateway
     {
         public CatalogueWorkbookExport? Model { get; private set; }
@@ -74,6 +88,24 @@ public sealed class CatalogueWorkbookApplicationTests
             LookupCalls++;
             drafts.TryGetValue(productId, out var draft);
             return Task.FromResult(draft);
+        }
+    }
+
+    private sealed class SnapshotQueries(IReadOnlyList<CatalogueWorkbookProduct> snapshot) : ICatalogueQueries, ICatalogueWorkbookSnapshotQueries
+    {
+        public int SnapshotCalls { get; private set; }
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([]);
+
+        public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ProductSummary>>([]);
+
+        public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(null);
+
+        public Task<IReadOnlyList<CatalogueWorkbookProduct>> ReadCatalogueWorkbookSnapshotAsync(CancellationToken cancellationToken = default)
+        {
+            SnapshotCalls++;
+            return Task.FromResult(snapshot);
         }
     }
 }

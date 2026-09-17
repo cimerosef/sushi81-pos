@@ -12,8 +12,8 @@ namespace Sushi81.Pos.Infrastructure.Catalogue;
 /// </summary>
 public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGateway
 {
-    private const string MetadataSheetName = "__Sushi81Meta";
-    private const string ContractVersion = "M10-CATALOGUE-1";
+    private const string MetadataSheetName = CatalogueWorkbookSchema.MetadataSheetName;
+    private const string ContractVersion = CatalogueWorkbookSchema.ContractVersion;
 
     public Task WriteAsync(CatalogueWorkbookExport model, Stream destination, CancellationToken cancellationToken = default)
     {
@@ -45,11 +45,7 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
 
     private static void WriteProducts(IXLWorksheet sheet, IReadOnlyList<CatalogueWorkbookProduct> products)
     {
-        var headers = new[]
-        {
-            "Product Code", "Product Name", "Category Name", "Category Short Code", "Price TTC",
-            "VAT Rate", "Active", "Discount Eligible", "Options Enabled", "Product Row Key", "Product ID"
-        };
+        var headers = HeadersFor("Products");
         WriteHeader(sheet, headers);
         var row = 2;
         foreach (var product in products.OrderBy(value => value.Code, StringComparer.OrdinalIgnoreCase).ThenBy(value => value.ProductId))
@@ -71,17 +67,12 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
 
         sheet.Column(5).Style.NumberFormat.Format = "0.00";
         sheet.Column(6).Style.NumberFormat.Format = "0.##";
-        UnlockBusinessCells(sheet, row - 1, 9);
         FinishVisibleSheet(sheet, row - 1, 9, 11);
     }
 
     private static void WriteGroups(IXLWorksheet sheet, IReadOnlyList<CatalogueWorkbookProduct> products)
     {
-        var headers = new[]
-        {
-            "Product Code", "Product Name", "Group Name", "Selection Mode", "Required",
-            "Min Selections", "Max Selections", "Display Order", "Product Row Key", "OptionGroup Row Key", "Product ID", "OptionGroup ID"
-        };
+        var headers = HeadersFor("OptionGroups");
         WriteHeader(sheet, headers);
         var row = 2;
         foreach (var product in OrderedProducts(products))
@@ -102,17 +93,12 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
             row++;
         }
 
-        UnlockBusinessCells(sheet, row - 1, 8);
         FinishVisibleSheet(sheet, row - 1, 8, 12);
     }
 
     private static void WriteOptions(IXLWorksheet sheet, IReadOnlyList<CatalogueWorkbookProduct> products)
     {
-        var headers = new[]
-        {
-            "Product Code", "Product Name", "Option Group Name", "Option Name", "Price Adjustment TTC",
-            "Active", "Display Order", "Product Row Key", "OptionGroup Row Key", "Option Row Key", "Option ID", "OptionGroup ID"
-        };
+        var headers = HeadersFor("Options");
         WriteHeader(sheet, headers);
         var row = 2;
         foreach (var product in OrderedProducts(products))
@@ -135,7 +121,6 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
         }
 
         sheet.Column(5).Style.NumberFormat.Format = "0.00";
-        UnlockBusinessCells(sheet, row - 1, 7);
         FinishVisibleSheet(sheet, row - 1, 7, 12);
     }
 
@@ -149,15 +134,24 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
         sheet.Cell(3, 2).Value = export.ExportInstanceId.ToString("D");
         sheet.Cell(4, 1).Value = "VisibleSheets";
         sheet.Cell(4, 2).Value = "Products|OptionGroups|Options";
-        sheet.Cell(6, 1).Value = "EntityType";
-        sheet.Cell(6, 2).Value = "RowKey";
-        sheet.Cell(6, 3).Value = "EntityId";
-        sheet.Cell(6, 4).Value = "ParentRowKey";
-        sheet.Cell(6, 5).Value = "Worksheet";
-        sheet.Cell(6, 6).Value = "RowNumber";
-        sheet.Cell(6, 7).Value = "BaselineFingerprint";
-
+        var descriptorHeaders = new[] { "Worksheet", "FieldKey", "ColumnIndex", "BusinessVisible", "Editable", "Role", "Header" };
+        WriteMetadataHeader(sheet, 6, descriptorHeaders);
         var row = 7;
+        foreach (var descriptor in CatalogueWorkbookSchema.Fields)
+        {
+            sheet.Cell(row, 1).Value = descriptor.Worksheet;
+            sheet.Cell(row, 2).Value = descriptor.FieldKey;
+            sheet.Cell(row, 3).Value = descriptor.ColumnIndex;
+            sheet.Cell(row, 4).Value = descriptor.BusinessVisible;
+            sheet.Cell(row, 5).Value = descriptor.Editable;
+            sheet.Cell(row, 6).Value = descriptor.Role;
+            sheet.Cell(row, 7).Value = descriptor.Header;
+            row++;
+        }
+
+        row++;
+        var manifestHeaderRow = row++;
+        WriteMetadataHeader(sheet, manifestHeaderRow, ["EntityType", "RowKey", "EntityId", "ParentRowKey", "Worksheet", "RowNumber", "BaselineFingerprint"]);
         var productWorksheetRow = 2;
         var groupWorksheetRow = 2;
         var optionWorksheetRow = 2;
@@ -173,6 +167,20 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
         }
 
         sheet.Columns().AdjustToContents();
+    }
+
+    private static string[] HeadersFor(string worksheet) =>
+        CatalogueWorkbookSchema.Fields
+            .Where(field => string.Equals(field.Worksheet, worksheet, StringComparison.Ordinal))
+            .OrderBy(field => field.ColumnIndex)
+            .Select(field => field.Header)
+            .ToArray();
+
+    private static void WriteMetadataHeader(IXLWorksheet sheet, int row, string[] headers)
+    {
+        for (var column = 0; column < headers.Length; column++) sheet.Cell(row, column + 1).Value = headers[column];
+        sheet.Row(row).Style.Font.Bold = true;
+        sheet.Row(row).Style.Fill.BackgroundColor = XLColor.LightGray;
     }
 
     private static void AddManifest(IXLWorksheet sheet, ref int row, string entityType, string key, Guid entityId, string? parentKey, string worksheet, int rowNumber, string fingerprint)
@@ -194,14 +202,15 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
         sheet.Row(1).Style.Fill.BackgroundColor = XLColor.LightGray;
     }
 
-    private static void UnlockBusinessCells(IXLWorksheet sheet, int lastRow, int businessColumns)
-    {
-        if (lastRow >= 2) sheet.Range(2, 1, lastRow, businessColumns).Style.Protection.Locked = false;
-    }
-
     private static void FinishVisibleSheet(IXLWorksheet sheet, int lastRow, int businessColumns, int technicalColumns)
     {
-        if (lastRow >= 1) sheet.Range(1, 1, Math.Max(1, lastRow), businessColumns).SetAutoFilter();
+        var effectiveLastRow = Math.Max(1, lastRow);
+        sheet.Columns(1, businessColumns).Style.Protection.Locked = false;
+        sheet.Range(1, 1, 1, businessColumns).Style.Protection.Locked = true;
+        var newRowTemplate = Math.Max(2, lastRow + 1);
+        sheet.Range(newRowTemplate, 1, newRowTemplate, businessColumns).Style.Protection.Locked = false;
+        sheet.Range(newRowTemplate, businessColumns + 1, newRowTemplate, technicalColumns).Style.Protection.Locked = true;
+        if (effectiveLastRow >= 1) sheet.Range(1, 1, effectiveLastRow, technicalColumns).SetAutoFilter();
         for (var column = businessColumns + 1; column <= technicalColumns; column++)
         {
             sheet.Column(column).Hide();
@@ -216,7 +225,8 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
         XLSheetProtectionElements.SelectLockedCells
         | XLSheetProtectionElements.SelectUnlockedCells
         | XLSheetProtectionElements.AutoFilter
-        | XLSheetProtectionElements.Sort);
+        | XLSheetProtectionElements.Sort
+        | XLSheetProtectionElements.InsertRows);
 
     private static void SetNullableInteger(IXLCell cell, int? value) => cell.Value = value is null ? string.Empty : value.Value;
 
@@ -227,8 +237,48 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
     private static string GroupKey(Guid id) => $"group:{id:N}";
     private static string OptionKey(Guid id) => $"option:{id:N}";
 
-    private static string ProductFingerprint(CatalogueWorkbookProduct product) => Fingerprint(string.Join("|", product.Code, product.Name, product.CategoryName, product.CategoryShortCode, product.PriceTtc.Cents.ToString(CultureInfo.InvariantCulture), product.VatRate.ToString(CultureInfo.InvariantCulture), product.IsActive, product.DiscountEligible, product.OptionsEnabled));
-    private static string GroupFingerprint(CatalogueWorkbookOptionGroup group) => Fingerprint(string.Join("|", group.Name, group.SelectionMode, group.IsRequired, group.MinSelections, group.MaxSelections, group.DisplayOrder));
-    private static string OptionFingerprint(CatalogueWorkbookOption option) => Fingerprint(string.Join("|", option.Name, option.PriceAdjustmentTtc.Cents.ToString(CultureInfo.InvariantCulture), option.IsActive, option.DisplayOrder));
-    private static string Fingerprint(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+    private static string ProductFingerprint(CatalogueWorkbookProduct product) => Fingerprint(
+        ("code", "string", product.Code),
+        ("name", "string", product.Name),
+        ("category-name", "string", product.CategoryName),
+        ("category-short-code", "string", product.CategoryShortCode ?? string.Empty),
+        ("price-cents", "int64", product.PriceTtc.Cents.ToString(CultureInfo.InvariantCulture)),
+        ("vat-rate", "decimal", product.VatRate.ToString(CultureInfo.InvariantCulture)),
+        ("active", "bool", product.IsActive ? "true" : "false"),
+        ("discount-eligible", "bool", product.DiscountEligible ? "true" : "false"),
+        ("options-enabled", "bool", product.OptionsEnabled ? "true" : "false"));
+
+    private static string GroupFingerprint(CatalogueWorkbookOptionGroup group) => Fingerprint(
+        ("name", "string", group.Name),
+        ("selection-mode", "enum", group.SelectionMode.ToString()),
+        ("required", "bool", group.IsRequired ? "true" : "false"),
+        ("min-selections", "int32", group.MinSelections?.ToString(CultureInfo.InvariantCulture)),
+        ("max-selections", "int32", group.MaxSelections?.ToString(CultureInfo.InvariantCulture)),
+        ("display-order", "int32", group.DisplayOrder.ToString(CultureInfo.InvariantCulture)));
+
+    private static string OptionFingerprint(CatalogueWorkbookOption option) => Fingerprint(
+        ("name", "string", option.Name),
+        ("price-adjustment-cents", "int64", option.PriceAdjustmentTtc.Cents.ToString(CultureInfo.InvariantCulture)),
+        ("active", "bool", option.IsActive ? "true" : "false"),
+        ("display-order", "int32", option.DisplayOrder.ToString(CultureInfo.InvariantCulture)));
+
+    private static string Fingerprint(params (string Name, string Type, string? Value)[] fields)
+    {
+        var canonical = new StringBuilder();
+        foreach (var (name, type, value) in fields)
+        {
+            canonical.Append(name.Length).Append(':').Append(name);
+            canonical.Append(type.Length).Append(':').Append(type);
+            if (value is null)
+            {
+                canonical.Append("N;");
+            }
+            else
+            {
+                canonical.Append('V').Append(value.Length).Append(':').Append(value).Append(';');
+            }
+        }
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
+    }
 }

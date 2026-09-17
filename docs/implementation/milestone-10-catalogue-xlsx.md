@@ -176,6 +176,15 @@ Use one non-operator-facing **VeryHidden** technical sheet such as `__Sushi81Met
 
 It must not contain a duplicate hidden business Catalogue or deletion list.
 
+WP1 uses contract version `M10-CATALOGUE-1`. `CatalogueWorkbookSchema` is the
+Application-owned invariant descriptor source for the three worksheets; its metadata
+rows record worksheet, field key, column index, business visibility/editability and
+entity/relationship role. The manifest records the original row key, entity ID, parent
+row key, worksheet/row location and a canonical typed baseline fingerprint. The visible
+worksheet filter range includes hidden technical columns so ordinary sorting keeps each
+binding with its business row; business columns and a blank next-row template remain
+editable under worksheet protection while technical columns stay locked.
+
 ### 4.6 Protection
 
 - technical columns hidden;

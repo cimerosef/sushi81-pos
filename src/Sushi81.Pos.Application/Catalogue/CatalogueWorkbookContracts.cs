@@ -56,6 +56,15 @@ public interface ICatalogueWorkbookGateway
 }
 
 /// <summary>
+/// Optional production read seam that materializes the complete Catalogue from one
+/// consistent database snapshot before workbook serialization starts.
+/// </summary>
+public interface ICatalogueWorkbookSnapshotQueries
+{
+    Task<IReadOnlyList<CatalogueWorkbookProduct>> ReadCatalogueWorkbookSnapshotAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Builds a complete read-only export from the existing Catalogue query seam.
 /// Export does not acquire write authority and does not notify recovery.
 /// </summary>
@@ -67,6 +76,14 @@ public sealed class CatalogueWorkbookService(ICatalogueQueries catalogue, ICatal
     public async Task ExportAsync(Stream destination, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(destination);
+
+        if (catalogue is ICatalogueWorkbookSnapshotQueries snapshotQueries)
+        {
+            var snapshotProducts = await snapshotQueries.ReadCatalogueWorkbookSnapshotAsync(cancellationToken);
+            await gateway.WriteAsync(new CatalogueWorkbookExport(snapshotProducts, Guid.NewGuid()), destination, cancellationToken);
+            return;
+        }
+
         var products = await catalogue.ListProductsAsync(cancellationToken: cancellationToken);
         var exported = new List<CatalogueWorkbookProduct>(products.Count);
 
