@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Last updated:** 2026-09-17  
-**Current state:** M01 through M09 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. M10 Catalogue `.xlsx` preparation is complete and ready for separate project-owner implementation authorization, but M10 implementation remains NOT AUTHORIZED. Issue #4 is CLOSED with no active executable Codex handoff. M11–M13 remain unauthorized.
+**Current state:** M01 through M09 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. M10 Catalogue `.xlsx` preparation is complete and the project owner has explicitly authorized M10 implementation. Dedicated implementation PR #22 / branch `codex/m10-catalogue-xlsx-authorized` is established. Codex execution remains controlled solely by Issue #4 and exactly one active handoff at a time. M11–M13 remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07–M09 and post-M09 evidence remains authoritative in milestone-specific worklogs/manual-acceptance/PR records. This file is the living current-state summary; historical evidence is not rewritten to match later state.
 
@@ -34,14 +34,14 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M08 — Printing and reprinting | Passed | Accepted production candidate `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; PR #14 merged at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`; physical/manual acceptance Passed. |
 | M09 — Hiboutik paste fallback | Passed | Accepted production candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`; PR #17 merged at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; owner Windows/WPF acceptance Passed. |
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | Automated evidence accepted in PR #19 comment `5705723428`; owner A–F acceptance Passed in comment `5715414940`; final controller closure comment `5715705712`; PR #19 CLOSED / MERGED at `861cfba1dfacbb3289395c0370f6d42765b6c223`. Accepted executable candidate remains from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`. |
-| M10 — Catalogue `.xlsx` | Preparation | Preparation/readiness complete on draft PR #20. Category `short_code` workbook semantics Approved 2026-09-17. Ready for separate project-owner implementation authorization. **NOT AUTHORIZED**; Issue #4 CLOSED; no executable handoff. |
+| M10 — Catalogue `.xlsx` | Authorized | Preparation/readiness complete. Category `short_code` workbook semantics Approved 2026-09-17. Owner explicitly authorized M10 implementation on 2026-09-17 against preparation head `6fda83115ccde97e8d0538205eff2b769b353f71`. Dedicated PR #22 / branch `codex/m10-catalogue-xlsx-authorized` established. Execution remains per-work-package through Issue #4. |
 | M11 — Gestion export | Not started | Unauthorized; pending M10. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
 
 ## 3. Current merged baseline
 
-Current authoritative `main` baseline before M10 preparation:
+Current authoritative `main` baseline before M10 implementation:
 
 `861cfba1dfacbb3289395c0370f6d42765b6c223`
 
@@ -53,8 +53,7 @@ Post-M09 closure facts:
 - final closure head before merge: `d55e36a244327c55b81f6fb1040c0ef46dbe154a`;
 - owner final acceptance: PR #19 comment `5715414940`;
 - final controller closure acceptance: PR #19 comment `5715705712`;
-- Issue #18: CLOSED / completed;
-- Issue #4: CLOSED / no active handoff.
+- Issue #18: CLOSED / completed.
 
 Any older living wording saying PR #19 is OPEN/unmerged is stale state-accounting text and is superseded by GitHub merge metadata/current `main`. Historical PR/evidence text remains historical and is not rewritten.
 
@@ -71,7 +70,7 @@ M10 primary ownership:
 Preparation audit result:
 
 - existing Domain/Application/SQLite/WPF Catalogue seams: PASS;
-- ClosedXML architecture selection: already Approved; package currently absent and may be added only after implementation authorization;
+- ClosedXML architecture selection: already Approved; one pinned/tested dependency may be added within authorized M10 implementation;
 - expected SQLite migration: none;
 - whole-import transaction boundary: dedicated one-transaction batch commit required;
 - missing workbook rows: mechanically no-delete through overlay planning;
@@ -105,39 +104,38 @@ Frozen behavior:
 
 No material M10 business/spec decision remains open.
 
-## 6. M10 control package
+## 6. M10 implementation control package
 
-Preparation branch/PR:
+Finalized preparation head approved by owner:
 
-- branch: `prep/m10-catalogue-xlsx`;
-- draft PR #20 — `M10 preparation: Catalogue .xlsx readiness and contracts`.
+`6fda83115ccde97e8d0538205eff2b769b353f71`
 
-Prepared records:
+Implementation line:
 
-- `implementation/milestone-10-preparation-readiness.md` — **READY FOR PROJECT-OWNER IMPLEMENTATION AUTHORIZATION**;
-- `implementation/milestone-10-catalogue-xlsx.md` — prepared non-executable contract;
-- `implementation/milestone-10-final-manual-acceptance.md` — PREPARED / NOT YET EXECUTED;
-- `implementation/milestone-10-worklog.md` — preparation/evidence ledger;
-- `implementation/milestone-10-authorization.md` — **NOT AUTHORIZED**.
+- branch: `codex/m10-catalogue-xlsx-authorized`;
+- PR #22 — `M10: Catalogue .xlsx import/export`;
+- owner implementation authorization: explicit `批准 M10 implementation` on 2026-09-17;
+- authorization record: `implementation/milestone-10-authorization.md` — **AUTHORIZED**;
+- preparation/readiness: `implementation/milestone-10-preparation-readiness.md` — complete;
+- implementation contract: `implementation/milestone-10-catalogue-xlsx.md`;
+- final manual acceptance checklist: `implementation/milestone-10-final-manual-acceptance.md` — PREPARED / NOT YET EXECUTED;
+- worklog: `implementation/milestone-10-worklog.md`.
 
-No production implementation, ClosedXML production package addition, schema migration or executable Codex handoff exists on this preparation state.
+Historical PR #21 is VOID/CLOSED and must not be used as a mailbox.
 
 ## 7. Current gate state
 
 Issue #4 remains the sole Codex execution gate.
 
-Current state:
+M10 milestone implementation is authorized, but actual Codex execution is narrower:
 
-- Issue #4: **CLOSED**;
-- active executable handoff: none;
-- M10 implementation authorization: **NOT GRANTED**;
-- Codex must make no M10 production changes;
-- owner approval of the Category short-code specification does **not** equal implementation authorization;
-- controller readiness does **not** equal implementation authorization;
-- a future `CODEX_DONE` never authorizes another work package, merge or M11;
-- merge always requires separate explicit owner approval.
-
-Only a separate explicit owner statement such as **“批准 M10 implementation”** may begin the authorization setup. Even then, the dedicated implementation branch/PR/mailbox, one complete handoff and OPEN Issue #4 must exist before Codex execution.
+- Codex may execute only the exact handoff named by Issue #4 while Issue #4 is OPEN;
+- first selected handoff: `M10-WP1-CONTRACTS-CLOSEDXML-EXPORT-01`;
+- branch/PR/handoff pointer must match exactly;
+- a `CODEX_DONE` never authorizes another work package, merge or M11;
+- controller acceptance never auto-opens the next work package;
+- merge always requires separate explicit owner approval;
+- M11/M12/M13 remain unauthorized.
 
 ## 8. Evidence preservation
 
