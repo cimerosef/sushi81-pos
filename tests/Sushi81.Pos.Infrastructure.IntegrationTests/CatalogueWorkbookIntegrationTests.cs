@@ -300,6 +300,148 @@ public sealed class CatalogueWorkbookIntegrationTests
         Assert.AreEqual("New option", currentSnapshot.OptionGroups.Single().Options.Single().Name);
     }
 
+    [TestMethod]
+    public async Task ImportGatewayParsesExportAndRejectsCorruptContract()
+    {
+        var productId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var optionId = Guid.NewGuid();
+        var model = new CatalogueWorkbookExport([new CatalogueWorkbookProduct(productId, "P-1", "Product", "Plats", "PL", Money.FromCents(125), 20m, true, false, true,
+            [new CatalogueWorkbookOptionGroup(groupId, productId, "P-1", "Product", "Extras", SelectionMode.Multi, false, 0, 2, 0,
+                [new CatalogueWorkbookOption(optionId, groupId, "P-1", "Product", "Extras", "Avocado", Money.FromCents(25), true, 0)])])], Guid.NewGuid());
+        var bytes = await WriteAsync(model);
+        var gateway = new ClosedXmlCatalogueWorkbookImportGateway();
+        var parsed = await gateway.ReadAsync(new MemoryStream(bytes), "catalogue.xlsx");
+        Assert.HasCount(1, parsed.Products);
+        Assert.HasCount(1, parsed.OptionGroups);
+        Assert.HasCount(1, parsed.Options);
+        Assert.IsFalse(parsed.HasErrors, string.Join(";", parsed.Issues.Select(issue => $"{issue.Code}:{issue.Message}:{issue.ExcelRow}:{issue.FieldKey}")));
+
+        using var tampered = new XLWorkbook(new MemoryStream(bytes));
+        tampered.Worksheet("__Sushi81Meta").Cell(2, 2).Value = "M10-CATALOGUE-OTHER";
+        await using var stream = new MemoryStream();
+        tampered.SaveAs(stream);
+        stream.Position = 0;
+        var failed = await gateway.ReadAsync(stream);
+        Assert.IsTrue(failed.HasErrors);
+        CollectionAssert.Contains(failed.Issues.Select(issue => issue.Code).ToArray(), "unsupported-contract-version");
+    }
+
+    [TestMethod]
+    public async Task ImportGatewayIgnoresOmittedRowsAndBindsSortedRowsByHelper()
+    {
+        var first = Guid.NewGuid(); var second = Guid.NewGuid();
+        var bytes = await WriteAsync(new CatalogueWorkbookExport([
+            new CatalogueWorkbookProduct(first, "B", "Bee", "Plats", null, Money.FromCents(100), 20m, true, false, false, []),
+            new CatalogueWorkbookProduct(second, "A", "Aye", "Plats", null, Money.FromCents(200), 20m, true, false, false, [])], Guid.NewGuid()));
+        using var workbook = new XLWorkbook(new MemoryStream(bytes));
+        var sheet = workbook.Worksheet("Products");
+        sheet.Range(2, 1, 3, 11).Sort(2, XLSortOrder.Ascending);
+        sheet.Row(3).Delete();
+        await using var stream = new MemoryStream(); workbook.SaveAs(stream); stream.Position = 0;
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(stream);
+        Assert.HasCount(1, parsed.Products);
+        Assert.AreEqual($"product:{second:N}", parsed.Products[0].ProductRowKey);
+        Assert.IsFalse(parsed.HasErrors, string.Join(";", parsed.Issues.Select(issue => $"{issue.Code}:{issue.Message}:{issue.ExcelRow}:{issue.FieldKey}")));
+    }
+
+    [TestMethod]
+    public async Task PlannerProducesDeterministicNoOpForUnchangedExport()
+    {
+        var productId = Guid.NewGuid(); var groupId = Guid.NewGuid(); var optionId = Guid.NewGuid();
+        var product = new CatalogueWorkbookProduct(productId, "P-1", "Product", "Plats", "PL", Money.FromCents(100), 20m, true, false, true,
+            [new CatalogueWorkbookOptionGroup(groupId, productId, "P-1", "Product", "Extras", SelectionMode.Multi, false, 0, 2, 0,
+                [new CatalogueWorkbookOption(optionId, groupId, "P-1", "Product", "Extras", "Sauce", Money.FromCents(25), true, 0)])]);
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(new MemoryStream(await WriteAsync(new CatalogueWorkbookExport([product], Guid.NewGuid()))));
+        var baseline = new CatalogueImportBaseline(
+            [new CatalogueImportCategory(Guid.NewGuid(), "Plats", "PL")],
+            [new CatalogueImportBaselineProduct(productId, product.Code, product.Name, Guid.NewGuid(), product.CategoryName, product.CategoryShortCode, product.PriceTtc, product.VatRate, product.IsActive, product.DiscountEligible, product.OptionsEnabled,
+                [new CatalogueImportBaselineOptionGroup(groupId, productId, "Extras", SelectionMode.Multi, false, 0, 2, 0,
+                    [new CatalogueImportBaselineOption(optionId, groupId, "Sauce", Money.FromCents(25), true, 0)])])]);
+        // Use the same Category id in the Product baseline.
+        var categoryId = baseline.Categories[0].Id;
+        baseline = baseline with { Products = [baseline.Products[0] with { CategoryId = categoryId }] };
+        var result = new CatalogueImportPlanner().Plan(CatalogueImportMode.Update, parsed, baseline);
+        Assert.AreEqual(0, result.Preview.ErrorCount);
+        Assert.AreEqual(0, result.Preview.ProductModifyCount);
+        Assert.AreEqual(0, result.Preview.OptionGroupModifyCount);
+        Assert.AreEqual(0, result.Preview.OptionModifyCount);
+        Assert.IsNotNull(result.Plan);
+        Assert.HasCount(0, result.Plan!.Operations);
+    }
+
+    [TestMethod]
+    public async Task ImportBaselineUsesOneCoherentReadTransactionDuringConcurrentWrite()
+    {
+        using var paths = new TempPaths();
+        var factory = new SqliteConnectionFactory(paths);
+        var clock = new FixedClock();
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var catalogue = new CatalogueService(store);
+        var category = (await catalogue.CreateCategoryWithCodeAsync("Plats", "OLD")).Value!;
+        var productId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P-1", "Product", category.Id, Money.FromCents(100), 20m, true, false, false, []))).Value!;
+        var reached = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        store.ImportBaselineAfterProductsReadAsync = async token => { reached.TrySetResult(true); await release.Task.WaitAsync(token); };
+        var baselineTask = store.ReadCatalogueImportBaselineAsync();
+        await reached.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await using (var writer = await factory.OpenLiveConnectionAsync())
+        await using (var transaction = (SqliteTransaction)await writer.BeginTransactionAsync())
+        {
+            await using var command = writer.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = "UPDATE categories SET short_code=$code, normalized_short_code=$normalized WHERE category_id=$id;";
+            command.Parameters.AddWithValue("$code", "NEW"); command.Parameters.AddWithValue("$normalized", "NEW"); command.Parameters.AddWithValue("$id", category.Id.ToString());
+            await command.ExecuteNonQueryAsync();
+            await transaction.CommitAsync();
+        }
+        release.TrySetResult(true);
+        var baseline = await baselineTask;
+        Assert.AreEqual("OLD", baseline.Categories.Single(value => value.Id == category.Id).ShortCode);
+        Assert.AreEqual(productId, baseline.Products.Single().Id);
+        store.ImportBaselineAfterProductsReadAsync = null;
+        var later = await store.ReadCatalogueImportBaselineAsync();
+        Assert.AreEqual("NEW", later.Categories.Single(value => value.Id == category.Id).ShortCode);
+    }
+
+    [TestMethod]
+    public async Task EmptyTemplateSupportsAddOnlyFirstInitializationPreview()
+    {
+        using var workbook = new XLWorkbook(new MemoryStream(await WriteAsync(new CatalogueWorkbookExport([], Guid.NewGuid()))));
+        var products = workbook.Worksheet("Products");
+        products.Cell(2, 1).Value = "P-NEW";
+        products.Cell(2, 2).Value = "New product";
+        products.Cell(2, 3).Value = "New category";
+        products.Cell(2, 5).Value = 4.50m;
+        products.Cell(2, 6).Value = 20m;
+        products.Cell(2, 7).Value = true;
+        products.Cell(2, 8).Value = false;
+        products.Cell(2, 9).Value = false;
+        await using var stream = new MemoryStream(); workbook.SaveAs(stream); stream.Position = 0;
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(stream);
+        var result = new CatalogueImportPlanner().Plan(CatalogueImportMode.AddOnly, parsed, CatalogueImportBaseline.Empty);
+        Assert.AreEqual(0, result.Preview.ErrorCount);
+        Assert.AreEqual(1, result.Preview.ProductCreateCount);
+        Assert.AreEqual(1, result.Preview.NewCategoryCount);
+        Assert.IsNotNull(result.Plan);
+    }
+
+    [TestMethod]
+    public async Task ImportGatewayFailsClosedForFormulaAndCorruptBytes()
+    {
+        var model = new CatalogueWorkbookExport([new CatalogueWorkbookProduct(Guid.NewGuid(), "P-1", "Product", "Plats", null, Money.FromCents(100), 20m, true, false, false, [])], Guid.NewGuid());
+        using var workbook = new XLWorkbook(new MemoryStream(await WriteAsync(model)));
+        workbook.Worksheet("Products").Cell(2, 5).FormulaA1 = "=1+1";
+        await using var stream = new MemoryStream(); workbook.SaveAs(stream); stream.Position = 0;
+        var gateway = new ClosedXmlCatalogueWorkbookImportGateway();
+        var formula = await gateway.ReadAsync(stream);
+        Assert.IsTrue(formula.Issues.Any(issue => issue.Code == "formula-not-allowed"));
+        var corrupt = await gateway.ReadAsync(new MemoryStream(System.Text.Encoding.UTF8.GetBytes("not an xlsx")));
+        Assert.IsTrue(corrupt.HasErrors);
+        Assert.IsTrue(corrupt.Issues.Any(issue => issue.Code == "unreadable-workbook"));
+    }
+
     private static async Task<byte[]> WriteAsync(CatalogueWorkbookExport model)
     {
         await using var stream = new MemoryStream();

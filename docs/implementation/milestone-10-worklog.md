@@ -210,6 +210,21 @@ A worklog entry, `CODEX_DONE`, controller acceptance, owner manual PASSED or gre
 - Blockers/unresolved items: none identified within the narrow repair scope.
 - Browser notification result: pending durable repair `CODEX_DONE` delivery.
 
+## Entry 2026-09-17 — `M10-WP2-PARSER-PLANNER-PREVIEW-04`
+
+- Authorization/gate state observed: Issue #4 OPEN and pointing to PR #22; WP1 controller accepted at `4edc540b69704194cf40fad9cef3ea03f54afd68`; exact WP2 handoff comment `5720707849` matched with no prior `CODEX_DONE`.
+- Starting PR head: `4edc540b69704194cf40fad9cef3ea03f54afd68`.
+- Scope: read-only untrusted workbook parser, coherent SQLite import baseline, pure deterministic Update/Add-only planner, immutable Errors/Warnings/preview/plan candidate. No business write, durable ID allocation, authority acquisition, notifier or WPF workflow.
+- Technical contract: parser validates the three logical sheets, VeryHidden metadata descriptors, manifest identities/parents, row-local helpers, formulas, scalar types and corrupt input; omitted rows produce no operation. New Products/Groups/Options use deterministic preview-only local keys and exact normalized parent resolution.
+- Planner contract: current baseline is overlaid only by explicit rows; Category short-code rules, domain aggregate validation, stale-workbook truth table and Add-only create-only semantics are enforced; plan model has Create/Modify/Activate/Deactivate only and no Delete operation.
+- Files changed: Application import contracts/planner/service/fingerprint; Infrastructure ClosedXML import gateway and SQLite import-baseline seam; export fingerprint delegation; focused parser/planner/baseline tests; current-state M10 contract/checklist wording.
+- Focused tests: WP2 Application planner tests and Infrastructure parser/baseline tests recorded with the completion evidence; existing WP1 workbook/snapshot tests retained.
+- Full Release tests/build, diff check, dependency/schema/authority/recovery/privacy audits and exact-head CI are recorded in the matching durable `CODEX_DONE` comment.
+- Schema/migrations: none. ClosedXML remains the sole XLSX dependency; no COM/Interop or macro behavior.
+- Historical independence: WP2 is read-only and cannot rewrite historical order snapshots.
+- Remaining manual evidence: owner Windows/Excel inspection and later WP3 atomic commit/WPF workflow remain outside this handoff.
+- Blockers/unresolved items: none identified within WP2 scope at implementation start; any material specification conflict would stop the affected path.
+
 ## Entry 2026-09-17 — `M10-WP1-REPAIR-EXCEL-SORT-SNAPSHOT-03`
 
 - Authorization/gate state observed: Issue #4 OPEN and pointing to PR #22; handoff comment `5717457956` matched controller review `5717448826`.

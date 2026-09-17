@@ -1,6 +1,6 @@
 # M10 — Catalogue `.xlsx` import/export — implementation contract
 
-**Status:** **IMPLEMENTATION AUTHORIZED — WP1 ACTIVE UNDER ISSUE #4**
+**Status:** **WP1 CONTROLLER-ACCEPTED — WP2 ACTIVE UNDER ISSUE #4**
 **Prepared/finalized:** 2026-09-17  
 **Milestone:** M10  
 **Primary acceptance ownership:** AC-CAT-008 through AC-CAT-011; catalogue portion of AC-ARCH-005  
@@ -8,7 +8,7 @@
 **Category short-code decision:** Approved — `docs/decisions/m10-category-short-code-workbook-semantics.md`  
 **M11+ scope:** explicitly excluded
 
-> The frozen implementation contract is owner-authorized for the single WP1 handoff recorded in PR #22 while Issue #4 is OPEN. This status does not authorize any later work package, merge, M11, M12 or M13.
+> The frozen implementation contract is owner-authorized for the single active WP2 handoff recorded in PR #22 while Issue #4 is OPEN. WP1 is controller-accepted; this status does not authorize WP3, merge, M11, M12 or M13.
 
 ## 1. Objective
 
@@ -209,6 +209,25 @@ the complete model from one read connection/transaction and has no multi-read fa
 Importer revalidates every safety assumption even if the operator removes workbook protection externally.
 
 ## 5. Identity, Category and relationship contract
+
+### 5.0 WP2 raw/parser and local-key contract
+
+The WP2 parser exposes only library-neutral row records with worksheet name, Excel
+row, invariant field values and opaque helper text; ClosedXML objects never leave
+Infrastructure. `__Sushi81Meta` descriptors and the manifest are authoritative.
+Existing rows carry the exported `product:`, `group:` or `option:` row key plus the
+matching GUID and parent key. New rows carry blank identity/helper cells. The
+manifest's original row number is diagnostic only, so sorting and insertion do not
+change identity; every helper and parent GUID is revalidated against the manifest.
+
+The pure planner assigns deterministic preview-only keys of the form
+`<entity>:new:<excel-row>:<content-hash>` to new rows. New OptionGroups resolve a
+parent by exact normalized Product Code against the complete resulting Product
+candidate set. New Options resolve Product by that same exact code and then resolve
+an OptionGroup by exact normalized name within that Product. Zero or multiple
+candidates are blocking Errors; no fuzzy or first-match resolution is permitted.
+These local keys are not durable IDs and are the only new-record references passed
+to the future WP3 commit plan.
 
 ### 5.1 Existing Product/Group/Option records
 

@@ -15,7 +15,7 @@ public sealed class SqliteCatalogueStore(
     ITransactionRunner transactionRunner,
     IIdGenerator idGenerator,
     IBusinessClock clock,
-    Func<int, Exception?>? bulkWriteFailureInjector = null) : ICatalogueStore, IActiveProductCodeQueries, ICatalogueWorkbookSnapshotQueries
+    Func<int, Exception?>? bulkWriteFailureInjector = null) : ICatalogueStore, IActiveProductCodeQueries, ICatalogueWorkbookSnapshotQueries, ICatalogueImportStore
 {
     private readonly SqliteConnectionFactory connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     private readonly ITransactionRunner transactionRunner = transactionRunner ?? throw new ArgumentNullException(nameof(transactionRunner));
@@ -29,6 +29,9 @@ public sealed class SqliteCatalogueStore(
     /// established its first logical snapshot before a concurrent writer commits.
     /// </summary>
     internal Func<CancellationToken, Task>? SnapshotAfterProductsReadAsync { get; set; }
+
+    /// <summary>Test-only pause used to prove the import baseline is one coherent snapshot.</summary>
+    internal Func<CancellationToken, Task>? ImportBaselineAfterProductsReadAsync { get; set; }
 
     public async Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default)
     {
@@ -227,6 +230,76 @@ public sealed class SqliteCatalogueStore(
                             .ToArray()))
                     .ToArray()
                 : [])).ToArray();
+    }
+
+    public async Task<CatalogueImportBaseline> ReadCatalogueImportBaselineAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        var categories = new List<CatalogueImportCategory>();
+        await using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = "SELECT category_id, name, short_code FROM categories ORDER BY normalized_name, category_id;";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+                categories.Add(new(ParseGuid(reader.GetString(0)), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2)));
+        }
+
+        var products = new List<BaselineProductRow>();
+        await using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = """
+                SELECT p.product_id, p.code, p.name, p.category_id, c.name, c.short_code, p.price_ttc_cents, p.vat_rate,
+                       p.is_active, p.discount_eligible, p.options_enabled
+                FROM products p JOIN categories c ON c.category_id = p.category_id
+                ORDER BY p.normalized_code, p.product_id;
+                """;
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+                products.Add(new(ParseGuid(reader.GetString(0)), reader.GetString(1), reader.GetString(2), ParseGuid(reader.GetString(3)), reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5), Money.FromCents(reader.GetInt64(6)), ParseDecimal(reader.GetString(7)), reader.GetInt64(8) == 1, reader.GetInt64(9) == 1, reader.GetInt64(10) == 1));
+        }
+
+        var afterProducts = ImportBaselineAfterProductsReadAsync;
+        if (afterProducts is not null) await afterProducts(cancellationToken);
+
+        var groups = new Dictionary<Guid, List<BaselineGroupRow>>();
+        await using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = "SELECT option_group_id, product_id, name, selection_mode, is_required, min_selections, max_selections, display_order FROM option_groups ORDER BY product_id, display_order, option_group_id;";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var productId = ParseGuid(reader.GetString(1));
+                if (!groups.TryGetValue(productId, out var values)) { values = []; groups.Add(productId, values); }
+                values.Add(new(ParseGuid(reader.GetString(0)), productId, reader.GetString(2), ParseSelectionMode(reader.GetString(3)), reader.GetInt64(4) == 1, reader.IsDBNull(5) ? null : reader.GetInt32(5), reader.IsDBNull(6) ? null : reader.GetInt32(6), reader.GetInt32(7), []));
+            }
+        }
+
+        var options = new Dictionary<Guid, List<CatalogueImportBaselineOption>>();
+        await using (var command = connection.CreateCommand())
+        {
+            command.Transaction = transaction;
+            command.CommandText = "SELECT option_id, option_group_id, name, price_adjustment_ttc_cents, is_active, display_order FROM options ORDER BY option_group_id, display_order, option_id;";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var groupId = ParseGuid(reader.GetString(1));
+                if (!options.TryGetValue(groupId, out var values)) { values = []; options.Add(groupId, values); }
+                values.Add(new(ParseGuid(reader.GetString(0)), groupId, reader.GetString(2), Money.FromCents(reader.GetInt64(3)), reader.GetInt64(4) == 1, reader.GetInt32(5)));
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        var result = products.Select(product => new CatalogueImportBaselineProduct(
+            product.Id, product.Code, product.Name, product.CategoryId, product.CategoryName, product.CategoryShortCode, product.PriceTtc, product.VatRate, product.IsActive, product.DiscountEligible, product.OptionsEnabled,
+            groups.TryGetValue(product.Id, out var productGroups)
+                ? productGroups.OrderBy(group => group.DisplayOrder).ThenBy(group => group.Id).Select(group => new CatalogueImportBaselineOptionGroup(group.Id, product.Id, group.Name, group.SelectionMode, group.IsRequired, group.MinSelections, group.MaxSelections, group.DisplayOrder,
+                    options.TryGetValue(group.Id, out var groupOptions) ? groupOptions.OrderBy(option => option.DisplayOrder).ThenBy(option => option.Id).ToArray() : [])).ToArray()
+                : [])).ToArray();
+        return new CatalogueImportBaseline(categories, result);
     }
 
     public async Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default)
@@ -638,6 +711,30 @@ public sealed class SqliteCatalogueStore(
         int? MaxSelections,
         int DisplayOrder,
         List<SnapshotOption> Options);
+
+    private sealed record BaselineProductRow(
+        Guid Id,
+        string Code,
+        string Name,
+        Guid CategoryId,
+        string CategoryName,
+        string? CategoryShortCode,
+        Money PriceTtc,
+        decimal VatRate,
+        bool IsActive,
+        bool DiscountEligible,
+        bool OptionsEnabled);
+
+    private sealed record BaselineGroupRow(
+        Guid Id,
+        Guid ProductId,
+        string Name,
+        SelectionMode SelectionMode,
+        bool IsRequired,
+        int? MinSelections,
+        int? MaxSelections,
+        int DisplayOrder,
+        IReadOnlyList<CatalogueImportBaselineOption> Options);
 
     private sealed class CatalogueConflictException(string message) : Exception(message);
 }

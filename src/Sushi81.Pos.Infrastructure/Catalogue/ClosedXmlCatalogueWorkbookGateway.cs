@@ -1,6 +1,3 @@
-using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using ClosedXML.Excel;
 using Sushi81.Pos.Application.Catalogue;
 
@@ -10,8 +7,10 @@ namespace Sushi81.Pos.Infrastructure.Catalogue;
 /// ClosedXML-only workbook writer. The Application layer sees only
 /// <see cref="ICatalogueWorkbookGateway"/> and its DTOs.
 /// </summary>
-public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGateway
+public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGateway, ICatalogueWorkbookImportGateway
 {
+    public Task<CatalogueImportWorkbook> ReadAsync(Stream source, string? sourceName = null, CancellationToken cancellationToken = default) => new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(source, sourceName, cancellationToken);
+
     private const string MetadataSheetName = CatalogueWorkbookSchema.MetadataSheetName;
     private const string ContractVersion = CatalogueWorkbookSchema.ContractVersion;
 
@@ -157,12 +156,12 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
         var optionWorksheetRow = 2;
         foreach (var product in OrderedProducts(export.Products))
         {
-            AddManifest(sheet, ref row, "Product", ProductKey(product.ProductId), product.ProductId, null, "Products", productWorksheetRow++, ProductFingerprint(product));
+            AddManifest(sheet, ref row, "Product", ProductKey(product.ProductId), product.ProductId, null, "Products", productWorksheetRow++, CatalogueWorkbookFingerprint.Product(product));
             foreach (var group in product.OptionGroups.OrderBy(value => value.DisplayOrder).ThenBy(value => value.OptionGroupId))
             {
-                AddManifest(sheet, ref row, "OptionGroup", GroupKey(group.OptionGroupId), group.OptionGroupId, ProductKey(product.ProductId), "OptionGroups", groupWorksheetRow++, GroupFingerprint(group));
+                AddManifest(sheet, ref row, "OptionGroup", GroupKey(group.OptionGroupId), group.OptionGroupId, ProductKey(product.ProductId), "OptionGroups", groupWorksheetRow++, CatalogueWorkbookFingerprint.OptionGroup(group));
                 foreach (var option in group.Options.OrderBy(value => value.DisplayOrder).ThenBy(value => value.OptionId))
-                    AddManifest(sheet, ref row, "Option", OptionKey(option.OptionId), option.OptionId, GroupKey(group.OptionGroupId), "Options", optionWorksheetRow++, OptionFingerprint(option));
+                    AddManifest(sheet, ref row, "Option", OptionKey(option.OptionId), option.OptionId, GroupKey(group.OptionGroupId), "Options", optionWorksheetRow++, CatalogueWorkbookFingerprint.Option(option));
             }
         }
 
@@ -240,48 +239,4 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
     private static string GroupKey(Guid id) => $"group:{id:N}";
     private static string OptionKey(Guid id) => $"option:{id:N}";
 
-    private static string ProductFingerprint(CatalogueWorkbookProduct product) => Fingerprint(
-        ("code", "string", product.Code),
-        ("name", "string", product.Name),
-        ("category-name", "string", product.CategoryName),
-        ("category-short-code", "string", product.CategoryShortCode ?? string.Empty),
-        ("price-cents", "int64", product.PriceTtc.Cents.ToString(CultureInfo.InvariantCulture)),
-        ("vat-rate", "decimal", product.VatRate.ToString(CultureInfo.InvariantCulture)),
-        ("active", "bool", product.IsActive ? "true" : "false"),
-        ("discount-eligible", "bool", product.DiscountEligible ? "true" : "false"),
-        ("options-enabled", "bool", product.OptionsEnabled ? "true" : "false"));
-
-    private static string GroupFingerprint(CatalogueWorkbookOptionGroup group) => Fingerprint(
-        ("name", "string", group.Name),
-        ("selection-mode", "enum", group.SelectionMode.ToString()),
-        ("required", "bool", group.IsRequired ? "true" : "false"),
-        ("min-selections", "int32", group.MinSelections?.ToString(CultureInfo.InvariantCulture)),
-        ("max-selections", "int32", group.MaxSelections?.ToString(CultureInfo.InvariantCulture)),
-        ("display-order", "int32", group.DisplayOrder.ToString(CultureInfo.InvariantCulture)));
-
-    private static string OptionFingerprint(CatalogueWorkbookOption option) => Fingerprint(
-        ("name", "string", option.Name),
-        ("price-adjustment-cents", "int64", option.PriceAdjustmentTtc.Cents.ToString(CultureInfo.InvariantCulture)),
-        ("active", "bool", option.IsActive ? "true" : "false"),
-        ("display-order", "int32", option.DisplayOrder.ToString(CultureInfo.InvariantCulture)));
-
-    private static string Fingerprint(params (string Name, string Type, string? Value)[] fields)
-    {
-        var canonical = new StringBuilder();
-        foreach (var (name, type, value) in fields)
-        {
-            canonical.Append(name.Length).Append(':').Append(name);
-            canonical.Append(type.Length).Append(':').Append(type);
-            if (value is null)
-            {
-                canonical.Append("N;");
-            }
-            else
-            {
-                canonical.Append('V').Append(value.Length).Append(':').Append(value).Append(';');
-            }
-        }
-
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
-    }
 }
