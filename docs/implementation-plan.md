@@ -2,7 +2,8 @@
 
 **Status:** Approved — Phase 6 baseline, amended 2026-08-31  
 **Approval date:** 2026-08-27  
-**Latest amendment:** 2026-08-31  
+**Latest plan amendment:** 2026-08-31  
+**Current-state reconciliation:** 2026-09-17  
 **Product:** Sushi81 POS  
 **Purpose:** Define the controlled implementation sequence for the frozen-and-amended V1 Specification.
 
@@ -29,7 +30,7 @@ If implementation exposes a genuine specification conflict or a missing material
 Sushi81 POS uses a hybrid approach:
 
 1. establish a thin but complete technical foundation that cannot safely be retrofitted later;
-2. prove the highest-risk remote handoff/single-writer assumptions early (historical OneDrive evidence plus the approved GitHub transport revalidation);
+2. prove the highest-risk remote handoff/single-writer assumptions early;
 3. if the feasibility gate reveals a material blocker, amend the specification before broad business implementation and re-verify the amended safety model;
 4. deliver business functionality as end-to-end vertical slices;
 5. add integrations only after their upstream business state is stable;
@@ -47,68 +48,31 @@ No Catalogue or Order production workflow is included.
 
 Primary acceptance ownership: `AC-ARCH-001` through `AC-ARCH-004`, `AC-STO-001`; foundations for `AC-STO-006`, `AC-PROD-004`, `AC-NFR-001`, `AC-NFR-002` and `AC-NFR-004`.
 
-Detailed authorized task definition: `implementation/milestone-01-foundation.md`.
+Detailed task definition: `implementation/milestone-01-foundation.md`.
 
 ### M02 — Remote handoff feasibility gate and GitHub transport revalidation
 
-M02 runs before broad business implementation.
+M02 ran before broad business implementation.
 
-#### Original feasibility result
+The original generic/competitive OneDrive acquisition model was deterministically tested and found unable to provide the required ordinary N-device single-writer guarantee without an external exclusive grant. The approved amendment changed normal transfer to source-directed transfer to exactly one target and selected a dedicated private GitHub Release Asset transport with strict server receipt/grant semantics. OneDrive remains recovery/archive storage.
 
-The original generic/competitive acquisition model was tested under `implementation/milestone-02-onedrive-feasibility.md`.
+Primary acceptance preparation: amended `AC-STO-002` through `AC-STO-005`, `AC-STO-007` through `AC-STO-010`.
 
-PR #2 / merge commit `5bacafa0e4ca906d8ff058e34586dee43503bc42` established:
+Detailed records include `implementation/milestone-02-feasibility-report.md` and `implementation/milestone-02-directed-handoff-revalidation.md`.
 
-- corrected documented Windows Cloud Files state interpretation;
-- strict synthetic handoff publication/validation primitives;
-- deterministic N-device delayed/reordered simulation;
-- an executable double-writer counterexample for claim-only competitive acquisition;
-- a blocker conclusion because the approved OneDrive/local-filesystem model exposes no documented cross-client atomic exclusive-grant primitive;
-- the approved GitHub private-repository Release Asset transport amendment and its strict server-receipt gate.
-
-The resulting historical evidence is `implementation/milestone-02-feasibility-report.md`.
-
-#### Approved amendment
-
-On 2026-08-28 the user approved `decisions/target-directed-authority-handoff.md`.
-
-Normal authority transfer is now source-directed to one target device; normal close distinguishes retaining authority from explicitly transferring it; the source must durably relinquish business-write authority before a target-releasing marker can exist; non-target devices no longer compete through claims/election.
-
-The amended behavior is folded into `architecture.md`, `storage-strategy.md` and `acceptance-criteria.md`.
-
-#### Required revalidation
-
-Before M03, M02 re-verified the amended target-directed protocol, including:
-
-- close-and-retain semantics;
-- target binding;
-- durable source relinquishment before target release;
-- crash/restart boundaries;
-- pre/post-relinquishment failures;
-- wrong-target rejection;
-- N-device safety and valid-path liveness;
-- automated GitHub REST/Release Asset receipt and failure-matrix evidence;
-- real private GitHub two-device upload/download/round-trip evidence.
-
-Primary acceptance preparation remained: amended `AC-STO-002` through `AC-STO-005`, `AC-STO-007` through `AC-STO-010`.
-
-Detailed authorized revalidation task definition: `implementation/milestone-02-directed-handoff-revalidation.md`.
-
-M02 is Passed and merged; its gate is closed by evidence.
+M02 is Passed and merged.
 
 ### M03 — In-application catalogue and business settings
 
 Implement Category, Product, OptionGroup, Option and BusinessSettings persistence, domain validation and WPF maintenance workflows. Excel batch import/export remains out of scope.
 
-The approved 2026-08-30 catalogue amendment adds an M03 in-application workflow for atomic bulk Activate/Deactivate of the complete current code/name-search + category + status filtered Product result, with immutable target capture, explicit impact counts/confirmation, zero-change no-op behavior, preserved filters, localized UI and no bulk permanent deletion.
+The approved 2026-08-30 catalogue amendment adds an in-application workflow for atomic bulk Activate/Deactivate of the complete current composed Product filter result, with immutable capture, impact counts/confirmation, zero-change no-op behavior, preserved filters, localized UI and no bulk permanent deletion.
 
 Primary acceptance ownership: `AC-CAT-001` through `AC-CAT-005`, `AC-CAT-013`, `AC-ORD-011`. Historical-order portions close in M04.
 
-Detailed original M03 task definition: `implementation/milestone-03-catalogue-settings.md`.
+Detailed records: `implementation/milestone-03-catalogue-settings.md` and `implementation/milestone-03-filtered-bulk-activation-extension.md`.
 
-Detailed authorized extension: `implementation/milestone-03-filtered-bulk-activation-extension.md`.
-
-M03 is Passed and merged through PR #5 at merge commit `57f89cac0672d6d98dda7dc3c9a8ba7b3434e292`. AC-CAT-003 historical-order independence and the AC-ORD-011 pricing-consumer cross-check were deliberately deferred to M04.
+M03 is Passed and merged through PR #5 at `57f89cac0672d6d98dda7dc3c9a8ba7b3434e292`.
 
 ### M04 — First complete order-entry vertical slice
 
@@ -120,37 +84,37 @@ Approved detailed contract: `implementation/milestone-04-order-entry.md`.
 
 Durable authorization: `implementation/milestone-04-authorization.md`.
 
-Approved M04 pricing/interaction clarification amendment: `decisions/m04-order-entry-pricing-clarifications.md`.
+Approved pricing/interaction clarification: `decisions/m04-order-entry-pricing-clarifications.md` plus later M04 operator ergonomics amendments including Category short code.
+
+M04 is Passed and merged through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a`.
 
 ### M05 — Lifecycle, payments, search and operational dashboard
 
 Implement cumulative CB/Espèce editing backed by signed dated adjustments, effective-versus-recorded timestamps, Close/reopen/cancel, same-ID modification, abandon-edit, new order from reusable customer text, live telephone/comment search, operational turnover, received-payment summaries and future/due-today/overdue views.
 
-Primary acceptance ownership: `AC-LIFE-003` through `AC-LIFE-014` and the live-search portion of `AC-LIFE-015`.
+Primary acceptance ownership: `AC-LIFE-003` through `AC-LIFE-014` and live-search portion of `AC-LIFE-015`.
 
-M05 is Passed and merged through PR #10 at merge commit `79499d7c6ed65a74f524097c1507ca648dc151c3`. Accepted production-code head: `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`; final documentation/status head: `217d187dd3ef5498c11f21bc516eccc6737fa952`.
+M05 is Passed and merged through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`.
 
 ### M06 — Local recovery and authoritative/read-only enforcement
 
-Connect the M01 recovery and authority primitives to every implemented durable business mutation. Complete recovery scheduling/debounce/flush, five-version retention, persistent non-authoritative/stale/pending-transfer presentation and centralized blocking of every authoritative write.
+Connect recovery and authority primitives to every implemented durable business mutation. Complete recovery scheduling/debounce/flush, five-version retention, persistent non-authoritative/stale/pending-transfer presentation and centralized blocking of every authoritative write.
 
 Primary acceptance ownership: `AC-STO-006`, `AC-STO-010`; partial completion of `AC-PROD-002`.
 
-Approved detailed contract: `implementation/milestone-06-local-recovery-read-only-enforcement.md`.
+Detailed records: `implementation/milestone-06-local-recovery-read-only-enforcement.md`, `milestone-06-authorization.md`, `milestone-06-worklog.md`, `milestone-06-final-manual-acceptance.md`.
 
-Durable authorization: `implementation/milestone-06-authorization.md`.
-
-Final evidence records: `implementation/milestone-06-worklog.md` and `implementation/milestone-06-final-manual-acceptance.md`.
-
-M06 deliberately stopped before real pairing, target-directed remote handoff, target acquisition, recovery-only cloud checkpoints and Disaster Recovery, which remain M07. M06 is Passed and merged through PR #11 at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; accepted production repair head is `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`, final documentation/PR head is `86326d81551aa4cb5cdcbc6826b8c740317b34c4`, Release tests are 364/364 Passed, and project-owner Windows/WPF manual acceptance is Passed.
+M06 is Passed and merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`.
 
 ### M07 — Pairing, target-directed formal handoff and disaster recovery
 
-Implement device/lineage initialization, N-device pairing, close-and-retain behavior, explicit target selection, target-directed transfer-and-close, durable source relinquishment, safe target acquisition, immutable versions, checksum/integrity validation, GitHub server acknowledgement, three-version normal handoff retention, change-triggered recovery-only cloud checkpoints, explicit Disaster Recovery and generation invalidation.
+Implement device/lineage initialization, N-device pairing, close-and-retain behavior, explicit target selection, target-directed transfer-and-close, durable source relinquishment, safe target acquisition, immutable versions, checksum/integrity validation, GitHub server acknowledgement, normal handoff retention, change-triggered recovery-only cloud checkpoints, explicit Disaster Recovery and generation invalidation.
 
-Normal M07 acquisition must not reintroduce generic competitive claim/election semantics superseded by the 2026-08-28 amendment.
+Normal acquisition must not reintroduce generic competitive claim/election semantics superseded by the 2026-08-28 amendment.
 
 Primary acceptance ownership: `AC-STO-002` through `AC-STO-005`, `AC-STO-007` through `AC-STO-009`, and `AC-PROD-002`.
+
+M07 is Passed and merged through PR #13 at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`.
 
 ### M08 — Printing and reprinting
 
@@ -158,17 +122,33 @@ Implement deterministic kitchen/customer print models, fixed-document layout, Wi
 
 Primary acceptance ownership: `AC-PRINT-001` through `AC-PRINT-008`, `AC-PRINT-010`, `AC-PRINT-011`, `AC-ARCH-006`. Archived printing closes in M12.
 
+M08 is Passed and merged through PR #14 at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`.
+
 ### M09 — Hiboutik paste-order fallback
 
-Implement the deterministic untrusted-text parser, exact product-code resolution, unresolved-line handling, mandatory ordinary option confirmation, ordinary order draft prepopulation and hidden anti-double-counting source marker. Do not introduce any former emergency-order model.
+Implement the deterministic untrusted-text parser, exact product-code resolution, fail-safe unresolved-line handling, ordinary option confirmation, ordinary order-draft prepopulation and source-based anti-double-counting semantics without reintroducing the former emergency subsystem.
 
-Primary acceptance ownership: `AC-HIB-001` through `AC-HIB-009`; export exclusion receives final cross-check in M11.
+Primary acceptance ownership: `AC-HIB-001` through `AC-HIB-009` as amended; final Gestion export exclusion cross-check remains M11.
+
+M09 is Passed and merged through PR #17 at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`.
+
+The separately approved post-M09 daily Hiboutik CB/Espèce dashboard enhancement was completed and merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`. It does not alter the milestone sequence below.
 
 ### M10 — Catalogue `.xlsx` import/export
 
-Implement the ClosedXML three-sheet catalogue workbook, protected technical relationships, update mode, explicit add-only mode, complete validation/preview and atomic commit.
+Implement the ClosedXML three-sheet Catalogue workbook, protected technical relationships, normal ID-preserving update mode, explicit add-only mode, complete validation/preview and one atomic commit.
 
-Primary acceptance ownership: `AC-CAT-008` through `AC-CAT-011`; catalogue portion of `AC-ARCH-005`.
+The approved 2026-09-17 Category short-code workbook amendment requires:
+
+- visible Category name + Category short code on Product rows;
+- no operator-facing Categories worksheet;
+- new Category optional consistent short code;
+- existing Category short code preserve/consistency-only semantics, with workbook changes blocked;
+- no Category technical ID as an operator field.
+
+Primary acceptance ownership: `AC-CAT-008` through `AC-CAT-011` as clarified by `acceptance-criteria-amendment-m10-category-short-code-workbook.md`; Catalogue portion of `AC-ARCH-005`.
+
+Prepared control package: `implementation/milestone-10-preparation-readiness.md`, `milestone-10-catalogue-xlsx.md`, `milestone-10-final-manual-acceptance.md`, `milestone-10-worklog.md`, `milestone-10-authorization.md`.
 
 ### M11 — Gestion intermediate export
 
@@ -203,29 +183,36 @@ Every milestone must finish with all of the following:
 7. report any specification conflict instead of silently choosing behavior;
 8. leave the repository buildable, tested and free of real customer/business secrets.
 
-A passing build without the required tests and acceptance evidence is not milestone completion.
+A passing build without required tests and acceptance evidence is not milestone completion.
 
 ## 5. Implementation records
 
 - `implementation-status.md` is the living AC/milestone traceability record.
-- `implementation/` contains the detailed task contract for each milestone/revalidation when prepared and authorized.
-- Tests should be linked by stable repository path and test name rather than copying test output into specification documents.
-- Manual evidence should record the environment, action and result concisely without storing sensitive production data.
+- `implementation/` contains detailed milestone task contracts, readiness, authorization, worklogs and manual-acceptance records.
+- Tests should be linked by stable repository path/test name rather than copying test output into specification documents.
+- Manual evidence should record environment/action/result concisely without storing sensitive production data.
 
 ## 6. Current implementation state
 
 Phase 6 planning remains Approved.
 
-M01 is `Passed` and was merged to `main` through PR #1 at merge commit `b8590d1d0a2aee4ec6554ddee43587a257cedc47` after automated verification and successful Windows/WPF manual re-verification.
+Current merged baseline as of 2026-09-17:
 
-M02's original generic acquisition design correctly ended `BLOCKED — specification/architecture amendment required`; its evidence was merged through PR #2 at `5bacafa0e4ca906d8ff058e34586dee43503bc42`. The approved target-directed/GitHub transport amendment was incorporated and the amended M02 revalidation subsequently Passed and merged.
+- M01: Passed / merged through PR #1;
+- M02: amended revalidation Passed / merged;
+- M03: Passed / merged through PR #5;
+- M04: Passed / merged through PR #6;
+- M05: Passed / merged through PR #10;
+- M06: Passed / merged through PR #11;
+- M07: Passed / merged through PR #13;
+- M08: Passed / merged through PR #14;
+- M09: Passed / merged through PR #17;
+- post-M09 Hiboutik daily dashboard enhancement: Passed / merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`.
 
-M03 is `Passed`. PR #5 was explicitly approved and merged to `main` at `57f89cac0672d6d98dda7dc3c9a8ba7b3434e292`. Its complete operator Windows/WPF acceptance is recorded in `implementation-status.md` and `implementation/milestone-03-worklog.md`.
+M10 is the next planned milestone and its specification/readiness preparation is complete on draft PR #20. The project owner approved the M10 Category short-code workbook semantics on 2026-09-17. `implementation/milestone-10-preparation-readiness.md` concludes **READY FOR PROJECT-OWNER IMPLEMENTATION AUTHORIZATION**.
 
-M04 — First complete order-entry vertical slice — is Passed and merged through PR #6 at merge commit `ab218263bd4eee9c1be203d36acc552988cef43a`, with its final Windows/WPF acceptance recorded in the M04 evidence.
+M10 remains **NOT AUTHORIZED**. `implementation/milestone-10-authorization.md` remains NOT AUTHORIZED; ClosedXML has not been added to production; no production M10 implementation or executable M10 handoff exists. GitHub Issue #4 remains CLOSED.
 
-M05 — Lifecycle, payments, search and operational dashboard — is Passed and merged through PR #10 at merge commit `79499d7c6ed65a74f524097c1507ca648dc151c3`. Accepted production-code head `84c1c534c1df105ccb1839cbc6dfc9e0e055bb70`, full Release tests 340/340, Release build 0 warnings/0 errors, self-contained `win-x64` publish, exact-head CI success and project-owner Windows/WPF acceptance are recorded in the M05 evidence. M05 is no longer open work.
+A separate explicit project-owner statement **“批准 M10 implementation”** is required before authorization setup. Even after that statement, Codex may execute only after a dedicated implementation branch/PR/mailbox exists, exactly one complete executable handoff is published, Issue #4 points to that handoff and the gate is OPEN.
 
-M06 — Local recovery and authoritative/read-only enforcement — is Passed and merged through PR #11 at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e`. Accepted production repair head `4a0c1ca9e44a6c48899e6ef8dc211172371e4d20`, final documentation/PR head `86326d81551aa4cb5cdcbc6826b8c740317b34c4`, Release tests 364/364, exact-head CI success and project-owner Windows/WPF manual acceptance are recorded in the M06 evidence. M06 is no longer open work.
-
-M07 — Pairing, target-directed formal handoff and disaster recovery — is the next planned milestone, but it is not yet implementation-authorized. No M07 implementation branch, PR, durable authorization or active handoff exists; GitHub issue #4 remains CLOSED. M08 and later milestones are not started. Completion of M06 does not authorize M07.
+M11, M12 and M13 remain unauthorized. Completion of preparation, a specification decision, `CODEX_DONE`, controller acceptance or manual acceptance never automatically authorizes the next work package, merge or milestone.
