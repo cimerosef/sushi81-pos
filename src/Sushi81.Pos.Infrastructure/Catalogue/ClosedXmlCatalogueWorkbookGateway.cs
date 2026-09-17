@@ -150,18 +150,18 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
 
         row++;
         var manifestHeaderRow = row++;
-        WriteMetadataHeader(sheet, manifestHeaderRow, ["EntityType", "RowKey", "EntityId", "ParentRowKey", "Worksheet", "RowNumber", "BaselineFingerprint"]);
+        WriteMetadataHeader(sheet, manifestHeaderRow, ["EntityType", "RowKey", "EntityId", "ParentRowKey", "Worksheet", "RowNumber", "BaselineFingerprint", "ParentDisplayFingerprint"]);
         var productWorksheetRow = 2;
         var groupWorksheetRow = 2;
         var optionWorksheetRow = 2;
         foreach (var product in OrderedProducts(export.Products))
         {
-            AddManifest(sheet, ref row, "Product", ProductKey(product.ProductId), product.ProductId, null, "Products", productWorksheetRow++, CatalogueWorkbookFingerprint.Product(product));
+            AddManifest(sheet, ref row, "Product", ProductKey(product.ProductId), product.ProductId, null, "Products", productWorksheetRow++, CatalogueWorkbookFingerprint.Product(product), null);
             foreach (var group in product.OptionGroups.OrderBy(value => value.DisplayOrder).ThenBy(value => value.OptionGroupId))
             {
-                AddManifest(sheet, ref row, "OptionGroup", GroupKey(group.OptionGroupId), group.OptionGroupId, ProductKey(product.ProductId), "OptionGroups", groupWorksheetRow++, CatalogueWorkbookFingerprint.OptionGroup(group));
+                AddManifest(sheet, ref row, "OptionGroup", GroupKey(group.OptionGroupId), group.OptionGroupId, ProductKey(product.ProductId), "OptionGroups", groupWorksheetRow++, CatalogueWorkbookFingerprint.OptionGroup(group), CatalogueWorkbookFingerprint.ParentProduct(product.Code, product.Name));
                 foreach (var option in group.Options.OrderBy(value => value.DisplayOrder).ThenBy(value => value.OptionId))
-                    AddManifest(sheet, ref row, "Option", OptionKey(option.OptionId), option.OptionId, GroupKey(group.OptionGroupId), "Options", optionWorksheetRow++, CatalogueWorkbookFingerprint.Option(option));
+                    AddManifest(sheet, ref row, "Option", OptionKey(option.OptionId), option.OptionId, GroupKey(group.OptionGroupId), "Options", optionWorksheetRow++, CatalogueWorkbookFingerprint.Option(option), CatalogueWorkbookFingerprint.ParentOptionGroup(product.Code, product.Name, group.Name));
             }
         }
 
@@ -182,7 +182,7 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
         sheet.Row(row).Style.Fill.BackgroundColor = XLColor.LightGray;
     }
 
-    private static void AddManifest(IXLWorksheet sheet, ref int row, string entityType, string key, Guid entityId, string? parentKey, string worksheet, int rowNumber, string fingerprint)
+    private static void AddManifest(IXLWorksheet sheet, ref int row, string entityType, string key, Guid entityId, string? parentKey, string worksheet, int rowNumber, string fingerprint, string? parentDisplayFingerprint)
     {
         sheet.Cell(row, 1).Value = entityType;
         sheet.Cell(row, 2).Value = key;
@@ -191,6 +191,7 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
         sheet.Cell(row, 5).Value = worksheet;
         sheet.Cell(row, 6).Value = rowNumber;
         sheet.Cell(row, 7).Value = fingerprint;
+        sheet.Cell(row, 8).Value = parentDisplayFingerprint ?? string.Empty;
         row++;
     }
 

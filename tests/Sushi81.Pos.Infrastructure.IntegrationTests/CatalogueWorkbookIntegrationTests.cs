@@ -442,6 +442,67 @@ public sealed class CatalogueWorkbookIntegrationTests
         Assert.IsTrue(corrupt.Issues.Any(issue => issue.Code == "unreadable-workbook"));
     }
 
+    [TestMethod]
+    public async Task LocalizedVisibleHeadersUseInvariantMetadataInsteadOfLabelText()
+    {
+        var productId = Guid.NewGuid();
+        var bytes = await WriteAsync(new CatalogueWorkbookExport([
+            new CatalogueWorkbookProduct(productId, "P-1", "Product", "Plats", null, Money.Zero, 20m, true, false, false, [])], Guid.NewGuid()));
+        using var workbook = new XLWorkbook(new MemoryStream(bytes));
+        var products = workbook.Worksheet("Products");
+        products.Cell(1, 1).Value = "Code produit";
+        products.Cell(1, 2).Value = "Nom produit";
+        products.Cell(1, 3).Value = "Catégorie";
+        products.Cell(1, 4).Value = "Code catégorie";
+        products.Cell(1, 5).Value = "Prix TTC";
+        products.Cell(1, 6).Value = "TVA";
+        products.Cell(1, 7).Value = "Actif";
+        products.Cell(1, 8).Value = "Remise";
+        products.Cell(1, 9).Value = "Options";
+        await using var stream = new MemoryStream(); workbook.SaveAs(stream); stream.Position = 0;
+
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(stream);
+
+        Assert.IsFalse(parsed.HasErrors, string.Join(";", parsed.Issues.Select(issue => $"{issue.Code}:{issue.Message}")));
+        Assert.AreEqual("P-1", parsed.Products.Single().ProductCode);
+    }
+
+    [TestMethod]
+    public async Task HiddenBusinessSheetAndBlankResultFormulaFailClosed()
+    {
+        var bytes = await WriteAsync(new CatalogueWorkbookExport([], Guid.NewGuid()));
+        using var workbook = new XLWorkbook(new MemoryStream(bytes));
+        workbook.Worksheet("Options").Visibility = XLWorksheetVisibility.Hidden;
+        workbook.Worksheet("Products").Cell(2, 1).FormulaA1 = "=\"\"";
+        await using var stream = new MemoryStream(); workbook.SaveAs(stream); stream.Position = 0;
+
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(stream);
+
+        Assert.IsTrue(parsed.Issues.Any(issue => issue.Code == "business-sheet-visibility"));
+        Assert.IsTrue(parsed.Issues.Any(issue => issue.Code == "formula-not-allowed" && issue.ExcelRow == 2));
+    }
+
+    [TestMethod]
+    public async Task ManifestCarriesParentDisplayFingerprintsAndOptionProductTamperFailsClosed()
+    {
+        var productId = Guid.NewGuid(); var groupId = Guid.NewGuid(); var optionId = Guid.NewGuid();
+        var product = new CatalogueWorkbookProduct(productId, "P-1", "Product", "Plats", null, Money.Zero, 20m, true, false, true,
+            [new CatalogueWorkbookOptionGroup(groupId, productId, "P-1", "Product", "Extras", SelectionMode.Multi, false, 0, 1, 0,
+                [new CatalogueWorkbookOption(optionId, groupId, "P-1", "Product", "Extras", "Sauce", Money.Zero, true, 0)])]);
+        var bytes = await WriteAsync(new CatalogueWorkbookExport([product], Guid.NewGuid()));
+        using var workbook = new XLWorkbook(new MemoryStream(bytes));
+        var metadata = workbook.Worksheet("__Sushi81Meta");
+        var manifestHeaderRow = Enumerable.Range(1, metadata.LastRowUsed()!.RowNumber()).Single(row => metadata.Cell(row, 1).GetString() == "EntityType");
+        Assert.AreEqual("ParentDisplayFingerprint", metadata.Cell(manifestHeaderRow, 8).GetString());
+        Assert.AreEqual(CatalogueWorkbookFingerprint.ParentProduct("P-1", "Product"), metadata.Cell(manifestHeaderRow + 2, 8).GetString());
+        workbook.Worksheet("Options").Cell(2, 8).Value = "product:tampered";
+        await using var stream = new MemoryStream(); workbook.SaveAs(stream); stream.Position = 0;
+
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(stream);
+
+        Assert.IsTrue(parsed.Issues.Any(issue => issue.Code == "wrong-parent-binding" && issue.FieldKey == "product_row_key"));
+    }
+
     private static async Task<byte[]> WriteAsync(CatalogueWorkbookExport model)
     {
         await using var stream = new MemoryStream();

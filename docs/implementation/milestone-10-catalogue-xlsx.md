@@ -229,6 +229,28 @@ candidates are blocking Errors; no fuzzy or first-match resolution is permitted.
 These local keys are not durable IDs and are the only new-record references passed
 to the future WP3 commit plan.
 
+WP2 conformance adds a self-contained immutable plan reference shape. Every plan
+operation carries an entity reference with the existing opaque Guid plus stable
+local key, or a new-record local key with no Guid. Product operations carry an
+explicit Category reference (existing Category Guid/local key or a planned-new
+Category local key); OptionGroup operations carry the resolved parent Product
+reference; Option operations carry the resolved parent OptionGroup reference.
+Create operation `EntityId` is always null, and planned-new Categories are
+represented by `CatalogueImportPlannedCategory` (local key, display name and
+optional display short code), never by a preview-generated Guid. WP3 therefore
+does not need to re-resolve names or codes. The plan operation set remains
+Create/Modify/Activate/Deactivate only and has no Delete operation.
+
+The manifest also carries an optional `ParentDisplayFingerprint` column. For an
+OptionGroup it fingerprints the exported parent Product Code + Product Name; for
+an Option it fingerprints the exported parent Product Code + Product Name +
+OptionGroup Name; Product entries leave it blank. The value uses the same typed,
+length-prefixed, culture-stable Application fingerprint encoding as entity
+baselines. During preview, descriptive parent cells are accepted only when they
+match the current/planned parent or this original-export fingerprint. Hidden
+identity and parent helpers remain authoritative and are still checked for
+tampering.
+
 ### 5.1 Existing Product/Group/Option records
 
 An existing row is updateable only when:

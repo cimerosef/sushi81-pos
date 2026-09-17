@@ -36,7 +36,8 @@ public sealed record CatalogueImportManifestEntry(
     string? ParentRowKey,
     string Worksheet,
     int RowNumber,
-    string BaselineFingerprint);
+    string BaselineFingerprint,
+    string? ParentDisplayFingerprint = null);
 
 /// <summary>Raw, library-neutral Product worksheet row.</summary>
 public sealed record CatalogueImportProductRow(
@@ -182,6 +183,29 @@ public enum CatalogueImportOperationKind
     Deactivate
 }
 
+/// <summary>
+/// Stable reference carried by an import plan. Existing records carry their
+/// opaque durable id and local row key; planned records carry only a local key.
+/// </summary>
+public sealed record CatalogueImportEntityReference(Guid? ExistingId, string LocalKey)
+{
+    public bool IsExisting => ExistingId is not null;
+    public Guid? EntityId => ExistingId;
+
+    public static CatalogueImportEntityReference Existing(Guid id, string localKey) => new(id, localKey);
+
+    public static CatalogueImportEntityReference New(string localKey) => new(null, localKey);
+}
+
+/// <summary>New Category data carried by a preview plan without a preview-generated Guid.</summary>
+public sealed record CatalogueImportPlannedCategory(string LocalKey, string Name, string? ShortCode)
+{
+    public string CategoryLocalKey => LocalKey;
+    public string? DisplayShortCode => ShortCode;
+    public string NormalizedName => CatalogueNormalization.Key(Name);
+    public string? NormalizedShortCode => string.IsNullOrWhiteSpace(ShortCode) ? null : CatalogueNormalization.Key(ShortCode);
+}
+
 /// <summary>One explicit operation for the later WP3 commit path. There is deliberately no Delete kind.</summary>
 public sealed record CatalogueImportOperation(
     CatalogueImportEntityType EntityType,
@@ -190,7 +214,10 @@ public sealed record CatalogueImportOperation(
     string LocalKey,
     int? ExcelRow,
     string? Worksheet,
-    IReadOnlyDictionary<string, string?> Values);
+    IReadOnlyDictionary<string, string?> Values,
+    CatalogueImportEntityReference? EntityReference = null,
+    CatalogueImportEntityReference? CategoryReference = null,
+    CatalogueImportEntityReference? ParentReference = null);
 
 public sealed record CatalogueImportAffectedRow(
     string Worksheet,
@@ -204,7 +231,7 @@ public sealed record CatalogueImportPlan(
     CatalogueImportMode Mode,
     IReadOnlyList<CatalogueImportOperation> Operations,
     IReadOnlyList<CatalogueImportAffectedRow> AffectedRows,
-    IReadOnlyList<CatalogueImportCategory> NewCategories,
+    IReadOnlyList<CatalogueImportPlannedCategory> NewCategories,
     string? SourceName)
 {
 }
@@ -239,6 +266,15 @@ public sealed record CatalogueImportResult(CatalogueImportPreview Preview, Catal
 /// <summary>Application-owned canonical typed fingerprint shared by WP1 export and WP2 planning.</summary>
 public static class CatalogueWorkbookFingerprint
 {
+    public static string ParentProduct(string code, string name) => Fingerprint(
+        ("product-code", "string", code),
+        ("product-name", "string", name));
+
+    public static string ParentOptionGroup(string productCode, string productName, string groupName) => Fingerprint(
+        ("product-code", "string", productCode),
+        ("product-name", "string", productName),
+        ("option-group-name", "string", groupName));
+
     public static string Product(CatalogueWorkbookProduct product) => Fingerprint(
         ("code", "string", product.Code),
         ("name", "string", product.Name),

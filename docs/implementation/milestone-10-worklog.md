@@ -245,3 +245,17 @@ A worklog entry, `CODEX_DONE`, controller acceptance, owner manual PASSED or gre
 - Blockers/unresolved items: none identified within this repair scope.
 - Execution topology: isolated worktree `m10-authorized`; root worktree preserved.
 - Browser notification result: pending durable repair `CODEX_DONE` delivery.
+
+## Entry 2026-09-17 — `M10-WP2-REPAIR-PLANNER-PARSER-CONFORMANCE-05`
+
+- Authorization/gate state observed: Issue #4 OPEN and pointing to PR #22; exact repair handoff comment `5721408633` matched controller findings `5721396562` at starting head `af2c6d0ddf56e0a2581b8d3677f2cc4297955a3c`.
+- Scope: read-only WP2 conformance repair only. No SQLite business write, write-authority acquisition, durable ID allocation, notifier, WPF workflow, WP3 commit, merge or later milestone work.
+- Repairs: Product/Option Modify now excludes pure Active transitions; Category short-code collision/proposal handling is normalized with `CatalogueNormalization.Key`; immutable plan operations now carry explicit existing/new entity, Category and parent references with null Create IDs; planned-new Categories use deterministic local keys; Option parent helper validation follows OptionGroup → Product manifest bindings; manifest parent-display fingerprints preserve legitimate original descriptors after live parent rename/recode; localized visible headers are accepted through invariant metadata; business-sheet visibility and formula-in-blank-row fail-closed checks are enforced; SelectionMode accepts only SINGLE/MULTI.
+- Technical contract: manifest `ParentDisplayFingerprint` uses the Application typed length/type-prefixed SHA-256 helpers (`ParentProduct` and `ParentOptionGroup`). Existing references carry opaque Guid + local key; new references carry local key only; WP3 receives no preview-generated durable Guid and no name/code re-resolution requirement.
+- Files changed: Application import contracts/planner; Infrastructure ClosedXML import/export gateways; Application planner tests; Infrastructure workbook/parser tests; current-state M10 contract and this worklog.
+- Focused tests: Application planner suite and Infrastructure Catalogue workbook/parser/baseline suite recorded in the matching durable `CODEX_DONE` comment.
+- Full Release tests/build, diff check, dependency/schema/authority/recovery/privacy audits and exact-head CI are recorded in the matching durable `CODEX_DONE` comment.
+- Remaining manual evidence: owner Windows/Excel acceptance remains unexecuted; WP3 atomic persistence, WP4 WPF workflow and WP5 hardening remain outside this handoff.
+- Blockers/unresolved items: none identified within the authorized repair scope.
+- Execution topology: isolated worktree `m10-authorized`; root worktree preserved.
+- Browser notification result: pending durable repair `CODEX_DONE` delivery.

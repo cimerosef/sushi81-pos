@@ -41,6 +41,16 @@ public sealed class ClosedXmlCatalogueWorkbookImportGateway : ICatalogueWorkbook
             var metadata = workbook.Worksheets.FirstOrDefault(sheet => string.Equals(sheet.Name, CatalogueWorkbookSchema.MetadataSheetName, StringComparison.Ordinal));
             if (metadata is null)
                 return Empty(sourceName, issues);
+            var businessNames = new[] { "Products", "OptionGroups", "Options" };
+            foreach (var name in businessNames)
+            {
+                var businessSheet = workbook.Worksheets.FirstOrDefault(sheet => string.Equals(sheet.Name, name, StringComparison.Ordinal));
+                if (businessSheet is not null && businessSheet.Visibility != XLWorksheetVisibility.Visible)
+                    AddError(issues, "business-sheet-visibility", $"Business worksheet '{name}' must be visible.", name);
+            }
+            var businessOrder = workbook.Worksheets.Where(sheet => businessNames.Contains(sheet.Name, StringComparer.Ordinal)).Select(sheet => sheet.Name).ToArray();
+            if (!businessNames.SequenceEqual(businessOrder, StringComparer.Ordinal))
+                AddError(issues, "sheet-order", "Business worksheets must appear in Products, OptionGroups, Options order.");
             if (metadata.Visibility != XLWorksheetVisibility.VeryHidden)
                 AddError(issues, "metadata-visibility", "Technical metadata worksheet must be VeryHidden.", metadata.Name);
             var version = ReadText(metadata.Cell(2, 2), issues, metadata.Name, 2, "contract_version") ?? string.Empty;
@@ -87,7 +97,14 @@ public sealed class ClosedXmlCatalogueWorkbookImportGateway : ICatalogueWorkbook
                 ReadBool(metadata.Cell(row, 5), issues, metadata.Name, row, "editable") ?? false,
                 ReadText(metadata.Cell(row, 6), issues, metadata.Name, row, "role") ?? string.Empty,
                 ReadText(metadata.Cell(row, 7), issues, metadata.Name, row, "header") ?? string.Empty);
-            if (actual != expected) AddError(issues, "descriptor-corrupt", "Metadata descriptor does not match the supported workbook schema.", metadata.Name, row, "descriptor");
+            if (actual.Worksheet != expected.Worksheet
+                || actual.FieldKey != expected.FieldKey
+                || actual.ColumnIndex != expected.ColumnIndex
+                || actual.BusinessVisible != expected.BusinessVisible
+                || actual.Editable != expected.Editable
+                || actual.Role != expected.Role
+                || string.IsNullOrWhiteSpace(actual.Header))
+                AddError(issues, "descriptor-corrupt", "Metadata descriptor does not match the supported workbook schema.", metadata.Name, row, "descriptor");
             row++;
         }
     }
@@ -108,16 +125,21 @@ public sealed class ClosedXmlCatalogueWorkbookImportGateway : ICatalogueWorkbook
         for (var column = 0; column < expected.Length; column++)
             if (!string.Equals(ReadText(metadata.Cell(headerRow, column + 1), issues, metadata.Name, headerRow, expected[column]), expected[column], StringComparison.Ordinal))
                 AddError(issues, "manifest-corrupt", "Workbook manifest header is inconsistent.", metadata.Name, headerRow, expected[column]);
+        var parentDisplayHeader = ReadText(metadata.Cell(headerRow, 8), issues, metadata.Name, headerRow, "ParentDisplayFingerprint");
+        var hasParentDisplayFingerprint = string.Equals(parentDisplayHeader, "ParentDisplayFingerprint", StringComparison.Ordinal);
+        if (!string.IsNullOrWhiteSpace(parentDisplayHeader) && !hasParentDisplayFingerprint)
+            AddError(issues, "manifest-corrupt", "Manifest parent-display fingerprint header is inconsistent.", metadata.Name, headerRow, "ParentDisplayFingerprint");
         for (var row = headerRow + 1; row <= last; row++)
         {
             var values = Enumerable.Range(1, 7).Select(column => ReadText(metadata.Cell(row, column), issues, metadata.Name, row, expected[column - 1])).ToArray();
+            var parentDisplayFingerprint = hasParentDisplayFingerprint ? ReadText(metadata.Cell(row, 8), issues, metadata.Name, row, "ParentDisplayFingerprint") : null;
             if (values.All(string.IsNullOrWhiteSpace)) continue;
             if (values.Where((value, index) => index != 3).Any(value => value is null)) { AddError(issues, "manifest-corrupt", "Manifest row is incomplete.", metadata.Name, row); continue; }
             if (!Guid.TryParse(values[2], out var id) || id == Guid.Empty) { AddError(issues, "malformed-entity-id", "Manifest EntityId is malformed.", metadata.Name, row, "EntityId"); continue; }
             var manifestRowNumber = ReadInt(metadata.Cell(row, 6), issues, metadata.Name, row, "RowNumber") ?? 0;
-            if (string.IsNullOrWhiteSpace(values[1]) || string.IsNullOrWhiteSpace(values[0]) || string.IsNullOrWhiteSpace(values[4]) || string.IsNullOrWhiteSpace(values[6]) || manifestRowNumber < 2 || !result.TryAdd(values[1]!, new CatalogueImportManifestEntry(values[0]!, values[1]!, id, string.IsNullOrWhiteSpace(values[3]) ? null : values[3], values[4]!, manifestRowNumber, values[6]!)))
+            if (string.IsNullOrWhiteSpace(values[1]) || string.IsNullOrWhiteSpace(values[0]) || string.IsNullOrWhiteSpace(values[4]) || string.IsNullOrWhiteSpace(values[6]) || manifestRowNumber < 2 || !result.TryAdd(values[1]!, new CatalogueImportManifestEntry(values[0]!, values[1]!, id, string.IsNullOrWhiteSpace(values[3]) ? null : values[3], values[4]!, manifestRowNumber, values[6]!, string.IsNullOrWhiteSpace(parentDisplayFingerprint) ? null : parentDisplayFingerprint)))
                 AddError(issues, "duplicate-manifest-key", "Manifest RowKey is missing or duplicated.", metadata.Name, row, "RowKey");
-            else if (values[0] is not ("Product" or "OptionGroup" or "Option") || !new[] { "Products", "OptionGroups", "Options" }.Contains(values[4], StringComparer.Ordinal) || values[6]!.Length != 64 || !values[6]!.All(Uri.IsHexDigit))
+            else if (values[0] is not ("Product" or "OptionGroup" or "Option") || !new[] { "Products", "OptionGroups", "Options" }.Contains(values[4], StringComparer.Ordinal) || values[6]!.Length != 64 || !values[6]!.All(Uri.IsHexDigit) || (values[0] == "Product" && !string.IsNullOrWhiteSpace(parentDisplayFingerprint)) || (values[0] is "OptionGroup" or "Option") && hasParentDisplayFingerprint && (string.IsNullOrWhiteSpace(parentDisplayFingerprint) || parentDisplayFingerprint!.Length != 64 || !parentDisplayFingerprint.All(Uri.IsHexDigit)))
                 AddError(issues, "manifest-corrupt", "Manifest entity type, worksheet or fingerprint is invalid.", metadata.Name, row, "manifest");
         }
         foreach (var entry in result.Values)
@@ -137,7 +159,7 @@ public sealed class ClosedXmlCatalogueWorkbookImportGateway : ICatalogueWorkbook
         var last = sheet.LastRowUsed()?.RowNumber() ?? 1;
         for (var row = 2; row <= last; row++)
         {
-            if (IsBlankBusinessRow(sheet, row, 9)) { if (HasTechnicalData(sheet, row, 10, 11)) AddError(issues, "misbound-identity", "A blank Product row contains technical binding data.", sheet.Name, row, "product_row_key"); continue; }
+            if (IsBlankBusinessRow(sheet, row, 9)) { AddFormulaErrors(sheet, row, 1, 11, issues); if (HasTechnicalData(sheet, row, 10, 11)) AddError(issues, "misbound-identity", "A blank Product row contains technical binding data.", sheet.Name, row, "product_row_key"); continue; }
             result.Add(new(row,
                 ReadText(sheet.Cell(row, 1), issues, sheet.Name, row, "product_code"), ReadText(sheet.Cell(row, 2), issues, sheet.Name, row, "product_name"),
                 ReadText(sheet.Cell(row, 3), issues, sheet.Name, row, "category_name"), ReadText(sheet.Cell(row, 4), issues, sheet.Name, row, "category_short_code"),
@@ -156,7 +178,7 @@ public sealed class ClosedXmlCatalogueWorkbookImportGateway : ICatalogueWorkbook
         var last = sheet.LastRowUsed()?.RowNumber() ?? 1;
         for (var row = 2; row <= last; row++)
         {
-            if (IsBlankBusinessRow(sheet, row, 8)) { if (HasTechnicalData(sheet, row, 9, 12)) AddError(issues, "misbound-identity", "A blank OptionGroup row contains technical binding data.", sheet.Name, row, "option_group_row_key"); continue; }
+            if (IsBlankBusinessRow(sheet, row, 8)) { AddFormulaErrors(sheet, row, 1, 12, issues); if (HasTechnicalData(sheet, row, 9, 12)) AddError(issues, "misbound-identity", "A blank OptionGroup row contains technical binding data.", sheet.Name, row, "option_group_row_key"); continue; }
             result.Add(new(row,
                 ReadText(sheet.Cell(row, 1), issues, sheet.Name, row, "product_code"), ReadText(sheet.Cell(row, 2), issues, sheet.Name, row, "product_name"), ReadText(sheet.Cell(row, 3), issues, sheet.Name, row, "group_name"),
                 ReadText(sheet.Cell(row, 4), issues, sheet.Name, row, "selection_mode"), ReadBool(sheet.Cell(row, 5), issues, sheet.Name, row, "is_required"), ReadNullableInt(sheet.Cell(row, 6), issues, sheet.Name, row, "min_selections"), ReadNullableInt(sheet.Cell(row, 7), issues, sheet.Name, row, "max_selections"), ReadInt(sheet.Cell(row, 8), issues, sheet.Name, row, "display_order"),
@@ -173,7 +195,7 @@ public sealed class ClosedXmlCatalogueWorkbookImportGateway : ICatalogueWorkbook
         var last = sheet.LastRowUsed()?.RowNumber() ?? 1;
         for (var row = 2; row <= last; row++)
         {
-            if (IsBlankBusinessRow(sheet, row, 7)) { if (HasTechnicalData(sheet, row, 8, 12)) AddError(issues, "misbound-identity", "A blank Option row contains technical binding data.", sheet.Name, row, "option_row_key"); continue; }
+            if (IsBlankBusinessRow(sheet, row, 7)) { AddFormulaErrors(sheet, row, 1, 12, issues); if (HasTechnicalData(sheet, row, 8, 12)) AddError(issues, "misbound-identity", "A blank Option row contains technical binding data.", sheet.Name, row, "option_row_key"); continue; }
             result.Add(new(row,
                 ReadText(sheet.Cell(row, 1), issues, sheet.Name, row, "product_code"), ReadText(sheet.Cell(row, 2), issues, sheet.Name, row, "product_name"), ReadText(sheet.Cell(row, 3), issues, sheet.Name, row, "option_group_name"), ReadText(sheet.Cell(row, 4), issues, sheet.Name, row, "option_name"),
                 ReadMoney(sheet.Cell(row, 5), issues, sheet.Name, row, "price_adjustment_ttc"), ReadBool(sheet.Cell(row, 6), issues, sheet.Name, row, "is_active"), ReadInt(sheet.Cell(row, 7), issues, sheet.Name, row, "display_order"),
@@ -185,8 +207,13 @@ public sealed class ClosedXmlCatalogueWorkbookImportGateway : ICatalogueWorkbook
     private static void ValidateHeaders(IXLWorksheet sheet, string worksheet, List<CatalogueImportIssue> issues)
     {
         foreach (var descriptor in CatalogueWorkbookSchema.Fields.Where(value => value.Worksheet == worksheet && value.BusinessVisible))
-            if (!string.Equals(ReadText(sheet.Cell(1, descriptor.ColumnIndex), issues, sheet.Name, 1, descriptor.FieldKey), descriptor.Header, StringComparison.Ordinal))
-                AddError(issues, "descriptor-corrupt", "Business worksheet header does not match the supported schema.", worksheet, 1, descriptor.FieldKey);
+        {
+            var cell = sheet.Cell(1, descriptor.ColumnIndex);
+            if (cell.HasFormula)
+                AddError(issues, "formula-not-allowed", "Formula cells are not supported in the import contract.", worksheet, 1, descriptor.FieldKey);
+            else if (cell.IsEmpty() || string.IsNullOrWhiteSpace(cell.GetString()))
+                AddError(issues, "missing-header", "Business worksheet header is missing.", worksheet, 1, descriptor.FieldKey);
+        }
     }
 
     private static void ValidateBindings(IReadOnlyList<CatalogueImportProductRow> products, IReadOnlyList<CatalogueImportOptionGroupRow> groups, IReadOnlyList<CatalogueImportOptionRow> options, IReadOnlyDictionary<string, CatalogueImportManifestEntry> manifest, List<CatalogueImportIssue> issues)
@@ -197,7 +224,23 @@ public sealed class ClosedXmlCatalogueWorkbookImportGateway : ICatalogueWorkbook
         foreach (var row in groups)
             ValidateRowBinding("OptionGroup", row.OptionGroupRowKey, row.OptionGroupId, row.ProductRowKey, "OptionGroups", row.ExcelRow, manifest, seen, issues, row.ProductId);
         foreach (var row in options)
+        {
             ValidateRowBinding("Option", row.OptionRowKey, row.OptionId, row.OptionGroupRowKey, "Options", row.ExcelRow, manifest, seen, issues, row.OptionGroupId);
+            ValidateOptionProductBinding(row, manifest, issues);
+        }
+    }
+
+    private static void ValidateOptionProductBinding(CatalogueImportOptionRow row, IReadOnlyDictionary<string, CatalogueImportManifestEntry> manifest, List<CatalogueImportIssue> issues)
+    {
+        if (string.IsNullOrWhiteSpace(row.ProductRowKey)) return;
+        if (string.IsNullOrWhiteSpace(row.OptionGroupRowKey) || !manifest.TryGetValue(row.OptionGroupRowKey, out var groupEntry) || groupEntry.EntityType != "OptionGroup")
+        {
+            AddError(issues, "wrong-parent-binding", "Option Product row binding cannot be resolved through its OptionGroup manifest entry.", "Options", row.ExcelRow, "product_row_key");
+            return;
+        }
+
+        if (!string.Equals(groupEntry.ParentRowKey, row.ProductRowKey, StringComparison.Ordinal))
+            AddError(issues, "wrong-parent-binding", "Option Product row binding does not match the bound OptionGroup parent Product.", "Options", row.ExcelRow, "product_row_key");
     }
 
     private static void ValidateRowBinding(string type, string? rowKey, string? idText, string? parentKey, string worksheet, int row, IReadOnlyDictionary<string, CatalogueImportManifestEntry> manifest, HashSet<string> seen, List<CatalogueImportIssue> issues, string? parentIdText = null)
@@ -222,6 +265,14 @@ public sealed class ClosedXmlCatalogueWorkbookImportGateway : ICatalogueWorkbook
 
     private static bool IsBlankBusinessRow(IXLWorksheet sheet, int row, int columns) => Enumerable.Range(1, columns).All(column => string.IsNullOrWhiteSpace(sheet.Cell(row, column).GetString()));
     private static bool HasTechnicalData(IXLWorksheet sheet, int row, int firstColumn, int lastColumn) => Enumerable.Range(firstColumn, lastColumn - firstColumn + 1).Any(column => sheet.Cell(row, column).HasFormula || !string.IsNullOrWhiteSpace(sheet.Cell(row, column).GetString()));
+    private static void AddFormulaErrors(IXLWorksheet sheet, int row, int firstColumn, int lastColumn, List<CatalogueImportIssue> issues)
+    {
+        foreach (var column in Enumerable.Range(firstColumn, lastColumn - firstColumn + 1).Where(column => sheet.Cell(row, column).HasFormula))
+        {
+            var field = CatalogueWorkbookSchema.Fields.FirstOrDefault(value => value.Worksheet == sheet.Name && value.ColumnIndex == column)?.FieldKey ?? $"column_{column}";
+            AddError(issues, "formula-not-allowed", "Formula cells are not supported in the import contract.", sheet.Name, row, field);
+        }
+    }
     private static string? ReadText(IXLCell cell, List<CatalogueImportIssue> issues, string worksheet, int row, string field)
     {
         if (cell.HasFormula) { AddError(issues, "formula-not-allowed", "Formula cells are not supported in the import contract.", worksheet, row, field); return null; }
