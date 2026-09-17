@@ -209,3 +209,24 @@ A worklog entry, `CODEX_DONE`, controller acceptance, owner manual PASSED or gre
 - Remaining manual evidence: owner Windows/Excel inspection remains required; import parser/planner, preview, atomic commit and WPF workflow remain excluded.
 - Blockers/unresolved items: none identified within the narrow repair scope.
 - Browser notification result: pending durable repair `CODEX_DONE` delivery.
+
+## Entry 2026-09-17 — `M10-WP1-REPAIR-EXCEL-SORT-SNAPSHOT-03`
+
+- Authorization/gate state observed: Issue #4 OPEN and pointing to PR #22; handoff comment `5717457956` matched controller review `5717448826`.
+- Starting PR head: `78442bd2baf6ce75fdfe479a1be776920374503d`.
+- Ending pushed PR head: recorded in the matching durable repair `CODEX_DONE` after push.
+- Exact technical repairs: hidden row-local Product/OptionGroup/Option helpers are unlocked for protected Excel sorting while remaining hidden and excluded from FormatColumns/unhide permission; sort ranges include all row-local helpers; mandatory `ICatalogueWorkbookSnapshotQueries` removed the mixed-revision fallback; production SQLite snapshot uses one read connection/read transaction; internal synchronization seam and deterministic concurrent-commit integration evidence added; export contract version now has one schema source.
+- Files changed: `CatalogueWorkbookContracts.cs`; `ClosedXmlCatalogueWorkbookGateway.cs`; `SqliteCatalogueStore.cs`; focused Application/Infrastructure workbook tests; M10 technical contract/worklog documentation.
+- Focused tests: Application workbook tests **3/3 passed**; Infrastructure workbook/snapshot tests **6/6 passed**, including Product/OptionGroup/Option sort and insertion bindings plus deterministic concurrent SQLite snapshot coherence.
+- Full Release tests: **665/665 passed** across all six Release test assemblies.
+- Release build: **passed with zero warnings and zero errors** for the full solution.
+- `git diff --check`: **passed**.
+- Dependency/schema impact: ClosedXML remains the single pinned `0.105.1` XLSX dependency; no COM/Interop, second XLSX library, SQLite migration or new durable business field.
+- Authority/recovery impact: export remains read-only; the snapshot transaction acquires no write authority and emits no durable-change notification.
+- Privacy/synthetic-data audit: generated IDs and synthetic catalogue values only.
+- CI run / exact head: pending repair push.
+- Remaining manual evidence: owner Windows/Excel inspection of protected sorting remains required; import parser/planner, preview, atomic commit and WPF workflow remain excluded.
+- Controller findings: the two findings in `5717448826` are addressed within this narrow repair scope.
+- Blockers/unresolved items: none identified within this repair scope.
+- Execution topology: isolated worktree `m10-authorized`; root worktree preserved.
+- Browser notification result: pending durable repair `CODEX_DONE` delivery.

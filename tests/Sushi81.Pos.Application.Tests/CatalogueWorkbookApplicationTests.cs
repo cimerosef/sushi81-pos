@@ -14,18 +14,16 @@ public sealed class CatalogueWorkbookApplicationTests
         var productA = Guid.NewGuid();
         var group = Guid.NewGuid();
         var option = Guid.NewGuid();
-        var queries = new FakeQueries(
+        var queries = new SnapshotQueries(
             [
-                new ProductSummary(productB, "B", "Beta", category, "Plats", Money.FromCents(200), 20m, false, true, true, "P"),
-                new ProductSummary(productA, "A", "Alpha", category, "Plats", Money.FromCents(100), 10m, true, false, false, "P")
-            ],
-            new Dictionary<Guid, ProductDraft>
-            {
-                [productB] = new(productB, "B", "Beta", category, Money.FromCents(200), 20m, false, true, true,
-                    [new OptionGroupDraft(group, "Extras", SelectionMode.Single, true, null, null, 0,
-                        [new OptionDraft(option, "Inactive choice", Money.FromCents(25), false, 0)])]),
-                [productA] = new(productA, "A", "Alpha", category, Money.FromCents(100), 10m, true, false, false, [])
-            });
+                new CatalogueWorkbookProduct(
+                    productB, "B", "Beta", "Plats", "P", Money.FromCents(200), 20m, false, true, true,
+                    [new CatalogueWorkbookOptionGroup(
+                        group, productB, "B", "Beta", "Extras", SelectionMode.Single, true, null, null, 0,
+                        [new CatalogueWorkbookOption(option, group, "B", "Beta", "Extras", "Inactive choice", Money.FromCents(25), false, 0)])]),
+                new CatalogueWorkbookProduct(
+                    productA, "A", "Alpha", "Plats", "P", Money.FromCents(100), 10m, true, false, false, [])
+            ]);
         var gateway = new RecordingGateway();
 
         await new CatalogueWorkbookService(queries, gateway).ExportAsync(new MemoryStream());
@@ -39,7 +37,7 @@ public sealed class CatalogueWorkbookApplicationTests
         Assert.AreEqual(group, model.Products[1].OptionGroups[0].OptionGroupId);
         Assert.AreEqual(option, model.Products[1].OptionGroups[0].Options[0].OptionId);
         Assert.IsFalse(model.Products[1].OptionGroups[0].Options[0].IsActive);
-        Assert.AreEqual(2, queries.LookupCalls);
+        Assert.AreEqual(1, queries.SnapshotCalls);
     }
 
     [TestMethod]
@@ -74,33 +72,9 @@ public sealed class CatalogueWorkbookApplicationTests
         }
     }
 
-    private sealed class FakeQueries(IReadOnlyList<ProductSummary> products, IReadOnlyDictionary<Guid, ProductDraft> drafts) : ICatalogueQueries
-    {
-        public int LookupCalls { get; private set; }
-
-        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([]);
-
-        public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult(products);
-
-        public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default)
-        {
-            LookupCalls++;
-            drafts.TryGetValue(productId, out var draft);
-            return Task.FromResult(draft);
-        }
-    }
-
-    private sealed class SnapshotQueries(IReadOnlyList<CatalogueWorkbookProduct> snapshot) : ICatalogueQueries, ICatalogueWorkbookSnapshotQueries
+    private sealed class SnapshotQueries(IReadOnlyList<CatalogueWorkbookProduct> snapshot) : ICatalogueWorkbookSnapshotQueries
     {
         public int SnapshotCalls { get; private set; }
-
-        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([]);
-
-        public Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<ProductSummary>>([]);
-
-        public Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<ProductDraft?>(null);
 
         public Task<IReadOnlyList<CatalogueWorkbookProduct>> ReadCatalogueWorkbookSnapshotAsync(CancellationToken cancellationToken = default)
         {

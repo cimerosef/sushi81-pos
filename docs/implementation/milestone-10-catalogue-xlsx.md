@@ -135,7 +135,9 @@ At minimum:
 - Discount eligible;
 - Options enabled.
 
-Technical Product identity/bindings remain hidden/locked.
+Technical Product identity/binding helpers remain hidden. Their row-local cells may
+be unlocked so protected Excel sorting can move the complete row; the VeryHidden
+manifest remains authoritative and import revalidates every helper.
 
 ### 4.3 OptionGroup fields
 
@@ -149,7 +151,8 @@ At minimum:
 - max selections;
 - display order.
 
-Technical OptionGroup ID/existing parent binding remain hidden/locked.
+Technical OptionGroup ID/existing parent binding helpers remain hidden and are
+validated against the VeryHidden manifest after any workbook edit.
 
 ### 4.4 Option fields
 
@@ -161,7 +164,8 @@ At minimum:
 - Active;
 - display order.
 
-Technical Option ID/existing parent binding remain hidden/locked.
+Technical Option ID/existing parent binding helpers remain hidden and are validated
+against the VeryHidden manifest after any workbook edit.
 
 ### 4.5 Technical metadata
 
@@ -182,13 +186,20 @@ rows record worksheet, field key, column index, business visibility/editability 
 entity/relationship role. The manifest records the original row key, entity ID, parent
 row key, worksheet/row location and a canonical typed baseline fingerprint. The visible
 worksheet filter range includes hidden technical columns so ordinary sorting keeps each
-binding with its business row; business columns and a blank next-row template remain
-editable under worksheet protection while technical columns stay locked.
+binding with its business row. Business cells and row-local hidden helper cells are
+unlocked where required by protected Excel sorting; helper columns remain hidden and
+worksheet protection does not grant FormatColumns/unhide permission. A blank next-row
+template remains editable, while the VeryHidden manifest is the authoritative identity
+and relationship record. `CatalogueWorkbookService` requires the application-owned
+`ICatalogueWorkbookSnapshotQueries` dependency; production SQLite export materializes
+the complete model from one read connection/transaction and has no multi-read fallback.
 
 ### 4.6 Protection
 
 - technical columns hidden;
-- technical cells locked;
+- row-local helper cells participating in a sortable range may be unlocked for Excel
+  compatibility, but remain hidden and are never trusted without manifest validation;
+- worksheet protection does not allow normal column formatting/unhide;
 - intended business cells editable;
 - protection must preserve practical normal Excel editing/inserting/sorting/filtering where possible;
 - metadata sheet VeryHidden/protected;

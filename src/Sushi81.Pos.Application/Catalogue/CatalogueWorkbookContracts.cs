@@ -9,8 +9,7 @@ namespace Sushi81.Pos.Application.Catalogue;
 /// </summary>
 public sealed record CatalogueWorkbookExport(
     IReadOnlyList<CatalogueWorkbookProduct> Products,
-    Guid ExportInstanceId,
-    int ContractVersion = 1);
+    Guid ExportInstanceId);
 
 public sealed record CatalogueWorkbookProduct(
     Guid ProductId,
@@ -56,7 +55,7 @@ public interface ICatalogueWorkbookGateway
 }
 
 /// <summary>
-/// Optional production read seam that materializes the complete Catalogue from one
+/// Mandatory production read seam that materializes the complete Catalogue from one
 /// consistent database snapshot before workbook serialization starts.
 /// </summary>
 public interface ICatalogueWorkbookSnapshotQueries
@@ -65,78 +64,23 @@ public interface ICatalogueWorkbookSnapshotQueries
 }
 
 /// <summary>
-/// Builds a complete read-only export from the existing Catalogue query seam.
+/// Builds a complete read-only export from the mandatory Catalogue snapshot seam.
 /// Export does not acquire write authority and does not notify recovery.
 /// </summary>
-public sealed class CatalogueWorkbookService(ICatalogueQueries catalogue, ICatalogueWorkbookGateway gateway)
+public sealed class CatalogueWorkbookService(ICatalogueWorkbookSnapshotQueries snapshotQueries, ICatalogueWorkbookGateway gateway)
 {
-    private readonly ICatalogueQueries catalogue = catalogue ?? throw new ArgumentNullException(nameof(catalogue));
+    private readonly ICatalogueWorkbookSnapshotQueries snapshotQueries = snapshotQueries ?? throw new ArgumentNullException(nameof(snapshotQueries));
     private readonly ICatalogueWorkbookGateway gateway = gateway ?? throw new ArgumentNullException(nameof(gateway));
 
     public async Task ExportAsync(Stream destination, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(destination);
 
-        if (catalogue is ICatalogueWorkbookSnapshotQueries snapshotQueries)
-        {
-            var snapshotProducts = await snapshotQueries.ReadCatalogueWorkbookSnapshotAsync(cancellationToken);
-            await gateway.WriteAsync(new CatalogueWorkbookExport(snapshotProducts, Guid.NewGuid()), destination, cancellationToken);
-            return;
-        }
-
-        var products = await catalogue.ListProductsAsync(cancellationToken: cancellationToken);
-        var exported = new List<CatalogueWorkbookProduct>(products.Count);
-
-        foreach (var summary in products.OrderBy(product => product.Code, StringComparer.OrdinalIgnoreCase).ThenBy(product => product.Id))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var draft = await catalogue.GetProductForEditAsync(summary.Id, cancellationToken)
-                ?? throw new InvalidDataException($"Current product '{summary.Id}' disappeared during Catalogue export.");
-
-            var groups = (draft.Groups ?? [])
-                .OrderBy(group => group.DisplayOrder)
-                .ThenBy(group => group.Id)
-                .Select(group => new CatalogueWorkbookOptionGroup(
-                    group.Id,
-                    draft.Id,
-                    summary.Code,
-                    summary.Name,
-                    group.Name,
-                    group.SelectionMode,
-                    group.IsRequired,
-                    group.MinSelections,
-                    group.MaxSelections,
-                    group.DisplayOrder,
-                    (group.Options ?? [])
-                        .OrderBy(option => option.DisplayOrder)
-                        .ThenBy(option => option.Id)
-                        .Select(option => new CatalogueWorkbookOption(
-                            option.Id,
-                            group.Id,
-                            summary.Code,
-                            summary.Name,
-                            group.Name,
-                            option.Name,
-                            option.PriceAdjustmentTtc,
-                            option.IsActive,
-                            option.DisplayOrder))
-                        .ToArray()))
-                .ToArray();
-
-            exported.Add(new CatalogueWorkbookProduct(
-                draft.Id,
-                summary.Code,
-                summary.Name,
-                summary.CategoryName,
-                summary.CategoryShortCode,
-                summary.PriceTtc,
-                summary.VatRate,
-                summary.IsActive,
-                summary.DiscountEligible,
-                summary.OptionsEnabled,
-                groups));
-        }
-
-        await gateway.WriteAsync(new CatalogueWorkbookExport(exported, Guid.NewGuid()), destination, cancellationToken);
+        var snapshotProducts = await snapshotQueries.ReadCatalogueWorkbookSnapshotAsync(cancellationToken);
+        var orderedProducts = snapshotProducts
+            .OrderBy(product => product.Code, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(product => product.ProductId)
+            .ToArray();
+        await gateway.WriteAsync(new CatalogueWorkbookExport(orderedProducts, Guid.NewGuid()), destination, cancellationToken);
     }
 }

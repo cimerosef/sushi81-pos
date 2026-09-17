@@ -23,6 +23,13 @@ public sealed class SqliteCatalogueStore(
     private readonly IBusinessClock clock = clock ?? throw new ArgumentNullException(nameof(clock));
     private readonly Func<int, Exception?>? bulkWriteFailureInjector = bulkWriteFailureInjector;
 
+    /// <summary>
+    /// Test-only synchronization seam. It is intentionally internal and null in
+    /// production; integration tests use it to pause after the read transaction has
+    /// established its first logical snapshot before a concurrent writer commits.
+    /// </summary>
+    internal Func<CancellationToken, Task>? SnapshotAfterProductsReadAsync { get; set; }
+
     public async Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
@@ -106,6 +113,10 @@ public sealed class SqliteCatalogueStore(
                     reader.GetInt64(9) == 1));
             }
         }
+
+        var snapshotHook = SnapshotAfterProductsReadAsync;
+        if (snapshotHook is not null)
+            await snapshotHook(cancellationToken);
 
         var groups = new Dictionary<Guid, List<SnapshotGroup>>();
         await using (var command = connection.CreateCommand())

@@ -205,16 +205,19 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
     private static void FinishVisibleSheet(IXLWorksheet sheet, int lastRow, int businessColumns, int technicalColumns)
     {
         var effectiveLastRow = Math.Max(1, lastRow);
-        sheet.Columns(1, businessColumns).Style.Protection.Locked = false;
-        sheet.Range(1, 1, 1, businessColumns).Style.Protection.Locked = true;
         var newRowTemplate = Math.Max(2, lastRow + 1);
-        sheet.Range(newRowTemplate, 1, newRowTemplate, businessColumns).Style.Protection.Locked = false;
-        sheet.Range(newRowTemplate, businessColumns + 1, newRowTemplate, technicalColumns).Style.Protection.Locked = true;
+
+        // Excel refuses to sort a protected range when any cell in that range is
+        // locked.  Row-local helpers therefore use the same unlocked cell state as
+        // business cells, while remaining hidden and excluded from FormatColumns /
+        // unhide permissions.  The VeryHidden manifest remains authoritative and
+        // future import must validate every helper against it.
+        sheet.Range(2, 1, newRowTemplate, technicalColumns).Style.Protection.Locked = false;
+        sheet.Range(1, 1, 1, technicalColumns).Style.Protection.Locked = true;
         if (effectiveLastRow >= 1) sheet.Range(1, 1, effectiveLastRow, technicalColumns).SetAutoFilter();
         for (var column = businessColumns + 1; column <= technicalColumns; column++)
         {
             sheet.Column(column).Hide();
-            sheet.Column(column).Style.Protection.Locked = true;
         }
 
         sheet.SheetView.FreezeRows(1);
