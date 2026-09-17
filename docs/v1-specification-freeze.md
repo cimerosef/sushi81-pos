@@ -1,8 +1,8 @@
 # V1 Specification freeze
 
-**Status:** Approved — Phase 5 baseline, amended 2026-09-16
+**Status:** Approved — Phase 5 baseline, amended 2026-09-17  
 **Freeze date:** 2026-08-27  
-**Latest approved amendment:** 2026-09-16
+**Latest approved amendment:** 2026-09-17  
 **Product:** Sushi81 POS  
 **Purpose:** Record completion of the V1 design/specification phase and establish the authoritative implementation baseline for the Codex implementation phase.
 
@@ -33,36 +33,36 @@ The implementation-authoritative V1 baseline is:
 
 ### Phase 1
 
-- `current-system.md` — **Approved — Phase 1 baseline**; historical/current-system reference only, not a target-behavior override.
-- `product-requirements.md` — **Approved — Phase 1 baseline**.
+- `current-system.md` — Approved — Phase 1 baseline; historical/current-system reference only, not a target-behavior override.
+- `product-requirements.md` — Approved — Phase 1 baseline.
 
 ### Phase 2
 
-- `order-lifecycle.md` — **Approved — Phase 2 baseline**.
-- `business-rules.md` — **Approved — Phase 2 baseline**.
-- `catalogue-management.md` — **Approved — Phase 2 baseline**, including the 2026-08-30 filtered bulk activation/deactivation amendment.
+- `order-lifecycle.md` — Approved — Phase 2 baseline.
+- `business-rules.md` — Approved — Phase 2 baseline.
+- `catalogue-management.md` — Approved — Phase 2 baseline, including later approved Catalogue amendments.
 
 ### Phase 3
 
-- `architecture.md` — **Approved — Phase 3 baseline**, including later approved amendments recorded in that document.
-- `data-model.md` — **Approved — Phase 3 baseline**.
-- `storage-strategy.md` — **Approved — Phase 3 baseline**, including later approved amendments recorded in that document.
+- `architecture.md` — Approved — Phase 3 baseline, including later approved amendments recorded there.
+- `data-model.md` — Approved — Phase 3 baseline.
+- `storage-strategy.md` — Approved — Phase 3 baseline, including later approved amendments.
 
 ### Phase 4
 
-- `paste-order-import.md` — **Approved — Phase 4 baseline**.
-- `printing.md` — **Approved — Phase 4 baseline**.
-- `export.md` — **Approved — Phase 4 baseline**.
+- `paste-order-import.md` — Approved — Phase 4 baseline and later M09 amendment consolidation.
+- `printing.md` — Approved — Phase 4 baseline.
+- `export.md` — Approved — Phase 4 baseline.
 
 ### Phase 5
 
-- `acceptance-criteria.md` — **Approved — Phase 5 baseline (V1 Specification)**, including later approved amendments recorded in that document.
-- `acceptance-criteria-amendment-filtered-catalogue-bulk-activation.md` — **Approved 2026-08-30 V1 acceptance amendment**, defining AC-CAT-013 until the next consolidated acceptance-criteria rewrite.
-- this `v1-specification-freeze.md` record — **Approved — Phase 5 baseline**, with amendment log below.
+- `acceptance-criteria.md` — Approved — Phase 5 baseline (V1 Specification);
+- approved acceptance amendments under `docs/acceptance-criteria-amendment-*.md`;
+- this `v1-specification-freeze.md` record, with amendment log below.
 
 ## 3. Approved decision records incorporated into the V1 baseline
 
-The following approved records under `docs/decisions/` materially constrain V1 and have been checked against the baseline documents:
+Approved records under `docs/decisions/` materially constrain V1 and supplement/amend the baseline where stated. Important examples include:
 
 - `advance-order-marker.md`;
 - `cancelled-order-reprinting.md`;
@@ -73,7 +73,7 @@ The following approved records under `docs/decisions/` materially constrain V1 a
 - `export-eligibility.md`;
 - `export-intermediate-file.md`;
 - `export-post-export-correction.md`;
-- `filtered-catalogue-bulk-activation.md` — **Approved 2026-08-30 V1 specification amendment**;
+- `filtered-catalogue-bulk-activation.md`;
 - `hiboutik-paste-option-confirmation.md`;
 - `hiboutik-paste-simplification.md`;
 - `hiboutik-paste-total-calculation.md`;
@@ -81,151 +81,149 @@ The following approved records under `docs/decisions/` materially constrain V1 a
 - `order-modification-printing.md`;
 - `payment-effective-date.md`;
 - `reprint-marking.md`;
-- `target-directed-authority-handoff.md` — **Approved 2026-08-28 V1 specification amendment**.
+- `target-directed-authority-handoff.md`;
+- `github-handoff-transport.md`;
+- M07 self-join/DR/recovery-ordering decisions;
+- `m08-print-layout-and-receipt-identity.md`;
+- `m09-hiboutik-paste-operator-workflow-and-source-reference.md`;
+- `post-m09-hiboutik-daily-payment-dashboard.md`;
+- `m10-category-short-code-workbook-semantics.md`.
 
-The baseline documents are aligned so implementation should not need to resolve normal V1 behavior merely by comparing decision chronology.
+Where a later Approved decision explicitly supersedes a narrow earlier clause, the later decision controls.
 
-## 4. Hiboutik model cleanup — final V1 state
+## 4. Phase 5 Hiboutik cleanup — historical freeze state
 
-The earlier complex Hiboutik emergency-order model is **superseded and removed from the target V1 model**.
+The earlier complex Hiboutik emergency-order model was superseded and removed from the V1 target model during Phase 5.
 
-V1 retains only the following source distinction:
+The initial frozen model retained only ordinary POS-originated versus Hiboutik paste-created source distinction for anti-double-counting and excluded the old emergency-order UI/status/discrepancy subsystem.
 
-- ordinary POS-originated order;
-- Hiboutik paste-created order identified through a hidden non-user-facing source discriminator.
-
-That marker exists only to prevent double counting and automatically excludes the underlying Hiboutik web order from ordinary POS-originated:
-
-- operational turnover;
-- received-payment summaries;
-- CB amount that must newly be represented/entered in Hiboutik;
-- export to `Gestion SUSHI 81`.
-
-V1 does not contain a dedicated emergency-order UI, dashboard count, original Hiboutik amount, discrepancy/reconciliation workflow, dedicated Hiboutik reference field or `EmergencyImportDetail` entity.
+Later M09 and post-M09 approved amendments deliberately added only the narrowly recorded product-block/operator-resolution/source-reference and two-value dashboard behavior. Those later sections control where they supersede the initial Phase 5 wording.
 
 ## 5. Final payment-date decision
 
-Phase 5 froze the last identified business-attribution ambiguity:
+Phase 5 froze the business-attribution rule:
 
-- normal payment entry defaults the effective payment date to the current business date;
-- when a payment is entered/corrected later, the operator may select the date the money was actually received;
-- daily CB/Espèce/total-received summaries use that effective business date;
-- the separate application-generated `recorded_at` timestamp preserves the actual persistence time.
+- payment entry defaults effective date to current business date;
+- later/back-entered payment may use the date money was actually received;
+- daily CB/Espèce/received summaries use effective business date;
+- separate `recorded_at` preserves persistence time.
 
-This is recorded in `docs/decisions/payment-effective-date.md` and incorporated into `order-lifecycle.md`, `data-model.md` and `acceptance-criteria.md`.
+This is recorded in `docs/decisions/payment-effective-date.md` and incorporated into lifecycle/data/acceptance specifications.
 
 ## 6. Phase 5 consistency-review result
 
-The Phase 5 review found and corrected the following classes of stale, conflicting or incomplete specification material:
+The Phase 5 review corrected stale/conflicting/incomplete specification material, including:
 
-- `product-requirements.md` was still marked Draft and contained superseded Hiboutik emergency-order requirements;
-- `order-lifecycle.md` still described the former special emergency-import lifecycle;
-- `data-model.md` still contained `EmergencyImportDetail`, original-Hiboutik-total/discrepancy concepts and an obsolete `sync-and-backup.md` reference;
-- `business-rules.md` still contained early drafting language implying that already-approved target rules were awaiting later confirmation;
-- `catalogue-management.md` still contained early “deferred to later UI design” wording that could be read as an unresolved V1 decision and did not explicitly freeze how category names are represented/resolved in the three-sheet catalogue workbook;
-- `storage-strategy.md` needed alignment with the later approved non-authoritative-device printing and simplified Hiboutik source semantics;
-- `docs/decisions/README.md` described a numeric filename convention not used by the repository;
-- several decision records still described their already-completed baseline incorporation as a future documentation action;
-- `export-intermediate-file.md` still described workbook-contract details as generally implementation-defined even though the later Approved `export.md` freezes the concrete V1 four-sheet contract;
-- the final payment effective-date/back-entry behavior had not yet been frozen;
-- the initial acceptance draft needed stronger direct coverage of business-setting edits, main-screen summaries/reminders, telephone/comment search, explicit archive access, local-recovery triggers and change-triggered disaster-recovery checkpoints;
-- repository-level `README.md`, `AGENTS.md`, `src/README.md` and `tests/README.md` still described the project as pre-freeze design work.
+- Draft/superseded product requirements;
+- former complex Hiboutik emergency lifecycle/data model;
+- obsolete storage references;
+- category/workbook ambiguity;
+- payment effective-date ambiguity;
+- incomplete acceptance coverage;
+- repository-level pre-freeze status wording.
 
-All of those items were corrected during Phase 5.
+Historical Phase 5 details remain available in repository history; later amendments below are additive controlled changes rather than a reopening of the freeze.
 
 ## 7. Post-freeze amendment — target-directed authority handoff (2026-08-28)
 
-During Phase 6 M02, deterministic feasibility testing proved a material architecture blocker in the original generic OneDrive acquisition model:
+M02 feasibility proved generic OneDrive claim/election could not safely provide ordinary N-device single-writer acquisition. The owner approved target-directed source-to-one-target handoff with strict GitHub Release Asset receipt/grant semantics, while OneDrive remains recovery/archive storage.
 
-- an eventually synchronized file-claim/election protocol can expose different claim sets to different devices;
-- a claim-only design has an executable double-writer counterexample;
-- a fully fail-closed design can avoid double writers only by refusing ordinary N-device acquisition without an external atomic grant;
-- OneDrive per-file synchronization state is useful transport evidence but is not a documented distributed mutex or cross-client compare-and-swap.
-
-The blocker evidence was merged through PR #2.
-
-The user approved the amendment recorded in `docs/decisions/target-directed-authority-handoff.md` on 2026-08-28.
-
-The V1 normal-handoff model is therefore amended as follows:
-
-- N-device support remains;
-- `live.db` remains local to each device; normal handoff uses a dedicated private GitHub Release Asset repository, while OneDrive remains recovery/archive storage and historical diagnostic transport only;
-- normal close distinguishes **Close and retain authority** from **Transfer authority and close**;
-- normal transfer is directed by the current authoritative source to exactly one eligible target device;
-- the source must durably relinquish business-write authority only after strict GitHub snapshot server receipt, and the target-bound grant can exist only after that durable transition;
-- after relinquishment the source is read-only/pending-transfer across restart and may only retry the same immutable transfer;
-- only the exact designated target may acquire the normal handoff;
-- non-target devices do not compete through claims/election;
-- inability to recover/complete the designated target path uses explicit Disaster Recovery rather than ordinary target substitution;
-- no Graph/OAuth/backend/server is introduced merely to arbitrate normal V1 authority transfer; GitHub REST is used only as the approved asset transport/acknowledgement boundary.
-
-`architecture.md`, `storage-strategy.md` and `acceptance-criteria.md` are amended to contain these semantics directly. The approved GitHub transport amendment is recorded in `docs/decisions/github-handoff-transport.md`.
-
-M02 revalidated the amended protocol before M03 began.
+The controlling decisions are `docs/decisions/target-directed-authority-handoff.md` and `docs/decisions/github-handoff-transport.md`. Architecture/storage/acceptance were aligned before later milestones proceeded.
 
 ## 8. Post-freeze amendment — filtered catalogue bulk activation/deactivation (2026-08-30)
 
-During Phase 6 M03 interactive catalogue acceptance, the operator identified a practical current-catalogue maintenance gap: search/category/status filters could narrow the catalogue, but enabling or disabling the resulting products still required one-by-one edits.
+The owner approved bulk Activate/Deactivate over the complete current composed Catalogue filter result, with immutable capture, impact confirmation, no-op handling, atomic state-only mutation, conflict rollback, filter preservation and FR/zh-CN presentation.
 
-The user approved the amendment recorded in `docs/decisions/filtered-catalogue-bulk-activation.md` on 2026-08-30.
-
-V1 Catalogue maintenance is therefore amended as follows:
-
-- existing code/name search, category filter and Active/Inactive/All status filter compose as the bulk-selection boundary;
-- bulk Activate and bulk Deactivate target the complete current filtered result, not just visible viewport rows;
-- the action captures an immutable Product-ID/target-state snapshot before confirmation;
-- confirmation exposes matched and effective-change counts plus the target action;
-- already-target-state products are skipped;
-- zero effective changes perform no business write;
-- the required active-state changes are committed atomically as one business mutation;
-- stale/missing/conflicting captured products fail the complete operation rather than allowing partial success;
-- only Product active/inactive state may change;
-- historical snapshots and all unrelated current catalogue fields/options remain unchanged;
-- no bulk permanent-delete workflow is introduced;
-- successful completion refreshes the catalogue while preserving current filters;
-- all operator-facing additions are localized in French and Simplified Chinese.
-
-`catalogue-management.md` now contains these semantics directly. `acceptance-criteria-amendment-filtered-catalogue-bulk-activation.md` adds `AC-CAT-013` as an Approved acceptance amendment until the next consolidated rewrite of `acceptance-criteria.md`.
-
-M03 owns this extension; M04 remains gated until M03 including AC-CAT-013 is accepted and merged.
+The controlling decision is `docs/decisions/filtered-catalogue-bulk-activation.md`; `catalogue-management.md` and the matching acceptance amendment are authoritative.
 
 ## 9. Post-freeze amendment — Hiboutik paste-order fallback (2026-09-14)
 
-The approved M09 amendment is recorded in `docs/decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`, registered in `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md`, and consolidated in `paste-order-import.md`. Those records are part of the current implementation-authoritative V1 baseline for M09. The amendment's implementation and acceptance status are tracked separately in the M09 implementation records; this freeze record does not change those business semantics.
+The approved M09 amendment is recorded in:
+
+- `docs/decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`;
+- `docs/acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md`;
+- consolidated `docs/paste-order-import.md`.
+
+It controls product-detail-block paste scope, fail-safe unresolved-line operator handling, passive Hiboutik source identification and nullable read-only `source_total_ttc`, while ordinary POS pricing remains authoritative and the old emergency subsystem remains excluded.
+
+M09 is Passed and merged through PR #17 at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`.
 
 ## 10. Post-freeze amendment — Post-M09 Hiboutik daily payment dashboard (2026-09-16)
 
-The approved post-M09 amendment is recorded in `docs/decisions/post-m09-hiboutik-daily-payment-dashboard.md` and registered in `docs/acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md`. It authorizes exactly two passive read-only top-Caisse values, `Hiboutik CB aujourd'hui` and `Hiboutik Espèce aujourd'hui`, derived from signed effective-date payment adjustments on non-Cancelled `HIBOUTIK_PASTE` orders. It does not add a schema field, new durable entity, write path, Hiboutik turnover/count/discrepancy metric or dedicated workflow. The implementation and acceptance status are tracked in the post-M09 implementation records.
+The approved amendment is recorded in:
 
-This amendment preserves the existing ordinary POS-originated turnover and received-payment summaries and does not reopen or alter the approved M09 paste-order semantics. M10 and later milestones remain separate and unauthorized.
+- `docs/decisions/post-m09-hiboutik-daily-payment-dashboard.md`;
+- `docs/acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md`.
 
-## 11. Authority and conflict rule for implementation
+It authorizes exactly two passive read-only top-Caisse values, `Hiboutik CB aujourd'hui` and `Hiboutik Espèce aujourd'hui`, derived from signed effective-date payment adjustments on non-Cancelled `HIBOUTIK_PASTE` orders. It does not add a schema field, durable entity, write path, Hiboutik turnover/count/discrepancy metric or dedicated workflow.
+
+The enhancement is Passed and merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`.
+
+## 11. Post-freeze amendment — M10 Category short-code workbook semantics (2026-09-17)
+
+During M10 preparation, the audit found one genuine operator-visible gap: the original three-sheet Catalogue workbook baseline predated the later Approved M04 Category `short_code` business field, even though M04 explicitly required future `.xlsx` support to preserve it.
+
+The project owner approved the proposed contract on 2026-09-17. The controlling records are:
+
+- `docs/decisions/m10-category-short-code-workbook-semantics.md`;
+- `docs/acceptance-criteria-amendment-m10-category-short-code-workbook.md`;
+- aligned `docs/catalogue-management.md`.
+
+The amended V1 Catalogue workbook semantics are:
+
+- `Products` visibly carries Category name and Category short code;
+- no operator-facing `Categories` worksheet is added;
+- `category_id` remains technical/non-operator identity;
+- new Categories created through import may receive one optional consistent short code under existing validation;
+- repeated Product rows referring to the same new Category may not contain conflicting non-blank short codes;
+- for an existing Category, blank short code preserves the current value and the same normalized value is valid consistency data;
+- a different non-blank value for an existing Category is a blocking Error;
+- an existing Category with no short code cannot be assigned one through workbook import;
+- workbook import never clears/replaces/globally changes an existing Category short code;
+- existing Category short-code changes remain in the normal in-application Category manager;
+- Add-only mode follows the same Category rules;
+- any Category short-code conflict blocks the entire atomic import.
+
+This amendment closes the last material M10 workbook-specification gap. It does **not** authorize M10 implementation by itself.
+
+## 12. Authority and conflict rule for implementation
 
 Codex and other implementation agents must use the frozen-and-amended GitHub specification rather than prior chat memory or legacy VBA behavior.
 
-`current-system.md` documents the former/current operational system and may explain why a requirement exists. It must **not** override later approved V1 target behavior.
+`current-system.md` is historical/current-system reference and does not override later approved V1 target behavior.
 
-If implementation discovers a genuine contradiction or a missing decision that would change business behavior, data semantics, architecture, storage safety, printing/export contract or another acceptance criterion:
+If implementation discovers a genuine contradiction or missing decision that would change business behavior, data semantics, architecture, storage safety, printing/export contract or another acceptance criterion:
 
 1. do not silently choose a behavior;
-2. stop the affected decision path;
-3. surface the issue for product/specification resolution;
-4. record any approved amendment in GitHub before implementing the changed behavior.
+2. stop the affected path;
+3. surface it for product/specification resolution;
+4. record any approved amendment in GitHub before implementation continues.
 
-Pure implementation details that preserve all approved semantics may be selected autonomously according to the project priority order:
+Pure implementation details preserving approved semantics may be selected autonomously according to:
 
 **reliability > simplicity > maintainability > operational clarity > novelty.**
 
-## 12. Change-control rule after freeze
+## 13. Change-control rule after freeze
 
 The V1 Specification is a baseline, not an immutable historical artifact.
 
-A future necessary change is allowed, but any change that alters frozen product/business/architecture/data behavior must be treated as an explicit specification amendment and must update all affected baseline/acceptance documents consistently before the implementation is considered conformant.
+A future necessary change is allowed, but any change that alters frozen product/business/architecture/data behavior must be treated as an explicit specification amendment and update affected baseline/acceptance documents consistently before implementation is considered conformant.
 
-The 2026-08-28 target-directed authority-handoff amendment and the 2026-08-30 filtered catalogue bulk activation/deactivation amendment demonstrate this process.
+Approved post-freeze amendments above demonstrate this process.
 
-## 13. Current exit condition
+## 14. Current exit condition
 
 **Phase 5 remains complete.**
 
-Phase 6 implementation is active. M01 through M09 are Passed and merged; M09 — Hiboutik paste-order fallback — was merged through PR #17 at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`. The independent post-M09 Hiboutik daily payment dashboard enhancement is Passed through PR #19, with automated evidence and owner Windows/WPF A–F acceptance recorded; PR #19 remains OPEN / unmerged pending final controller closure review and separate explicit project-owner merge approval. Its scope remains exactly the two approved passive source-specific payment values. M10 and later milestones remain unauthorized.
+Phase 6 implementation is active.
+
+Current state as of 2026-09-17:
+
+- M01 through M09: Passed / merged;
+- post-M09 Hiboutik daily payment dashboard: Passed / merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`;
+- M10 Catalogue `.xlsx`: preparation/readiness complete; Category short-code workbook semantics Approved; ready for separate project-owner implementation authorization;
+- M10 implementation: **NOT AUTHORIZED**;
+- Issue #4: **CLOSED**, no executable handoff;
+- M11, M12, M13: unauthorized.
+
+Preparation/readiness or a specification decision does not authorize Codex execution. A separate explicit project-owner M10 implementation approval is still required.
