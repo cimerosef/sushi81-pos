@@ -2,6 +2,7 @@
 
 **Status:** **NOT AUTHORIZED**  
 **Prepared:** 2026-09-17  
+**Readiness finalized:** 2026-09-17  
 **Authorized:** NOT GRANTED  
 **Milestone:** M10 — Catalogue `.xlsx` import/export  
 **Preparation branch:** `prep/m10-catalogue-xlsx`  
@@ -11,7 +12,7 @@
 
 ## Current control state
 
-This file records that M10 is in specification/readiness preparation only.
+M10 specification/readiness preparation is complete, but implementation remains explicitly unauthorized.
 
 Preparation was started from current `main` at:
 
@@ -19,74 +20,80 @@ Preparation was started from current `main` at:
 
 That commit is the merge commit of PR #19 — `Post-M09: Hiboutik daily CB/Espèce dashboard`.
 
-Current governance facts at preparation time:
+Current governance facts:
 
 - PR #19 is CLOSED / MERGED;
 - Issue #18 is CLOSED / completed;
 - Issue #4 is CLOSED;
-- no Codex implementation handoff is active;
-- M10 is not implementation-authorized;
+- no executable Codex handoff is active;
+- M10 production implementation has not started;
 - M11, M12 and M13 are not authorized.
 
-## Outstanding owner decision before readiness can be finalized
+## Category short-code decision — completed
 
-The later Approved Category-short-code amendment requires future Catalogue `.xlsx` support to preserve Category `short_code`, while the older three-sheet workbook specification defines only Category-name representation and intentionally has no `Categories` worksheet.
+The preparation audit originally found one material operator-visible workbook gap: the later Approved Category `short_code` business field was not defined in the older three-sheet M10 workbook baseline.
 
-The preparation audit therefore leaves one material operator-visible workbook decision for the project owner:
+On 2026-09-17 the project owner explicitly approved the proposed semantics.
 
-- how `Category short code` is represented and whether/how import may change it.
+The controlling record is:
 
-The recommended contract is recorded in:
+`docs/decisions/m10-category-short-code-workbook-semantics.md`
 
-`docs/implementation/milestone-10-preparation-readiness.md`
+The decision is aligned into:
 
-No implementation agent may invent or implement that behavior before owner approval.
+- `docs/catalogue-management.md`;
+- `docs/acceptance-criteria-amendment-m10-category-short-code-workbook.md`;
+- `docs/implementation/milestone-10-preparation-readiness.md`;
+- `docs/implementation/milestone-10-catalogue-xlsx.md`;
+- the prepared owner manual acceptance checklist.
+
+No material M10 owner-decision blocker remains.
+
+## Readiness disposition
+
+`docs/implementation/milestone-10-preparation-readiness.md` now concludes:
+
+**M10 is READY FOR PROJECT-OWNER IMPLEMENTATION AUTHORIZATION.**
+
+That conclusion does not grant implementation authority.
 
 ## Prepared but non-executable package
 
 The preparation branch contains:
 
 - `milestone-10-preparation-readiness.md`;
-- `milestone-10-catalogue-xlsx.md` — DRAFT / PREPARATION ONLY;
+- `milestone-10-catalogue-xlsx.md` — prepared implementation contract;
 - `milestone-10-final-manual-acceptance.md` — PREPARED / NOT YET EXECUTED;
 - `milestone-10-worklog.md`;
-- this NOT AUTHORIZED record.
+- this NOT AUTHORIZED record;
+- approved M10 Category-short-code decision/acceptance amendment.
 
-These documents do not grant Codex execution permission.
+No executable `CODEX_HANDOFF_READY` exists.
 
-## What owner approval is still required
+## Separate implementation approval still required
 
-There are two separate approvals and they must not be conflated.
-
-### 1. Category-short-code workbook decision
-
-The owner must first approve or replace the proposed Category `short_code` workbook semantics. That approval permits the controller to record the corresponding specification decision/alignment and finalize M10 readiness.
-
-It does **not** authorize implementation.
-
-### 2. M10 implementation authorization
-
-Only after readiness is complete may the owner separately state an explicit authorization such as:
+Only a new explicit project-owner statement such as:
 
 > 批准 M10 implementation
 
-Only that separate approval may cause this record to become AUTHORIZED.
+may change this record to AUTHORIZED.
 
-Even after authorization, Codex still may not execute until the normal dedicated implementation branch/PR/mailbox and Issue #4 active-handoff prerequisites are complete.
+Approval of the Category short-code workbook semantics was a specification decision only and must not be interpreted as implementation authorization.
 
-## Required gate transition after a future authorization
+## Required gate transition after a future implementation authorization
 
-If and only if the project owner later explicitly authorizes M10 implementation, the controller must:
+If and only if the project owner explicitly authorizes M10 implementation, the controller must:
 
-1. finalize the exact preparation head and record it here;
-2. establish/confirm the dedicated M10 implementation branch and PR/mailbox under the then-current governance;
-3. publish exactly one complete executable `CODEX_HANDOFF_READY` for the first authorized M10 work package;
-4. ensure no conflicting active handoff exists;
-5. update Issue #4 to point only to that exact branch/PR/handoff;
-6. then open Issue #4;
-7. leave merge and every later work package/milestone subject to their own controls.
+1. record the exact final preparation head in this authorization record;
+2. change Status to AUTHORIZED with the owner's explicit approval date/reference;
+3. establish/confirm the dedicated M10 implementation branch and PR/mailbox under current governance;
+4. publish exactly one complete executable `CODEX_HANDOFF_READY` for the first M10 work package;
+5. ensure no conflicting active handoff exists;
+6. update Issue #4 to point only to that exact branch/PR/handoff;
+7. only then open Issue #4;
+8. leave later work packages, merge and M11+ subject to their separate controls.
 
-Until all of those conditions are met, Issue #4 remains CLOSED and Codex makes no M10 project changes.
+Until those conditions are met, Issue #4 remains CLOSED and Codex makes no M10 project changes.
 
 ## Explicit non-authorization
 
@@ -96,7 +103,7 @@ This record does **not** authorize:
 - adding ClosedXML to production projects yet;
 - SQLite/schema changes;
 - WPF import/export implementation;
-- creating an executable Codex handoff;
+- an executable Codex handoff;
 - opening Issue #4;
-- merging any M10 PR;
+- merging an M10 implementation PR;
 - M11, M12 or M13 work.
