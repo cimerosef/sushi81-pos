@@ -1,7 +1,7 @@
 # Catalogue management
 
-**Status:** Approved — Phase 2 baseline, amended 2026-08-30  
-**Last updated:** 2026-08-30  
+**Status:** Approved — Phase 2 baseline, amended 2026-09-17  
+**Last updated:** 2026-09-17  
 **Product:** Sushi81 POS  
 **Purpose:** Freeze the V1 current catalogue, category, product-option and Excel batch-maintenance behavior before implementation.
 
@@ -152,7 +152,7 @@ The approved M04 operator-retrieval amendment defines the current shortcut seman
 - code creation/editing is atomic; a name-only rename preserves an existing code, and an explicit blank code clears it;
 - category maintenance shows the code with the full name, while Caisse navigation shows the code as the primary label and falls back to the full name when no code exists;
 - coded categories use deterministic normalized-code order, followed by uncoded categories in deterministic ID order;
-- the current M04 implementation persists the code in SQLite. No `.xlsx` code import/export is introduced by this amendment.
+- the current M04 implementation persists the code in SQLite; M10 `.xlsx` preservation/change semantics are defined by section 9.2 and `docs/decisions/m10-category-short-code-workbook-semantics.md`.
 
 Category navigation may use tabs, buttons, grouping, filtering or another compact mechanism. Exact visual controls remain implementation-level provided:
 
@@ -325,17 +325,43 @@ Exact localized visible header wording and purely technical helper-column names 
 
 V1 does **not** require a separate `Categories` worksheet.
 
-The visible `Products` sheet carries the product's operator-facing category name.
+The visible `Products` sheet carries both:
 
-During import:
+- the Product's operator-facing Category name;
+- a visible business `Category short code` field preserving the current Category `short_code` without exposing `category_id`.
+
+During import, Category name remains the Category-resolution key for the workbook:
 
 - a category name matching an existing normalized current category assigns that category;
 - a new valid unique category name referenced by one or more imported Products may be created atomically as part of the successful import;
 - changing a Product row's category name reassigns that Product to the resolved/new category; it does **not** mean “globally rename the previous category”;
-- global current-category rename remains an in-application catalogue action;
+- global current-category name or short-code change remains an in-application catalogue action;
 - resulting duplicate current category names remain blocking Errors.
 
-This keeps the workbook understandable without exposing `category_id` as a business field or introducing a fourth required worksheet solely for category identity.
+For a **new Category** created by import:
+
+- `Category short code` is optional;
+- all Product rows resolving to the same new normalized Category name must have one consistent short-code meaning;
+- blank plus one repeated non-blank value is acceptable and means that non-blank value is the proposed short code;
+- conflicting different non-blank short codes are a blocking Error;
+- the normal Category short-code normalization, length and uniqueness rules apply.
+
+For an **existing Category**:
+
+- blank `Category short code` means preserve the current value;
+- a non-blank value equal to the current short code under normal Category normalization is valid consistency data;
+- a different non-blank value is a blocking Error;
+- if the current Category has no short code, any non-blank workbook value is likewise a blocking Error;
+- import never clears, replaces or globally changes an existing Category short code;
+- to change an existing Category short code, the operator uses the normal in-application Category manager and then re-exports if needed.
+
+Catalogue export writes the current Category name and current Category short code on every Product row referencing that Category. Import validates repeated Category references as one shared Category meaning and never chooses the first conflicting row or guesses.
+
+These semantics also apply in explicit add-only mode. Resolving a Product row to an existing Category by name does not authorize changing that Category's short code; a new Category may be created with its optional consistent short code.
+
+This keeps the workbook understandable, preserves full Category business data for round-trip/first initialization, avoids exposing `category_id`, and avoids introducing a fourth required worksheet or a second global Category-edit workflow.
+
+The controlling amendment is `docs/decisions/m10-category-short-code-workbook-semantics.md`.
 
 ### 9.3 Technical IDs are transparent/non-editable
 
@@ -421,6 +447,9 @@ Blocking validation includes at least:
 
 - duplicate current product codes;
 - duplicate current category names;
+- invalid/duplicate/conflicting Category short codes under section 9.2;
+- attempted workbook change of an existing Category short code;
+- contradictory repeated Product-row short-code meaning for one Category;
 - missing required Product fields;
 - invalid prices/VAT values;
 - invalid/inconsistent parent relationships;
@@ -461,6 +490,9 @@ Implementation must preserve all of the following:
 - opaque current Product/Category/OptionGroup/Option identities remain distinct from operator-facing labels;
 - current product codes are unique but editable/reusable;
 - current category names are business-visible unique;
+- Category `short_code` remains optional independent business data and is preserved by `.xlsx` round-trip through the visible Product-row Category short-code field;
+- existing Category short codes are preserve/consistency data during import, not workbook-driven global edit commands;
+- new Categories created by import may receive one optional consistent short code under normal validation;
 - historical orders are independent snapshots;
 - product deactivation is distinct from permanent deletion;
 - current Product deletion never deletes historical order data;
@@ -484,8 +516,8 @@ Implementation must preserve all of the following:
 
 ## 12. Approval
 
-This document is the **Approved — Phase 2 catalogue baseline**, incorporating the approved Phase 3 category-name-uniqueness decision, Phase 5 consistency clarification of category/workbook semantics, and the approved 2026-08-30 V1 amendment for filtered bulk activation/deactivation.
+This document is the **Approved — Phase 2 catalogue baseline**, incorporating the approved Phase 3 category-name-uniqueness decision, Phase 5 consistency clarification of category/workbook semantics, the approved 2026-08-30 filtered bulk activation/deactivation amendment, the approved M04 Category-short-code business-data amendment, and the approved 2026-09-17 M10 Category-short-code workbook semantics.
 
 There are no remaining unresolved V1 catalogue business/data-flow questions for the behavior frozen here.
 
-Exact screen layout, category navigation styling and technical helper-column/relationship representation may be selected during implementation only where they preserve every frozen semantic above, `acceptance-criteria.md`, and `acceptance-criteria-amendment-filtered-catalogue-bulk-activation.md`.
+Exact screen layout, category navigation styling and technical helper-column/relationship representation may be selected during implementation only where they preserve every frozen semantic above, `acceptance-criteria.md`, `acceptance-criteria-amendment-filtered-catalogue-bulk-activation.md`, and `docs/decisions/m10-category-short-code-workbook-semantics.md`.
