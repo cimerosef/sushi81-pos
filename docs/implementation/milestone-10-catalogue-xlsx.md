@@ -1,30 +1,31 @@
 # M10 — Catalogue `.xlsx` import/export — implementation contract
 
-**Status:** **DRAFT / PREPARATION ONLY — NOT AUTHORIZED**  
-**Prepared:** 2026-09-17  
+**Status:** **PREPARED / READY FOR SEPARATE AUTHORIZATION — NOT AUTHORIZED**  
+**Prepared/finalized:** 2026-09-17  
 **Milestone:** M10  
 **Primary acceptance ownership:** AC-CAT-008 through AC-CAT-011; catalogue portion of AC-ARCH-005  
 **Inherited safety:** AC-CAT-012, AC-STO-010, AC-NFR-002, AC-NFR-004 and current Catalogue invariants  
-**Open owner decision:** Category `short_code` workbook contract in `milestone-10-preparation-readiness.md`  
+**Category short-code decision:** Approved — `docs/decisions/m10-category-short-code-workbook-semantics.md`  
 **M11+ scope:** explicitly excluded
 
-> This file is a prepared implementation contract, not an executable handoff. Issue #4 must remain CLOSED and Codex must not modify production code until a separate project-owner M10 implementation authorization exists.
+> This is a prepared implementation contract, not an executable handoff. Issue #4 must remain CLOSED and Codex must not modify production code until a separate explicit project-owner M10 implementation authorization exists.
 
 ## 1. Objective
 
-Implement deterministic, safe, operator-usable Catalogue `.xlsx` export and import using ClosedXML and the existing current Catalogue/authority/recovery architecture.
+Implement deterministic, safe, operator-usable Catalogue `.xlsx` export/import using ClosedXML and the existing Catalogue/authority/recovery architecture.
 
-The feature must support:
+Required outcome:
 
 - complete current Product / OptionGroup / Option export;
-- safe normal update/re-import;
-- explicit add-only import including first catalogue initialization;
+- three operator-facing logical worksheets only: `Products`, `OptionGroups`, `Options`;
 - protected technical identity/relationship data;
-- complete deterministic validation and preview;
-- blocking Errors and non-blocking Warnings;
+- normal ID-preserving update/re-import;
+- explicit create-only Add-only mode including first initialization;
+- complete validation and preview;
+- blocking Errors / non-blocking Warnings;
 - one atomic confirmed commit;
-- no implicit deletion from row absence;
-- no historical-order rewrite;
+- row absence never implies deletion;
+- current Catalogue changes never rewrite historical orders;
 - authoritative-device write enforcement;
 - FR / zh-CN operator workflow;
 - real Windows + Excel owner acceptance.
@@ -33,369 +34,365 @@ The feature must support:
 
 Implementation must preserve all of the following:
 
-- visible logical worksheets are `Products`, `OptionGroups`, `Options`;
-- Category has no separate operator worksheet;
-- Product / OptionGroup / Option opaque IDs are technical matching data, not editable business identifiers;
-- Category assignment is by normalized Category name and never exposes `category_id` as an operator input;
+- no operator-facing `Categories` worksheet;
+- Product / OptionGroup / Option opaque IDs are technical matching data, not business identifiers;
+- Category assignment is by normalized Category name; `category_id` is not operator input;
+- `Products` visibly carries Category name **and Category short code** as business data;
+- existing Category short code is preserve/consistency data only: blank preserves, same normalized value is valid, different non-blank value blocks;
+- import never clears/replaces/globally changes an existing Category short code;
+- new Category created by import may receive one optional consistent short code under existing validation;
+- repeated Product rows for one Category must not contradict that shared short-code meaning;
 - valid existing entity ID updates that exact entity;
 - changing Product code while Product ID is unchanged updates the same Product;
 - blank entity ID creates;
-- add-only is explicitly create-only and never silently converts a row into update by code/name;
-- current Product-code conflicts and Category-name conflicts remain blocking under existing normalization;
-- malformed/unknown/inconsistent IDs or relationships are Errors, never guessed;
-- Category-name change in a Product row reassigns the Product; it is not a global Category rename;
+- Add-only is explicit create-only and never silently turns a row into update by code/name;
+- malformed/unknown/duplicated/misbound IDs or relationships are blocking Errors;
+- Product Category-name change means Product reassignment, not global Category rename;
 - row absence never means deletion;
 - no permanent-delete column/flag/action exists in M10 workbook import;
 - Product/Option activation changes occur only through explicit visible state fields;
-- OptionGroup has no active/inactive field unless a future separately approved specification changes the model;
-- any Error blocks the whole commit;
+- OptionGroup has no active flag;
+- any Error blocks the entire commit;
 - preview occurs before any business write;
-- commit is all-or-nothing;
-- current catalogue changes never rewrite historical order snapshots;
-- no permanent import-history entity is added.
+- confirmed commit is all-or-nothing;
+- no permanent import-history business entity is added.
 
-Category `short_code` behavior remains blocked on the one explicit owner decision in the readiness record. Implementation must not invent it.
+The detailed Category contract is controlled by `docs/decisions/m10-category-short-code-workbook-semantics.md` and `docs/acceptance-criteria-amendment-m10-category-short-code-workbook.md`.
 
 ## 3. Architecture boundary
 
-### 3.1 Application-owned contract
+### 3.1 Application-owned contracts
 
-Create a dedicated M10 application boundary rather than embedding ClosedXML or SQLite details in WPF.
-
-Recommended conceptual contracts (exact class names may vary):
+Use a dedicated M10 boundary. Exact class names may vary, but responsibilities must remain equivalent:
 
 - `ICatalogueWorkbookGateway`
-  - export an application-owned immutable catalogue workbook model to `.xlsx`;
-  - parse `.xlsx` into an application-owned raw workbook model;
+  - export an application-owned immutable Catalogue workbook model to `.xlsx`;
+  - parse `.xlsx` into application-owned raw workbook data;
   - no business writes.
 - `CatalogueImportPlanner`
-  - pure/deterministic normalization, identity/relationship validation, candidate overlay, diff and preview production;
-  - no SQLite/ClosedXML/WPF dependency.
+  - pure/deterministic normalization, identity/relationship/Category validation, complete-current-state overlay, diff and preview;
+  - no SQLite, ClosedXML or WPF dependency.
 - `ICatalogueImportStore`
-  - read the current import baseline needed by the planner/commit;
-  - atomically commit one already validated import plan;
+  - read the import baseline required for planning/commit;
+  - atomically commit one accepted plan;
   - no workbook parsing.
 - `CatalogueWorkbookService`
-  - orchestrate export, import preview and authorized commit;
-  - acquire centralized write authority only for commit;
+  - orchestrate export, preview and authorized commit;
+  - use centralized authority guard only for commit;
   - notify durable change only after successful business commit.
 
-Do not make ClosedXML types part of Domain/Application public contracts.
+ClosedXML types must not appear in Domain/Application public contracts.
 
 ### 3.2 Infrastructure
 
-ClosedXML belongs in Infrastructure behind the workbook gateway.
+ClosedXML stays in Infrastructure behind the workbook gateway.
 
-SQLite import persistence belongs in Infrastructure and must reuse:
+SQLite import persistence stays in Infrastructure and reuses:
 
 - `SqliteConnectionFactory`;
 - `SqliteTransactionRunner`;
-- existing Catalogue normalization/storage conventions;
-- existing ID generator and business clock;
-- foreign keys/unique constraints;
+- current Catalogue normalization/storage conventions;
+- current ID generator/business clock;
+- current FK/unique constraints;
 - business revision advancement.
 
 ### 3.3 Desktop
 
 WPF owns only:
 
-- file selection/save dialogs;
-- mode selection;
+- file open/save dialogs;
+- Update/Add-only mode selection;
 - preview/dialog state;
 - localization/presentation;
 - confirmation/cancel;
 - post-success Catalogue refresh.
 
-No Excel parsing or SQL is allowed in code-behind/view-model presentation logic.
+No SQL or ClosedXML parsing belongs in presentation logic.
 
 ## 4. Workbook contract
 
 ### 4.1 Logical sheets
 
-Three operator-visible logical worksheets only:
+Exactly three operator-facing logical worksheets:
 
 1. `Products`
 2. `OptionGroups`
 3. `Options`
 
-Sheet names are invariant contract names. Visible business-column labels may be localized/presented for FR/zh-CN as implementation permits, but machine parsing must use deterministic invariant schema metadata rather than fragile translated-string guessing.
+Sheet names are invariant contract names. Visible labels may be localized, but parser identity must rely on deterministic invariant schema metadata, not translated-string guessing.
 
-### 4.2 Product business fields
+### 4.2 Product fields
 
-At minimum export/import the existing Product business model:
+At minimum:
 
 - Product code;
 - Product name;
 - Category name;
-- Category short-code field only after owner semantics are approved;
+- Category short code;
 - Price TTC;
 - VAT rate;
 - Active;
 - Discount eligible;
 - Options enabled.
 
-Technical matching/binding data is hidden/locked.
+Technical Product identity/bindings remain hidden/locked.
 
-### 4.3 OptionGroup business fields
+### 4.3 OptionGroup fields
 
 At minimum:
 
 - understandable parent Product reference;
 - group name;
-- selection mode SINGLE/MULTI;
-- required flag;
+- SINGLE/MULTI;
+- required;
 - min selections;
 - max selections;
-- display order/ordering semantics.
+- display order.
 
-Technical OptionGroup ID and existing parent identity are hidden/locked.
+Technical OptionGroup ID/existing parent binding remain hidden/locked.
 
-### 4.4 Option business fields
+### 4.4 Option fields
 
 At minimum:
 
 - understandable parent OptionGroup reference;
 - option name;
 - TTC price adjustment;
-- active flag;
-- display order/ordering semantics.
+- Active;
+- display order.
 
-Technical Option ID and existing parent identity are hidden/locked.
+Technical Option ID/existing parent binding remain hidden/locked.
 
-### 4.5 Hidden technical metadata
+### 4.5 Technical metadata
 
-Use one VeryHidden technical workbook sheet, with an invariant internal name such as `__Sushi81Meta`, as a non-operator logical helper.
+Use one non-operator-facing **VeryHidden** technical sheet such as `__Sushi81Meta` containing only safety metadata, including:
 
-It should carry only workbook safety metadata such as:
+- workbook contract version;
+- export instance ID;
+- invariant field/column descriptors;
+- exported row-binding keys;
+- existing entity ID / existing parent binding manifest;
+- export-baseline values/fingerprint needed for tamper/stale-workbook detection.
 
-- contract version;
-- export instance identifier;
-- invariant field/column mapping;
-- exported row-binding key;
-- existing entity ID and parent-binding manifest;
-- export-baseline values/fingerprint needed to distinguish operator edits from stale live changes.
-
-It must not contain a duplicate business catalogue or a hidden deletion list.
-
-The three required logical worksheets remain the only operator-facing sheets.
+It must not contain a duplicate hidden business Catalogue or deletion list.
 
 ### 4.6 Protection
 
 - technical columns hidden;
 - technical cells locked;
-- business cells intended for maintenance unlocked;
-- sheet protection configured to preserve ordinary edit/sort/filter/insert-row workflow where practical;
+- intended business cells editable;
+- protection must preserve practical normal Excel editing/inserting/sorting/filtering where possible;
 - metadata sheet VeryHidden/protected;
-- no macro/VBA dependency;
-- no password/protection scheme is treated as a security boundary.
+- no macro/VBA;
+- protection password is not treated as security.
 
-All safety assumptions are revalidated on import even if workbook protection has been removed.
+Importer revalidates every safety assumption even if the operator removes workbook protection externally.
 
-## 5. Identity and relationship contract
+## 5. Identity, Category and relationship contract
 
-### 5.1 Existing records
+### 5.1 Existing Product/Group/Option records
 
 An existing row is updateable only when:
 
-- its technical entity ID is structurally valid;
-- its row binding matches the exported manifest;
-- the current live entity with that ID exists;
+- entity ID is structurally valid;
+- row binding matches the exported manifest;
+- the current live entity exists;
 - entity type matches;
 - protected existing parent relationship matches;
-- the workbook does not duplicate that existing ID.
+- workbook does not duplicate the existing ID.
 
-Failure of any point is a blocking Error.
+Any failure is Error.
 
 ### 5.2 New records
 
-A blank entity ID is a Create candidate.
+Blank entity ID = Create candidate. New opaque IDs are allocated only in the successful commit path, not during preview.
 
-New records receive opaque database IDs only during the successful commit path. Preview does not allocate/persist final IDs.
+### 5.3 Existing child parent relationships
 
-### 5.3 Existing parent relationship
+M10 must not silently re-parent an existing OptionGroup to another Product or an existing Option to another OptionGroup through descriptive-cell edits. Protected existing parent identity is validated and retained.
 
-M10 must not silently re-parent an existing OptionGroup to another Product or an existing Option to another OptionGroup through edited descriptive text. Existing technical parent binding is validated and retained.
+### 5.4 New child parent relationship
 
-### 5.4 New parent relationship
+New child rows need a workbook-local deterministic helper that:
 
-The workbook must offer an understandable deterministic relationship mechanism for newly added child rows without exposing database IDs.
+- works with existing and new parents;
+- resolves to exactly one candidate parent;
+- survives ordinary row insertion/sorting;
+- blocks missing/ambiguous parent;
+- is not a new SQLite business identity.
 
-The selected helper design must:
+No fuzzy Product/Group name matching and no first-match-wins behavior.
 
-- work for existing and newly created parent rows;
-- resolve to exactly one candidate parent;
-- survive ordinary Excel row insertion/sorting;
-- produce a blocking Error for missing/ambiguous parent;
-- be workbook-scoped only, not a new persisted business identity.
+### 5.5 Category name and short code
 
-Do not use fuzzy Product/Group name matching or “first match wins”.
+Category name remains the workbook Category-resolution key.
+
+For an existing Category:
+
+- blank short-code cell = preserve current value;
+- same normalized non-blank value = valid consistency data;
+- different non-blank value = Error;
+- existing blank current short code + workbook non-blank value = Error;
+- workbook import never clears or globally changes it.
+
+For a new Category:
+
+- short code optional;
+- blank plus one repeated non-blank value is one consistent proposal;
+- different non-blank values across Product rows for the same normalized Category = Error;
+- normal short-code uniqueness/length/normalization rules apply.
+
+Existing Category short-code changes remain in the in-application Category manager.
 
 ## 6. Export behavior
 
-Export is read-only.
+Export is a pure read operation.
 
 Required sequence:
 
 1. read a consistent current Catalogue snapshot;
-2. map it to immutable application workbook DTOs;
+2. map to immutable application workbook DTOs;
 3. create `.xlsx` with ClosedXML;
 4. include all current Products, OptionGroups and Options, including inactive records;
-5. include technical update IDs/parent bindings only in protected form;
-6. include deterministic metadata/version/baseline bindings;
-7. save to operator-selected path;
-8. perform no SQLite mutation, authority acquisition, recovery notification or export-history write.
+5. repeat current Category name/short code on Product rows;
+6. include existing technical IDs/parent bindings only in protected technical form;
+7. include deterministic version/manifest/baseline metadata;
+8. save to operator-selected path;
+9. perform no SQLite mutation, write-authority acquisition, recovery notification or export-history write.
 
-An empty catalogue export must still produce a valid usable template for first initialization.
+An empty Catalogue export still produces a valid usable template for first initialization.
 
-Export on a non-authoritative/read-only device is permitted as a read of its local state and does not grant authority. The existing global stale/read-only presentation remains controlling.
+Export is allowed on non-authoritative/read-only devices as a read of local state. Existing stale/read-only presentation remains controlling; export never grants authority.
 
 ## 7. Import workflow
 
-### 7.1 Stage 1 — select mode and file
+### 7.1 Select mode/file
 
-Operator explicitly chooses:
+Operator explicitly selects Update or Add-only, then chooses the file. File-dialog cancel causes no state change.
 
-- normal Update import; or
-- Add-only import.
+### 7.2 Parse structure
 
-Canceling file selection ends the workflow with no state change.
+Treat workbook as untrusted input. Validate before business planning:
 
-### 7.2 Stage 2 — parse workbook
-
-ClosedXML reads untrusted workbook input into the application raw workbook model.
-
-Parsing must verify structural requirements before business planning:
-
-- required logical worksheets;
-- supported contract/version where metadata exists;
-- required fields/columns;
+- required logical sheets;
+- supported contract/version/metadata;
+- required business fields;
 - supported value types;
-- hidden identity/binding integrity for update workbooks;
-- no duplicate technical row/entity bindings.
+- binding integrity;
+- no duplicate technical bindings.
 
-A corrupt/non-XLSX/unreadable workbook becomes a blocking Error, never an exception-driven partial business action.
+Corrupt/unreadable/non-XLSX input becomes a blocking Error with no business write.
 
-### 7.3 Stage 3 — read current catalogue baseline
+### 7.3 Read current baseline
 
-Read the complete current catalogue needed for deterministic identity, uniqueness and candidate validation.
+Read the complete current Catalogue needed for identity/uniqueness/Category/candidate validation.
 
-For exported update workbooks, compare current live values to export-baseline manifest data so stale operator edits cannot blindly overwrite newer current changes.
+For exported update workbooks compare current live values to export baseline so a stale workbook cannot blindly overwrite a newer live edit.
 
-### 7.4 Stage 4 — plan/overlay
+### 7.4 Overlay/plan
 
-Overlay only explicit workbook rows onto the complete current catalogue.
+Overlay only explicit workbook rows onto the complete current Catalogue.
 
 Missing rows generate **no operation**.
 
-Build the complete resulting candidate aggregates before final validation so Product/OptionGroup/Option structural rules are checked against what would exist after commit, not against an incomplete worksheet fragment.
+Build complete resulting aggregates before final validation.
 
-### 7.5 Stage 5 — preview
+### 7.5 Preview
 
-Produce immutable preview + commit plan.
+Produce immutable preview + commit plan. No business write has occurred.
 
-No business write has occurred.
+### 7.6 Confirm
 
-### 7.6 Stage 6 — confirm
-
-Confirm is available only when:
+Confirm available only when:
 
 - Errors = 0;
-- there is an effective change or explicitly valid no-op handling;
-- current authority state permits business writes.
+- mode/plan is valid;
+- authority state permits writes.
 
-Cancel closes preview with no write.
+Cancel means no write.
 
-### 7.7 Stage 7 — commit
+### 7.7 Commit
 
 Application service:
 
-1. acquires `IWriteAuthorityGuard` write scope;
-2. sends the immutable accepted plan + baseline concurrency token to the import store;
-3. SQLite store opens one transaction;
-4. revalidates concurrency/identity/uniqueness/parent assumptions inside that transaction before first business write;
+1. passes `IWriteAuthorityGuard`;
+2. submits immutable plan + concurrency baseline;
+3. store opens one SQLite transaction;
+4. revalidates concurrency/identity/uniqueness/Category/parents before first business write;
 5. allocates new IDs;
-6. applies new Categories if authorized by approved Category semantics;
-7. applies Product/OptionGroup/Option creates/updates/state changes;
-8. performs no Deletes;
+6. creates new Categories where planned;
+7. applies Product/Group/Option creates/updates/state changes;
+8. performs no Delete;
 9. commits once;
-10. application notifies `IDurableChangeNotifier` once with the existing non-cancellable post-commit semantics;
-11. WPF refreshes current Catalogue.
+10. notifies `IDurableChangeNotifier` once using existing non-cancellable post-commit semantics;
+11. WPF refreshes Catalogue.
 
-Any failure before commit rolls back the complete batch.
+Any failure before commit rolls back the entire batch.
 
-## 8. Normal update mode
+## 8. Update mode
 
-Normal Update import accepts existing rows only by protected identity.
-
-Rules:
-
-- existing valid ID -> update exact record;
+- valid protected existing ID -> update exact record;
 - blank ID -> create;
 - Product code is editable but never an existing-record matcher;
 - changing Product code with same ID preserves identity;
-- an existing current ID absent from workbook remains untouched;
-- an existing child row absent from workbook remains untouched;
-- duplicated/malformed/misbound ID -> Error;
-- stale concurrent edit conflict -> Error rather than last-writer overwrite;
-- Category name resolution follows the frozen Category-name rules.
+- current entity omitted from workbook remains untouched;
+- current child omitted from workbook remains untouched;
+- duplicate/malformed/misbound ID -> Error;
+- stale concurrent conflict -> Error, not last-writer overwrite;
+- Category resolution/short-code rules follow section 5.5.
 
-A normal Update workbook that lacks the required protected binding metadata for existing IDs must fail closed rather than trusting arbitrary GUIDs.
+An update workbook missing required protected manifest data for existing IDs fails closed instead of trusting arbitrary GUIDs.
 
 ## 9. Add-only mode
 
-Add-only is an explicit mode, not inferred as permission to overwrite.
-
-Rules:
-
+- explicit mode, never inferred as overwrite permission;
 - Product/OptionGroup/Option technical IDs must be blank/absent;
-- every entity row is create-only;
-- no existing Product/Group/Option update path is legal;
-- normalized Product-code conflict is Error;
+- every such entity row is create-only;
+- no current Product/Group/Option update is legal;
+- normalized Product-code collision is Error;
 - no matching by Product name;
-- Category name may resolve to an existing Category because Category assignment is name-based under the frozen specification;
-- valid new Category names may be created atomically according to the approved Category/short-code contract;
-- new parent relationships must resolve entirely within the candidate workbook/current Category/Product context without database-ID entry;
-- first initialization into an empty current catalogue is supported.
+- Category name may resolve to existing Category because Category assignment is name-based;
+- that resolution does not authorize short-code change;
+- valid new Category with optional consistent short code may be created atomically;
+- first initialization into empty Catalogue is supported;
+- any nonblank entity technical ID in Add-only blocks rather than being ignored.
 
-If an add-only workbook contains a nonblank existing technical entity ID, import blocks rather than stripping/ignoring it.
+## 10. Validation/issue model
 
-## 10. Validation and issue model
+### Blocking Errors include at least
 
-### 10.1 Blocking Errors
-
-At minimum:
-
-- missing/unreadable required logical sheet;
-- unsupported/corrupt workbook contract metadata for update mode;
+- missing/unreadable required sheet;
+- unsupported/corrupt workbook metadata;
 - missing required business field;
 - invalid numeric/boolean/enum value;
 - invalid Product price/VAT;
 - invalid OptionGroup SINGLE/MULTI/required/min/max structure;
 - required group with no valid active choice in resulting aggregate;
-- duplicate normalized Product code in resultant current catalogue;
-- duplicate normalized Category name/short-code conflict under approved Category rules;
+- duplicate normalized Product code;
+- duplicate normalized Category name;
+- invalid/duplicate/conflicting Category short code;
+- attempted existing-Category short-code change;
+- contradictory repeated Product-row Category short-code meaning;
 - malformed/duplicate/unknown/misbound entity ID;
-- edited technical binding inconsistent with manifest;
-- missing/ambiguous/wrong parent relationship;
-- add-only existing Product-code conflict;
-- stale live change conflict on a workbook-edited existing record;
-- any persistence-level constraint/conflict discovered during commit revalidation.
+- technical binding inconsistent with manifest;
+- missing/ambiguous/wrong parent;
+- Add-only existing Product-code collision;
+- stale live conflict on workbook-edited existing record;
+- persistence constraint/conflict discovered during commit revalidation.
 
-Problems must carry at least worksheet, Excel row, field and stable issue code suitable for localized presentation.
+Problems carry worksheet, Excel row, field and stable issue code suitable for localized presentation.
 
-### 10.2 Warnings
+### Warnings
 
-Warnings are non-blocking informational conditions only. They must never downgrade an Error or authorize unsafe matching.
+Warnings are informational/non-blocking only. They never downgrade an Error or authorize unsafe matching. Do not invent arbitrary business thresholds merely to create warnings.
 
-Do not add arbitrary business thresholds merely to populate the Warning count.
+### No guessing
 
-### 10.3 No guessing
-
-When input could map to more than one business/technical interpretation, return Error. Never choose nearest code/name, first row, first parent or reconstructed technical ID.
+Ambiguous input = Error. Never select nearest code/name, first row, first parent or reconstructed technical ID.
 
 ## 11. Preview
 
-Preview must show operator-useful information at minimum:
+At minimum show:
 
 - mode;
 - selected file;
@@ -403,206 +400,182 @@ Preview must show operator-useful information at minimum:
 - OptionGroup create / modify;
 - Option create / modify / activate / deactivate;
 - new Category count;
-- Errors count;
-- Warnings count;
+- Errors / Warnings;
 - row-addressable issue list;
-- actual affected rows/summary where practical;
-- clear statement: omitted rows are not deleted;
-- clear statement: preview has not changed the database.
+- affected-row summary where practical;
+- explicit statement: omitted rows are not deleted;
+- explicit statement: preview has not changed the database.
 
-For Add-only preview, explicitly state that existing Product/Group/Option records will not be updated.
+Add-only preview explicitly states existing Product/Group/Option records will not be updated.
 
-## 12. Atomic persistence design
+## 12. Atomic persistence
 
-Do **not** loop through existing `CatalogueService.Create/Update...` calls because those calls each own their own transaction and cannot satisfy whole-workbook atomicity.
+Do not loop existing per-command CatalogueService mutation methods because they own separate transactions and cannot satisfy whole-workbook atomicity.
 
-Add one dedicated import commit store method backed by one `SqliteTransactionRunner.ExecuteAsync` call.
+Add one dedicated import-store commit method using one `SqliteTransactionRunner.ExecuteAsync` call.
 
-The method may reuse/refactor internal SQL helpers from `SqliteCatalogueStore`, but must preserve public M03 behavior and tests.
+Import plan contains only explicit create/update/state-change operations. There is intentionally **no Delete operation**.
 
-The import plan should be explicit operation data, for example conceptually:
-
-- `CreateCategory`;
-- `CreateProduct`;
-- `UpdateProductFields`;
-- `CreateOptionGroup`;
-- `UpdateOptionGroupFields`;
-- `CreateOption`;
-- `UpdateOptionFields`;
-- Product/Option state changes as ordinary field updates.
-
-There is intentionally **no Delete operation**.
-
-Before any write inside the transaction, revalidate the complete plan against the current database/baseline token. An injected failure after any intermediate statement must roll back all statements.
+Before first write inside the transaction revalidate the complete accepted plan against current database/baseline. Any injected intermediate failure must roll back all statements.
 
 ## 13. Authority/recovery
 
-- export: read-only, no authority scope;
-- parse: no authority scope;
-- preview: no authority scope;
-- confirmed commit: mandatory centralized authority scope;
-- Application boundary must reject NonAuthoritativeReadOnly, PendingTransfer/transition and RecoveryRequired states according to the existing guard contract;
-- WPF Confirm must reflect the same state but is not the security/safety boundary;
+- export: read-only, no write authority;
+- parse: no write authority;
+- preview: no write authority;
+- commit: mandatory centralized authority guard;
+- Application boundary rejects non-authoritative/read-only, transfer/transition and RecoveryRequired states according to existing guard contract;
+- WPF reflects the same state but is not the safety boundary;
 - successful business commit -> one durable-change notification;
-- failed/no-op import -> no durable-change notification;
-- no M06/M07 protocol change.
+- failed/rejected/no-op import -> no durable-change notification;
+- no M06/M07 protocol changes.
 
 ## 14. SQLite/schema/dependency constraints
 
-### No schema migration expected
+### SQLite
 
-M10 workbook metadata remains in the workbook. Current SQLite model already stores every M10 business field.
+No M10 schema migration is expected. Current SQLite already stores all M10 business data. Workbook version/manifest stays in the workbook.
 
-Do not add a migration unless implementation discovers a genuine persisted-data requirement that cannot be met by the existing schema; such a discovery is a blocker requiring controller review rather than an automatic schema expansion.
+If implementation proves a new durable field is genuinely required, stop as a controller blocker rather than adding a migration automatically.
 
 ### ClosedXML
 
-M10 is expected to add ClosedXML because Approved architecture already selects it and it is currently absent.
+M10 is expected to add ClosedXML because Approved architecture selects it and it is currently absent.
 
 Requirements:
 
 - one pinned tested version;
-- package reference isolated to Infrastructure/tests as appropriate;
+- isolated to Infrastructure/tests as appropriate;
 - no Office Interop / Excel COM;
 - no second XLSX library;
-- release notes reviewed before pinning;
-- full self-contained Windows publish remains healthy.
+- package/release notes reviewed before pinning;
+- self-contained win-x64 publish remains healthy.
+
+Exact version is a technical implementation choice.
 
 ## 15. Historical independence
 
-M10 may read/write only current Catalogue tables and current Category data.
+M10 writes current Catalogue/Category data only. It must never rewrite historical order item/adjustment/category/price/VAT/discount/tax/print interpretation.
 
-It must never update historical:
+Automated and owner evidence must create an order before import, mutate current Catalogue via M10 and prove the committed historical order/reprint remains unchanged.
 
-- `order_items` product code/name/category/base price/VAT/discount snapshots;
-- `order_item_adjustments` option/group/price/VAT snapshots;
-- order totals/tax snapshots;
-- print history/business interpretation.
+## 16. Work packages after separate authorization
 
-Automated and owner evidence must create an order before Catalogue import, mutate current catalogue through M10, then prove the committed historical order/reprint remains unchanged.
+No package is executable yet.
 
-## 16. Work packages after authorization
+### WP1 — contracts + ClosedXML export
 
-No work package below is executable until separate owner authorization and a valid Issue #4 handoff.
-
-### WP1 — Contract types + ClosedXML export + deterministic workbook fixture tests
-
-- add pinned ClosedXML dependency;
+- pin ClosedXML;
 - application workbook DTO/interfaces;
-- Infrastructure workbook writer;
-- three visible sheets + protected technical metadata;
-- empty-catalogue template;
+- Infrastructure writer;
+- three visible sheets + protected metadata;
+- empty-Catalogue template;
 - export read-only path;
-- contract/protection/round-trip fixture tests;
-- no import commit yet.
+- workbook/protection/round-trip fixture tests;
+- no import commit.
 
-### WP2 — Parser + import planner + preview model
+### WP2 — parser + planner + preview
 
-- read workbook into raw DTO;
-- Update/Add-only mode validation;
-- identity/binding manifest validation;
-- candidate overlay/no-delete semantics;
-- Category resolution including owner-approved short-code rule;
-- parent relationship helper;
-- Errors/Warnings/preview counts and row diagnostics;
-- pure deterministic tests;
-- no business write yet.
+- raw workbook parser;
+- Update/Add-only validation;
+- identity/binding validation;
+- Category name/short-code resolution;
+- new-parent helper;
+- complete-current-state overlay/no-delete semantics;
+- Errors/Warnings/preview counts/row diagnostics;
+- no business write.
 
-### WP3 — Atomic SQLite import commit + authority/recovery
+### WP3 — atomic SQLite commit + authority/recovery
 
-- dedicated `ICatalogueImportStore` commit boundary;
-- one transaction for whole plan;
-- concurrency/identity revalidation inside transaction;
-- no Delete operations;
+- dedicated import-store transaction boundary;
+- concurrency/identity revalidation before writes;
 - new-ID allocation at commit;
+- no Delete;
 - authority guard + one durable-change notify;
-- rollback/failure injection and historical-independence integration tests.
+- rollback/failure injection/historical-independence integration tests.
 
-### WP4 — WPF Catalogue export/import/preview workflow
+### WP4 — WPF workflow
 
-- existing Catalogue area buttons/commands;
+- Catalogue Export/Import actions;
 - file dialogs;
-- explicit mode workflow;
-- preview dialog/panel;
-- issue navigation/readability;
+- explicit mode;
+- preview/issues;
 - authority-aware Confirm;
 - success refresh;
 - Cancel/close safety;
-- FR + zh-CN;
-- STA/WPF lifecycle/layout tests under interactive quality gate.
+- FR/zh-CN;
+- STA/WPF lifecycle/layout tests.
 
-### WP5 — Cross-layer hardening + owner candidate
+### WP5 — hardening + owner candidate
 
-- real `.xlsx` round-trip integration tests;
-- tampered workbook/corrupt file/stale baseline cases;
-- full M03/M04/M06/M07 regressions;
+- real `.xlsx` round-trip;
+- tampered/corrupt/stale cases;
+- M03/M04/M06/M07 regressions;
 - architecture checks;
-- Release build/full tests/diff check/privacy audit;
-- self-contained win-x64 owner candidate and hashes;
+- full Release tests/build/diff/privacy audit;
+- self-contained win-x64 candidate/hashes;
 - exact-head CI;
 - manual-acceptance handoff only after controller review.
 
-Work-package completion never automatically authorizes the next package; Issue #4 active handoff controls execution.
+Work-package completion never authorizes the next package automatically.
 
 ## 17. Required automated evidence summary
 
-The detailed matrix in `milestone-10-preparation-readiness.md` is controlling. At minimum implementation completion requires proof of:
+At minimum prove:
 
 - deterministic workbook structure/protection/versioning;
 - export/re-import identity preservation;
-- safe Product-code change by same ID;
+- Category short-code round-trip and approved existing/new semantics;
+- same-ID Product code change;
 - blank-ID create;
-- explicit add-only create-only semantics;
+- explicit Add-only create-only behavior;
 - technical-ID tamper rejection;
 - invalid parent rejection;
-- Category normalization/short-code approved contract;
 - missing-row no-delete across Product/Group/Option;
-- exact preview counts/issues;
-- full rollback on any invalid row or injected persistence failure;
+- deterministic preview counts/issues;
+- complete rollback on invalid row or injected failure;
 - non-authoritative commit rejection below UI;
 - one durable-change notification only after successful commit;
 - historical-order independence;
-- FR/zh-CN UI state integrity;
+- FR/zh-CN state integrity;
 - no COM and no unrelated dependency/schema change.
 
 ## 18. Manual acceptance
 
-The prepared owner checklist is `milestone-10-final-manual-acceptance.md`.
+Owner checklist: `docs/implementation/milestone-10-final-manual-acceptance.md`.
 
-Codex may prepare a candidate and automated evidence but must not:
+Codex may prepare the candidate/evidence but must not check owner boxes, claim real Excel ergonomics Passed, merge, or start M11.
 
-- check owner acceptance boxes;
-- claim Excel ergonomics are Passed without owner execution;
-- merge the PR;
-- start M11.
-
-## 19. Explicit scope exclusions
+## 19. Scope exclusions
 
 M10 does not authorize:
 
-- order/export workbook implementation from `docs/export.md` / M11;
-- `Gestion SUSHI 81` four-sheet export;
-- annual archive creation/access (M12);
-- installer/final handover (M13);
-- Category permanent-delete/import-delete mechanism;
-- workbook macro/VBA/Office automation;
-- external Excel service/cloud API;
+- M11 `Gestion SUSHI 81` four-sheet order export;
+- M11 eligibility/date/exported-at/correction business semantics;
+- M12 annual archive;
+- M13 installer/final handover;
+- Category permanent deletion/import deletion;
+- workbook VBA/macros/Office automation;
+- cloud Excel service;
 - implicit Product matching by name/code in Update mode;
-- schema migration without a newly surfaced reviewed blocker;
-- live import-history table;
+- schema migration without a newly reviewed blocker;
+- import-history table;
 - M07 authority/recovery protocol changes.
 
 ## 20. Authorization gate
 
-Before this contract becomes executable, all must be true:
+Preparation conditions 1–3 are now complete:
 
-1. owner resolves/approves Category `short_code` workbook semantics;
-2. approved decision/baseline alignment is committed;
-3. preparation/status reconciliation is complete;
+1. Category short-code workbook semantics: **Approved**;
+2. decision/baseline/acceptance alignment: **prepared/committed on this preparation branch**;
+3. readiness/current-state reconciliation: **preparation-complete**.
+
+Before any implementation can execute, all remaining conditions must still occur:
+
 4. project owner explicitly says **“批准 M10 implementation”**;
-5. `milestone-10-authorization.md` is changed from NOT AUTHORIZED to AUTHORIZED with exact preparation head;
+5. `milestone-10-authorization.md` changes from NOT AUTHORIZED to AUTHORIZED with the exact final preparation head;
 6. dedicated implementation branch/PR/mailbox is established according to current governance;
 7. exactly one complete executable M10 handoff is published;
-8. Issue #4 is then opened only for that handoff.
+8. Issue #4 is updated to that unique pointer and only then opened.
 
-Until then, this file is documentation only.
+Until condition 4 is explicitly granted, this contract is documentation only.
