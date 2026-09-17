@@ -1,6 +1,6 @@
 # Post-M09 Hiboutik daily payment dashboard — worklog
 
-**Status:** Implementation complete — owner Windows/WPF manual acceptance pending
+**Status:** PASSED — owner Windows/WPF manual acceptance completed; awaiting separate merge approval
 **Opened:** 2026-09-16  
 **Issue:** #18  
 **Branch:** `codex/post-m09-hiboutik-daily-payment-dashboard`  
@@ -41,7 +41,7 @@ Focused evidence passed:
 - Full Release solution suite: 654/654 passed, 0 failed, 0 skipped. Release build: 0 warnings, 0 errors.
 - Self-contained `win-x64` `PublishSingleFile=false` verification publish passed from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb` (the final implementation checkout before this evidence-only update). EXE `Sushi81.Pos.Desktop.exe`: 162,816 bytes, SHA-256 `5DA02D47C0854F993FC461AF1936300BB1DB455B9EABAC30CACABE31FC4FB7AB`. ZIP `post-m09-dashboard-win-x64.zip`: 67,042,116 bytes, SHA-256 `97D9ACC23C6356A68158E749762EEAF4689BA5803BCF0E237AC73A6E64B48145`.
 
-Owner manual acceptance remains pending and must be performed against the exact candidate. Codex does not declare the owner checklist passed.
+At the time of this implementation evidence, owner manual acceptance remained pending and had to be performed against the exact candidate. The later owner disposition is recorded in the final-closure section below; Codex does not create or infer the owner's observations.
 
 ## Evidence-gap remediation
 
@@ -52,6 +52,14 @@ The controller identified two evidence-only gaps in comment `5705566720`. This r
 - Relevant post-M09 M09 Hiboutik desktop tests passed 8/8. The full Release solution suite passed 656/656: Domain 33, Application 119, Infrastructure 235, Architecture 145, and OneDrive feasibility 32 + 92; 0 failed and 0 skipped. The Release build passed with 0 warnings and 0 errors, and `git diff --check` passed.
 - Updated the manual-acceptance candidate header with the already-built owner candidate identity from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`; this remains `NOT YET EXECUTED / owner execution pending`.
 - The later remediation head is not a replacement executable candidate; no rebuild or republish was performed.
+
+## Final closure / owner acceptance
+
+The controller accepted the automated evidence remediation in PR #19 comment `5705723428`, reviewing exact head `5b0009f805fcbae6b7389e33d337eb830a6b08a8`. The owner then completed the exact Windows/WPF candidate acceptance and recorded `OWNER_FINAL_ACCEPTANCE` in PR #19 comment `5715414940`; sections A–F and the final manual-acceptance disposition are all `PASSED`.
+
+The accepted candidate remains the unchanged build from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`: `Sushi81.Pos.Desktop.exe` is 162,816 bytes with SHA-256 `5DA02D47C0854F993FC461AF1936300BB1DB455B9EABAC30CACABE31FC4FB7AB`; `post-m09-dashboard-win-x64.zip` is 67,042,116 bytes with SHA-256 `97D9ACC23C6356A68158E749762EEAF4689BA5803BCF0E237AC73A6E64B48145`. No production candidate was rebuilt or replaced after the test/docs-only remediation head.
+
+PR #19 remains OPEN / unmerged. The post-M09 enhancement is `PASSED` on the accepted candidate, while merge remains a separate explicit project-owner decision. M10 and later milestones remain unauthorized.
 
 ## Merge boundary
 
