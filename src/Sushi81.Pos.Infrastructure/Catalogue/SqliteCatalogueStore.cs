@@ -43,8 +43,14 @@ public sealed class SqliteCatalogueStore(
     public async Task<IReadOnlyList<ProductSummary>> ListProductsAsync(string? search = null, Guid? categoryId = null, bool? active = null, CancellationToken cancellationToken = default)
     {
         await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
+        var hasShortCodes = await HasCategoryShortCodeColumnsAsync(connection, cancellationToken);
         await using var command = connection.CreateCommand();
-        command.CommandText = """
+        command.CommandText = hasShortCodes ? """
+            SELECT p.product_id, p.code, p.name, p.category_id, c.name, p.price_ttc_cents, p.vat_rate,
+                   p.is_active, p.discount_eligible, p.options_enabled, c.short_code
+            FROM products p JOIN categories c ON c.category_id = p.category_id
+            ORDER BY p.code COLLATE NOCASE, p.product_id;
+            """ : """
             SELECT p.product_id, p.code, p.name, p.category_id, c.name, p.price_ttc_cents, p.vat_rate,
                    p.is_active, p.discount_eligible, p.options_enabled
             FROM products p JOIN categories c ON c.category_id = p.category_id
@@ -59,7 +65,8 @@ public sealed class SqliteCatalogueStore(
             var name = reader.GetString(2);
             var category = ParseGuid(reader.GetString(3));
             var categoryName = reader.GetString(4);
-            var row = new ProductSummary(id, code, name, category, categoryName, Money.FromCents(reader.GetInt64(5)), ParseDecimal(reader.GetString(6)), reader.GetInt64(7) == 1, reader.GetInt64(8) == 1, reader.GetInt64(9) == 1);
+            var shortCode = hasShortCodes && !reader.IsDBNull(10) ? reader.GetString(10) : null;
+            var row = new ProductSummary(id, code, name, category, categoryName, Money.FromCents(reader.GetInt64(5)), ParseDecimal(reader.GetString(6)), reader.GetInt64(7) == 1, reader.GetInt64(8) == 1, reader.GetInt64(9) == 1, shortCode);
             if (categoryId is not null && row.CategoryId != categoryId.Value) continue;
             if (active is not null && row.IsActive != active.Value) continue;
             if (!string.IsNullOrWhiteSpace(search) && !row.Code.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase) && !row.Name.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase)) continue;

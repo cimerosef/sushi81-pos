@@ -167,3 +167,26 @@ Append only after separate explicit merge approval:
 ## Governance reminder
 
 A worklog entry, `CODEX_DONE`, controller acceptance, owner manual PASSED or green CI does not authorize the next work package, merge, M11 or any other project change. Issue #4 and explicit owner approvals remain controlling.
+
+## Entry 2026-09-17 — `M10-WP1-CONTRACTS-CLOSEDXML-EXPORT-01`
+
+- Authorization/gate state observed: Issue #4 OPEN; PR #22 OPEN; exact top-level handoff matched with no prior `CODEX_DONE`.
+- Starting PR head: `65e1dac84d87b918abb709412e15dc2b99f8ca12`.
+- Ending pushed PR head: recorded in the matching durable `CODEX_DONE` comment after push.
+- Files changed: application workbook contracts/service; infrastructure ClosedXML gateway; package management; Catalogue short-code query projection; focused application/infrastructure tests; this contract status line and worklog entry.
+- Production behavior added: deterministic read-only Products / OptionGroups / Options workbook export with a VeryHidden binding manifest, protected technical IDs/relationships, visible Category name and short code, inactive-row preservation, and no import/write path.
+- Test files/cases added: `CatalogueWorkbookApplicationTests`; `CatalogueWorkbookIntegrationTests`.
+- Focused tests: application workbook tests 2/2 passed; infrastructure workbook tests 2/2 passed.
+- Full Release tests: passed 660/660 across all six Release test assemblies.
+- Release build: passed with zero warnings and zero errors after restore.
+- `git diff --check`: passed (only normal Git LF/CRLF conversion warnings were emitted).
+- Dependency changes: pinned `ClosedXML` `0.105.1` in `Directory.Packages.props`; package is consumed only by Infrastructure and its integration tests; no COM/Interop or macro-writing dependency.
+- Schema/migration changes: none.
+- Authority/recovery impact: export is read-only and does not acquire the existing write-authority guard or emit durable-change notifications; no recovery/schema path changed.
+- Privacy/synthetic-data audit: tests use generated IDs and synthetic catalogue values only.
+- CI run / exact head: pending push and CI observation.
+- Remaining manual evidence: Windows/Excel owner inspection of the exported workbook remains required; import/update/add-only/preview/commit work is excluded from WP1.
+- Controller findings: no material specification conflict identified.
+- Blockers/unresolved items: none for WP1 implementation; later import workflow remains unimplemented by explicit scope.
+- Execution topology: isolated worktree `m10-authorized`; root worktree preserved.
+- Browser notification result: pending durable `CODEX_DONE` delivery.

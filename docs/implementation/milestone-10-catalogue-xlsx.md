@@ -1,6 +1,6 @@
 # M10 — Catalogue `.xlsx` import/export — implementation contract
 
-**Status:** **PREPARED / READY FOR SEPARATE AUTHORIZATION — NOT AUTHORIZED**  
+**Status:** **IMPLEMENTATION AUTHORIZED — WP1 ACTIVE UNDER ISSUE #4**
 **Prepared/finalized:** 2026-09-17  
 **Milestone:** M10  
 **Primary acceptance ownership:** AC-CAT-008 through AC-CAT-011; catalogue portion of AC-ARCH-005  
@@ -8,7 +8,7 @@
 **Category short-code decision:** Approved — `docs/decisions/m10-category-short-code-workbook-semantics.md`  
 **M11+ scope:** explicitly excluded
 
-> This is a prepared implementation contract, not an executable handoff. Issue #4 must remain CLOSED and Codex must not modify production code until a separate explicit project-owner M10 implementation authorization exists.
+> The frozen implementation contract is owner-authorized for the single WP1 handoff recorded in PR #22 while Issue #4 is OPEN. This status does not authorize any later work package, merge, M11, M12 or M13.
 
 ## 1. Objective
 
