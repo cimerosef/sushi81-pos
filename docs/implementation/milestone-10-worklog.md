@@ -1,10 +1,11 @@
 # M10 — Catalogue `.xlsx` import/export — worklog / evidence ledger
 
-**Status:** Preparation complete — implementation NOT AUTHORIZED  
+**Status:** Implementation authorized — WP1 mailbox setup in progress  
 **Created:** 2026-09-17  
 **Milestone:** M10  
-**Issue #4:** CLOSED  
-**Executable Codex handoff:** none
+**Issue #4:** must be OPEN only for the sole exact active handoff  
+**Implementation branch:** `codex/m10-catalogue-xlsx-authorized`  
+**Implementation PR/mailbox:** #22
 
 This file is the append-only milestone worklog/evidence ledger. Historical entries must not be rewritten merely because later work changes current state.
 
@@ -57,7 +58,7 @@ Committed controlling records/alignment on the preparation branch:
 - amended `docs/catalogue-management.md`;
 - finalized `milestone-10-preparation-readiness.md`;
 - finalized prepared `milestone-10-catalogue-xlsx.md`;
-- updated `milestone-10-authorization.md`, which deliberately remains **NOT AUTHORIZED**.
+- updated `milestone-10-authorization.md`, which at that historical point deliberately remained **NOT AUTHORIZED**.
 
 Approved behavior summary:
 
@@ -74,16 +75,38 @@ Readiness result after this decision:
 - material M10 owner decisions: none open;
 - specification readiness: PASS;
 - code/architecture seams: PASS;
-- M10 is ready for separate project-owner implementation authorization;
-- Issue #4 remains CLOSED;
-- no executable M10 handoff exists;
-- ClosedXML has not been added to production;
+- M10 became ready for separate project-owner implementation authorization;
+- Issue #4 remained CLOSED;
+- no executable M10 handoff existed;
+- ClosedXML had not been added to production;
 - no production code/schema/migration changes were made;
-- M11+ remain unauthorized.
+- M11+ remained unauthorized.
+
+## Entry 2026-09-17 — project-owner M10 implementation authorization
+
+The project owner explicitly stated:
+
+`批准 M10 implementation`
+
+Authorization was granted against the exact finalized preparation head:
+
+`6fda83115ccde97e8d0538205eff2b769b353f71`
+
+Controller setup actions:
+
+- created dedicated implementation branch `codex/m10-catalogue-xlsx-authorized` from that exact preparation head;
+- opened implementation PR/mailbox #22 — `M10: Catalogue .xlsx import/export` against `main`;
+- changed `docs/implementation/milestone-10-authorization.md` to **AUTHORIZED** and recorded the exact preparation head;
+- selected the first intentionally narrow work package ID `M10-WP1-CONTRACTS-CLOSEDXML-EXPORT-01`;
+- retained PR #21 as historical VOID/CLOSED and prohibited its reuse;
+- retained merge as a separate owner gate;
+- retained M11/M12/M13 as unauthorized.
+
+The implementation authorization is milestone-level only. Codex execution remains work-package gated: Issue #4 must point to exactly one complete top-level PR #22 handoff and be OPEN before execution.
 
 ## Prepared control package
 
-Preparation branch contains:
+The implementation line contains:
 
 - `milestone-10-preparation-readiness.md`;
 - `milestone-10-catalogue-xlsx.md`;
@@ -91,8 +114,6 @@ Preparation branch contains:
 - `milestone-10-worklog.md`;
 - `milestone-10-authorization.md`;
 - M10 Category-short-code decision/acceptance records.
-
-The implementation contract is prepared but non-executable.
 
 ## Future implementation evidence template
 
