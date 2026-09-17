@@ -1,11 +1,11 @@
 # V1 acceptance criteria
 
-**Status:** Approved — Phase 5 baseline (V1 Specification), amended 2026-09-17  
-**Last updated:** 2026-09-17  
+**Status:** Approved — Phase 5 baseline (V1 Specification), amended 2026-09-16
+**Last updated:** 2026-09-16
 **Product:** Sushi81 POS  
 **Purpose:** Convert the approved V1 product, business, lifecycle, catalogue, data, storage, architecture, paste-import, printing and export specifications into verifiable implementation acceptance criteria.
 
-**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below. `docs/decisions/github-handoff-transport.md` makes a dedicated private GitHub Release Asset API the normal handoff transport and server acknowledgement path; OneDrive remains separately approved for recovery/archive only. `docs/decisions/filtered-catalogue-bulk-activation.md` adds AC-CAT-013 for filtered current-catalogue bulk activation/deactivation. `docs/acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` adds AC-HIB-010 and clarifies the ordinary POS summary boundary. `docs/acceptance-criteria-amendment-m10-category-short-code-workbook.md` clarifies AC-CAT-008 through AC-CAT-011 for the approved M10 Category `short_code` workbook semantics.
+**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below. `docs/decisions/github-handoff-transport.md` makes a dedicated private GitHub Release Asset API the normal handoff transport and server acknowledgement path; OneDrive remains separately approved for recovery/archive only. `docs/decisions/filtered-catalogue-bulk-activation.md` adds AC-CAT-013 for filtered current-catalogue bulk activation/deactivation. `docs/acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` adds AC-HIB-010 and clarifies the ordinary POS summary boundary.
 
 ## 1. Acceptance principle
 
@@ -110,8 +110,6 @@ V1 can export the complete hierarchical catalogue to `.xlsx` with Products, Opti
 
 Internal IDs/technical relationship values required for update matching are hidden/protected/non-editable in the normal operator workflow and are not presented as business identifiers.
 
-Category short-code workbook behavior is additionally controlled by `acceptance-criteria-amendment-m10-category-short-code-workbook.md`.
-
 **Evidence:** workbook structure/protection test + manual Excel inspection.
 
 ### AC-CAT-009 — Catalogue update import
@@ -123,15 +121,13 @@ In normal update mode:
 - a blank internal ID creates a new record;
 - corrupted/unsafe technical IDs are rejected rather than guessed.
 
-Category name/short-code update semantics are clarified by `acceptance-criteria-amendment-m10-category-short-code-workbook.md`.
-
 **Evidence:** integration/import tests.
 
 ### AC-CAT-010 — Add-only catalogue import
 
 V1 supports an explicit add-only workbook mode with no existing internal IDs. No-ID rows create new records only; they must never be matched to existing products by code/name for implicit update. A code conflict with an existing current product is a blocking error.
 
-The mode is usable for first catalogue initialization and later batches of entirely new records. Category short-code behavior in this mode is controlled by `acceptance-criteria-amendment-m10-category-short-code-workbook.md`.
+The mode is usable for first catalogue initialization and later batches of entirely new records.
 
 **Evidence:** empty-catalogue and non-empty-catalogue import tests.
 
@@ -142,8 +138,6 @@ Before commit, catalogue import validates the complete workbook and shows a prev
 If a blocking error exists, no catalogue change is committed. If validation passes and the operator confirms, all accepted changes commit atomically.
 
 Removing a row from the workbook never implies permanent deletion from the live catalogue.
-
-Category short-code conflicts defined by the M10 acceptance amendment are blocking Errors within this same whole-workbook atomicity rule.
 
 **Evidence:** transaction rollback + UI preview tests.
 
@@ -224,372 +218,631 @@ Positive option adjustments use 5.5% VAT. Negative option adjustments inherit th
 
 All final business monetary results use cent precision and deterministic round-half-up behavior. Screen values, closing validation, print output and export must not disagree due to different rounding conventions.
 
-**Evidence:** money/rounding regression tests.
+**Evidence:** shared monetary-library unit tests + cross-module regression tests.
 
-### AC-ORD-009 — Authoritative manual total
+### AC-ORD-009 — Editable authoritative order total
 
-The order interface exposes one authoritative total field. Ordinary pricing writes its calculated value. The operator may manually replace it. A later price-affecting change recalculates and replaces the override.
+There is one authoritative order-total field. The operator may directly overwrite it without changing catalogue prices and without supplying a mandatory reason.
 
-While a manual total is authoritative, the final tax snapshot is a single 10% TTC bucket over that total.
+Any later price-affecting change to products, quantities, options/adjustments, discount application or applicable delivery fee automatically recalculates the normal total and replaces the previous manual override.
 
-**Evidence:** pricing/application tests + manual UI test.
+**Evidence:** domain/UI tests.
 
-### AC-ORD-010 — Business-setting edits
+### AC-ORD-010 — VAT after manual total override
 
-The operator can edit the approved business settings without recompiling: Retrait discount rate, post-discount minimum, Livraison merchandise minimum, delivery-fee enabled state and fixed delivery-fee amount.
+While a manual total override is authoritative, the final persisted tax snapshot contains exactly one 10% VAT bucket covering the complete authoritative TTC total. A later normal price-affecting recalculation restores the ordinary mixed VAT calculation until another manual total edit occurs.
 
-Invalid values are rejected and saved values survive restart.
+**Evidence:** tax snapshot tests.
 
-**Evidence:** validation + persistence + UI tests.
+### AC-ORD-011 — Business settings are editable without code changes
 
-### AC-ORD-011 — Price-affecting current catalogue/settings changes apply prospectively
+The application settings UI allows the operator to edit and persist at least:
 
-A current Product/Option/BusinessSettings change affects later pricing according to the new current value but does not rewrite already committed order snapshots.
+- Retrait discount rate (default 10%);
+- minimum total after Retrait discount (default €15.00);
+- Livraison merchandise minimum (default €30.00);
+- delivery-fee enabled/disabled (default disabled);
+- fixed delivery-fee amount (default €0.00).
 
-**Evidence:** cross-slice integration tests.
+Changing those values changes the parameters used by the already-approved rules without recompilation/reinstallation. Delivery-fee VAT remains fixed at 10% and is not exposed as an ordinary configurable VAT setting.
 
-## 5. Order lifecycle, payments and operational views
+**Evidence:** settings UI + persistence + pricing integration tests.
 
-### AC-LIFE-001 — Confirmed order durability and same identity
+## 5. Lifecycle, payment and operational summaries
 
-Confirmed order persistence is transactional. Reloading/editing an existing committed order operates on the same persistent order identity rather than creating a replacement order.
+### AC-LIFE-001 — Commit creates durable order before printing
 
-**Evidence:** database/integration tests.
+Confirming a valid new order allocates a stable order ID and durably commits the complete order before any automatic print submission is attempted.
 
-### AC-LIFE-002 — Source provenance
+An application restart after successful commit but before/while printing must not lose the order.
 
-Every durable order carries an internal source discriminator sufficient to distinguish ordinary POS-originated orders from Hiboutik paste-created orders for the approved anti-double-counting rules. This is system-controlled, not a normal operator-editable business field.
+**Evidence:** failure-injection persistence/printing integration test.
 
-**Evidence:** persistence/import tests.
+### AC-LIFE-002 — Status model
 
-### AC-LIFE-003 — Signed payment adjustments and cumulative display
+User-facing business status is limited to Open, Closed and Cancelled. Future/due-today/overdue are derived operational views, not destructive status replacements.
 
-CB/Espèce operator edits are stored as signed adjustment history while the UI shows cumulative CB/Espèce amounts. Negative corrections are supported.
+**Evidence:** domain model test.
 
-**Evidence:** payment/application/persistence tests.
+### AC-LIFE-003 — Current cumulative CB/Espèce fields
 
-### AC-LIFE-004 — Effective payment date
+The operator records current cumulative Card/CB and Cash/Espèce amounts directly. No separate manually selected CB/Espèce/Mixte payment-method category is required.
 
-Each payment adjustment has an operator/business effective date and a separate recorded timestamp. Daily received-payment summaries use effective date, including later/back-entered payments.
+Composition is derived from the two amounts.
 
-**Evidence:** payment-date attribution tests.
+**Evidence:** UI/domain tests.
 
-### AC-LIFE-005 — Close/reopen/cancel
+### AC-LIFE-004 — Close arithmetic
 
-An order may close only when cumulative received payment equals the authoritative total. A closed order may automatically reopen when later edits create a difference. Cancellation is explicit and preserves the durable order/history while excluding it from ordinary financial summaries.
+An order may be closed only when current CB + current Espèce equals the authoritative order total exactly to the cent. Underpayment or overpayment blocks close with a clear arithmetic error while leaving the order editable/open.
 
-**Evidence:** lifecycle/payment tests.
+**Evidence:** boundary validation tests.
 
-### AC-LIFE-006 — Same-ID modification and abandon
+### AC-LIFE-005 — Dated payment adjustments and effective-date correction
 
-An existing committed order may be modified and saved on the same ID. Abandoning unsaved modification restores/displays the latest committed snapshot rather than persisting edits.
+Changing a cumulative CB/Espèce amount persists the signed delta with both:
 
-**Evidence:** application/UI tests.
+- an effective business date/time used for received-payment attribution;
+- an application-generated recorded timestamp showing when the adjustment was actually persisted.
 
-### AC-LIFE-007 — Reuse customer information
+Normal payment entry defaults the effective date to the current business date so same-day work requires no extra step.
 
-The operator can start a new order from reusable customer/contact text from an earlier order without inheriting fulfilment mode or mutating the earlier order.
+When a payment is entered/corrected after the fact, the operator can change the effective payment date to the date on which the money was actually received. The recorded timestamp remains the actual later persistence time.
 
-**Evidence:** UI/application tests.
+Examples:
 
-### AC-LIFE-008 — Post-commit printing boundary
+- CB €20 on day 1 then changed to €50 on day 2 contributes €20 to day 1 and only €30 to day 2;
+- €20 CB actually received on day 1 but first entered on day 2 can be assigned effective date day 1, contributing €20 to day 1 while remaining technically recorded on day 2.
 
-Automatic normal printing is attempted only after durable order confirmation/update commit succeeds. Print failure does not roll back a committed order.
+Changing the effective date must not create a duplicate payment or alter external card-terminal state.
 
-**Evidence:** application/printing integration tests.
+**Evidence:** multi-day/back-dated payment integration tests + UI test.
 
-### AC-LIFE-009 — Operational turnover excludes non-POS sources and cancelled orders
+### AC-LIFE-006 — Main-screen received-payment summary
 
-Ordinary operational turnover summaries include the intended POS-originated non-cancelled orders and exclude Hiboutik paste-created and cancelled orders according to the approved anti-double-counting semantics.
+The main interface shows at least today's total received, today's CB received and today's Espèce received for ordinary POS-originated non-cancelled orders, based on payment deltas effective today.
 
-**Evidence:** summary query tests.
+Unpaid value is not counted merely because an order exists or is due today. A later `recorded_at` timestamp does not move a legitimately back-dated effective payment into the later day's business summary.
 
-### AC-LIFE-010 — Received-payment summaries
+**Evidence:** reporting/UI tests including same-day, cross-day and back-dated entry.
 
-Daily total received, CB and Espèce summaries use signed effective-date payment adjustments for ordinary POS-originated non-cancelled orders.
+### AC-LIFE-007 — Main-screen operational turnover
 
-The separately approved post-M09 Hiboutik CB/Espèce values are controlled by `acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` and remain distinct from these ordinary POS totals.
+The main interface provides the current business date's operational turnover. For date D, ordinary non-cancelled POS-originated orders contribute their full current authoritative total when their planned fulfilment date is D, independent of payment/closure state.
 
-**Evidence:** summary/payment tests.
+**Evidence:** reporting/UI tests covering unpaid/partial/closed/future/cancelled orders.
 
-### AC-LIFE-011 — Advance/future/due/overdue views
+### AC-LIFE-008 — Future and due-today advance orders
 
-The application exposes useful future/due-today/overdue operational views according to the approved planned-fulfilment and unsettled-order rules, without relying on session-only state.
+A non-cancelled order saved with a planned fulfilment date later than the then-current business date permanently sets its persisted advance-order marker.
 
-**Evidence:** query + UI tests.
+The main interface surfaces a due-today advance-order reminder when planned fulfilment date = today, the marker is true and status is not Cancelled. Payment or Closed state does not remove that reminder, and no extra processed/collected state is required merely to hide it early.
 
-### AC-LIFE-012 — Search by telephone/comment/reference
+**Evidence:** date-transition + main-screen UI tests.
 
-Persisted orders can be found by the approved live search fields, including telephone and comment/reference text, with results based on persisted current order snapshots.
+### AC-LIFE-009 — Overdue unsettled
 
-**Evidence:** query/UI tests.
+The main interface clearly surfaces an order as overdue unsettled only when planned fulfilment date is before today, it is not Cancelled and it is not fully closed/reconciled under the approved lifecycle.
 
-### AC-LIFE-013 — Dated order browser
+**Evidence:** reporting/UI tests.
 
-Persisted orders are browseable by planned fulfilment date with deterministic operational ordering and without requiring a memorized GUID.
+### AC-LIFE-010 — Modification uses the same order
 
-**Evidence:** integration/UI tests.
+Every non-cancelled order remains modifiable regardless of Open/Closed state. Saving a modification retains the same order ID and latest saved business version. V1 does not create supplementary-order chains or mandatory cancel-and-replace flows for ordinary edits.
 
-### AC-LIFE-014 — Historical planned-time fidelity
+If an edit makes a previously Closed order fail CB + Espèce = total, it becomes Open again until the close condition is re-satisfied.
 
-Structured planned fulfilment time round-trips exactly and is displayed unambiguously in 24-hour `HH:mm` form; evening values such as `18:25` must not become `06:25` without AM/PM.
+**Evidence:** lifecycle integration tests.
 
-**Evidence:** persistence + presentation regression tests.
+### AC-LIFE-011 — Abandon uncommitted edit
 
-### AC-LIFE-015 — Historical access across live/archive data
+Cancelling/abandoning an in-progress modification leaves the last persisted order unchanged.
 
-The completed V1 provides a normal operator path to search/access relevant historical orders even after annual archive processing, without requiring direct SQLite/file manipulation.
+**Evidence:** UI/persistence test.
 
-**Evidence:** M12 archive/hydration + UI acceptance.
+### AC-LIFE-012 — Cancellation retains history
 
-## 6. Hiboutik paste fallback
+Cancelling an order retains the order and its recorded CB/Espèce facts, sets Cancelled state/timestamp and removes it from ordinary active turnover, ordinary received-payment summaries and initial positive-sale export.
 
-AC-HIB-001 through AC-HIB-009 are controlled by `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md` where that amendment supersedes older baseline clauses. The post-M09 dashboard extension is controlled by AC-HIB-010 in its separate amendment.
+**Evidence:** lifecycle/reporting tests.
 
-### AC-HIB-001 — Untrusted paste input
+### AC-LIFE-013 — New order from prior customer information
 
-The Hiboutik fallback accepts only operator-pasted plain text through the approved workflow and does not require Gmail/Outlook/API integration or background clipboard monitoring.
+The operator can start a new order from reusable telephone/address/comment information from an existing order. The new order receives a new ID only when confirmed and does not inherit source products, payment amounts, total, status, planned fulfilment date/time or fulfilment mode.
 
-**Evidence:** parser/UI boundary tests.
+**Evidence:** UI/domain test.
 
-### AC-HIB-002 — Deterministic parsing
+### AC-LIFE-014 — Future-order count and entry point
 
-The parser recognizes the approved product-detail-block syntax and known harmless total/service lines without turning unknown material lines into silently ignored input.
+The main interface provides a compact count/entry point for non-cancelled orders whose planned fulfilment date is after today. Opening that entry point allows the operator to inspect the actual future orders and dates.
 
-**Evidence:** deterministic parser fixtures/tests.
+**Evidence:** reporting/main-screen UI test.
 
-### AC-HIB-003 — Unknown material lines fail safe
+### AC-LIFE-015 — Live order search, telephone/comment lookup and explicit archive access
 
-Every unknown/material source line becomes explicit unresolved state and requires operator resolution or explicit ignore before confirmation.
+Normal order lookup searches the live/current database without automatically opening every archive and supports practical lookup by at least telephone and comment text.
 
-**Evidence:** application/UI tests.
+Historical order information can be used to consult/reuse prior telephone/address/comment values without introducing a Customer master.
 
-### AC-HIB-004 — Exact active product-code auto-resolution
+The operator can explicitly select/open an annual archive and search/inspect its read-only historical orders.
 
-Automatic matching uses exact current active Product code only. Fuzzy name/code matching is not used to silently resolve imported rows.
+**Evidence:** live-search + telephone/comment + archive-selection UI/integration tests.
 
-**Evidence:** catalogue/import tests.
+## 6. Hiboutik paste-order fallback
 
-### AC-HIB-005 — Ordinary option confirmation
+### AC-HIB-001 — Paste import is only an order-creation aid
 
-Imported products with enabled option groups use the ordinary option-selection rules, including explicit reviewed state for optional groups.
+Pasting/parsing Hiboutik order-summary text must not itself create a durable order. Successful parsing returns the operator to the ordinary order-entry screen with recognized ordinary fields pre-populated for review/editing.
 
-**Evidence:** application/UI tests.
+**Evidence:** parser/UI integration test.
 
-### AC-HIB-006 — Ordinary pricing remains authoritative
+### AC-HIB-002 — No special emergency-order UI/model
 
-Current Sushi81 Catalogue/settings pricing produces the authoritative order total. Source prices/total may be retained only as the approved read-only reference and never override pricing.
+A Hiboutik paste-created order uses the same ordinary order screen, lifecycle, editing and printing workflow as a manually created order.
 
-**Evidence:** pricing/import tests.
+V1 must not expose or require:
 
-### AC-HIB-007 — Ordinary order lifecycle
+- dedicated emergency-order screen/style/count;
+- Hiboutik discrepancy panel/status;
+- Hiboutik-original-total field;
+- dedicated Hiboutik order-number field;
+- `EmergencyImportDetail` business entity;
+- Hiboutik-specific payment/reconciliation workflow.
 
-After confirmation, a Hiboutik paste-created order uses the ordinary order identity/lifecycle/payment/printing/search behavior rather than a dedicated emergency subsystem.
+**Evidence:** UI/schema review + regression test.
 
-**Evidence:** integration/regression tests.
+### AC-HIB-003 — Untrusted plain-text boundary
 
-### AC-HIB-008 — Anti-double-counting source exclusion
+Paste import does not automatically access Gmail/Outlook, scrape Hiboutik, call a Hiboutik API, monitor the clipboard or execute embedded HTML/script content. Parser failure/unsupported format performs no business write.
 
-The source discriminator keeps Hiboutik paste-created orders out of ordinary POS-originated turnover/received/export calculations where specified. Final `Gestion SUSHI 81` export exclusion is cross-checked in M11.
+**Evidence:** architecture/parser tests.
 
-**Evidence:** reporting/export integration tests.
+### AC-HIB-004 — Exact product-code matching
 
-### AC-HIB-009 — Source reference is passive/non-authoritative
+Parsed product lines match current Sushi81 products by exact shared product code. Missing/unknown product code is never silently replaced using fuzzy name matching; it requires operator correction before confirmation.
 
-Approved passive Hiboutik source indication and nullable `source_total_ttc` remain read-only reference information and do not create a discrepancy/reconciliation/payment subsystem.
+**Evidence:** parser tests.
 
-**Evidence:** persistence/presentation tests.
+### AC-HIB-005 — Mandatory option confirmation for imported products with options
 
-### AC-HIB-010 — Daily Hiboutik CB/Espèce values
+Every pasted product whose current catalogue product has enabled option groups requires operator confirmation through the ordinary option UI before order confirmation, including all optional groups. Optional groups permit explicit confirmation of no selection.
 
-See `acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md`.
+**Evidence:** parser + option workflow tests.
 
-## 7. Printing and reprinting
+### AC-HIB-006 — POS pricing is authoritative
 
-### AC-PRINT-001 — Deterministic kitchen/customer models
+After product matching and option confirmation, the ordinary Sushi81 pricing engine calculates the authoritative total from current catalogue prices and final reviewed cart. A total copied from Hiboutik text never silently overrides this calculation.
 
-Kitchen and customer print content is generated deterministically from committed order snapshots and approved receipt identity/configuration.
+The ordinary manual total override remains available afterwards.
 
-**Evidence:** print-model tests.
+**Evidence:** parser/pricing regression test where pasted total differs from POS calculation.
 
-### AC-PRINT-002 — Separate kitchen/customer output
+### AC-HIB-007 — Future fulfilment preserved
 
-The application supports the approved kitchen/customer print outputs and selected local printer queues.
+When a reliable future fulfilment date/time exists in the pasted source, it is preserved as structured ordinary order data and is not silently replaced by today's date.
 
-**Evidence:** Windows printing integration + manual physical print.
+**Evidence:** parser date tests.
 
-### AC-PRINT-003 — Print after commit / failure safety
+### AC-HIB-008 — Hidden source discriminator only
 
-Print submission occurs after business commit; failure is visible/actionable and never erases/rolls back the committed order.
+A non-user-facing source discriminator identifies a Hiboutik paste-created order solely to enforce anti-double-counting boundaries. The operator cannot see/edit/manage this discriminator as a business field.
 
-**Evidence:** failure-path tests + manual test.
+A paste-created order is automatically excluded from:
 
-### AC-PRINT-004 — Reprint exact current committed snapshot
+- ordinary POS-originated operational turnover;
+- ordinary POS-originated received-payment summaries;
+- the ordinary POS CB amount that must newly be represented in Hiboutik;
+- export to `Gestion SUSHI 81`.
 
-Reprint uses the latest committed order snapshot and approved reprint marking, not current Catalogue values.
+**Evidence:** schema + reporting/export tests.
 
-**Evidence:** print/persistence tests.
+### AC-HIB-009 — No retained dedicated source metadata
 
-### AC-PRINT-005 — Selective reprint
+V1 does not require raw pasted-email retention, immutable Hiboutik source total, dedicated source reference, parser fingerprint or dedicated duplicate-management subsystem. If desired, the operator may manually write the Hiboutik reference in the ordinary comment field.
 
-The operator can intentionally reprint the required kitchen/customer output without forcing both outputs unnecessarily.
+**Evidence:** schema review.
 
-**Evidence:** UI/dispatcher tests.
+### AC-HIB-010 — Hiboutik daily CB/Espèce dashboard
 
-### AC-PRINT-006 — Cancelled-order marking
+The approved post-M09 amendment adds exactly two passive read-only values to the top Caisse dashboard: `Hiboutik CB aujourd'hui` and `Hiboutik Espèce aujourd'hui`. For business date D, each value sums signed `PaymentAdjustment` deltas whose parent order has `source_type = HIBOUTIK_PASTE`, whose current status is not `CANCELLED`, whose `effective_at` belongs to D and whose bucket is respectively `CB` or `ESPECE`.
 
-Cancelled orders remain reprintable according to the approved cancelled marking rules.
+Open and Closed non-Cancelled Hiboutik orders are included. Cancelled Hiboutik orders contribute zero while their retained payment-adjustment rows remain durable. Effective business date controls attribution; `recorded_at`, order creation date and planned fulfilment date do not substitute. The two values remain strictly separate from ordinary POS-originated operational turnover, received total, CB and Espèce values. No Hiboutik turnover, combined received total, order count, discrepancy, dedicated lifecycle, reconciliation workflow, schema migration, new durable field or write path is introduced.
 
-**Evidence:** print regression tests.
+The values reuse the existing dashboard refresh/current-business-date behavior, are localized in French and Simplified Chinese, and remain visible/read-only on a non-authoritative device without weakening authority rules.
 
-### AC-PRINT-007 — Non-authoritative printing
+**Evidence:** focused source/status/date/bucket/signed-delta reporting tests; application and view-model projection tests; XAML/localization parity tests; Windows/WPF manual acceptance on the exact candidate.
 
-A non-authoritative/read-only device may perform the approved read-only print/reprint behavior with the required warning/staleness semantics but cannot gain business-write authority through printing.
+## 7. Printing
 
-**Evidence:** authority/printing tests.
+### AC-PRINT-001 — Automatic initial printing
 
-### AC-PRINT-008 — Local printer configuration
+After a new order has been successfully committed, the application automatically generates/submits one kitchen ticket and one customer ticket using that committed state.
 
-Printer queue selection is local technical configuration and does not travel as business data through normal authority handoff.
+**Evidence:** print-service integration test.
 
-**Evidence:** configuration/pairing tests.
+### AC-PRINT-002 — Initial print content
 
-### AC-PRINT-009 — Archived order reprinting
+Kitchen output includes at least order ID, creation/confirmation time, fulfilment mode, planned fulfilment date/time when present, optional telephone/address, full comment, ordered lines in saved order with quantity/code/name, attached options/adjustments and current authoritative total.
 
-M12 historical archive access supports reprinting hydrated archived orders according to the same historical snapshot semantics.
+Customer output includes at least ordinary Sushi 81 business identity, order/date/fulfilment information, item descriptions/prices, authoritative TTC total, persisted VAT breakdown and applicable current payment information.
 
-**Evidence:** archive/printing tests.
+**Evidence:** deterministic print-model snapshot tests + manual layout review.
 
-### AC-PRINT-010 — Customer receipt identity
+### AC-PRINT-003 — Future-order prominence
 
-Customer receipts use the approved Sushi 81 business identity/layout contract without implementing a general B2B invoice workflow.
+When an order is confirmed while its planned fulfilment date is in the future, both initial documents make that future date/time operationally prominent enough that it cannot reasonably be mistaken for a same-day order.
 
-**Evidence:** deterministic layout + physical owner acceptance.
+**Evidence:** manual print acceptance test.
 
-### AC-PRINT-011 — Reprint marking
+### AC-PRINT-004 — Print failure never rolls back order
 
-Reprints are clearly distinguishable under the approved marking semantics without changing the underlying order's business data.
+Failure to generate/submit either print job does not delete, roll back or corrupt the committed order. The UI identifies which document failed and permits independent retry.
 
-**Evidence:** print-model/manual test.
+**Evidence:** failure-injection test.
 
-## 8. Storage, authority, recovery and archive
+### AC-PRINT-005 — Saved modifications do not auto-reprint
 
-### AC-STO-001 — Local SQLite live data
+Saving any modification to an existing order automatically prints neither kitchen nor customer document. After save, the operator may independently reprint either, both or neither.
 
-The live operational database is local SQLite in the approved application-data location and is not directly synchronized as a simultaneously writable shared OneDrive database.
+**Evidence:** integration/manual test.
 
-**Evidence:** path/configuration/integration tests.
+### AC-PRINT-006 — Reprint uses latest committed state
 
-### AC-STO-002 through AC-STO-005 — Pairing and target-directed normal handoff
+Explicit reprint never prints unsaved edits as authoritative data. It uses the latest successfully committed state available to the device and retains the same order ID.
 
-These criteria are controlled by the approved target-directed authority/GitHub transport amendments: one authoritative writer, explicit target-directed handoff, durable source relinquishment before target acquisition and wrong-target rejection.
+**Evidence:** UI/integration test.
 
-**Evidence:** M02/M07 deterministic protocol + integration/manual multi-device tests.
+### AC-PRINT-007 — Reprint marking
 
-### AC-STO-006 — Local recovery
+An explicit kitchen reprint visibly shows `RÉIMPRESSION`. An explicit customer reprint visibly shows `DUPLICATA`.
 
-Durable business mutations trigger validated local recovery snapshots according to the approved scheduling/retention rules, including shutdown flush.
+**Evidence:** print-model test.
 
-**Evidence:** recovery integration tests.
+### AC-PRINT-008 — Cancelled-order printing
 
-### AC-STO-007 through AC-STO-009 — Remote recovery / DR
+A Cancelled order remains printable/reprintable, but every kitchen/customer document generated from its current Cancelled state displays a prominent `ANNULÉ`. On a reprint, the reprint marking also remains present.
 
-Recovery-only cloud checkpoints, Disaster Recovery candidate ordering/validation/fencing and generation invalidation follow the approved M07 contracts.
+**Evidence:** print-model/manual visibility test.
 
-**Evidence:** M07 deterministic/integration/manual tests.
+### AC-PRINT-009 — Archived-order printing
 
-### AC-STO-010 — Centralized authoritative-write enforcement
+An explicitly selected archived order can be viewed and reprinted from its historical snapshots without dependence on the current catalogue or current VAT settings and without writing to the archive database.
 
-Every business-data mutation is rejected below the UI unless the current device is authoritative under the durable authority state. Missing/corrupt authority state fails closed.
+**Evidence:** archive/print integration test.
 
-**Evidence:** Application/SQLite/WPF authority tests.
+### AC-PRINT-010 — Non-authoritative-device printing
 
-### AC-STO-011 through AC-STO-014 — Annual archive
+A non-authoritative/read-only paired device may print/reprint from the committed live-data copy it actually holds. The UI clearly warns that the device is non-authoritative and data may be stale, but printing is not hard-blocked and does not imply authority transfer or freshness verification.
 
-M12 must implement the approved previous-calendar-year archive eligibility, staged validation/publication, failure-safe removal and explicit historical access/hydration behavior without losing pending export semantics.
+**Evidence:** multi-device UI/integration test.
 
-**Evidence:** archive integration/failure/manual tests.
+### AC-PRINT-011 — No B2B invoice subsystem
 
-## 9. Architecture
+V1 customer printing remains the ordinary customer ticket/restaurant note and does not introduce company-master, formal invoice numbering, credit-note lifecycle or B2B invoice template workflow solely for invoicing.
 
-### AC-ARCH-001 — .NET/WPF dependency boundaries
+**Evidence:** scope/schema review.
 
-Production follows the approved .NET 10/WPF Domain/Application/Infrastructure/Desktop separation and prevents Infrastructure/UI dependencies from leaking into Domain.
+## 8. Export to the Gestion workflow
 
-**Evidence:** architecture tests/build review.
+### AC-EXP-001 — Eligibility
 
-### AC-ARCH-002 — SQLite migrations
+An order is eligible for initial positive-sale export only when all are true:
 
-Schema changes are versioned and migration failure does not silently reset business data.
+- source is ordinary POS, not Hiboutik paste-created;
+- status is not Cancelled;
+- payment is fully settled;
+- lifecycle status is Closed.
 
-**Evidence:** migration integration/failure tests.
+**Evidence:** export-selection tests.
 
-### AC-ARCH-003 — Money/time/ID abstractions
+### AC-EXP-002 — Default and optional date scope
 
-Money precision/rounding, business clock and opaque ID generation use the approved shared abstractions rather than ad-hoc module-specific behavior.
+With no date filter, export considers all eligible not-yet-successfully-emitted orders plus applicable pending post-export corrections. There is no mandatory legacy J-2 cutoff.
 
-**Evidence:** unit/architecture tests.
+The operator may optionally apply inclusive start/end fulfilment/business-date filtering; the selected range is visible before execution.
 
-### AC-ARCH-004 — Logging/configuration safety
+**Evidence:** export-selection/UI tests.
 
-Configuration/logging remains appropriate for local Windows operation and must not persist secrets/customer business data unnecessarily.
+### AC-EXP-003 — Intermediate `.xlsx`, not direct workbook mutation
 
-**Evidence:** code/privacy review.
+POS generates a controlled intermediate `.xlsx` and does not write directly into `Gestion SUSHI 81.xlsm`.
 
-### AC-ARCH-005 — `.xlsx` implementation boundary
+The workbook contains the versioned logical sheets `Meta`, `Orders`, `OrderLines` and `TaxBreakdown` with the contract fields defined in `export.md`.
 
-ClosedXML is isolated behind application-owned workbook/export-import contracts; Excel COM/Interop is not required. Catalogue M10 and Gestion M11 own separate workbook business contracts even if they reuse low-level adapter plumbing.
+**Evidence:** workbook contract test.
 
-**Evidence:** dependency/architecture tests + workbook tests.
+### AC-EXP-004 — Historical snapshot fidelity
 
-### AC-ARCH-006 — Printing boundary
+Export uses committed historical order/line/payment/tax snapshots. Current catalogue prices/options/VAT must never replace sale-time values in an old order export.
 
-Windows print-queue/FixedDocument implementation remains behind Application-owned deterministic print models/contracts.
+**Evidence:** regression test after catalogue changes.
 
-**Evidence:** architecture/printing tests.
+### AC-EXP-005 — Safe generation
 
-### AC-ARCH-007 — Self-contained Windows release
+Export writes to a temporary/staging path, validates schema/relationships/counts before finalization, and marks a batch successfully emitted only after the final intermediate file is generated and validated. Failure leaves the business order state unchanged and remains retryable.
 
-Final V1 ships through the approved self-contained Windows x64 packaging/installer model without requiring the operator to install a separate .NET runtime manually.
+**Evidence:** failure-injection integration test.
 
-**Evidence:** M13 packaging/install test.
+### AC-EXP-006 — Duplicate protection
 
-## 10. Export to Gestion SUSHI 81
+An unchanged successfully emitted `CREATE` is not emitted again by an ordinary later export. Technical export metadata distinguishes legitimate later corrections from accidental duplicate sale export.
 
-### AC-EXP-001 through AC-EXP-011
+**Evidence:** repeated-export tests.
 
-The M11 export must satisfy the frozen `docs/export.md` contract, including selection eligibility, optional inclusive date range, four-sheet versioned workbook, temporary generation/validation/finalization, immutable batch payloads, duplicate prevention, exact regeneration, post-export CREATE/UPDATE/CANCEL correction semantics and Hiboutik source exclusion.
+### AC-EXP-007 — Exact successful-batch regeneration
 
-**Evidence:** M11 deterministic export/integration/manual tests.
+The operator can regenerate the exact payload of a previous successful batch using the same `BatchId` without creating a new business export event and without substituting a later order version.
 
-## 11. Non-functional / final quality
+**Evidence:** export-ledger/payload test.
 
-### AC-NFR-001 — Supported Windows release
+### AC-EXP-008 — Modification before first export
 
-Final V1 launches and performs core workflows on the supported Sushi 81 Windows environment.
+An order modified before its first successful export is emitted once as `CREATE` using its latest committed state; no `UPDATE` is generated merely because pre-export edits occurred.
 
-**Evidence:** M13 install/smoke/manual acceptance.
+**Evidence:** export test.
 
-### AC-NFR-002 — Deterministic automated verification
+### AC-EXP-009 — Post-export update
 
-Business/data/authority/parser/print/export/archive rules that can be mechanically verified are covered by deterministic automated tests using synthetic/sanitized fixtures.
+Modifying an already successfully exported order creates a pending `UPDATE` for the same stable `OrderId`. The later export contains a full replacement order/line/tax snapshot rather than a second sale or line delta.
 
-**Evidence:** full test suite.
+**Evidence:** export correction test.
 
-### AC-NFR-003 — Practical operator responsiveness
+### AC-EXP-010 — Post-export cancellation
 
-Normal interactive operations do not block the UI unacceptably; external/printing/storage operations use appropriate asynchronous boundaries while preserving deterministic commit semantics.
+Cancelling an already successfully exported order creates a pending `CANCEL` for the same stable `OrderId`. It is not emitted as another positive sale.
 
-**Evidence:** STA/WPF tests + owner workflow acceptance.
+**Evidence:** export correction test.
 
-### AC-NFR-004 — Actionable failure behavior
+### AC-EXP-011 — Contract data types
 
-Invalid input, corrupt/untrusted workbook/paste data, storage/printing/transport failure and authority rejection fail safely with actionable operator feedback and without silent partial corruption.
+Money is exported as numeric euro values with business cent precision; dates/times are Excel date/time values; IDs/product codes/action values are text; correctness does not depend on formulas. Schema identifiers and action values are not translated with the UI language.
 
-**Evidence:** failure-path tests + manual acceptance.
+**Evidence:** workbook cell-type test.
 
-## 12. Acceptance governance
+## 9. Storage, handoff, recovery and archive
 
-Acceptance evidence must reflect the exact tested source/candidate where the milestone requires an owner executable. Automated green tests do not substitute for real Windows/WPF/Excel/printer/multi-device owner checks when the specification requires them.
+### AC-STO-001 — Local live database
 
-A milestone may be marked Passed only after its required automated and manual evidence is complete. Passed does not authorize merge or the next milestone. Merge and later implementation authorization remain separate explicit project-owner actions.
+Each paired device has its own application-managed `%LOCALAPPDATA%\Sushi81 POS\Data\live.db`. The live database is never the file directly opened/written from a OneDrive-synchronized folder.
+
+**Evidence:** installation/path review.
+
+### AC-STO-002 — N-device single writer and target-directed normal transfer
+
+The design supports more than two paired devices without fixed SHOP/HOME slots. At most one device is authoritative/writable at any moment; all others are non-authoritative/read-only.
+
+Normal transfer is directed by the current authoritative source to exactly one eligible paired `target_device_id`. Non-target devices never compete for the same handoff through file claims/election and cannot become writable merely because they are running or observe the handoff.
+
+**Evidence:** three-device protocol tests + design inspection.
+
+### AC-STO-003 — Close semantics and safe target-directed handoff ordering
+
+When the authoritative operator chooses **Close and retain authority**, the application closes without releasing write authority; the same device remains authoritative for its next valid launch and all other devices remain read-only.
+
+When the operator explicitly chooses **Transfer authority and close**, the source:
+
+1. selects/preselects exactly one eligible paired target;
+2. blocks new business edits and commits accepted writes;
+3. creates and validates a SQLite-safe complete snapshot;
+4. assigns immutable lineage/generation/version/source/target/checksum metadata;
+5. publishes `YYYYMMDDHHMMSS.snapshot.db` to the configured private GitHub Release and requires HTTP 201, uploaded state, exact name/size/asset ID and matching `sha256:<hex>` server receipt;
+6. durably records local relinquishment/pending-transfer state that survives restart and blocks further source business writes;
+7. only after that durable relinquishment creates/uploads `YYYYMMDDHHMMSS.grant.json` and validates its strict GitHub server receipt;
+8. only after the grant receipt persists `Released`; retention cleanup is post-completion and retryable.
+
+A ready/grant marker must never exist before durable source relinquishment. A snapshot alone does not release authority. A failure before relinquishment may safely abort without releasing authority; a failure after relinquishment leaves the source read-only/pending-transfer and permits only technical retries of the same immutable target-bound transfer.
+
+**Evidence:** deterministic ordering/restart/failure-injection tests + GitHub fake-HTTP receipt tests + manual close-flow acceptance.
+
+### AC-STO-004 — Target-bound handoff validation and acquisition
+
+A receiving device must not promote a handoff snapshot to writable `live.db` unless:
+
+- its immutable `device_id` exactly equals `target_device_id`;
+- source/target are distinct valid paired devices for the lineage/generation;
+- snapshot and matching target-bound ready/grant marker are available;
+- lineage/generation/version/source/target/checksum and required metadata match;
+- SQLite integrity passes;
+- stale/replayed local transfer state is rejected;
+- the snapshot is safely restored and authoritative local state is durably established.
+
+Only after all checks pass may that target enable business writes. A non-target device remains read-only and does not create an acquisition claim.
+
+**Evidence:** corruption/mismatch/wrong-target/replay/restart tests + GitHub asset/grant metadata and hash validation + controlled multi-device test.
+
+### AC-STO-005 — No silent force takeover, source rollback or target substitution
+
+If the authoritative device closed while retaining authority, another device cannot silently start writing from an older local copy or GitHub artifact.
+
+After a target-directed handoff crosses durable source relinquishment:
+
+- the former source cannot silently resume ordinary writes;
+- the handoff cannot be retargeted to another device through normal flow;
+- a third device cannot substitute itself for the target;
+- the designated target must complete/recover the handoff, or genuine inability to do so requires explicit Disaster Recovery.
+
+**Evidence:** protocol/restart/UI tests including target-unavailable paths.
+
+### AC-STO-006 — Local recovery generation and retention
+
+Important durable business changes trigger local recovery protection, including at least new-order confirmation, saved order modification, payment changes, Close/Cancel, catalogue changes/import and business-setting saves. A short debounce/coalescing delay may combine nearby saves without weakening protection.
+
+The application retains the latest five successfully generated/validated local recovery snapshots. Older cleanup occurs only after a newer valid replacement exists.
+
+**Evidence:** save-trigger + debounce + recovery-retention tests.
+
+### AC-STO-007 — Target-directed handoff retention
+
+GitHub Handoff retains the latest three complete validated immutable snapshot+target-bound-grant units after successful completion. Incomplete/starter/stray assets are never counted; each complete unit preserves matching lineage/generation/version/source/target/checksum metadata and exact remote asset identity.
+
+**Evidence:** retention/integrity/target-binding tests.
+
+### AC-STO-008 — Change-triggered disaster-recovery checkpoints
+
+While the authoritative device is in normal use, if durable business data has changed since the previous cloud checkpoint, the application publishes a validated recovery-only checkpoint, subject to a maximum normal publication frequency of one checkpoint every 15 minutes. If no durable data changed, a redundant checkpoint is not required.
+
+The latest five validated disaster-recovery checkpoints are retained. Recovery-only checkpoints do not themselves release write authority and cannot be consumed automatically as a normal handoff.
+
+**Evidence:** changed/unchanged scheduler + frequency + retention + authority tests.
+
+### AC-STO-009 — Explicit disaster recovery creates new generation
+
+Using Disaster Recovery requires explicit operator confirmation of possible data loss, validates the selected checkpoint and creates a new lineage generation before writes are enabled. It is reserved for genuine abnormal inability to complete/recover the normal authoritative or target-directed path, not ordinary target substitution.
+
+Devices returning with an older generation cannot resume writing or consume an old target-bound grant without reinitialization.
+
+**Evidence:** multi-device recovery/generation tests.
+
+### AC-STO-010 — Non-authoritative and pending-transfer read-only mode
+
+A non-authoritative device clearly displays that live data may be stale and blocks authoritative business writes such as creating/modifying orders, payments, lifecycle changes, catalogue imports/edits, business-setting changes and archive execution.
+
+The same write block applies to:
+
+- non-target paired devices;
+- a former source after durable relinquishment;
+- a designated target before acquisition validation completes;
+- stale/old-generation devices.
+
+A former source in pending-transfer state may perform only technical retries needed to finish the same immutable already-fixed handoff. Printing remains governed by AC-PRINT-010.
+
+**Evidence:** authority-state/pending-transfer UI + centralized write-guard tests.
+
+### AC-STO-011 — Annual archive trigger
+
+On February 1, or the first later startup when the authoritative device can safely act, POS processes only the previous complete natural/calendar year. Delayed execution never expands the archive period into the current year's January.
+
+**Evidence:** date/scheduler tests.
+
+### AC-STO-012 — Archive-year assignment
+
+Archive year is based on when the business order ends:
+
+- Closed order -> year of `closed_at`;
+- Cancelled order -> year of `cancelled_at`;
+- Open order -> remains in live database regardless of age.
+
+The same rule applies whether the hidden source discriminator is ordinary POS or Hiboutik paste-created.
+
+**Evidence:** year-boundary archive tests.
+
+### AC-STO-013 — Archive publication safety
+
+Eligible records are removed from `live.db` only after a complete archive database is staged, validated, published to OneDrive Archive and publication/synchronization succeeds. Any failure leaves the records live and retryable.
+
+**Evidence:** archive failure-injection test.
+
+### AC-STO-014 — Permanent read-only annual archives
+
+Annual archives remain independent read-only SQLite historical databases, survive application reinstall, are retained permanently unless deliberately managed outside normal POS workflow, and remain queryable/reprintable through explicit archive selection.
+
+**Evidence:** reinstall/archive access test.
+
+## 10. Architecture, deployment and data integrity
+
+### AC-ARCH-001 — Frozen platform
+
+V1 implementation uses .NET 10 LTS, WPF, SQLite and Microsoft.Data.Sqlite as the approved core application stack unless an explicit specification amendment replaces it.
+
+**Evidence:** project/dependency inspection.
+
+### AC-ARCH-002 — Monetary persistence
+
+Persisted euro-denominated business money uses integer euro cents; business calculation uses decimal semantics and the approved round-half-up rules. Binary floating-point persistence/calculation must not determine business monetary results.
+
+**Evidence:** schema/code tests.
+
+### AC-ARCH-003 — SQLite durability profile
+
+Live database connections enforce foreign keys and the approved conservative durability profile, including WAL, synchronous FULL and a finite busy timeout target of five seconds. Multi-row business saves are transactional and write transactions are not held while awaiting user input, printing or OneDrive synchronization.
+
+**Evidence:** connection configuration/integration tests.
+
+### AC-ARCH-004 — Versioned safe migrations
+
+Schema changes are explicit/versioned/testable. A migration failure must not silently delete/recreate/reset production business data.
+
+**Evidence:** migration upgrade/failure tests.
+
+### AC-ARCH-005 — `.xlsx` library boundary
+
+Catalogue and POS export workbook operations use the approved ClosedXML application-service boundary without requiring Excel COM automation. Workbook parsing/generation failures cannot partially commit business state.
+
+**Evidence:** dependency/code inspection + failure tests.
+
+### AC-ARCH-006 — Windows printing boundary
+
+Printing uses application-owned deterministic print data/document generation followed by Windows print-queue/spooler integration. Business persistence does not depend on printer success.
+
+**Evidence:** architecture test/inspection.
+
+### AC-ARCH-007 — Installation/update separation
+
+V1 is delivered as a self-contained Windows x64 WPF application using the approved per-user Inno Setup approach. Updating/reinstalling binaries preserves `%LOCALAPPDATA%\Sushi81 POS` business data, device identity, configuration and durable authority/transfer state.
+
+V1 does not require a background self-update service.
+
+**Evidence:** install/upgrade/reinstall tests.
+
+## 11. Reliability, security and performance
+
+### AC-NFR-001 — Sensitive data is not committed to Git
+
+Repository test fixtures use synthetic/sanitized data. Real customer telephone numbers, addresses, orders, credentials or other sensitive production data are not committed.
+
+**Evidence:** repository review.
+
+### AC-NFR-002 — Deterministic core tests
+
+Business pricing, lifecycle arithmetic, payment-date attribution, catalogue import validation, Hiboutik parsing, storage/archive selection, export generation and print-data generation are testable without relying solely on manual production UI interaction.
+
+**Evidence:** automated test suite review.
+
+### AC-NFR-003 — Responsive normal workflow
+
+Common product search, add/quantity changes, order lookup, payment update and navigation behave interactively without recurring multi-second stalls. Print spooling must not freeze the UI while Windows performs physical printing.
+
+**Evidence:** manual performance acceptance + targeted timing tests where useful.
+
+### AC-NFR-004 — Clear failure behavior
+
+Operational failures such as parser failure, print submission failure, invalid catalogue import, failed/partial target-directed handoff, invalid snapshot, migration failure and export generation failure produce actionable operator feedback and do not silently corrupt/replace authoritative business data or re-enable a relinquished source.
+
+**Evidence:** failure-path acceptance tests.
+
+## 12. Explicit V1 exclusions to verify
+
+Acceptance must confirm that implementation has not introduced mandatory V1 subsystems outside the approved scope, including:
+
+- inventory/stock or purchasing;
+- table-service/table management;
+- employee accounts/roles/permissions;
+- loyalty/membership/marketing systems;
+- replacement of Hiboutik or automatic Hiboutik API synchronization;
+- direct card-terminal control or POS-managed refund execution;
+- full accounting/ERP functionality;
+- replacement of `Gestion SUSHI 81`;
+- heavyweight CRM/customer master;
+- formal B2B invoice lifecycle;
+- ordinary order revision-history UI;
+- operator-facing payment-event ledger;
+- special Hiboutik emergency-order UI/reconciliation model;
+- live SQLite database synchronization through OneDrive;
+- simultaneous multi-writer database operation;
+- generic competitive OneDrive claim/election for normal authority transfer;
+- hosted/Graph/OAuth coordination merely to arbitrate normal V1 handoff;
+- Git history, Git LFS, Actions artifacts, Packages or filesystem synchronization as the normal handoff transport.
+
+## 13. V1 acceptance gate
+
+V1 may be accepted for production preparation only when:
+
+1. every criterion above is either demonstrably passed or explicitly marked not applicable by an approved specification amendment;
+2. all required automated tests pass on the production-target build;
+3. installer/update/recovery/export/printing critical paths have controlled acceptance evidence;
+4. no unresolved contradiction exists between implementation and the frozen/amended V1 specification;
+5. no test fixture or repository artifact contains unsanitized production customer/business secrets.
+
+This document is the **Approved — Phase 5 acceptance baseline for the frozen V1 Specification, amended 2026-08-28 for target-directed authority handoff and GitHub Release Asset transport**.
+
+Codex implementation must treat these criteria as the acceptance contract. Any future behavior change that conflicts with them requires an explicit approved specification amendment; implementation must not silently waive a criterion by reproducing legacy VBA behavior that the approved V1 specification intentionally replaced.
