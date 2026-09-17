@@ -1,7 +1,7 @@
 # M10 — Catalogue `.xlsx` import/export — final owner manual acceptance
 
 **Status:** PREPARED / NOT YET EXECUTED  
-**Prepared:** 2026-09-17  
+**Prepared/finalized:** 2026-09-17  
 **Milestone:** M10  
 **Owner result:** NOT YET EXECUTED  
 **Implementation authorization:** NOT YET GRANTED  
@@ -28,19 +28,23 @@ Do not use the live production database for destructive/corruption acceptance ca
 
 1. Seed a realistic current catalogue containing:
    - multiple Categories;
+   - at least one Category with a short code and one Category without one;
    - Products with different VAT/prices/active/discount/options-enabled states;
    - SINGLE and MULTI OptionGroups;
-   - active and inactive Options;
-   - at least one Category short code under the final approved M10 contract.
+   - active and inactive Options.
 2. In the real Windows app, export Catalogue `.xlsx`.
 3. Open the generated file in Excel.
 
 Accept only if:
 
 - [ ] Excel opens the file normally with no repair/corruption warning;
-- [ ] visible logical sheets are `Products`, `OptionGroups`, `Options`;
+- [ ] visible logical sheets are exactly `Products`, `OptionGroups`, `Options`;
+- [ ] no operator-facing `Categories` sheet appears;
+- [ ] `Products` visibly exposes Category name and Category short code business columns;
+- [ ] every Product row shows the current Category short code accurately, blank when that Category has none;
 - [ ] ordinary business columns are understandable and practically editable;
 - [ ] technical Product/OptionGroup/Option identity is not exposed as normal editable business data;
+- [ ] `category_id` is not presented as an operator field;
 - [ ] ordinary operator actions do not accidentally overwrite protected technical bindings;
 - [ ] workbook remains usable for sorting/filtering/adding rows as designed;
 - [ ] current business values match the application exactly.
@@ -59,6 +63,7 @@ Notes:
 Accept only if:
 
 - [ ] preview reports no unintended Create/Modify/Activate/Deactivate operation;
+- [ ] Category short-code consistency fields do not produce false changes;
 - [ ] omitted/delete count does not exist;
 - [ ] preview clearly states no database change has occurred yet;
 - [ ] canceling leaves Catalogue unchanged;
@@ -67,13 +72,14 @@ Accept only if:
 Afterward re-export and compare the business catalogue.
 
 - [ ] Product/Group/Option identities and ordering remain stable;
+- [ ] Category names and short codes round-trip unchanged;
 - [ ] no duplicate Category/Product was created.
 
 Result: PASS / FAIL / NOT RUN
 
-## C — Normal Update mode — same-ID business edits
+## C — Normal Update mode — same-ID business edits and existing Category short-code safety
 
-From a fresh export make a controlled set of edits, including as applicable:
+From a fresh export make controlled edits including as applicable:
 
 - Product code;
 - Product name;
@@ -84,13 +90,23 @@ From a fresh export make a controlled set of edits, including as applicable:
 - discount-eligible state;
 - options-enabled state;
 - OptionGroup name/mode/required/min/max/order where valid;
-- Option name/price adjustment/active/order;
-- Category-short-code scenario required by the final owner-approved M10 contract.
+- Option name/price adjustment/active/order.
+
+Also exercise existing Category short-code behavior:
+
+1. leave one existing Category short-code cell blank;
+2. leave/use the same existing short code on another Product row referencing that Category;
+3. on a disposable copy, change an existing Category short code to a different non-blank value;
+4. for an existing Category that currently has no short code, try entering a non-blank one through Excel.
 
 Accept only if:
 
-- [ ] preview identifies exactly the intended modifications/state changes;
-- [ ] sheet/row details are understandable;
+- [ ] blank existing Category short-code cell preserves the current value;
+- [ ] same normalized existing short code is accepted as consistency data and does not create a Category mutation;
+- [ ] a different non-blank short code for an existing Category is a blocking Error;
+- [ ] adding a short code to an existing uncoded Category through the workbook is a blocking Error;
+- [ ] the error clearly tells the operator that existing Category short-code changes belong in the in-app Category manager/re-export workflow;
+- [ ] preview identifies exactly the intended Product/Group/Option modifications/state changes;
 - [ ] no unrelated record is included;
 - [ ] after Confirm, Product code change preserved the same internal Product identity;
 - [ ] changed records persist after app restart;
@@ -104,17 +120,27 @@ Result: PASS / FAIL / NOT RUN
    - one new Product;
    - one new OptionGroup for it;
    - multiple new Options;
-   - if supported by the final contract, one new valid Category reference.
-2. Use only the normal documented workbook parent-reference workflow; do not manually type database IDs.
+   - one new valid Category name with a valid optional Category short code.
+2. Add another Product row referencing that same new Category and use either the same short code or blank so the Category meaning remains consistent.
+3. Use only the normal documented workbook parent-reference workflow; do not manually type database IDs.
 
 Accept only if:
 
 - [ ] parent relationships are understandable to the operator;
 - [ ] preview shows creates, not accidental updates;
-- [ ] Confirm creates exactly one hierarchy;
-- [ ] Caisse can find/use the new active Product according to current rules;
+- [ ] exactly one new Category is proposed for the repeated normalized Category name;
+- [ ] its intended short code is shown/understandable in preview;
+- [ ] Confirm creates exactly one Category and one intended Product/Group/Option hierarchy set;
+- [ ] Caisse can find/use the new active Product according to current Category short-code navigation rules;
 - [ ] option selection behavior is correct;
-- [ ] restart/re-export preserves hierarchy and IDs.
+- [ ] restart/re-export preserves hierarchy, IDs and the new Category short code.
+
+Negative subcase:
+
+4. On a disposable copy, make two Product rows for the same new Category contain different non-blank short codes.
+
+- [ ] import blocks with a row-addressable Category short-code conflict;
+- [ ] no partial Category/Product creation occurs.
 
 Result: PASS / FAIL / NOT RUN
 
@@ -123,15 +149,16 @@ Result: PASS / FAIL / NOT RUN
 Use a controlled empty catalogue database/application profile.
 
 1. Obtain/create a valid no-existing-ID workbook/template.
-2. Add at least two Products, one new Category name and a Product with options.
+2. Add at least two Products, one new Category name with optional short code, and a Product with options.
 3. Select **Add-only** explicitly and preview.
 
 Accept only if:
 
 - [ ] preview clearly identifies Add-only/create-only mode;
-- [ ] complete first catalogue can be created without pre-existing Product IDs;
+- [ ] complete first catalogue can be created without pre-existing Product IDs or Category IDs;
+- [ ] new Category short code is created when provided and valid;
 - [ ] all created records work after restart/re-export;
-- [ ] Category/short-code behavior matches the final approved contract.
+- [ ] re-export repeats the created Category short code on Product rows.
 
 Then on a non-empty catalogue:
 
@@ -140,6 +167,12 @@ Then on a non-empty catalogue:
 - [ ] import is blocked as an Error;
 - [ ] it does not silently update the existing Product;
 - [ ] zero partial changes occur.
+
+5. Prepare an Add-only Product assigned by name to an existing Category and attempt to change that existing Category's short code in the row.
+
+- [ ] Category resolution itself is allowed;
+- [ ] the attempted existing Category short-code change is blocked;
+- [ ] existing Category data remains unchanged.
 
 Result: PASS / FAIL / NOT RUN
 
@@ -191,13 +224,15 @@ Prepare one workbook containing several valid changes plus at least one invalid 
 - duplicate Product code;
 - invalid SINGLE/MULTI/min/max structure;
 - required group with no usable active option;
-- invalid Category rule under final M10 semantics.
+- duplicate/conflicting Category name or Category short code;
+- attempted existing Category short-code change;
+- contradictory short codes across Product rows for one new Category.
 
 Accept only if:
 
 - [ ] all blocking Errors are visible/actionable;
 - [ ] Confirm is unavailable/rejected while any Error remains;
-- [ ] none of the valid rows partially applies;
+- [ ] none of the otherwise valid rows partially applies;
 - [ ] after fixing the Error(s), one Confirm applies the whole intended batch;
 - [ ] restart/re-export shows complete committed state.
 
@@ -225,13 +260,14 @@ Result: PASS / FAIL / NOT RUN
 
 1. Before importing, create/commit an ordinary order using a Product with options.
 2. Record its saved/reprinted Product code/name/category/price/option details and total.
-3. Through M10 change current Catalogue code/name/category/price/options for that Product.
+3. Through M10 change current Catalogue code/name/category/price/options for that Product, and where appropriate use another Category whose current short code differs.
 4. Reopen/reprint the historical order.
 
 Accept only if:
 
 - [ ] historical order remains readable;
 - [ ] its snapshots remain exactly the original sale-time business values;
+- [ ] current Category name/short-code changes in the live Catalogue do not retroactively reinterpret the historical snapshot;
 - [ ] current Catalogue changes are not retroactively joined into history;
 - [ ] historical total/tax/payment interpretation is unchanged.
 
@@ -244,7 +280,7 @@ Exercise Export, Import, preview, Errors and confirmation in both French and Sim
 Accept only if:
 
 - [ ] action labels/messages are understandable in both languages;
-- [ ] switching language does not alter parsed counts/business values or selected file/import state unexpectedly;
+- [ ] switching language does not alter parsed counts/business values, Category short-code meaning or selected file/import state unexpectedly;
 - [ ] preview remains usable at normal/default window size;
 - [ ] preview remains usable maximized/resized;
 - [ ] buttons are visible/content-sized and issue text scrolls/wraps appropriately;
@@ -266,6 +302,7 @@ Accept only if:
 
 - [ ] committed Catalogue persists;
 - [ ] all intended identities/relationships/state remain correct;
+- [ ] Category names/short codes remain correct and export consistently;
 - [ ] new export opens cleanly;
 - [ ] export matches the final current Catalogue;
 - [ ] there are no duplicate/phantom rows or missing omitted-from-prior-import records.
