@@ -1,6 +1,6 @@
 # M10 — Catalogue `.xlsx` import/export — worklog / evidence ledger
 
-**Status:** Implementation authorized — WP1 mailbox setup in progress  
+**Status:** Implementation authorized — WP3 active under Issue #4
 **Created:** 2026-09-17  
 **Milestone:** M10  
 **Issue #4:** must be OPEN only for the sole exact active handoff  
@@ -209,6 +209,20 @@ A worklog entry, `CODEX_DONE`, controller acceptance, owner manual PASSED or gre
 - Remaining manual evidence: owner Windows/Excel inspection remains required; import parser/planner, preview, atomic commit and WPF workflow remain excluded.
 - Blockers/unresolved items: none identified within the narrow repair scope.
 - Browser notification result: pending durable repair `CODEX_DONE` delivery.
+
+## Entry 2026-09-18 — `M10-WP3-ATOMIC-COMMIT-AUTHORITY-RECOVERY-07`
+
+- Authorization/gate state observed: Issue #4 OPEN and pointing to PR #22; exact WP3 handoff comment `5726485115` matched with required starting head `5da47fe5b0f409e310555e8d9dd5fe80fa4db9cd`.
+- Scope: atomic Catalogue import persistence, centralized authority/recovery integration, complete-Catalogue optimistic baseline validation, durable ID/reference resolution, rollback/concurrency and historical-order independence evidence. WP4/WPF workflow, WP5 hardening, schema changes, permanent deletion, merge and later milestones remain excluded.
+- Implementation: added Application-owned commit request/result contracts and service commit orchestration; added canonical complete-Catalogue baseline fingerprint; added one-transaction SQLite commit path with commit-time validation, local/entity reference maps, delayed ID allocation, explicit INSERT/UPDATE only and no-delete omitted-row behavior; added test-only mid-batch failure hook.
+- Authority/recovery: changed commits use one `IWriteAuthorityGuard.EnterWriteScopeAsync` and one non-cancellable post-commit `IDurableChangeNotifier.NotifyCommittedAsync`; no-op, authority, validation, concurrency and rollback failures notify zero times.
+- Evidence added: exact-entity update/notifier, mid-batch rollback/revision, transaction-runner rollback, Add-only first-initialization, and real SQLite historical-order/reprint-independence regressions, all using synthetic catalogue/order data. The import path touches catalogue tables only.
+- Files changed: `CatalogueImportContracts.cs`; `CatalogueImportPlanner.cs`; `SqliteCatalogueStore.cs`; `milestone-10-catalogue-xlsx.md`; this worklog; `M10Wp3CatalogueImportApplicationTests.cs`; `M10Wp3CatalogueImportCommitTests.cs`.
+- Focused tests: WP3 Application authority/commit suite **4/4 passed**; WP3 Infrastructure commit/rollback/initialization/historical-independence suite **5/5 passed**.
+- Full Release tests: **711/711 passed** across all six Release test assemblies; Release build: **0 warnings / 0 errors**.
+- `git diff --check`: passed (only expected CRLF normalization warnings for edited text files). Dependency audit: ClosedXML **0.105.1** remains the sole XLSX library; no COM/Interop/macros. Schema audit: no migration, durable business field or import-history table. Authority/recovery audit: one centralized write scope, one import transaction and one successful post-commit notification; no-op/authority/validation/concurrency/rollback failures notify zero times. Delete audit: no import Delete SQL or operation. Privacy audit: synthetic/generated fixtures only.
+- Remaining manual evidence: controller review and owner Windows/Excel acceptance remain unexecuted; WP4/WP5 remain unauthorized.
+- Blockers/unresolved items: none identified within the authorized WP3 scope at implementation start.
 
 ## Entry 2026-09-17 — `M10-WP2-PARSER-PLANNER-PREVIEW-04`
 

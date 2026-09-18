@@ -159,6 +159,36 @@ public interface ICatalogueImportBaselineQueries
 /// <summary>Optional combined read-side name reserved for the future WP3 import store.</summary>
 public interface ICatalogueImportStore : ICatalogueImportBaselineQueries
 {
+    Task<CatalogueImportCommitResult> CommitAsync(CatalogueImportCommitRequest request, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// The immutable preview capture handed to the single WP3 commit transaction.
+/// The baseline is carried by value so the persistence boundary can compare the
+/// complete Catalogue on the same live connection before its first write.
+/// </summary>
+public sealed record CatalogueImportCommitRequest(
+    CatalogueImportPlan Plan,
+    CatalogueImportBaseline PreviewBaseline,
+    string? ExpectedBaselineFingerprint = null)
+{
+    public string BaselineFingerprint => ExpectedBaselineFingerprint ?? CatalogueImportBaselineFingerprint.Compute(PreviewBaseline);
+}
+
+/// <summary>Durable result of one atomic Catalogue import attempt.</summary>
+public sealed record CatalogueImportCommitResult(
+    bool Succeeded,
+    bool Changed,
+    IReadOnlyList<CatalogueImportIssue> Issues,
+    IReadOnlyDictionary<string, Guid>? AllocatedIds = null)
+{
+    public bool IsBlocking => !Succeeded || Issues.Any(issue => issue.IsBlocking);
+
+    public static CatalogueImportCommitResult Success(bool changed, IReadOnlyDictionary<string, Guid>? allocatedIds = null) =>
+        new(true, changed, [], allocatedIds ?? new Dictionary<string, Guid>(StringComparer.Ordinal));
+
+    public static CatalogueImportCommitResult Failure(params CatalogueImportIssue[] issues) =>
+        new(false, false, issues);
 }
 
 public interface ICatalogueWorkbookImportGateway
@@ -258,9 +288,59 @@ public sealed record CatalogueImportPreview(
     bool DatabaseWasChanged = false,
     bool ExistingRecordsWillNotBeUpdated = false);
 
-public sealed record CatalogueImportResult(CatalogueImportPreview Preview, CatalogueImportPlan? Plan)
+public sealed record CatalogueImportResult(CatalogueImportPreview Preview, CatalogueImportPlan? Plan, CatalogueImportBaseline? PreviewBaseline = null)
 {
     public bool HasErrors => Preview.ErrorCount > 0;
+}
+
+/// <summary>
+/// Canonical, order-independent token for the complete current Catalogue.
+/// It intentionally includes opaque identities and parent relationships so a
+/// commit cannot silently apply a plan to a different hierarchy.
+/// </summary>
+public static class CatalogueImportBaselineFingerprint
+{
+    public static string Compute(CatalogueImportBaseline baseline)
+    {
+        ArgumentNullException.ThrowIfNull(baseline);
+        var text = new System.Text.StringBuilder("sushi81-catalogue-baseline-v1;");
+        foreach (var category in (baseline.Categories ?? []).OrderBy(value => value.Id))
+        {
+            Append(text, "category", category.Id.ToString("D"), category.Name, category.ShortCode);
+        }
+
+        foreach (var product in (baseline.Products ?? []).OrderBy(value => value.Id))
+        {
+            Append(text, "product", product.Id.ToString("D"), product.Code, product.Name, product.CategoryId.ToString("D"), product.CategoryName,
+                product.CategoryShortCode, product.PriceTtc.Cents.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                product.VatRate.ToString(System.Globalization.CultureInfo.InvariantCulture), product.IsActive ? "1" : "0",
+                product.DiscountEligible ? "1" : "0", product.OptionsEnabled ? "1" : "0");
+            foreach (var group in (product.OptionGroups ?? []).OrderBy(value => value.Id))
+            {
+                Append(text, "group", group.Id.ToString("D"), group.ProductId.ToString("D"), group.Name, group.SelectionMode.ToString(),
+                    group.IsRequired ? "1" : "0", group.MinSelections?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    group.MaxSelections?.ToString(System.Globalization.CultureInfo.InvariantCulture), group.DisplayOrder.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                foreach (var option in (group.Options ?? []).OrderBy(value => value.Id))
+                {
+                    Append(text, "option", option.Id.ToString("D"), option.OptionGroupId.ToString("D"), option.Name,
+                        option.PriceAdjustmentTtc.Cents.ToString(System.Globalization.CultureInfo.InvariantCulture), option.IsActive ? "1" : "0",
+                        option.DisplayOrder.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                }
+            }
+        }
+
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text.ToString()))).ToLowerInvariant();
+    }
+
+    private static void Append(System.Text.StringBuilder text, string kind, params string?[] values)
+    {
+        text.Append(kind.Length).Append(':').Append(kind).Append(';');
+        foreach (var value in values)
+        {
+            if (value is null) text.Append("N;");
+            else text.Append('V').Append(value.Length).Append(':').Append(value).Append(';');
+        }
+    }
 }
 
 /// <summary>Application-owned canonical typed fingerprint shared by WP1 export and WP2 planning.</summary>

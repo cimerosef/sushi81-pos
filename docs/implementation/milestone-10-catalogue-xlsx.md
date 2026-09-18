@@ -1,6 +1,6 @@
 # M10 — Catalogue `.xlsx` import/export — implementation contract
 
-**Status:** **WP1 CONTROLLER-ACCEPTED — WP2 ACTIVE UNDER ISSUE #4**
+**Status:** **WP1/WP2 CONTROLLER-ACCEPTED — WP3 ACTIVE UNDER ISSUE #4**
 **Prepared/finalized:** 2026-09-17  
 **Milestone:** M10  
 **Primary acceptance ownership:** AC-CAT-008 through AC-CAT-011; catalogue portion of AC-ARCH-005  
@@ -8,7 +8,14 @@
 **Category short-code decision:** Approved — `docs/decisions/m10-category-short-code-workbook-semantics.md`  
 **M11+ scope:** explicitly excluded
 
-> The frozen implementation contract is owner-authorized for the single active WP2 handoff recorded in PR #22 while Issue #4 is OPEN. WP1 is controller-accepted; this status does not authorize WP3, merge, M11, M12 or M13.
+> The frozen implementation contract is owner-authorized for the single active WP3 handoff recorded in PR #22 while Issue #4 is OPEN. WP1 and WP2 are controller-accepted; WP3 adds only the atomic Application/SQLite commit boundary, authority/recovery integration and regression evidence. This status does not authorize WP4, WP5, merge, M11, M12 or M13.
+
+### WP3 implemented mechanics (current-state contract)
+
+- `CatalogueImportService.CommitAsync` requires an error-free immutable preview, enters the centralized write-authority scope, calls the import store once, and invokes the durable-change notifier once only after a changed commit has returned successfully.
+- `SqliteCatalogueStore.CommitAsync` reads the complete Catalogue baseline on the same SQLite transaction, compares the canonical order-independent baseline fingerprint before the first write, revalidates references/scalars/resulting hierarchy, allocates new opaque IDs only after validation, and applies one explicit INSERT/UPDATE batch.
+- Import persistence never interprets omitted workbook rows as deletion and never calls the aggregate save helpers that delete omitted children. Existing child parent bindings remain immutable; planned references resolve through local/entity maps only.
+- The transaction runner remains the single revision/commit boundary. Rollback, stale-baseline, constraint, injected mid-batch and commit-failure paths return blocking issues without durable Catalogue mutation or notifier calls. Historical order tables are not touched.
 
 ## 1. Objective
 

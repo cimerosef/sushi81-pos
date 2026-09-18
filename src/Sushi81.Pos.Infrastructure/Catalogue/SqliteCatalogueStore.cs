@@ -33,6 +33,12 @@ public sealed class SqliteCatalogueStore(
     /// <summary>Test-only pause used to prove the import baseline is one coherent snapshot.</summary>
     internal Func<CancellationToken, Task>? ImportBaselineAfterProductsReadAsync { get; set; }
 
+    /// <summary>Test-only import failure seam; production composition leaves it null.</summary>
+    internal Func<int, Exception?>? ImportWriteFailureInjector { get; set; }
+
+    /// <summary>Test-only pause after the commit transaction has captured its live baseline.</summary>
+    internal Func<CancellationToken, Task>? ImportCommitAfterBaselineReadAsync { get; set; }
+
     public async Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
@@ -300,6 +306,63 @@ public sealed class SqliteCatalogueStore(
                     options.TryGetValue(group.Id, out var groupOptions) ? groupOptions.OrderBy(option => option.DisplayOrder).ThenBy(option => option.Id).ToArray() : [])).ToArray()
                 : [])).ToArray();
         return new CatalogueImportBaseline(categories, result);
+    }
+
+    /// <summary>
+    /// Commits one complete import plan through exactly one transaction. The
+    /// live baseline is read on that transaction before any allocation or write,
+    /// then the plan is revalidated and applied with explicit INSERT/UPDATE SQL.
+    /// Omitted rows are intentionally never part of the write set.
+    /// </summary>
+    public async Task<CatalogueImportCommitResult> CommitAsync(CatalogueImportCommitRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Plan is null || request.PreviewBaseline is null)
+            return CatalogueImportCommitResult.Failure(new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, "invalid-request", "The import commit request is incomplete."));
+        var previewFingerprint = CatalogueImportBaselineFingerprint.Compute(request.PreviewBaseline);
+        if (request.ExpectedBaselineFingerprint is not null && !string.Equals(previewFingerprint, request.ExpectedBaselineFingerprint, StringComparison.Ordinal))
+            return CatalogueImportCommitResult.Failure(new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, "baseline-token-mismatch", "The supplied baseline token does not describe the preview baseline."));
+        var shapeIssues = ValidateImportPlanShape(request.Plan);
+        if (shapeIssues.Count > 0) return new(false, false, shapeIssues);
+
+        try
+        {
+            var committed = await transactionRunner.ExecuteAsync(async (transaction, token) =>
+            {
+                var sqlite = RequireSqlite(transaction);
+                var current = await ReadCatalogueImportBaselineAsync(sqlite, token);
+                var commitBaselineHook = ImportCommitAfterBaselineReadAsync;
+                if (commitBaselineHook is not null) await commitBaselineHook(token);
+                var currentFingerprint = CatalogueImportBaselineFingerprint.Compute(current);
+                if (!string.Equals(currentFingerprint, request.BaselineFingerprint, StringComparison.Ordinal))
+                    throw new ImportCommitException(new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, "stale-baseline", "The current Catalogue changed after preview; refresh the preview before committing."));
+
+                var validation = ValidateImportPlanAgainstBaseline(request.Plan, current);
+                if (validation.Count > 0) throw new ImportCommitException(validation);
+
+                var allocated = AllocateImportIds(request.Plan, current);
+                var writeCount = await ApplyImportPlanAsync(sqlite, request.Plan, current, allocated, token);
+                return new ImportCommitTransactionResult(writeCount > 0, allocated);
+            }, cancellationToken);
+
+            return new(true, committed.Changed, [], committed.AllocatedIds);
+        }
+        catch (ImportCommitException exception)
+        {
+            return new(false, false, exception.Issues);
+        }
+        catch (SqliteException exception) when (IsConstraint(exception))
+        {
+            return new(false, false, [new(CatalogueImportIssueSeverity.Error, "persistence-conflict", "The Catalogue import conflicted with the current SQLite data and was rolled back.")]);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            return new(false, false, [new(CatalogueImportIssueSeverity.Error, "transaction-failed", $"The Catalogue import was rolled back: {exception.Message}")]);
+        }
     }
 
     public async Task<ProductDraft?> GetProductForEditAsync(Guid productId, CancellationToken cancellationToken = default)
@@ -603,6 +666,368 @@ public sealed class SqliteCatalogueStore(
         foreach (var old in existing.Where(x => !incoming.Contains(x))) await ExecuteAsync(sqlite, "DELETE FROM options WHERE option_id=$id;", token, ("$id", old.ToString()));
     }
 
+    private static List<CatalogueImportIssue> ValidateImportPlanShape(CatalogueImportPlan plan)
+    {
+        var issues = new List<CatalogueImportIssue>();
+        if (plan is null) { issues.Add(new(CatalogueImportIssueSeverity.Error, "invalid-plan", "The import plan is missing.")); return issues; }
+        if (!Enum.IsDefined(plan.Mode)) issues.Add(new(CatalogueImportIssueSeverity.Error, "invalid-mode", "The import mode is invalid."));
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var category in plan.NewCategories ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(category.LocalKey) || !keys.Add("category:" + category.LocalKey))
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "invalid-category-key", "A planned Category local key is missing or duplicated."));
+            if (string.IsNullOrWhiteSpace(category.Name)) issues.Add(new(CatalogueImportIssueSeverity.Error, "invalid-category", "A planned Category name is required."));
+        }
+        foreach (var operation in plan.Operations ?? [])
+        {
+            if (!Enum.IsDefined(operation.EntityType) || !Enum.IsDefined(operation.Kind))
+            {
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "invalid-operation", "The import plan contains an unknown operation kind."));
+                continue;
+            }
+            if (operation.Kind == CatalogueImportOperationKind.Create && operation.EntityId is not null)
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "create-has-id", "Create operations cannot carry an existing durable id.", operation.Worksheet, operation.ExcelRow));
+            if (operation.Kind != CatalogueImportOperationKind.Create && operation.EntityId is null)
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "existing-id-missing", "Existing operations require a durable id.", operation.Worksheet, operation.ExcelRow));
+            if (string.IsNullOrWhiteSpace(operation.LocalKey) || operation.EntityReference is null)
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "invalid-reference", "Every operation requires an explicit entity reference and local key.", operation.Worksheet, operation.ExcelRow));
+            else if (operation.EntityReference.ExistingId != operation.EntityId)
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "misbound-reference", "The operation entity reference does not match its durable id.", operation.Worksheet, operation.ExcelRow));
+            if (plan.Mode == CatalogueImportMode.AddOnly && operation.EntityId is not null)
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "add-only-existing-binding", "Add-only operations cannot target existing entities.", operation.Worksheet, operation.ExcelRow));
+            if (operation.EntityType == CatalogueImportEntityType.Category)
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "category-operation-forbidden", "Categories are created only through the planned Category list."));
+            if (operation.EntityType == CatalogueImportEntityType.Product && operation.CategoryReference is null)
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "category-reference-missing", "Every Product operation requires an explicit Category reference.", operation.Worksheet, operation.ExcelRow));
+            if (operation.EntityType is CatalogueImportEntityType.OptionGroup or CatalogueImportEntityType.Option && operation.ParentReference is null)
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "parent-reference-missing", "Every child operation requires an explicit parent reference.", operation.Worksheet, operation.ExcelRow));
+        }
+        return issues;
+    }
+
+    private static List<CatalogueImportIssue> ValidateImportPlanAgainstBaseline(CatalogueImportPlan plan, CatalogueImportBaseline current)
+    {
+        var issues = new List<CatalogueImportIssue>();
+        var products = (current.Products ?? []).ToDictionary(value => value.Id);
+        var groups = (current.Products ?? []).SelectMany(value => value.OptionGroups).ToDictionary(value => value.Id);
+        var options = (current.Products ?? []).SelectMany(value => value.OptionGroups).SelectMany(value => value.Options).ToDictionary(value => value.Id);
+        var categories = (current.Categories ?? []).ToDictionary(value => value.Id);
+        var categoryKeys = (current.Categories ?? []).GroupBy(value => value.NormalizedName, StringComparer.Ordinal).ToDictionary(value => value.Key, value => value.ToArray(), StringComparer.Ordinal);
+        foreach (var duplicate in categoryKeys.Where(value => value.Value.Length > 1))
+            issues.Add(new(CatalogueImportIssueSeverity.Error, "duplicate-category-name", "The current Catalogue contains duplicate normalized Category names."));
+        foreach (var duplicate in (current.Categories ?? []).Where(value => value.NormalizedShortCode is not null).GroupBy(value => value.NormalizedShortCode!, StringComparer.Ordinal).Where(value => value.Count() > 1))
+            issues.Add(new(CatalogueImportIssueSeverity.Error, "category-short-code-duplicate", "The current Catalogue contains duplicate normalized Category short codes."));
+        var plannedCategories = (plan.NewCategories ?? []).ToDictionary(value => value.LocalKey, StringComparer.Ordinal);
+        var productCreates = (plan.Operations ?? []).Where(value => value.EntityType == CatalogueImportEntityType.Product && value.Kind == CatalogueImportOperationKind.Create).ToDictionary(value => value.LocalKey, StringComparer.Ordinal);
+        var groupCreates = (plan.Operations ?? []).Where(value => value.EntityType == CatalogueImportEntityType.OptionGroup && value.Kind == CatalogueImportOperationKind.Create).ToDictionary(value => value.LocalKey, StringComparer.Ordinal);
+        var opCreates = (plan.Operations ?? []).Where(value => value.EntityType == CatalogueImportEntityType.Option && value.Kind == CatalogueImportOperationKind.Create).ToDictionary(value => value.LocalKey, StringComparer.Ordinal);
+        var operationKeys = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var operation in plan.Operations ?? [])
+        {
+            var key = operation.EntityType + ":" + operation.LocalKey;
+            if (!operationKeys.Add(key) && operation.Kind == CatalogueImportOperationKind.Create)
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "duplicate-create", "An entity has more than one Create operation.", operation.Worksheet, operation.ExcelRow));
+            if (operation.EntityType == CatalogueImportEntityType.Product && operation.EntityId is { } productId && !products.ContainsKey(productId))
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "unknown-entity-id", "Product identity is not present in the current Catalogue.", operation.Worksheet, operation.ExcelRow));
+            if (operation.EntityType == CatalogueImportEntityType.OptionGroup && operation.EntityId is { } groupId && !groups.ContainsKey(groupId))
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "unknown-entity-id", "OptionGroup identity is not present in the current Catalogue.", operation.Worksheet, operation.ExcelRow));
+            if (operation.EntityType == CatalogueImportEntityType.Option && operation.EntityId is { } optionId && !options.ContainsKey(optionId))
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "unknown-entity-id", "Option identity is not present in the current Catalogue.", operation.Worksheet, operation.ExcelRow));
+
+            if (operation.CategoryReference is { } categoryReference)
+            {
+                if (categoryReference.IsExisting && (categoryReference.ExistingId is null || !categories.ContainsKey(categoryReference.ExistingId.Value)))
+                    issues.Add(new(CatalogueImportIssueSeverity.Error, "unknown-category-reference", "Product Category reference is not present in the current Catalogue.", operation.Worksheet, operation.ExcelRow));
+                if (!categoryReference.IsExisting && !plannedCategories.ContainsKey(categoryReference.LocalKey))
+                    issues.Add(new(CatalogueImportIssueSeverity.Error, "unknown-category-reference", "Product Category reference does not resolve to a planned Category.", operation.Worksheet, operation.ExcelRow));
+            }
+            if (operation.ParentReference is { } parentReference)
+            {
+                if (operation.EntityType == CatalogueImportEntityType.OptionGroup)
+                {
+                    if (parentReference.IsExisting && (parentReference.ExistingId is null || !products.ContainsKey(parentReference.ExistingId.Value)))
+                        issues.Add(new(CatalogueImportIssueSeverity.Error, "unknown-parent-reference", "OptionGroup Product parent is not present in the current Catalogue.", operation.Worksheet, operation.ExcelRow));
+                    if (!parentReference.IsExisting && !productCreates.ContainsKey(parentReference.LocalKey))
+                        issues.Add(new(CatalogueImportIssueSeverity.Error, "unknown-parent-reference", "OptionGroup Product parent does not resolve to a planned Product.", operation.Worksheet, operation.ExcelRow));
+                    if (operation.EntityId is { } existingGroupId && groups.TryGetValue(existingGroupId, out var existingGroup)
+                        && (!parentReference.IsExisting || parentReference.ExistingId is not { } parentId || existingGroup.ProductId != parentId))
+                        issues.Add(new(CatalogueImportIssueSeverity.Error, "reparent-forbidden", "An existing OptionGroup cannot be re-parented by import.", operation.Worksheet, operation.ExcelRow));
+                }
+                else if (operation.EntityType == CatalogueImportEntityType.Option)
+                {
+                    if (parentReference.IsExisting && (parentReference.ExistingId is null || !groups.ContainsKey(parentReference.ExistingId.Value)))
+                        issues.Add(new(CatalogueImportIssueSeverity.Error, "unknown-parent-reference", "OptionGroup parent is not present in the current Catalogue.", operation.Worksheet, operation.ExcelRow));
+                    if (!parentReference.IsExisting && !groupCreates.ContainsKey(parentReference.LocalKey))
+                        issues.Add(new(CatalogueImportIssueSeverity.Error, "unknown-parent-reference", "OptionGroup parent does not resolve to a planned OptionGroup.", operation.Worksheet, operation.ExcelRow));
+                    if (operation.EntityId is { } existingOptionId && options.TryGetValue(existingOptionId, out var existingOption)
+                        && (!parentReference.IsExisting || parentReference.ExistingId is not { } parentGroupId || existingOption.OptionGroupId != parentGroupId))
+                        issues.Add(new(CatalogueImportIssueSeverity.Error, "reparent-forbidden", "An existing Option cannot be re-parented by import.", operation.Worksheet, operation.ExcelRow));
+                }
+            }
+        }
+
+        foreach (var category in plannedCategories.Values)
+        {
+            if (categoryKeys.TryGetValue(category.NormalizedName, out var existingCategories) && existingCategories.Length > 0) issues.Add(new(CatalogueImportIssueSeverity.Error, "category-name-duplicate", "A planned Category name already exists."));
+            if (category.NormalizedShortCode is { } code && (current.Categories ?? []).Any(value => value.NormalizedShortCode == code))
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "category-short-code-duplicate", "A planned Category short code already exists."));
+            if (CatalogueValidation.ValidateCategoryShortCode(category.ShortCode) is { } categoryError)
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "category-short-code-invalid", categoryError));
+        }
+
+        foreach (var group in (plan.Operations ?? []).GroupBy(value => (value.EntityType, value.LocalKey)))
+        {
+            var first = group.First();
+            foreach (var other in group.Skip(1))
+            {
+                if (!ValuesEqual(first.Values, other.Values) || first.EntityId != other.EntityId || first.EntityReference != other.EntityReference || first.CategoryReference != other.CategoryReference || first.ParentReference != other.ParentReference)
+                    issues.Add(new(CatalogueImportIssueSeverity.Error, "contradictory-operation", "Operations for one entity contain contradictory values.", other.Worksheet, other.ExcelRow));
+            }
+        }
+
+        ValidateDesiredScalarValues(plan, products, groups, options, issues);
+        ValidateResultingStructure(plan, current, issues);
+        return issues;
+    }
+
+    private static void ValidateDesiredScalarValues(CatalogueImportPlan plan, IReadOnlyDictionary<Guid, CatalogueImportBaselineProduct> products, IReadOnlyDictionary<Guid, CatalogueImportBaselineOptionGroup> groups, IReadOnlyDictionary<Guid, CatalogueImportBaselineOption> options, List<CatalogueImportIssue> issues)
+    {
+        foreach (var operation in plan.Operations ?? [])
+        {
+            try
+            {
+                switch (operation.EntityType)
+                {
+                    case CatalogueImportEntityType.Product:
+                        _ = Required(operation, "code"); _ = Required(operation, "name"); _ = Required(operation, "category");
+                        _ = ParseLong(operation, "priceCents"); _ = ParseDecimal(operation, "vatRate"); _ = ParseBool(operation, "isActive"); _ = ParseBool(operation, "discountEligible"); _ = ParseBool(operation, "optionsEnabled");
+                        break;
+                    case CatalogueImportEntityType.OptionGroup:
+                        _ = Required(operation, "productCode"); _ = Required(operation, "name");
+                        var mode = Required(operation, "selectionMode");
+                        if (!string.Equals(mode, "SINGLE", StringComparison.OrdinalIgnoreCase) && !string.Equals(mode, "MULTI", StringComparison.OrdinalIgnoreCase)) throw new FormatException("selectionMode");
+                        _ = ParseBool(operation, "isRequired"); _ = ParseOptionalInt(operation, "minSelections"); _ = ParseOptionalInt(operation, "maxSelections"); _ = ParseInt(operation, "displayOrder");
+                        break;
+                    case CatalogueImportEntityType.Option:
+                        _ = Required(operation, "name"); _ = ParseLong(operation, "priceAdjustmentCents"); _ = ParseBool(operation, "isActive"); _ = ParseInt(operation, "displayOrder");
+                        break;
+                }
+            }
+            catch (Exception)
+            {
+                issues.Add(new(CatalogueImportIssueSeverity.Error, "invalid-scalar", "An import operation contains a malformed typed value.", operation.Worksheet, operation.ExcelRow));
+            }
+        }
+    }
+
+    private static void ValidateResultingStructure(CatalogueImportPlan plan, CatalogueImportBaseline current, List<CatalogueImportIssue> issues)
+    {
+        var products = (current.Products ?? []).ToDictionary(value => value.Id, value => new ProductProjection(value.Id, value.Code, value.Name, value.CategoryId, value.PriceTtc, value.VatRate, value.IsActive, value.DiscountEligible, value.OptionsEnabled));
+        var groups = (current.Products ?? []).SelectMany(value => value.OptionGroups).ToDictionary(value => value.Id, value => new GroupProjection(value.Id, value.ProductId, value.Name, value.SelectionMode, value.IsRequired, value.MinSelections, value.MaxSelections, value.DisplayOrder));
+        var options = (current.Products ?? []).SelectMany(value => value.OptionGroups).SelectMany(value => value.Options).ToDictionary(value => value.Id, value => new OptionProjection(value.Id, value.OptionGroupId, value.Name, value.PriceAdjustmentTtc, value.IsActive, value.DisplayOrder));
+
+        foreach (var operationGroup in plan.Operations.Where(value => value.EntityType == CatalogueImportEntityType.Product).GroupBy(value => value.LocalKey, StringComparer.Ordinal))
+        {
+            try
+            {
+                var first = operationGroup.First(); var id = first.EntityId ?? DeterministicImportId(first.LocalKey);
+                var categoryId = first.CategoryReference?.ExistingId ?? DeterministicImportId(first.CategoryReference?.LocalKey ?? "category");
+                products[id] = new(id, Required(first, "code"), Required(first, "name"), categoryId, Money.FromCents(ParseLong(first, "priceCents")), ParseDecimal(first, "vatRate"), ParseBool(first, "isActive"), ParseBool(first, "discountEligible"), ParseBool(first, "optionsEnabled"));
+            }
+            catch (Exception) { /* scalar diagnostics are emitted by ValidateDesiredScalarValues */ }
+        }
+
+        var duplicateCodes = products.Values.GroupBy(value => CatalogueNormalization.Key(value.Code), StringComparer.Ordinal).Where(value => value.Key.Length == 0 || value.Count() > 1);
+        foreach (var duplicate in duplicateCodes) issues.Add(new(CatalogueImportIssueSeverity.Error, "duplicate-product-code", "The resulting Catalogue contains a duplicate or empty Product code."));
+        foreach (var product in products.Values)
+        {
+            var error = CatalogueValidation.ValidateProduct(product.Code, product.Name, product.CategoryId, product.PriceTtc, product.VatRate);
+            if (error is not null) issues.Add(new(CatalogueImportIssueSeverity.Error, "invalid-product", error));
+        }
+
+        foreach (var operationGroup in plan.Operations.Where(value => value.EntityType == CatalogueImportEntityType.OptionGroup).GroupBy(value => value.LocalKey, StringComparer.Ordinal))
+        {
+            try
+            {
+                var first = operationGroup.First(); var id = first.EntityId ?? DeterministicImportId(first.LocalKey);
+                var parentId = first.ParentReference?.ExistingId ?? DeterministicImportId(first.ParentReference?.LocalKey ?? "product");
+                var mode = string.Equals(Required(first, "selectionMode"), "MULTI", StringComparison.OrdinalIgnoreCase) ? SelectionMode.Multi : SelectionMode.Single;
+                groups[id] = new(id, parentId, Required(first, "name"), mode, ParseBool(first, "isRequired"), ParseOptionalInt(first, "minSelections"), ParseOptionalInt(first, "maxSelections"), ParseInt(first, "displayOrder"));
+            }
+            catch (Exception) { }
+        }
+        foreach (var duplicate in groups.Values.GroupBy(value => (value.ProductId, value.DisplayOrder)).Where(value => value.Count() > 1)) issues.Add(new(CatalogueImportIssueSeverity.Error, "invalid-group-structure", "Option group display order must be unique within a Product."));
+        foreach (var group in groups.Values)
+        {
+            var error = CatalogueValidation.ValidateGroup(new OptionGroup(group.Id, group.ProductId, group.Name, group.SelectionMode, group.IsRequired, group.MinSelections, group.MaxSelections, group.DisplayOrder, default, default));
+            if (error is not null) issues.Add(new(CatalogueImportIssueSeverity.Error, "invalid-group-structure", error));
+        }
+
+        foreach (var operationGroup in plan.Operations.Where(value => value.EntityType == CatalogueImportEntityType.Option).GroupBy(value => value.LocalKey, StringComparer.Ordinal))
+        {
+            try
+            {
+                var first = operationGroup.First(); var id = first.EntityId ?? DeterministicImportId(first.LocalKey);
+                var parentId = first.ParentReference?.ExistingId ?? DeterministicImportId(first.ParentReference?.LocalKey ?? "group");
+                options[id] = new(id, parentId, Required(first, "name"), Money.FromCents(ParseLong(first, "priceAdjustmentCents")), ParseBool(first, "isActive"), ParseInt(first, "displayOrder"));
+            }
+            catch (Exception) { }
+        }
+        foreach (var duplicate in options.Values.GroupBy(value => (value.OptionGroupId, value.DisplayOrder)).Where(value => value.Count() > 1)) issues.Add(new(CatalogueImportIssueSeverity.Error, "invalid-option-structure", "Option display order must be unique within an OptionGroup."));
+        foreach (var option in options.Values)
+        {
+            var error = CatalogueValidation.ValidateOption(new ProductOption(option.Id, option.OptionGroupId, option.Name, option.PriceAdjustmentTtc, option.IsActive, option.DisplayOrder, default, default));
+            if (error is not null) issues.Add(new(CatalogueImportIssueSeverity.Error, "invalid-option-structure", error));
+        }
+        foreach (var product in products.Values.Where(value => value.OptionsEnabled))
+        {
+            foreach (var group in groups.Values.Where(value => value.ProductId == product.Id))
+            {
+                var active = options.Values.Count(value => value.OptionGroupId == group.Id && value.IsActive);
+                var minimum = group.SelectionMode == SelectionMode.Single ? (group.IsRequired ? 1 : 0) : group.MinSelections ?? 0;
+                if (active < minimum) issues.Add(new(CatalogueImportIssueSeverity.Error, "required-active-choices", "Option group does not have enough active choices."));
+            }
+        }
+    }
+
+    private Dictionary<string, Guid> AllocateImportIds(CatalogueImportPlan plan, CatalogueImportBaseline current)
+    {
+        var result = new Dictionary<string, Guid>(StringComparer.Ordinal);
+        var occupied = new HashSet<Guid>((current.Categories ?? []).Select(value => value.Id).Concat((current.Products ?? []).Select(value => value.Id)).Concat((current.Products ?? []).SelectMany(value => value.OptionGroups).Select(value => value.Id)).Concat((current.Products ?? []).SelectMany(value => value.OptionGroups).SelectMany(value => value.Options).Select(value => value.Id)));
+        foreach (var key in (plan.NewCategories ?? []).Select(value => "category:" + value.LocalKey).Concat(plan.Operations.Where(value => value.Kind == CatalogueImportOperationKind.Create).Select(value => value.EntityType + ":" + value.LocalKey)).Distinct(StringComparer.Ordinal).OrderBy(value => value, StringComparer.Ordinal))
+        {
+            var id = idGenerator.NewId();
+            if (id == Guid.Empty || !occupied.Add(id)) throw new ImportCommitException(new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, "invalid-allocated-id", "The durable id generator returned an empty or colliding id."));
+            result[key] = id;
+            var separator = key.IndexOf(':');
+            if (separator >= 0) result.TryAdd(key[(separator + 1)..], id);
+        }
+        return result;
+    }
+
+    private async Task<int> ApplyImportPlanAsync(SqliteApplicationTransaction sqlite, CatalogueImportPlan plan, CatalogueImportBaseline current, Dictionary<string, Guid> allocated, CancellationToken token)
+    {
+        var now = Format(clock.UtcNow);
+        var changed = 0;
+        foreach (var category in plan.NewCategories ?? [])
+        {
+            var id = allocated["category:" + category.LocalKey];
+            changed += await ExecuteAsync(sqlite, "INSERT INTO categories(category_id,name,normalized_name,short_code,normalized_short_code,created_at_utc,updated_at_utc) VALUES ($id,$name,$normalized,$shortCode,$normalizedShortCode,$created,$updated);", token,
+                ("$id", id.ToString()), ("$name", CatalogueNormalization.Display(category.Name)), ("$normalized", category.NormalizedName),
+                ("$shortCode", string.IsNullOrWhiteSpace(category.ShortCode) ? null : CatalogueNormalization.Display(category.ShortCode)), ("$normalizedShortCode", category.NormalizedShortCode), ("$created", now), ("$updated", now));
+        }
+
+        var productOps = plan.Operations.Where(value => value.EntityType == CatalogueImportEntityType.Product).GroupBy(value => value.LocalKey, StringComparer.Ordinal).Select(value => value.ToArray()).ToArray();
+        foreach (var operations in productOps.Where(value => value[0].EntityId is not null))
+        {
+            var id = operations[0].EntityId!.Value;
+            changed += await ExecuteAsync(sqlite, "UPDATE products SET code=$code,normalized_code=$normalized WHERE product_id=$id;", token,
+                ("$id", id.ToString()), ("$code", "__sushi81_import_tmp_" + id.ToString("N")), ("$normalized", "__sushi81_import_tmp_" + id.ToString("N")));
+        }
+        foreach (var operations in productOps)
+        {
+            var first = operations[0];
+            var id = first.EntityId ?? allocated["Product:" + first.LocalKey];
+            var categoryId = ResolveReference(first.CategoryReference!, allocated);
+            var values = (first.Values ?? new Dictionary<string, string?>());
+            var sql = first.EntityId is null
+                ? "INSERT INTO products(product_id,code,normalized_code,name,category_id,price_ttc_cents,vat_rate,is_active,discount_eligible,options_enabled,created_at_utc,updated_at_utc) VALUES ($id,$code,$normalized,$name,$category,$price,$vat,$active,$discount,$options,$created,$updated);"
+                : "UPDATE products SET code=$code,normalized_code=$normalized,name=$name,category_id=$category,price_ttc_cents=$price,vat_rate=$vat,is_active=$active,discount_eligible=$discount,options_enabled=$options,updated_at_utc=$updated WHERE product_id=$id;";
+            changed += await ExecuteAsync(sqlite, sql, token, ("$id", id.ToString()), ("$code", CatalogueNormalization.Display(Required(first, "code"))), ("$normalized", CatalogueNormalization.Key(Required(first, "code"))), ("$name", CatalogueNormalization.Display(Required(first, "name"))), ("$category", categoryId.ToString()), ("$price", ParseLong(first, "priceCents")), ("$vat", FormatDecimal(ParseDecimal(first, "vatRate"))), ("$active", ParseBool(first, "isActive") ? 1 : 0), ("$discount", ParseBool(first, "discountEligible") ? 1 : 0), ("$options", ParseBool(first, "optionsEnabled") ? 1 : 0), ("$created", now), ("$updated", now));
+            if (ImportWriteFailureInjector?.Invoke(changed) is { } injected) throw injected;
+        }
+
+        var groupOps = plan.Operations.Where(value => value.EntityType == CatalogueImportEntityType.OptionGroup).GroupBy(value => value.LocalKey, StringComparer.Ordinal).Select(value => value.ToArray()).ToArray();
+        foreach (var operations in groupOps.Where(value => value[0].EntityId is not null))
+        {
+            changed += await ExecuteAsync(sqlite, "UPDATE option_groups SET display_order=display_order+1000000 WHERE option_group_id=$id;", token, ("$id", operations[0].EntityId!.Value.ToString()));
+        }
+        foreach (var operations in groupOps)
+        {
+            var first = operations[0]; var id = first.EntityId ?? allocated["OptionGroup:" + first.LocalKey]; var parentId = ResolveReference(first.ParentReference!, allocated);
+            var sql = first.EntityId is null
+                ? "INSERT INTO option_groups(option_group_id,product_id,name,selection_mode,is_required,min_selections,max_selections,display_order,created_at_utc,updated_at_utc) VALUES ($id,$product,$name,$mode,$required,$min,$max,$order,$created,$updated);"
+                : "UPDATE option_groups SET name=$name,selection_mode=$mode,is_required=$required,min_selections=$min,max_selections=$max,display_order=$order,updated_at_utc=$updated WHERE option_group_id=$id;";
+            changed += await ExecuteAsync(sqlite, sql, token, ("$id", id.ToString()), ("$product", parentId.ToString()), ("$name", CatalogueNormalization.Display(Required(first, "name"))), ("$mode", Required(first, "selectionMode").ToUpperInvariant()), ("$required", ParseBool(first, "isRequired") ? 1 : 0), ("$min", ParseOptionalInt(first, "minSelections")), ("$max", ParseOptionalInt(first, "maxSelections")), ("$order", ParseInt(first, "displayOrder")), ("$created", now), ("$updated", now));
+            if (ImportWriteFailureInjector?.Invoke(changed) is { } injected) throw injected;
+        }
+
+        var optionOps = plan.Operations.Where(value => value.EntityType == CatalogueImportEntityType.Option).GroupBy(value => value.LocalKey, StringComparer.Ordinal).Select(value => value.ToArray()).ToArray();
+        foreach (var operations in optionOps.Where(value => value[0].EntityId is not null))
+        {
+            changed += await ExecuteAsync(sqlite, "UPDATE options SET display_order=display_order+1000000 WHERE option_id=$id;", token, ("$id", operations[0].EntityId!.Value.ToString()));
+        }
+        foreach (var operations in optionOps)
+        {
+            var first = operations[0]; var id = first.EntityId ?? allocated["Option:" + first.LocalKey]; var parentId = ResolveReference(first.ParentReference!, allocated);
+            var sql = first.EntityId is null
+                ? "INSERT INTO options(option_id,option_group_id,name,price_adjustment_ttc_cents,is_active,display_order,created_at_utc,updated_at_utc) VALUES ($id,$group,$name,$price,$active,$order,$created,$updated);"
+                : "UPDATE options SET name=$name,price_adjustment_ttc_cents=$price,is_active=$active,display_order=$order,updated_at_utc=$updated WHERE option_id=$id;";
+            changed += await ExecuteAsync(sqlite, sql, token, ("$id", id.ToString()), ("$group", parentId.ToString()), ("$name", CatalogueNormalization.Display(Required(first, "name"))), ("$price", ParseLong(first, "priceAdjustmentCents")), ("$active", ParseBool(first, "isActive") ? 1 : 0), ("$order", ParseInt(first, "displayOrder")), ("$created", now), ("$updated", now));
+            if (ImportWriteFailureInjector?.Invoke(changed) is { } injected) throw injected;
+        }
+        return changed;
+    }
+
+    private static Guid ResolveReference(CatalogueImportEntityReference reference, Dictionary<string, Guid> allocated) =>
+        reference.IsExisting ? reference.ExistingId!.Value : allocated.TryGetValue(reference.LocalKey, out var id) ? id : throw new ImportCommitException(new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, "unknown-reference", "An import reference could not be resolved."));
+
+    private static string Required(CatalogueImportOperation operation, string key) => operation.Values is not null && operation.Values.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? value! : throw new FormatException(key);
+    private static bool ValuesEqual(IReadOnlyDictionary<string, string?>? left, IReadOnlyDictionary<string, string?>? right) =>
+        left is not null && right is not null && left.Count == right.Count && left.All(pair => right.TryGetValue(pair.Key, out var value) && string.Equals(pair.Value, value, StringComparison.Ordinal));
+    private static bool TryGet(CatalogueImportOperation operation, string key, out string value) { value = string.Empty; if (operation.Values is null || !operation.Values.TryGetValue(key, out var candidate) || string.IsNullOrWhiteSpace(candidate)) return false; value = candidate; return true; }
+    private static bool ParseBool(CatalogueImportOperation operation, string key) => bool.TryParse(Required(operation, key), out var value) ? value : throw new FormatException(key);
+    private static long ParseLong(CatalogueImportOperation operation, string key) => long.TryParse(Required(operation, key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : throw new FormatException(key);
+    private static int ParseInt(CatalogueImportOperation operation, string key) => int.TryParse(Required(operation, key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : throw new FormatException(key);
+    private static int? ParseOptionalInt(CatalogueImportOperation operation, string key) => operation.Values is not null && operation.Values.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : throw new FormatException(key)) : null;
+    private static decimal ParseDecimal(CatalogueImportOperation operation, string key) => decimal.TryParse(Required(operation, key), NumberStyles.Number, CultureInfo.InvariantCulture, out var value) ? value : throw new FormatException(key);
+    private static Guid DeterministicImportId(string key) => new(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("import:" + key))[..16]);
+
+    private static async Task<CatalogueImportBaseline> ReadCatalogueImportBaselineAsync(SqliteApplicationTransaction sqlite, CancellationToken cancellationToken)
+    {
+        var categories = new List<CatalogueImportCategory>();
+        await using (var command = sqlite.Connection.CreateCommand())
+        {
+            command.Transaction = sqlite.Transaction; command.CommandText = "SELECT category_id,name,short_code FROM categories ORDER BY normalized_name,category_id;";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken)) categories.Add(new(ParseGuid(reader.GetString(0)), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2)));
+        }
+        var products = new List<BaselineProductRow>();
+        await using (var command = sqlite.Connection.CreateCommand())
+        {
+            command.Transaction = sqlite.Transaction; command.CommandText = "SELECT p.product_id,p.code,p.name,p.category_id,c.name,c.short_code,p.price_ttc_cents,p.vat_rate,p.is_active,p.discount_eligible,p.options_enabled FROM products p JOIN categories c ON c.category_id=p.category_id ORDER BY p.normalized_code,p.product_id;";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken)) products.Add(new(ParseGuid(reader.GetString(0)), reader.GetString(1), reader.GetString(2), ParseGuid(reader.GetString(3)), reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5), Money.FromCents(reader.GetInt64(6)), ParseDecimal(reader.GetString(7)), reader.GetInt64(8) == 1, reader.GetInt64(9) == 1, reader.GetInt64(10) == 1));
+        }
+        var groups = new Dictionary<Guid, List<BaselineGroupRow>>();
+        await using (var command = sqlite.Connection.CreateCommand())
+        {
+            command.Transaction = sqlite.Transaction; command.CommandText = "SELECT option_group_id,product_id,name,selection_mode,is_required,min_selections,max_selections,display_order FROM option_groups ORDER BY product_id,display_order,option_group_id;";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var productId = ParseGuid(reader.GetString(1));
+                if (!groups.TryGetValue(productId, out var values)) { values = []; groups.Add(productId, values); }
+                values.Add(new(ParseGuid(reader.GetString(0)), productId, reader.GetString(2), ParseSelectionMode(reader.GetString(3)), reader.GetInt64(4) == 1, reader.IsDBNull(5) ? null : reader.GetInt32(5), reader.IsDBNull(6) ? null : reader.GetInt32(6), reader.GetInt32(7), []));
+            }
+        }
+        var options = new Dictionary<Guid, List<CatalogueImportBaselineOption>>();
+        await using (var command = sqlite.Connection.CreateCommand())
+        {
+            command.Transaction = sqlite.Transaction; command.CommandText = "SELECT option_id,option_group_id,name,price_adjustment_ttc_cents,is_active,display_order FROM options ORDER BY option_group_id,display_order,option_id;";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var groupId = ParseGuid(reader.GetString(1));
+                if (!options.TryGetValue(groupId, out var values)) { values = []; options.Add(groupId, values); }
+                values.Add(new(ParseGuid(reader.GetString(0)), groupId, reader.GetString(2), Money.FromCents(reader.GetInt64(3)), reader.GetInt64(4) == 1, reader.GetInt32(5)));
+            }
+        }
+        var result = products.Select(product => new CatalogueImportBaselineProduct(product.Id, product.Code, product.Name, product.CategoryId, product.CategoryName, product.CategoryShortCode, product.PriceTtc, product.VatRate, product.IsActive, product.DiscountEligible, product.OptionsEnabled,
+            groups.TryGetValue(product.Id, out var productGroups) ? productGroups.OrderBy(value => value.DisplayOrder).ThenBy(value => value.Id).Select(group => new CatalogueImportBaselineOptionGroup(group.Id, product.Id, group.Name, group.SelectionMode, group.IsRequired, group.MinSelections, group.MaxSelections, group.DisplayOrder, options.TryGetValue(group.Id, out var groupOptions) ? groupOptions.OrderBy(value => value.DisplayOrder).ThenBy(value => value.Id).ToArray() : [])).ToArray() : [])).ToArray();
+        return new CatalogueImportBaseline(categories, result);
+    }
+
     private static async Task<IReadOnlyList<OptionDraft>> ReadOptionsAsync(SqliteConnection connection, Guid groupId, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
@@ -735,6 +1160,19 @@ public sealed class SqliteCatalogueStore(
         int? MaxSelections,
         int DisplayOrder,
         IReadOnlyList<CatalogueImportBaselineOption> Options);
+
+    private sealed record ImportCommitTransactionResult(bool Changed, IReadOnlyDictionary<string, Guid> AllocatedIds);
+
+    private sealed record ProductProjection(Guid Id, string Code, string Name, Guid CategoryId, Money PriceTtc, decimal VatRate, bool IsActive, bool DiscountEligible, bool OptionsEnabled);
+    private sealed record GroupProjection(Guid Id, Guid ProductId, string Name, SelectionMode SelectionMode, bool IsRequired, int? MinSelections, int? MaxSelections, int DisplayOrder);
+    private sealed record OptionProjection(Guid Id, Guid OptionGroupId, string Name, Money PriceAdjustmentTtc, bool IsActive, int DisplayOrder);
+
+    private sealed class ImportCommitException : Exception
+    {
+        public ImportCommitException(params CatalogueImportIssue[] issues) : base(issues.FirstOrDefault()?.Message) => Issues = issues;
+        public ImportCommitException(IReadOnlyList<CatalogueImportIssue> issues) : base(issues.Count == 0 ? null : issues[0].Message) => Issues = issues.ToArray();
+        public IReadOnlyList<CatalogueImportIssue> Issues { get; }
+    }
 
     private sealed class CatalogueConflictException(string message) : Exception(message);
 }

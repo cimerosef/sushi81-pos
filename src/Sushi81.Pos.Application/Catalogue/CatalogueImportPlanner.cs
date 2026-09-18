@@ -598,18 +598,80 @@ public sealed class CatalogueImportPlanner
 }
 
 /// <summary>Read-only parser/baseline/planner orchestration for WP2 preview.</summary>
-public sealed class CatalogueImportService(
-    ICatalogueWorkbookImportGateway workbookGateway,
-    ICatalogueImportBaselineQueries baselineQueries)
+public sealed class CatalogueImportService
 {
-    private readonly ICatalogueWorkbookImportGateway workbookGateway = workbookGateway ?? throw new ArgumentNullException(nameof(workbookGateway));
-    private readonly ICatalogueImportBaselineQueries baselineQueries = baselineQueries ?? throw new ArgumentNullException(nameof(baselineQueries));
+    private readonly ICatalogueWorkbookImportGateway workbookGateway;
+    private readonly ICatalogueImportBaselineQueries baselineQueries;
+    private readonly ICatalogueImportStore? importStore;
+    private readonly Sushi81.Pos.Application.Foundation.Authority.IWriteAuthorityGuard authorityGuard;
+    private readonly Sushi81.Pos.Application.Foundation.Recovery.IDurableChangeNotifier notifier;
+
+    public CatalogueImportService(ICatalogueWorkbookImportGateway workbookGateway, ICatalogueImportBaselineQueries baselineQueries)
+        : this(workbookGateway, baselineQueries, null,
+            Sushi81.Pos.Application.Foundation.TestOnlyAuthoritativeGuard.Instance,
+            Sushi81.Pos.Application.Foundation.TestOnlyDurableChangeNotifier.Instance)
+    {
+    }
+
+    public CatalogueImportService(
+        ICatalogueWorkbookImportGateway workbookGateway,
+        ICatalogueImportBaselineQueries baselineQueries,
+        ICatalogueImportStore? importStore,
+        Sushi81.Pos.Application.Foundation.Authority.IWriteAuthorityGuard authorityGuard,
+        Sushi81.Pos.Application.Foundation.Recovery.IDurableChangeNotifier notifier)
+    {
+        this.workbookGateway = workbookGateway ?? throw new ArgumentNullException(nameof(workbookGateway));
+        this.baselineQueries = baselineQueries ?? throw new ArgumentNullException(nameof(baselineQueries));
+        this.importStore = importStore;
+        this.authorityGuard = authorityGuard ?? throw new ArgumentNullException(nameof(authorityGuard));
+        this.notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
+    }
 
     public async Task<CatalogueImportResult> PreviewAsync(Stream source, CatalogueImportMode mode, string? sourceName = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
         var workbook = await workbookGateway.ReadAsync(source, sourceName, cancellationToken);
         var baseline = workbook.HasErrors ? CatalogueImportBaseline.Empty : await baselineQueries.ReadCatalogueImportBaselineAsync(cancellationToken);
-        return new CatalogueImportPlanner().Plan(mode, workbook, baseline, sourceName);
+        var result = new CatalogueImportPlanner().Plan(mode, workbook, baseline, sourceName);
+        return result with { PreviewBaseline = baseline };
     }
+
+    /// <summary>
+    /// Commits the exact immutable preview capture through one authority scope
+    /// and one store transaction. A notifier is called only after a changed
+    /// transaction has returned successfully and is deliberately non-cancellable.
+    /// </summary>
+    public async Task<CatalogueImportCommitResult> CommitAsync(CatalogueImportResult preview, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(preview);
+        if (preview.HasErrors || preview.Plan is null || preview.PreviewBaseline is null)
+        {
+            var issues = preview.Preview.Issues.Where(issue => issue.IsBlocking).ToArray();
+            if (issues.Length == 0)
+                issues = new[] { new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, "preview-required", "A valid error-free preview is required before commit.") };
+            return new(false, false, issues);
+        }
+
+        if (importStore is null)
+            return CatalogueImportCommitResult.Failure(new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, "commit-store-unavailable", "Catalogue import commit storage is not configured."));
+
+        try
+        {
+            await using var authorityScope = await authorityGuard.EnterWriteScopeAsync(cancellationToken);
+            var committed = await importStore.CommitAsync(new CatalogueImportCommitRequest(preview.Plan, preview.PreviewBaseline), cancellationToken);
+            if (committed.Succeeded && committed.Changed)
+            {
+                try { await notifier.NotifyCommittedAsync(CancellationToken.None); }
+                catch { /* The SQLite commit is durable; recovery scheduling remains best-effort. */ }
+            }
+            return committed;
+        }
+        catch (Sushi81.Pos.Application.Foundation.Authority.WriteAuthorityException exception)
+        {
+            return CatalogueImportCommitResult.Failure(new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, "authority-blocked", $"Local write authority is unavailable ({exception.State})."));
+        }
+    }
+
+    public Task<CatalogueImportCommitResult> CommitAsync(CatalogueImportPlan plan, CatalogueImportBaseline previewBaseline, CancellationToken cancellationToken = default) =>
+        CommitAsync(new CatalogueImportResult(new CatalogueImportPreview(plan.Mode, plan.SourceName, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, plan.NewCategories.Count, 0, 0, [], plan.AffectedRows), plan, previewBaseline), cancellationToken);
 }
