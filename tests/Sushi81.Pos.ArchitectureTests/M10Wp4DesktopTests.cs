@@ -198,7 +198,8 @@ public sealed class M10Wp4DesktopTests
     [TestMethod]
     public void ProductionCompositionKeepsOneCatalogueStoreAndOneImportServicePath()
     {
-        var composition = File.ReadAllText(LocateRepositoryFile("src", "Sushi81.Pos.Desktop", "CompositionRoot.cs"));
+        var composition = File.ReadAllText(LocateRepositoryFile("src", "Sushi81.Pos.Desktop", "CompositionRoot.cs"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
         StringAssert.Contains(composition, "var catalogueStore = new SqliteCatalogueStore");
         Assert.AreEqual(1, CountOccurrences(composition, "new CatalogueWorkbookService(catalogueStore, catalogueWorkbookGateway)"));
         Assert.AreEqual(1, CountOccurrences(composition, "new CatalogueImportService(") );
