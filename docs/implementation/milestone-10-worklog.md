@@ -269,10 +269,12 @@ A worklog entry, `CODEX_DONE`, controller acceptance, owner manual PASSED or gre
 - Files changed: `CatalogueImportCommitValidator.cs`; `CatalogueImportPlanner.cs`; `SqliteCatalogueStore.cs`; `M10Wp3CatalogueImportApplicationTests.cs`; `M10Wp3CatalogueImportCommitValidatorTests.cs`; `M10Wp3CatalogueImportCommitTests.cs`; this contract and worklog.
 - Prior-entry correction: the earlier WP3 entry recorded **711/711** before exact-head CI; its exact-head CI result was **712/712**. This repair entry records the later final Release count after the new evidence tests.
 - Focused tests before final full run: Application WP3 suite **9/9 passed** plus validator matrix **4/4 passed**; Infrastructure WP3 suite **8/8 passed**.
-- Full Release tests: **720/720 passed** across all six Release test assemblies; Release build: **0 warnings / 0 errors**. Exact pushed head, CI run and browser notification result remain pending final repair push and durable `CODEX_DONE` delivery.
+- Ending pushed PR head: `a6a05d6df66bdb917113694ad77f58c44e2aa9a1`.
+- Full Release tests: **720/720 passed** across all six Release test assemblies; Release build: **0 warnings / 0 errors**. Exact-head CI **#766 / run `35324532363`** completed **SUCCESS** for the pushed head.
 - `git diff --check`: passed (only expected CRLF normalization warnings for edited text files). Dependency audit: ClosedXML **0.105.1** remains the sole XLSX library; no COM/Interop/macros. Schema audit: no migration, durable business field or import-history table. Authority/recovery audit: one centralized write scope, one import transaction and one successful post-commit notification; no-op/authority/validation/concurrency/rollback failures notify zero times. Delete audit: import path has no Delete operation or SQL. Privacy audit: synthetic/generated fixtures only.
 - Remaining manual evidence: controller review and owner Windows/Excel acceptance remain unexecuted; WP4/WP5 remain unauthorized.
 - Blockers/unresolved items: none identified within this authorized repair scope.
+- Browser notification result: pending durable `CODEX_DONE` delivery.
 
 ## Entry 2026-09-18 — `M10-WP2-REPAIR-NORMALIZATION-EVIDENCE-06`
 
