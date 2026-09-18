@@ -1,6 +1,6 @@
 # M10 — Catalogue `.xlsx` import/export — implementation contract
 
-**Status:** **WP1/WP2/WP3 CONTROLLER-ACCEPTED — WP4 MICRO EVIDENCE CLOSURE ACTIVE UNDER ISSUE #4**
+**Status:** **WP1–WP4 CONTROLLER-ACCEPTED — WP5 FINAL HARDENING / OWNER-CANDIDATE PREPARATION ACTIVE UNDER ISSUE #4**
 **Prepared/finalized:** 2026-09-17  
 **Milestone:** M10  
 **Primary acceptance ownership:** AC-CAT-008 through AC-CAT-011; catalogue portion of AC-ARCH-005  
@@ -8,7 +8,7 @@
 **Category short-code decision:** Approved — `docs/decisions/m10-category-short-code-workbook-semantics.md`  
 **M11+ scope:** explicitly excluded
 
-> The frozen implementation contract is owner-authorized for the single active WP4 micro evidence closure handoff recorded in PR #22 while Issue #4 is OPEN. WP1, WP2 and WP3 are controller-accepted; WP4 evidence closes only the Windows/WPF operator workflow over the existing Application/SQLite contracts. This status does not authorize WP5, merge, M11, M12 or M13.
+> The frozen implementation contract is owner-authorized for the single active WP5 final hardening/owner-candidate handoff recorded in PR #22 while Issue #4 is OPEN. WP1–WP4 are controller-accepted; WP5 preserves the accepted Application/SQLite/WPF semantics and prepares an exact self-contained owner candidate. This status does not authorize owner manual acceptance, merge, M11, M12 or M13.
 
 ### WP3 implemented mechanics (current-state contract)
 
@@ -531,7 +531,7 @@ Automated and owner evidence must create an order before import, mutate current 
 
 ## 16. Work packages after separate authorization
 
-WP4 is the single executable package under the current Issue #4 handoff. WP5 remains queued until a separate controller handoff.
+WP5 is the single executable package under the current Issue #4 handoff. It is the final automated hardening and exact owner-candidate preparation package; owner manual acceptance remains a separate controller-to-owner handoff.
 
 ### WP1 — contracts + ClosedXML export
 
@@ -585,7 +585,7 @@ WP4 is the single executable package under the current Issue #4 handoff. WP5 rem
 - FR/zh-CN;
 - STA/WPF lifecycle/layout tests.
 
-### WP5 — hardening + owner candidate
+### WP5 — hardening + owner candidate (active)
 
 - real `.xlsx` round-trip;
 - tampered/corrupt/stale cases;
@@ -643,18 +643,18 @@ M10 does not authorize:
 
 ## 20. Authorization gate
 
-Preparation conditions 1–3 are now complete:
+Preparation conditions 1–3 are historical and complete:
 
 1. Category short-code workbook semantics: **Approved**;
 2. decision/baseline/acceptance alignment: **prepared/committed on this preparation branch**;
 3. readiness/current-state reconciliation: **preparation-complete**.
 
-Before any implementation can execute, all remaining conditions must still occur:
+The implementation authorization and execution conditions are now complete for the current package:
 
-4. project owner explicitly says **“批准 M10 implementation”**;
-5. `milestone-10-authorization.md` changes from NOT AUTHORIZED to AUTHORIZED with the exact final preparation head;
-6. dedicated implementation branch/PR/mailbox is established according to current governance;
-7. exactly one complete executable M10 handoff is published;
-8. Issue #4 is updated to that unique pointer and only then opened.
+4. project owner explicitly approved **“批准 M10 implementation”**;
+5. `milestone-10-authorization.md` is **AUTHORIZED**;
+6. dedicated implementation PR/mailbox #22 is established;
+7. exact WP5 handoff `M10-WP5-HARDENING-FINAL-CANDIDATE-17` is published;
+8. Issue #4 is OPEN for that unique pointer and starting head `24da074827610325c0a27292d5a9856f91b7c666`.
 
-Until condition 4 is explicitly granted, this contract is documentation only.
+WP5 execution is limited to the exact Issue #4 pointer. Completion does not mark owner acceptance Passed or authorize merge/M11.

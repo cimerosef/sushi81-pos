@@ -2,7 +2,7 @@
 
 Automated tests for Sushi81 POS live under this directory.
 
-**Current status:** M01–M09 and the post-M09 Hiboutik daily CB/Espèce dashboard regression/evidence suites are part of the merged project baseline. The post-M09 enhancement was merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`. M10 Catalogue `.xlsx` preparation is complete but implementation is **NOT AUTHORIZED**; no M10 production/test implementation handoff is active and Issue #4 remains CLOSED.
+**Current status:** M01–M09 and the post-M09 Hiboutik daily CB/Espèce dashboard regression/evidence suites are part of the merged project baseline. The post-M09 enhancement was merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`. M10 WP1–WP4 are controller-accepted; WP5 final production-path hardening and exact owner-candidate preparation is active on PR #22 under OPEN Issue #4 from `24da074827610325c0a27292d5a9856f91b7c666`. Owner Windows/Excel acceptance remains unexecuted.
 
 The authoritative test strategy comes from `../docs/acceptance-criteria.md`, approved acceptance amendments, the frozen/amended V1 documents and milestone-specific implementation contracts under `../docs/implementation/`.
 
@@ -16,7 +16,7 @@ Existing Catalogue coverage includes normalization/validation, opaque identity p
 
 Existing order/lifecycle/storage/printing/M09/post-M09 suites cover historical order snapshots, payment/date arithmetic, same-ID modification, search/dashboard queries, authority/recovery, handoff/DR, deterministic printing, Hiboutik parsing/import orchestration, source-aware reporting boundaries and the two passive Hiboutik daily payment values.
 
-## M10 planned evidence — not yet executable
+## M10 WP5 evidence — active authorized handoff
 
 The prepared M10 contract requires future authorized tests at these levels:
 
@@ -27,6 +27,6 @@ The prepared M10 contract requires future authorized tests at these levels:
 - STA/WPF tests for localized Export/Import/Preview workflow, Confirm gating, Cancel/close safety and Catalogue refresh/state preservation;
 - full M03/M04/M06/M07 plus whole-solution Release regression.
 
-The owner-approved M10 Category short-code acceptance clarification is `../docs/acceptance-criteria-amendment-m10-category-short-code-workbook.md`.
+The owner-approved M10 Category short-code acceptance clarification is `../docs/acceptance-criteria-amendment-m10-category-short-code-workbook.md`. WP5 adds real temporary-file production-path round-trip/edit/tamper evidence and the final automated regression/audit matrix; it does not execute owner Windows/Excel acceptance.
 
-No M10 test implementation may be started merely because this evidence plan exists. A separate explicit project-owner M10 implementation authorization, valid executable handoff and OPEN Issue #4 gate are still required.
+The current executable handoff is `M10-WP5-HARDENING-FINAL-CANDIDATE-17`; no other M10 package, owner manual checklist or later milestone is implied.

@@ -221,9 +221,9 @@ Current state as of 2026-09-17:
 
 - M01 through M09: Passed / merged;
 - post-M09 Hiboutik daily payment dashboard: Passed / merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`;
-- M10 Catalogue `.xlsx`: preparation/readiness complete; Category short-code workbook semantics Approved; ready for separate project-owner implementation authorization;
-- M10 implementation: **NOT AUTHORIZED**;
-- Issue #4: **CLOSED**, no executable handoff;
+- M10 Catalogue `.xlsx`: WP1–WP4 controller-accepted; owner-authorized WP5 final automated hardening and exact owner-candidate preparation is active on PR #22 under OPEN Issue #4;
+- M10 implementation: **AUTHORIZED / WP5 ACTIVE**; owner Windows/Excel acceptance remains unexecuted;
+- Issue #4: **OPEN** for `M10-WP5-HARDENING-FINAL-CANDIDATE-17` from `24da074827610325c0a27292d5a9856f91b7c666`;
 - M11, M12, M13: unauthorized.
 
-Preparation/readiness or a specification decision does not authorize Codex execution. A separate explicit project-owner M10 implementation approval is still required.
+The project owner explicitly authorized M10 implementation. Codex remains limited to the exact active Issue #4 handoff; this state does not authorize owner manual acceptance, merge or M11.

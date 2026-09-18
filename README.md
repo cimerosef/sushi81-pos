@@ -24,7 +24,7 @@ Recent merge baselines:
 
 The accepted M09 production candidate remains `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`. The independent post-M09 dashboard accepted executable candidate remains sourced from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`; PR #19 final closure head was `d55e36a244327c55b81f6fb1040c0ef46dbe154a` before merge.
 
-M10 — Catalogue `.xlsx` import/export — is currently in **Preparation complete / ready for separate project-owner implementation authorization** on draft preparation PR #20. The project owner approved the M10 Category `short_code` workbook semantics on 2026-09-17; the decision is recorded in `docs/decisions/m10-category-short-code-workbook-semantics.md` and aligned into the Catalogue baseline. M10 production implementation is still **NOT AUTHORIZED**. Issue #4 remains CLOSED with no executable Codex handoff. M11, M12 and M13 remain unauthorized.
+M10 — Catalogue `.xlsx` import/export — is in active implementation on PR #22 (`codex/m10-catalogue-xlsx-authorized`). WP1–WP4 are controller-accepted; WP5 final automated hardening and exact owner-candidate preparation is owner-authorized under OPEN Issue #4, starting from `24da074827610325c0a27292d5a9856f91b7c666`. Owner Windows/Excel acceptance remains pending and owner-owned; M10 is not marked Passed. M11, M12 and M13 remain unauthorized.
 
 Controlling M09 records:
 
@@ -44,7 +44,7 @@ Controlling post-M09 dashboard records:
 - `docs/implementation/post-m09-hiboutik-daily-payment-dashboard.md`;
 - `docs/implementation/post-m09-hiboutik-daily-payment-dashboard-worklog.md`.
 
-Current M10 preparation package:
+Current M10 implementation package:
 
 - `docs/decisions/m10-category-short-code-workbook-semantics.md`;
 - `docs/acceptance-criteria-amendment-m10-category-short-code-workbook.md`;
@@ -52,7 +52,7 @@ Current M10 preparation package:
 - `docs/implementation/milestone-10-catalogue-xlsx.md`;
 - `docs/implementation/milestone-10-final-manual-acceptance.md`;
 - `docs/implementation/milestone-10-worklog.md`;
-- `docs/implementation/milestone-10-authorization.md` — NOT AUTHORIZED.
+- `docs/implementation/milestone-10-authorization.md` — AUTHORIZED; execution remains limited to the exact Issue #4 handoff.
 
 Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. OneDrive remains recovery/archive storage and historical diagnostic transport rather than the normal authority gate.
 

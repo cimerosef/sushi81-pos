@@ -1,11 +1,13 @@
 # M10 — Catalogue `.xlsx` import/export — final owner manual acceptance
 
-**Status:** PREPARED / NOT YET EXECUTED  
-**Prepared/finalized:** 2026-09-17  
+**Status:** CANDIDATE PREPARED / OWNER NOT YET EXECUTED
+
+**Prepared/finalized:** 2026-09-17; WP5 candidate preparation started 2026-09-18
 **Milestone:** M10  
 **Owner result:** NOT YET EXECUTED  
-**Implementation authorization:** GRANTED for the current WP4 evidence-integrity closure handoff under Issue #4; owner manual acceptance remains unexecuted
-**Candidate executable / ZIP:** TBD after authorized implementation and controller review
+**Implementation authorization:** GRANTED for `M10-WP5-HARDENING-FINAL-CANDIDATE-17` on PR #22 under Issue #4; owner manual acceptance remains unexecuted
+**Candidate source head:** final WP5 head recorded in the matching `CODEX_DONE`
+**Candidate executable / ZIP:** TBD until final WP5 source head is published and hashed
 
 > This checklist is for the project owner. Codex must not pre-check boxes or mark the result Passed.
 
