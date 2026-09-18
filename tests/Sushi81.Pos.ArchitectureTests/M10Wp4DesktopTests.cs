@@ -692,9 +692,16 @@ public sealed class M10Wp4DesktopTests
                             Assert.IsGreaterThan(0d, radio.ActualHeight, cultureName);
                         }
 
+                        Assert.AreEqual(shell.Localized["CatalogueImportUpdateMode"],
+                            GetVisualDescendants<RadioButton>(dialog).Single(radio => radio.Content?.ToString() == shell.Localized["CatalogueImportUpdateMode"]).Content?.ToString());
+                        Assert.AreEqual(shell.Localized["CatalogueImportAddOnlyMode"],
+                            GetVisualDescendants<RadioButton>(dialog).Single(radio => radio.Content?.ToString() == shell.Localized["CatalogueImportAddOnlyMode"]).Content?.ToString());
+
                         var buttons = GetVisualDescendants<Button>(dialog).ToArray();
                         Assert.HasCount(2, buttons);
                         Assert.IsTrue(buttons.All(button => button.ActualWidth > 0 && button.ActualHeight > 0));
+                        Assert.IsTrue(buttons.Any(button => button.Content?.ToString() == shell.Localized["Continue"]));
+                        Assert.IsTrue(buttons.Any(button => button.Content?.ToString() == shell.Localized["Cancel"]));
                         AssertButtonsStayInsideParent(dialog, buttons);
                     }
                     catch (Exception exception)
@@ -762,11 +769,21 @@ public sealed class M10Wp4DesktopTests
                             Assert.IsGreaterThan(0d, affected.ActualHeight, cultureName);
                             Assert.IsGreaterThan(0, issues.Items.Count);
                             Assert.IsGreaterThan(0, affected.Items.Count);
+                            AssertColumnHeaders(issues, shell.Localized, "Severity", "Worksheet", "Row", "Field", "Message");
+                            AssertColumnHeaders(affected, shell.Localized, "Worksheet", "Row", "Entity", "Actions");
                             var messageColumn = issues.Columns.OfType<DataGridTextColumn>().Single(column => string.Equals(column.Header?.ToString(), shell.Localized["Message"], StringComparison.Ordinal));
                             Assert.IsNotNull(messageColumn.ElementStyle);
                             Assert.IsTrue(messageColumn.ElementStyle!.Setters.OfType<Setter>().Any(setter => setter.Property == TextBlock.TextWrappingProperty && Equals(setter.Value, TextWrapping.Wrap)));
                             var categories = GetVisualDescendants<ListBox>(dialog).Single();
                             Assert.IsGreaterThan(0, categories.Items.Count);
+
+                            if (size.Width == 640d && size.Height == 480d)
+                            {
+                                Assert.IsGreaterThan(0d, scroll.ScrollableHeight, $"{cultureName} minimum preview must be vertically scrollable.");
+                                AssertReachableThroughScroll(scroll, affected, dialog);
+                                AssertReachableThroughScroll(scroll, categories, dialog);
+                                AssertButtonsStayInsideParent(dialog, [confirm, cancel]);
+                            }
                         }
                         catch (Exception exception)
                         {
@@ -1276,6 +1293,30 @@ public sealed class M10Wp4DesktopTests
             ? GetPrivateField<Button>(dialog, "confirm")
             : GetPrivateField<Button>(dialog, "cancel");
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    }
+
+    private static void AssertColumnHeaders(
+        DataGrid grid,
+        IReadOnlyDictionary<string, string> localized,
+        params string[] keys)
+    {
+        Assert.HasCount(keys.Length, grid.Columns);
+        for (var index = 0; index < keys.Length; index++)
+            Assert.AreEqual(localized[keys[index]], grid.Columns[index].Header?.ToString(), keys[index]);
+    }
+
+    private static void AssertReachableThroughScroll(ScrollViewer scroll, FrameworkElement element, Window dialog)
+    {
+        var before = scroll.VerticalOffset;
+        element.BringIntoView();
+        PumpDispatcher(dialog);
+        scroll.UpdateLayout();
+        var after = scroll.VerticalOffset;
+        var point = element.TransformToAncestor(scroll).Transform(new Point(0, 0));
+        var bounds = new Rect(point, new Size(element.ActualWidth, element.ActualHeight));
+        var viewport = new Rect(0, 0, scroll.ViewportWidth, scroll.ViewportHeight);
+        Assert.IsTrue(Math.Abs(after - before) > 0.1d || bounds.IntersectsWith(viewport),
+            "The preview surface could not be reached through the outer ScrollViewer.");
     }
 
     private static void PumpDispatcher(Window window) => window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));

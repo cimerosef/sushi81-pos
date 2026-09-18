@@ -1,6 +1,6 @@
 # M10 — Catalogue `.xlsx` import/export — implementation contract
 
-**Status:** **WP1/WP2/WP3 CONTROLLER-ACCEPTED — WP4 EVIDENCE-INTEGRITY CLOSURE ACTIVE UNDER ISSUE #4**
+**Status:** **WP1/WP2/WP3 CONTROLLER-ACCEPTED — WP4 MICRO EVIDENCE CLOSURE ACTIVE UNDER ISSUE #4**
 **Prepared/finalized:** 2026-09-17  
 **Milestone:** M10  
 **Primary acceptance ownership:** AC-CAT-008 through AC-CAT-011; catalogue portion of AC-ARCH-005  
@@ -8,7 +8,7 @@
 **Category short-code decision:** Approved — `docs/decisions/m10-category-short-code-workbook-semantics.md`  
 **M11+ scope:** explicitly excluded
 
-> The frozen implementation contract is owner-authorized for the single active WP4 evidence-integrity closure handoff recorded in PR #22 while Issue #4 is OPEN. WP1, WP2 and WP3 are controller-accepted; WP4 evidence closes only the Windows/WPF operator workflow over the existing Application/SQLite contracts. This status does not authorize WP5, merge, M11, M12 or M13.
+> The frozen implementation contract is owner-authorized for the single active WP4 micro evidence closure handoff recorded in PR #22 while Issue #4 is OPEN. WP1, WP2 and WP3 are controller-accepted; WP4 evidence closes only the Windows/WPF operator workflow over the existing Application/SQLite contracts. This status does not authorize WP5, merge, M11, M12 or M13.
 
 ### WP3 implemented mechanics (current-state contract)
 
