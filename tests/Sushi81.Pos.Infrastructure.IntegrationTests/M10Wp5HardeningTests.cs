@@ -449,6 +449,55 @@ public sealed class M10Wp5HardeningTests
         Assert.AreEqual(revisionBefore, await ReadRevisionAsync(factory));
     }
 
+    [TestMethod]
+    public async Task MissingAndUnsupportedSheetsBlockGatewayAndProductionPreviewBeforeMutation()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var category = (await new CatalogueService(store).CreateCategoryWithCodeAsync("Plats", "PL")).Value!;
+        await new CatalogueService(store).CreateProductAsync(new ProductDraft(Guid.Empty, "P-1", "Product", category.Id, Money.FromCents(100), 20m, true, false, false, []));
+
+        var gateway = new ClosedXmlCatalogueWorkbookImportGateway();
+        var notifier = new RecordingNotifier();
+        var service = new CatalogueImportService(gateway, store, store,
+            new WriteAuthorityGuard(WriteAuthorityState.Authoritative), notifier);
+        var revisionBefore = await ReadRevisionAsync(factory);
+        var cases = new (string Name, string IssueCode, Action<XLWorkbook> Mutate)[]
+        {
+            ("missing-options", "missing-sheet", workbook => workbook.Worksheet("Options").Delete()),
+            ("unexpected-sheet", "unsupported-sheet", workbook => workbook.AddWorksheet("Unexpected"))
+        };
+
+        foreach (var testCase in cases)
+        {
+            var path = Path.Combine(paths.TempDirectory, $"{testCase.Name}.xlsx");
+            await ExportAsync(store, path);
+            using (var workbook = new XLWorkbook(path))
+            {
+                testCase.Mutate(workbook);
+                workbook.Save();
+            }
+
+            await using (var directSource = File.OpenRead(path))
+            {
+                var parsed = await gateway.ReadAsync(directSource, path);
+                Assert.IsTrue(parsed.HasErrors, testCase.Name);
+                CollectionAssert.Contains(parsed.Issues.Select(issue => issue.Code).ToArray(), testCase.IssueCode, testCase.Name);
+            }
+
+            await using var previewSource = File.OpenRead(path);
+            var preview = await service.PreviewAsync(previewSource, CatalogueImportMode.Update, path);
+            Assert.IsTrue(preview.HasErrors, testCase.Name);
+            Assert.IsNull(preview.Plan, testCase.Name);
+            CollectionAssert.Contains(preview.Preview.Issues.Select(issue => issue.Code).ToArray(), testCase.IssueCode, testCase.Name);
+            Assert.AreEqual(revisionBefore, await ReadRevisionAsync(factory), testCase.Name);
+            Assert.AreEqual(0, notifier.Calls, testCase.Name);
+        }
+    }
+
     private static int FindRow(IXLWorksheet worksheet, int column, string value)
     {
         var last = worksheet.LastRowUsed()?.RowNumber() ?? 1;

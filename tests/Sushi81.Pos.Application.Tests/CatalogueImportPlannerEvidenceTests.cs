@@ -41,6 +41,26 @@ public sealed class CatalogueImportPlannerEvidenceTests
     }
 
     [TestMethod]
+    public void DuplicateCurrentCategoryShortCodeBlocksWithoutGuessing()
+    {
+        var plats = new CatalogueImportCategory(Guid.NewGuid(), "Plats", "PL");
+        var desserts = new CatalogueImportCategory(Guid.NewGuid(), "Desserts", " pl ");
+        var workbook = new CatalogueImportWorkbook(CatalogueWorkbookSchema.ContractVersion,
+            [ProductRow(2, "P-1", "Otherwise valid", "Plats", "PL")], [], [], [], []);
+
+        var result = new CatalogueImportPlanner().Plan(CatalogueImportMode.Update,
+            workbook, new CatalogueImportBaseline([plats, desserts], []));
+
+        Assert.IsNull(result.Plan);
+        var issue = result.Preview.Issues.Single(value => value.Code == "category-short-code-duplicate");
+        Assert.IsNull(issue.ExcelRow);
+        Assert.IsNull(issue.FieldKey);
+        StringAssert.Contains(issue.Message, "Current Catalogue");
+        Assert.AreEqual(0, result.Preview.NewCategoryCount);
+        Assert.IsFalse(result.Preview.Issues.Any(value => value.Code is "existing-category-short-code-change" or "duplicate-category-name"));
+    }
+
+    [TestMethod]
     public void SameIdProductBusinessEditsEachProduceModify()
     {
         var categoryId = Guid.NewGuid();
