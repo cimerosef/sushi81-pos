@@ -345,4 +345,51 @@ Changements effectifs : {2}</value></data>
   <data name="OrderSourcePos" xml:space="preserve"><value>POS</value></data>
   <data name="OrderSourceHiboutik" xml:space="preserve"><value>Hiboutik</value></data>
   <data name="OrderSourceTotalUnavailable" xml:space="preserve"><value>—</value></data>
+  <data name="Create" xml:space="preserve"><value>Créer</value></data>
+  <data name="Modify" xml:space="preserve"><value>Modifier</value></data>
+  <data name="Continue" xml:space="preserve"><value>Continuer</value></data>
+  <data name="Authoritative" xml:space="preserve"><value>Autorité d’écriture</value></data>
+  <data name="Errors" xml:space="preserve"><value>Erreurs</value></data>
+  <data name="Warnings" xml:space="preserve"><value>Avertissements</value></data>
+  <data name="CatalogueExport" xml:space="preserve"><value>Exporter le catalogue</value></data>
+  <data name="CatalogueImport" xml:space="preserve"><value>Importer le catalogue</value></data>
+  <data name="CatalogueFileFilter" xml:space="preserve"><value>Classeur Excel (*.xlsx)|*.xlsx</value></data>
+  <data name="CatalogueExportSucceeded" xml:space="preserve"><value>Catalogue exporté : {0}</value></data>
+  <data name="CatalogueExportFailed" xml:space="preserve"><value>L’export du catalogue a échoué.</value></data>
+  <data name="CatalogueImportModeTitle" xml:space="preserve"><value>Mode d’import du catalogue</value></data>
+  <data name="CatalogueImportModePrompt" xml:space="preserve"><value>Choisissez le mode d’application du classeur.</value></data>
+  <data name="CatalogueImportUpdateMode" xml:space="preserve"><value>Mode Mise à jour</value></data>
+  <data name="CatalogueImportUpdateDescription" xml:space="preserve"><value>Les lignes exportées existantes sont mises à jour par identité protégée ; les lignes sans ID peuvent être créées ; les lignes absentes ne sont pas supprimées.</value></data>
+  <data name="CatalogueImportAddOnlyMode" xml:space="preserve"><value>Mode Ajout uniquement</value></data>
+  <data name="CatalogueImportAddOnlyDescription" xml:space="preserve"><value>Création uniquement ; les éléments existants ne sont pas modifiés ; les catégories existantes peuvent être réutilisées ; les collisions de code bloquent.</value></data>
+  <data name="CatalogueImportPreviewTitle" xml:space="preserve"><value>Aperçu de l’import du catalogue</value></data>
+  <data name="CatalogueImportSource" xml:space="preserve"><value>Fichier source</value></data>
+  <data name="CatalogueImportMode" xml:space="preserve"><value>Mode</value></data>
+  <data name="CatalogueImportAuthority" xml:space="preserve"><value>Autorité</value></data>
+  <data name="CatalogueImportNewCategories" xml:space="preserve"><value>Nouvelles catégories</value></data>
+  <data name="NewCategories" xml:space="preserve"><value>Nouvelles catégories</value></data>
+  <data name="ErrorsAndWarnings" xml:space="preserve"><value>Erreurs et avertissements</value></data>
+  <data name="AffectedRows" xml:space="preserve"><value>Lignes concernées</value></data>
+  <data name="NoDatabaseChangeYet" xml:space="preserve"><value>Aucune modification n’a encore été enregistrée dans la base.</value></data>
+  <data name="OmittedRowsNotDeleted" xml:space="preserve"><value>Les lignes absentes du classeur ne sont pas supprimées.</value></data>
+  <data name="AddOnlyExistingNotice" xml:space="preserve"><value>En mode Ajout uniquement, les éléments existants ne sont pas modifiés.</value></data>
+  <data name="ConfirmImport" xml:space="preserve"><value>Confirmer l’import</value></data>
+  <data name="CatalogueImportCancel" xml:space="preserve"><value>Annuler</value></data>
+  <data name="CatalogueImportCommitting" xml:space="preserve"><value>Enregistrement des changements du catalogue…</value></data>
+  <data name="CatalogueImportNoChange" xml:space="preserve"><value>Aucun changement de catalogue n’était nécessaire.</value></data>
+  <data name="CatalogueImportSucceeded" xml:space="preserve"><value>Import du catalogue réussi.</value></data>
+  <data name="CatalogueImportFailed" xml:space="preserve"><value>L’import du catalogue n’a pas pu être ouvert.</value></data>
+  <data name="CatalogueImportReadOnly" xml:space="preserve"><value>Ce poste est en lecture seule : la confirmation de l’import est indisponible.</value></data>
+  <data name="CatalogueImportRefreshFailed" xml:space="preserve"><value>Import réussi, mais l’actualisation de l’interface a échoué ; redémarrez ou actualisez avant de continuer.</value></data>
+  <data name="CatalogueImportGenericIssue" xml:space="preserve"><value>Problème d’import ({0}). Détails : {1}</value></data>
+  <data name="CatalogueImportCategoryShortCodeChange" xml:space="preserve"><value>Le code court d’une catégorie existante a changé ; utilisez le gestionnaire de catégories puis réexportez.</value></data>
+  <data name="CatalogueImportStaleConflict" xml:space="preserve"><value>Le catalogue a changé depuis l’aperçu ; relancez l’import.</value></data>
+  <data name="CatalogueImportAuthorityBlocked" xml:space="preserve"><value>L’autorité d’écriture locale est indisponible.</value></data>
+  <data name="CatalogueImportCommitUnavailable" xml:space="preserve"><value>Le stockage de commit de l’import n’est pas configuré.</value></data>
+  <data name="CatalogueImportPersistenceConflict" xml:space="preserve"><value>Le stockage a bloqué l’import atomique ; aucun changement partiel n’est conservé.</value></data>
+  <data name="CatalogueImportUnreadableWorkbook" xml:space="preserve"><value>Le classeur ne peut pas être lu.</value></data>
+  <data name="CatalogueImportMissingSheet" xml:space="preserve"><value>Une feuille obligatoire est absente.</value></data>
+  <data name="CatalogueImportUnsupportedSheet" xml:space="preserve"><value>Le classeur contient une feuille non prise en charge.</value></data>
+  <data name="CatalogueImportUnsupportedContract" xml:space="preserve"><value>La version du contrat du classeur n’est pas prise en charge.</value></data>
+  <data name="CatalogueImportInvalidMode" xml:space="preserve"><value>Le mode d’import est invalide.</value></data>
 </root>

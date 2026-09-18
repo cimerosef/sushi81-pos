@@ -345,4 +345,51 @@
   <data name="OrderSourcePos" xml:space="preserve"><value>POS</value></data>
   <data name="OrderSourceHiboutik" xml:space="preserve"><value>Hiboutik</value></data>
   <data name="OrderSourceTotalUnavailable" xml:space="preserve"><value>—</value></data>
+  <data name="Create" xml:space="preserve"><value>创建</value></data>
+  <data name="Modify" xml:space="preserve"><value>修改</value></data>
+  <data name="Continue" xml:space="preserve"><value>继续</value></data>
+  <data name="Authoritative" xml:space="preserve"><value>可写权威</value></data>
+  <data name="Errors" xml:space="preserve"><value>错误</value></data>
+  <data name="Warnings" xml:space="preserve"><value>警告</value></data>
+  <data name="CatalogueExport" xml:space="preserve"><value>导出目录</value></data>
+  <data name="CatalogueImport" xml:space="preserve"><value>导入目录</value></data>
+  <data name="CatalogueFileFilter" xml:space="preserve"><value>Excel 工作簿 (*.xlsx)|*.xlsx</value></data>
+  <data name="CatalogueExportSucceeded" xml:space="preserve"><value>目录已导出：{0}</value></data>
+  <data name="CatalogueExportFailed" xml:space="preserve"><value>目录导出失败。</value></data>
+  <data name="CatalogueImportModeTitle" xml:space="preserve"><value>目录导入模式</value></data>
+  <data name="CatalogueImportModePrompt" xml:space="preserve"><value>选择工作簿应用模式。</value></data>
+  <data name="CatalogueImportUpdateMode" xml:space="preserve"><value>更新模式</value></data>
+  <data name="CatalogueImportUpdateDescription" xml:space="preserve"><value>通过受保护身份更新已有导出行；无 ID 行可创建；缺失行不会删除。</value></data>
+  <data name="CatalogueImportAddOnlyMode" xml:space="preserve"><value>仅新增模式</value></data>
+  <data name="CatalogueImportAddOnlyDescription" xml:space="preserve"><value>仅创建；不会修改已有记录；可按规则复用现有分类；产品代码冲突会阻止。</value></data>
+  <data name="CatalogueImportPreviewTitle" xml:space="preserve"><value>目录导入预览</value></data>
+  <data name="CatalogueImportSource" xml:space="preserve"><value>源文件</value></data>
+  <data name="CatalogueImportMode" xml:space="preserve"><value>模式</value></data>
+  <data name="CatalogueImportAuthority" xml:space="preserve"><value>权威状态</value></data>
+  <data name="CatalogueImportNewCategories" xml:space="preserve"><value>新分类</value></data>
+  <data name="NewCategories" xml:space="preserve"><value>新分类</value></data>
+  <data name="ErrorsAndWarnings" xml:space="preserve"><value>错误和警告</value></data>
+  <data name="AffectedRows" xml:space="preserve"><value>受影响行</value></data>
+  <data name="NoDatabaseChangeYet" xml:space="preserve"><value>尚未对数据库进行任何修改。</value></data>
+  <data name="OmittedRowsNotDeleted" xml:space="preserve"><value>工作簿中缺少的行不会被删除。</value></data>
+  <data name="AddOnlyExistingNotice" xml:space="preserve"><value>“仅新增”模式不会修改现有记录。</value></data>
+  <data name="ConfirmImport" xml:space="preserve"><value>确认导入</value></data>
+  <data name="CatalogueImportCancel" xml:space="preserve"><value>取消</value></data>
+  <data name="CatalogueImportCommitting" xml:space="preserve"><value>正在保存目录更改…</value></data>
+  <data name="CatalogueImportNoChange" xml:space="preserve"><value>无需更改目录。</value></data>
+  <data name="CatalogueImportSucceeded" xml:space="preserve"><value>目录导入成功。</value></data>
+  <data name="CatalogueImportFailed" xml:space="preserve"><value>无法打开目录导入文件。</value></data>
+  <data name="CatalogueImportReadOnly" xml:space="preserve"><value>当前设备为只读状态，无法确认导入。</value></data>
+  <data name="CatalogueImportRefreshFailed" xml:space="preserve"><value>导入已成功，但界面刷新失败；请重启或刷新后再继续。</value></data>
+  <data name="CatalogueImportGenericIssue" xml:space="preserve"><value>导入问题（{0}）。详情：{1}</value></data>
+  <data name="CatalogueImportCategoryShortCodeChange" xml:space="preserve"><value>现有分类短代码已更改；请使用分类管理器后重新导出。</value></data>
+  <data name="CatalogueImportStaleConflict" xml:space="preserve"><value>预览后目录已变化；请重新导入。</value></data>
+  <data name="CatalogueImportAuthorityBlocked" xml:space="preserve"><value>本地写入权威不可用。</value></data>
+  <data name="CatalogueImportCommitUnavailable" xml:space="preserve"><value>导入提交存储未配置。</value></data>
+  <data name="CatalogueImportPersistenceConflict" xml:space="preserve"><value>存储阻止了原子导入；未保留部分更改。</value></data>
+  <data name="CatalogueImportUnreadableWorkbook" xml:space="preserve"><value>无法读取工作簿。</value></data>
+  <data name="CatalogueImportMissingSheet" xml:space="preserve"><value>缺少必需工作表。</value></data>
+  <data name="CatalogueImportUnsupportedSheet" xml:space="preserve"><value>工作簿包含不支持的工作表。</value></data>
+  <data name="CatalogueImportUnsupportedContract" xml:space="preserve"><value>不支持的工作簿契约版本。</value></data>
+  <data name="CatalogueImportInvalidMode" xml:space="preserve"><value>导入模式无效。</value></data>
 </root>

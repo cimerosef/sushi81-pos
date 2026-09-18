@@ -43,6 +43,8 @@
             <ComboBox Width="180" Margin="0,0,8,0" ItemsSource="{Binding CategoryFilters}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding SelectedCategoryId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             <ComboBox Width="120" Margin="0,0,8,0" ItemsSource="{Binding StatusFilters}" DisplayMemberPath="Label" SelectedValuePath="Key" SelectedValue="{Binding SelectedStatusKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             <Button Padding="12,4" Content="↻" Click="OnRefreshCatalogue" />
+            <Button Margin="8,0,0,0" Padding="12,4" Content="{Binding DataContext.Localized[CatalogueExport], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.CatalogueWorkflow.CanExport, RelativeSource={RelativeSource AncestorType=Window}}" Click="OnExportCatalogue" />
+            <Button Margin="8,0,0,0" Padding="12,4" Content="{Binding DataContext.Localized[CatalogueImport], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.CatalogueWorkflow.CanImport, RelativeSource={RelativeSource AncestorType=Window}}" Click="OnImportCatalogue" />
           </WrapPanel>
           <DataGrid x:Name="catalogueGrid" Grid.Row="1" ItemsSource="{Binding Products}" SelectedItem="{Binding SelectedProduct}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" MouseDoubleClick="OnEditProduct">
             <DataGrid.RowStyle>

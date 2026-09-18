@@ -27,11 +27,13 @@ public partial class MainWindow : Window
     private IDisposable? performanceTraceProbe;
     private readonly MainWindowCloseCoordinator closeCoordinator;
     private readonly CatalogueHeaderSet catalogueHeaders = new();
+    private readonly ICatalogueWorkbookFileDialogs fileDialogs;
 
-    public MainWindow(ShellViewModel viewModel, IAsyncDisposable? recoveryScheduler = null, Action<Exception>? closeFailureLogger = null)
+    public MainWindow(ShellViewModel viewModel, IAsyncDisposable? recoveryScheduler = null, Action<Exception>? closeFailureLogger = null, ICatalogueWorkbookFileDialogs? fileDialogs = null)
     {
         InitializeComponent();
         DataContext = viewModel;
+        this.fileDialogs = fileDialogs ?? new NativeCatalogueWorkbookFileDialogs();
         if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
         ApplyCatalogueHeaders();
         closeCoordinator = new MainWindowCloseCoordinator(
@@ -396,6 +398,59 @@ public partial class MainWindow : Window
     private async void OnRefreshCatalogue(object sender, RoutedEventArgs e)
     {
         if (DataContext is ShellViewModel { Admin: { } admin }) await admin.RefreshAsync();
+    }
+
+    private async void OnExportCatalogue(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CatalogueWorkflow: { CanExport: true } workflow } viewModel) return;
+        var suggested = $"Sushi81-Catalogue-{DateTime.Now:yyyyMMdd-HHmm}.xlsx";
+        var target = fileDialogs.ShowSave(this, suggested, LocalizedText(this, "CatalogueFileFilter", "Excel workbook (*.xlsx)|*.xlsx"));
+        if (string.IsNullOrWhiteSpace(target)) return;
+        try
+        {
+            await workflow.ExportToPathAsync(target);
+            MessageBox.Show(this,
+                string.Format(CultureInfo.CurrentCulture, LocalizedText(this, "CatalogueExportSucceeded", "Catalogue exported: {0}"), Path.GetFileName(target)),
+                viewModel.Title,
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this,
+                LocalizedText(this, "CatalogueExportFailed", "Catalogue export failed.") + Environment.NewLine + exception.Message,
+                viewModel.Title,
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnImportCatalogue(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { CatalogueWorkflow: { CanImport: true } workflow } viewModel) return;
+        var modeDialog = new CatalogueImportModeDialog(this, viewModel.Localized);
+        if (modeDialog.ShowDialog() != true || modeDialog.SelectedMode is not { } mode) return;
+        var source = fileDialogs.ShowOpen(this, LocalizedText(this, "CatalogueFileFilter", "Excel workbook (*.xlsx)|*.xlsx"));
+        if (string.IsNullOrWhiteSpace(source)) return;
+        CatalogueImportResult preview;
+        try
+        {
+            preview = await workflow.PreviewFromPathAsync(source, mode, Path.GetFileName(source));
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this,
+                LocalizedText(this, "CatalogueImportFailed", "Catalogue import could not be opened.") + Environment.NewLine + exception.Message,
+                viewModel.Title,
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
+
+        var previewDialog = new CatalogueImportPreviewDialog(this, workflow, preview, viewModel.Localized);
+        previewDialog.ShowDialog();
     }
 
     private async void OnAddOrderProduct(object sender, RoutedEventArgs e)

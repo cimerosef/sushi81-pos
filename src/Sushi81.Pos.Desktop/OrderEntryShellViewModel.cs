@@ -511,6 +511,9 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         await RefreshOrderBrowserCoreAsync(SelectedBrowserOrder?.Id, throwOnFailure: true, cancellationToken: cancellationToken);
     }
 
+    public Task RefreshAfterCatalogueImportAsync(CancellationToken cancellationToken = default) =>
+        RefreshAfterLiveDatabaseReplacementAsync(cancellationToken);
+
     private async Task RefreshAsyncCore(bool throwOnFailure, CancellationToken cancellationToken)
     {
         PerformanceTrace.Log("entry.refresh.start");

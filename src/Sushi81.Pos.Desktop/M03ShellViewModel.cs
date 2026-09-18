@@ -289,6 +289,9 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         return task;
     }
 
+    public Task RefreshAfterCatalogueImportAsync(CancellationToken cancellationToken = default) =>
+        RefreshAfterLiveDatabaseReplacementAsync(cancellationToken);
+
     private async Task ExecuteRefreshAsync(
         RefreshRequest request,
         bool throwOnFailure,

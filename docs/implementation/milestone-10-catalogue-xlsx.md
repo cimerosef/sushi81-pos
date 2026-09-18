@@ -1,6 +1,6 @@
 # M10 — Catalogue `.xlsx` import/export — implementation contract
 
-**Status:** **WP1/WP2 CONTROLLER-ACCEPTED — WP3 ACTIVE UNDER ISSUE #4**
+**Status:** **WP1/WP2/WP3 CONTROLLER-ACCEPTED — WP4 ACTIVE UNDER ISSUE #4**
 **Prepared/finalized:** 2026-09-17  
 **Milestone:** M10  
 **Primary acceptance ownership:** AC-CAT-008 through AC-CAT-011; catalogue portion of AC-ARCH-005  
@@ -8,7 +8,7 @@
 **Category short-code decision:** Approved — `docs/decisions/m10-category-short-code-workbook-semantics.md`  
 **M11+ scope:** explicitly excluded
 
-> The frozen implementation contract is owner-authorized for the single active WP3 handoff recorded in PR #22 while Issue #4 is OPEN. WP1 and WP2 are controller-accepted; WP3 adds only the atomic Application/SQLite commit boundary, authority/recovery integration and regression evidence. This status does not authorize WP4, WP5, merge, M11, M12 or M13.
+> The frozen implementation contract is owner-authorized for the single active WP4 handoff recorded in PR #22 while Issue #4 is OPEN. WP1, WP2 and WP3 are controller-accepted; WP4 adds only the Windows/WPF operator workflow over the existing Application/SQLite contracts. This status does not authorize WP5, merge, M11, M12 or M13.
 
 ### WP3 implemented mechanics (current-state contract)
 
@@ -531,7 +531,7 @@ Automated and owner evidence must create an order before import, mutate current 
 
 ## 16. Work packages after separate authorization
 
-No package is executable yet.
+WP4 is the single executable package under the current Issue #4 handoff. WP5 remains queued until a separate controller handoff.
 
 ### WP1 — contracts + ClosedXML export
 
@@ -564,7 +564,15 @@ No package is executable yet.
 - authority guard + one durable-change notify;
 - rollback/failure injection/historical-independence integration tests.
 
-### WP4 — WPF workflow
+### WP4 — WPF operator workflow (current handoff)
+
+- Desktop-owned localized Export/Import actions compose the existing ClosedXML workbook and Application import services without leaking ClosedXML or SQLite types into the Desktop layer;
+- export uses a native localized `.xlsx` Save dialog and a sibling temporary file, replacing the selected target only after a successful complete export;
+- import requires an explicit Update/Add-only choice, opens a safe filename through the native dialog, and renders a read-only immutable preview with source/mode/authority, counts, localized issue diagnostics, affected rows, notices and new Categories;
+- Confirm is available only for a fresh error-free authoritative preview and passes that exact preview to the Application commit service; commit failure disables confirmation and changed success refreshes Admin Catalogue and Caisse/order-entry presentation through the existing barrier;
+- read-only/refresh-busy/re-entrancy and Cancel/close paths remain fail-closed; French and Simplified Chinese strings are supplied for all operator-facing workflow states.
+
+### WP4 — WPF workflow checklist
 
 - Catalogue Export/Import actions;
 - file dialogs;

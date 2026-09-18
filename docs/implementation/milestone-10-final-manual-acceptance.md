@@ -4,7 +4,7 @@
 **Prepared/finalized:** 2026-09-17  
 **Milestone:** M10  
 **Owner result:** NOT YET EXECUTED  
-**Implementation authorization:** GRANTED for the current WP2 handoff under Issue #4; owner manual acceptance remains unexecuted
+**Implementation authorization:** GRANTED for the current WP4 handoff under Issue #4; owner manual acceptance remains unexecuted
 **Candidate executable / ZIP:** TBD after authorized implementation and controller review
 
 > This checklist is for the project owner. Codex must not pre-check boxes or mark the result Passed.
