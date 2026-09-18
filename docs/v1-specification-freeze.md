@@ -217,13 +217,13 @@ Approved post-freeze amendments above demonstrate this process.
 
 Phase 6 implementation is active.
 
-Current state as of 2026-09-17:
+Current state as of 2026-09-18:
 
 - M01 through M09: Passed / merged;
 - post-M09 Hiboutik daily payment dashboard: Passed / merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`;
-- M10 Catalogue `.xlsx`: WP1–WP4 controller-accepted; owner-authorized WP5 final automated hardening and exact owner-candidate preparation is active on PR #22 under OPEN Issue #4;
-- M10 implementation: **AUTHORIZED / WP5 ACTIVE**; owner Windows/Excel acceptance remains unexecuted;
-- Issue #4: **OPEN** for `M10-WP5-HARDENING-FINAL-CANDIDATE-17` from `24da074827610325c0a27292d5a9856f91b7c666`;
+- M10 Catalogue `.xlsx`: WP1–WP4 controller-accepted; WP5 final hardening evidence and exact owner-candidate regeneration are complete on PR #22 pending controller review;
+- M10 implementation: **AUTHORIZED / CONTROLLER REVIEW PENDING**; owner Windows/Excel acceptance remains unexecuted and M10 is not Passed;
+- Issue #4: the live issue body is the only authority for any later Codex execution; historical handoff identifiers are preserved in their PR records and are not rewritten here;
 - M11, M12, M13: unauthorized.
 
 The project owner explicitly authorized M10 implementation. Codex remains limited to the exact active Issue #4 handoff; this state does not authorize owner manual acceptance, merge or M11.

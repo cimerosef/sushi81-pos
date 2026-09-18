@@ -24,7 +24,7 @@ Recent merge baselines:
 
 The accepted M09 production candidate remains `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`. The independent post-M09 dashboard accepted executable candidate remains sourced from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`; PR #19 final closure head was `d55e36a244327c55b81f6fb1040c0ef46dbe154a` before merge.
 
-M10 — Catalogue `.xlsx` import/export — is in active implementation on PR #22 (`codex/m10-catalogue-xlsx-authorized`). WP1–WP4 are controller-accepted; WP5 final automated hardening and exact owner-candidate preparation is owner-authorized under OPEN Issue #4, starting from `24da074827610325c0a27292d5a9856f91b7c666`. Owner Windows/Excel acceptance remains pending and owner-owned; M10 is not marked Passed. M11, M12 and M13 remain unauthorized.
+M10 — Catalogue `.xlsx` import/export — is in implementation on PR #22 (`codex/m10-catalogue-xlsx-authorized`). WP1–WP4 are controller-accepted; the WP5 final hardening evidence and exact owner-candidate regeneration are complete and pending controller review. Owner Windows/Excel acceptance remains pending and owner-owned; M10 is not marked Passed. Live Issue #4 controls any later Codex execution. M11, M12 and M13 remain unauthorized.
 
 Controlling M09 records:
 

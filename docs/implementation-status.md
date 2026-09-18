@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Last updated:** 2026-09-18
-**Current state:** M01 through M09 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. M10 Catalogue `.xlsx` implementation is active on PR #22 / branch `codex/m10-catalogue-xlsx-authorized`; WP1–WP4 are controller-accepted and the owner-authorized WP5 final hardening/candidate handoff is active under OPEN Issue #4 from `24da074827610325c0a27292d5a9856f91b7c666`. Owner Windows/Excel acceptance remains unexecuted and M10 is not marked Passed. M11–M13 remain unauthorized.
+**Current state:** M01 through M09 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. M10 Catalogue `.xlsx` is on PR #22 / branch `codex/m10-catalogue-xlsx-authorized`; WP1–WP4 are controller-accepted and WP5 final hardening evidence/candidate regeneration are complete pending controller review. Owner Windows/Excel acceptance remains unexecuted and M10 is not marked Passed. Live Issue #4 controls any later Codex execution. M11–M13 remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07–M09 and post-M09 evidence remains authoritative in milestone-specific worklogs/manual-acceptance/PR records. This file is the living current-state summary; historical evidence is not rewritten to match later state.
 
@@ -34,7 +34,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M08 — Printing and reprinting | Passed | Accepted production candidate `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; PR #14 merged at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`; physical/manual acceptance Passed. |
 | M09 — Hiboutik paste fallback | Passed | Accepted production candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`; PR #17 merged at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; owner Windows/WPF acceptance Passed. |
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | Automated evidence accepted in PR #19 comment `5705723428`; owner A–F acceptance Passed in comment `5715414940`; final controller closure comment `5715705712`; PR #19 CLOSED / MERGED at `861cfba1dfacbb3289395c0370f6d42765b6c223`. Accepted executable candidate remains from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`. |
-| M10 — Catalogue `.xlsx` | In progress | WP1–WP4 are controller-accepted. Owner-authorized WP5 `M10-WP5-HARDENING-FINAL-CANDIDATE-17` is the sole active handoff in PR #22 / branch `codex/m10-catalogue-xlsx-authorized` under OPEN Issue #4, starting at `24da074827610325c0a27292d5a9856f91b7c666`. Automated hardening/candidate preparation is Codex scope; owner Windows/Excel acceptance and merge remain separate gates. |
+| M10 — Catalogue `.xlsx` | Partial | WP1–WP4 are controller-accepted. WP5 final hardening evidence and exact owner-candidate regeneration are complete on PR #22 pending controller review. Owner Windows/Excel A–L acceptance, merge and M11 remain separate gates; M10 is not Passed. Live Issue #4 controls future Codex execution. |
 | M11 — Gestion export | Not started | Unauthorized; pending M10. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
@@ -78,7 +78,7 @@ Preparation audit result:
 - historical orders: current Catalogue import must not rewrite snapshots;
 - M11/M12/M13 boundaries: preserved.
 
-WP1–WP4 implementation packages are controller-accepted. WP5 final automated hardening and exact self-contained `win-x64` owner-candidate preparation is owner-authorized and active under Issue #4; its real-file production-path evidence, regression matrix, audits and candidate metadata are recorded in the matching worklog and `CODEX_DONE`. Owner Windows/Excel A–L acceptance remains pending and is not performed by Codex.
+WP1–WP4 implementation packages are controller-accepted. WP5 final hardening evidence and exact self-contained `win-x64` owner-candidate regeneration are complete pending controller review; its real-file production-path evidence, regression matrix, audits and candidate metadata are recorded in the matching worklog and `CODEX_DONE`. Owner Windows/Excel A–L acceptance remains pending and is not performed by Codex. This does not mark M10 Passed or authorize merge/M11.
 
 ## 5. M10 Category `short_code` owner decision
 
@@ -131,9 +131,8 @@ Issue #4 remains the sole Codex execution gate.
 
 M10 milestone implementation is authorized, but actual Codex execution is narrower:
 
-- Codex may execute only the exact handoff named by Issue #4 while Issue #4 is OPEN;
-- current selected handoff: `M10-WP5-HARDENING-FINAL-CANDIDATE-17`;
-- required starting head: `24da074827610325c0a27292d5a9856f91b7c666`;
+- Codex may execute only the exact handoff named by the live Issue #4 body while Issue #4 is OPEN;
+- historical handoff IDs and starting heads remain in their original PR/worklog records and are not rewritten by this living summary;
 - branch/PR/handoff pointer must match exactly;
 - a `CODEX_DONE` never authorizes another work package, merge or M11;
 - controller acceptance never auto-opens the next work package;

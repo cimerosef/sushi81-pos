@@ -2,12 +2,12 @@
 
 **Status:** CANDIDATE PREPARED / OWNER NOT YET EXECUTED
 
-**Prepared/finalized:** 2026-09-17; WP5 candidate preparation started 2026-09-18
+**Prepared/finalized:** 2026-09-17; WP5 final evidence/candidate regeneration completed 2026-09-18 pending controller review
 **Milestone:** M10  
 **Owner result:** NOT YET EXECUTED  
-**Implementation authorization:** GRANTED for `M10-WP5-HARDENING-FINAL-CANDIDATE-17` on PR #22 under Issue #4; owner manual acceptance remains unexecuted
-**Candidate source head:** final WP5 head recorded in the matching `CODEX_DONE`
-**Candidate executable / ZIP:** TBD until final WP5 source head is published and hashed
+**Implementation authorization:** WP1–WP4 are controller-accepted; WP5 final evidence/candidate regeneration is complete on PR #22 pending controller review; owner manual acceptance remains unexecuted
+**Candidate source head:** exact WP5-18 head recorded in its matching `CODEX_DONE`; WP5-17 candidate metadata is provisional/historical and superseded
+**Candidate executable / ZIP:** exact WP5-18 published paths, sizes and hashes are recorded in its matching `CODEX_DONE`
 
 > This checklist is for the project owner. Codex must not pre-check boxes or mark the result Passed.
 

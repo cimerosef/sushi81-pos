@@ -2,7 +2,7 @@
 
 Automated tests for Sushi81 POS live under this directory.
 
-**Current status:** M01–M09 and the post-M09 Hiboutik daily CB/Espèce dashboard regression/evidence suites are part of the merged project baseline. The post-M09 enhancement was merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`. M10 WP1–WP4 are controller-accepted; WP5 final production-path hardening and exact owner-candidate preparation is active on PR #22 under OPEN Issue #4 from `24da074827610325c0a27292d5a9856f91b7c666`. Owner Windows/Excel acceptance remains unexecuted.
+**Current status:** M01–M09 and the post-M09 Hiboutik daily CB/Espèce dashboard regression/evidence suites are part of the merged project baseline. The post-M09 enhancement was merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`. M10 WP1–WP4 are controller-accepted; WP5 final production-path hardening evidence and exact owner-candidate regeneration are complete on PR #22 pending controller review. Owner Windows/Excel acceptance remains unexecuted; M10 is not Passed.
 
 The authoritative test strategy comes from `../docs/acceptance-criteria.md`, approved acceptance amendments, the frozen/amended V1 documents and milestone-specific implementation contracts under `../docs/implementation/`.
 
@@ -16,7 +16,7 @@ Existing Catalogue coverage includes normalization/validation, opaque identity p
 
 Existing order/lifecycle/storage/printing/M09/post-M09 suites cover historical order snapshots, payment/date arithmetic, same-ID modification, search/dashboard queries, authority/recovery, handoff/DR, deterministic printing, Hiboutik parsing/import orchestration, source-aware reporting boundaries and the two passive Hiboutik daily payment values.
 
-## M10 WP5 evidence — active authorized handoff
+## M10 WP5 evidence — controller review pending
 
 The prepared M10 contract requires future authorized tests at these levels:
 
@@ -29,4 +29,4 @@ The prepared M10 contract requires future authorized tests at these levels:
 
 The owner-approved M10 Category short-code acceptance clarification is `../docs/acceptance-criteria-amendment-m10-category-short-code-workbook.md`. WP5 adds real temporary-file production-path round-trip/edit/tamper evidence and the final automated regression/audit matrix; it does not execute owner Windows/Excel acceptance.
 
-The current executable handoff is `M10-WP5-HARDENING-FINAL-CANDIDATE-17`; no other M10 package, owner manual checklist or later milestone is implied.
+The live Issue #4 body controls any later executable handoff. This evidence record does not authorize the owner checklist, merge or any later milestone.

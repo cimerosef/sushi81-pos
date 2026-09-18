@@ -1,6 +1,6 @@
 # M10 — Catalogue `.xlsx` import/export — implementation contract
 
-**Status:** **WP1–WP4 CONTROLLER-ACCEPTED — WP5 FINAL HARDENING / OWNER-CANDIDATE PREPARATION ACTIVE UNDER ISSUE #4**
+**Status:** **WP1–WP4 CONTROLLER-ACCEPTED — WP5 FINAL HARDENING EVIDENCE / OWNER-CANDIDATE REGENERATION COMPLETE, CONTROLLER REVIEW PENDING**
 **Prepared/finalized:** 2026-09-17  
 **Milestone:** M10  
 **Primary acceptance ownership:** AC-CAT-008 through AC-CAT-011; catalogue portion of AC-ARCH-005  
@@ -8,7 +8,7 @@
 **Category short-code decision:** Approved — `docs/decisions/m10-category-short-code-workbook-semantics.md`  
 **M11+ scope:** explicitly excluded
 
-> The frozen implementation contract is owner-authorized for the single active WP5 final hardening/owner-candidate handoff recorded in PR #22 while Issue #4 is OPEN. WP1–WP4 are controller-accepted; WP5 preserves the accepted Application/SQLite/WPF semantics and prepares an exact self-contained owner candidate. This status does not authorize owner manual acceptance, merge, M11, M12 or M13.
+> WP1–WP4 are controller-accepted. WP5 preserves the accepted Application/SQLite/WPF semantics; its final hardening evidence and exact self-contained owner-candidate regeneration are complete pending controller review. The live Issue #4 body controls any later execution; historical handoff records are not rewritten. This status does not authorize owner manual acceptance, merge, M11, M12 or M13.
 
 ### WP3 implemented mechanics (current-state contract)
 
@@ -531,7 +531,7 @@ Automated and owner evidence must create an order before import, mutate current 
 
 ## 16. Work packages after separate authorization
 
-WP5 is the single executable package under the current Issue #4 handoff. It is the final automated hardening and exact owner-candidate preparation package; owner manual acceptance remains a separate controller-to-owner handoff.
+WP5 is the final automated hardening and exact owner-candidate regeneration package. Its evidence is complete pending controller review; owner manual acceptance remains a separate controller-to-owner handoff. The live Issue #4 body alone controls any future executable package.
 
 ### WP1 — contracts + ClosedXML export
 
@@ -585,7 +585,7 @@ WP5 is the single executable package under the current Issue #4 handoff. It is t
 - FR/zh-CN;
 - STA/WPF lifecycle/layout tests.
 
-### WP5 — hardening + owner candidate (active)
+### WP5 — hardening + owner candidate (evidence complete; controller review pending)
 
 - real `.xlsx` round-trip;
 - tampered/corrupt/stale cases;
@@ -654,7 +654,7 @@ The implementation authorization and execution conditions are now complete for t
 4. project owner explicitly approved **“批准 M10 implementation”**;
 5. `milestone-10-authorization.md` is **AUTHORIZED**;
 6. dedicated implementation PR/mailbox #22 is established;
-7. exact WP5 handoff `M10-WP5-HARDENING-FINAL-CANDIDATE-17` is published;
-8. Issue #4 is OPEN for that unique pointer and starting head `24da074827610325c0a27292d5a9856f91b7c666`.
+7. the exact WP5 handoff is published in the PR #22 mailbox;
+8. any subsequent execution must use the live Issue #4 pointer and state.
 
 WP5 execution is limited to the exact Issue #4 pointer. Completion does not mark owner acceptance Passed or authorize merge/M11.
