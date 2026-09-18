@@ -1,4 +1,12 @@
 using System.IO;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Recovery;
@@ -8,8 +16,12 @@ using Sushi81.Pos.Infrastructure.Authority;
 namespace Sushi81.Pos.ArchitectureTests;
 
 [TestClass]
+[DoNotParallelize]
 public sealed class M10Wp4DesktopTests
 {
+    private static readonly string[] RenderCultures = ["fr-FR", "zh-CN"];
+    private static readonly (double Width, double Height)[] RenderSizes = [(640d, 480d), (940d, 700d), (1280d, 900d)];
+
     [TestMethod]
     public async Task CatalogueWorkflowStringsRemainPresentInFrenchAndChinese()
     {
@@ -138,6 +150,10 @@ public sealed class M10Wp4DesktopTests
             Assert.IsFalse(thrown.Succeeded);
             Assert.AreEqual(CatalogueImportWorkflowOutcome.CommitFailed, throwingWorkflow.Outcome);
             Assert.IsFalse(throwingWorkflow.CanConfirm);
+            var syntheticIssue = throwingWorkflow.Issues.Single();
+            Assert.AreEqual(string.Empty, syntheticIssue.Worksheet);
+            Assert.AreEqual(string.Empty, syntheticIssue.Row);
+            Assert.AreEqual(string.Empty, syntheticIssue.Field);
             Assert.IsEmpty(throwingWorkflow.Issues.Where(issue => issue.Message.Contains("synthetic", StringComparison.OrdinalIgnoreCase)));
 
             using var noOpStore = new FakeImportStore(CatalogueImportCommitResult.Success(changed: false));
@@ -158,6 +174,228 @@ public sealed class M10Wp4DesktopTests
             Assert.AreEqual(CatalogueImportWorkflowOutcome.RefreshFailed, refreshFailureWorkflow.Outcome);
             Assert.AreEqual(1, changedStore.CommitCount);
             Assert.IsFalse(refreshFailureWorkflow.CanConfirm);
+        }
+        finally { File.Delete(source); }
+    }
+
+    [TestMethod]
+    public async Task WorkflowAuthorityAndPresentationBarrierRemainFailClosed()
+    {
+        var source = Path.Combine(Path.GetTempPath(), $"sushi81-catalogue-{Guid.NewGuid():N}.xlsx");
+        await File.WriteAllTextAsync(source, "synthetic");
+        try
+        {
+            using var readOnlyGuard = new WriteAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly);
+            var readOnlyWorkflow = CreateWorkflow(new FakeImportStore(CatalogueImportCommitResult.Success(changed: true)), readOnlyGuard);
+            Assert.IsTrue(readOnlyWorkflow.CanExport);
+            Assert.IsTrue(readOnlyWorkflow.CanImport);
+            await readOnlyWorkflow.PreviewFromPathAsync(source, CatalogueImportMode.Update);
+            Assert.IsFalse(readOnlyWorkflow.CanConfirm);
+            Assert.AreEqual(CatalogueImportMode.Update, readOnlyWorkflow.Preview!.Preview.Mode);
+
+            using var authoritativeGuard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+            var blocked = false;
+            var authoritativeWorkflow = CreateWorkflow(
+                new FakeImportStore(CatalogueImportCommitResult.Success(changed: true)),
+                authoritativeGuard,
+                presentationBlocked: () => blocked);
+            await authoritativeWorkflow.PreviewFromPathAsync(source, CatalogueImportMode.Update);
+            Assert.IsTrue(authoritativeWorkflow.CanConfirm);
+            await authoritativeWorkflow.PreviewFromPathAsync(source, CatalogueImportMode.AddOnly);
+            Assert.AreEqual(CatalogueImportMode.AddOnly, authoritativeWorkflow.Preview!.Preview.Mode);
+            Assert.IsTrue(authoritativeWorkflow.CanConfirm);
+            blocked = true;
+            authoritativeWorkflow.RefreshPresentationState();
+            Assert.IsFalse(authoritativeWorkflow.CanExport);
+            Assert.IsFalse(authoritativeWorkflow.CanImport);
+            Assert.IsFalse(authoritativeWorkflow.CanConfirm);
+            blocked = false;
+            authoritativeWorkflow.RefreshPresentationState();
+            Assert.IsTrue(authoritativeWorkflow.CanExport);
+            Assert.IsTrue(authoritativeWorkflow.CanImport);
+            Assert.IsTrue(authoritativeWorkflow.CanConfirm);
+        }
+        finally { File.Delete(source); }
+    }
+
+    [TestMethod]
+    public async Task ProductionShellCatalogueWorkflowRefreshCallbackCompletesThroughThePresentationBarrier()
+    {
+        var source = Path.Combine(Path.GetTempPath(), $"sushi81-catalogue-{Guid.NewGuid():N}.xlsx");
+        await File.WriteAllTextAsync(source, "synthetic");
+        try
+        {
+            using var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+            using var store = new FakeImportStore(CatalogueImportCommitResult.Success(changed: true));
+            var importer = new CatalogueImportService(new EmptyImportGateway(), new EmptyBaselineQueries(), store, guard, new CountingNotifier());
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                startupSucceeded: true,
+                authorityGuard: guard,
+                catalogueWorkbookService: new CatalogueWorkbookService(new EmptySnapshotQueries(), new EmptyWorkbookGateway()),
+                catalogueImportService: importer);
+            Assert.IsNotNull(shell.CatalogueWorkflow);
+            await shell.CatalogueWorkflow!.PreviewFromPathAsync(source, CatalogueImportMode.Update);
+            var committed = await shell.CatalogueWorkflow.CommitPreviewAsync();
+            Assert.IsTrue(committed.Succeeded);
+            Assert.IsTrue(committed.Changed);
+            Assert.AreEqual(CatalogueImportWorkflowOutcome.Changed, shell.CatalogueWorkflow.Outcome);
+            Assert.IsTrue(shell.CanWrite);
+            Assert.IsTrue(shell.CatalogueWorkflow.CanExport);
+            Assert.IsTrue(shell.CatalogueWorkflow.CanImport);
+            Assert.AreEqual(1, store.CommitCount);
+        }
+        finally { File.Delete(source); }
+    }
+
+    [TestMethod]
+    public void CatalogueImportModeDialogRequiresAnExplicitChoiceOnRealSta()
+    {
+        RunOnSta(() =>
+        {
+            var localized = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true).Localized;
+            var dialog = new CatalogueImportModeDialog(null!, localized);
+            dialog.Show();
+            dialog.UpdateLayout();
+            var update = GetPrivateField<RadioButton>(dialog, "update");
+            var addOnly = GetPrivateField<RadioButton>(dialog, "addOnly");
+            var continueButton = GetPrivateField<Button>(dialog, "continueButton");
+            Assert.AreNotEqual(true, update.IsChecked);
+            Assert.AreNotEqual(true, addOnly.IsChecked);
+            Assert.IsFalse(continueButton.IsEnabled);
+            update.IsChecked = true;
+            Assert.IsTrue(continueButton.IsEnabled);
+            dialog.Close();
+
+            var closeDialog = new CatalogueImportModeDialog(null!, localized);
+            closeDialog.Show();
+            closeDialog.Close();
+            Assert.IsNull(closeDialog.SelectedMode);
+        });
+    }
+
+    [TestMethod]
+    public async Task PreviewDialogFailureKeepsStructuredContextAndDisablesRetryOnRealSta()
+    {
+        var source = Path.Combine(Path.GetTempPath(), $"sushi81-catalogue-{Guid.NewGuid():N}.xlsx");
+        await File.WriteAllTextAsync(source, "synthetic");
+        try
+        {
+            RunOnSta(() =>
+            {
+                using var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+                var issue = new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, "persistence-conflict", "synthetic persistence conflict", "Products", 7, "price-ttc");
+                using var store = new FakeImportStore(CatalogueImportCommitResult.Failure(issue));
+                var workflow = CreateWorkflow(store, guard);
+                workflow.PreviewFromPathAsync(source, CatalogueImportMode.Update).GetAwaiter().GetResult();
+                var localized = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true).Localized;
+                var dialog = new CatalogueImportPreviewDialog(null!, workflow, workflow.Preview!, localized)
+                {
+                    Width = 940,
+                    Height = 700,
+                    ShowInTaskbar = false,
+                };
+                dialog.Show();
+                dialog.UpdateLayout();
+                GetPrivateField<Button>(dialog, "confirm").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                dialog.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+                dialog.UpdateLayout();
+                var presented = workflow.Issues.Single();
+                Assert.AreEqual("Products", presented.Worksheet);
+                Assert.AreEqual("7", presented.Row);
+                Assert.AreEqual("price-ttc", presented.Field);
+                Assert.AreEqual(1, store.CommitCount);
+                var confirm = GetPrivateField<Button>(dialog, "confirm");
+                Assert.IsFalse(confirm.IsEnabled);
+                Assert.AreEqual(localized["Close"], GetPrivateField<Button>(dialog, "cancel").Content?.ToString());
+                dialog.Close();
+            });
+        }
+        finally { File.Delete(source); }
+    }
+
+    [TestMethod]
+    public async Task PreviewDialogNoOpAndRefreshFailureRemainVisibleAndNonRetriableOnSta()
+    {
+        var source = Path.Combine(Path.GetTempPath(), $"sushi81-catalogue-{Guid.NewGuid():N}.xlsx");
+        await File.WriteAllTextAsync(source, "synthetic");
+        try
+        {
+            RunOnSta(() =>
+            {
+                using var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+                using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+                var localized = shell.Localized;
+
+                using var noOpStore = new FakeImportStore(CatalogueImportCommitResult.Success(changed: false));
+                var noOpWorkflow = CreateWorkflow(noOpStore, guard);
+                noOpWorkflow.PreviewFromPathAsync(source, CatalogueImportMode.Update).GetAwaiter().GetResult();
+                var noOpDialog = new CatalogueImportPreviewDialog(null!, noOpWorkflow, noOpWorkflow.Preview!, localized);
+                noOpDialog.Show();
+                noOpDialog.UpdateLayout();
+                ClickButton(noOpDialog, localized["ConfirmImport"]);
+                PumpDispatcher(noOpDialog);
+                Assert.AreEqual(CatalogueImportWorkflowOutcome.NoChange, noOpWorkflow.Outcome);
+                Assert.AreEqual(localized["CatalogueImportNoChange"], GetPrivateField<TextBlock>(noOpDialog, "status").Text);
+                Assert.AreEqual(1, noOpStore.CommitCount);
+                Assert.AreEqual(localized["Close"], GetPrivateField<Button>(noOpDialog, "cancel").Content?.ToString());
+                noOpDialog.Close();
+
+                using var changedStore = new FakeImportStore(CatalogueImportCommitResult.Success(changed: true));
+                var refreshFailureWorkflow = CreateWorkflow(changedStore, guard, _ => throw new InvalidOperationException("synthetic refresh failure"));
+                refreshFailureWorkflow.PreviewFromPathAsync(source, CatalogueImportMode.Update).GetAwaiter().GetResult();
+                var refreshDialog = new CatalogueImportPreviewDialog(null!, refreshFailureWorkflow, refreshFailureWorkflow.Preview!, localized);
+                refreshDialog.Show();
+                refreshDialog.UpdateLayout();
+                ClickButton(refreshDialog, localized["ConfirmImport"]);
+                PumpDispatcher(refreshDialog);
+                Assert.AreEqual(CatalogueImportWorkflowOutcome.RefreshFailed, refreshFailureWorkflow.Outcome);
+                Assert.AreEqual(localized["CatalogueImportRefreshFailed"], GetPrivateField<TextBlock>(refreshDialog, "status").Text);
+                Assert.AreEqual(1, changedStore.CommitCount);
+                Assert.IsFalse(refreshFailureWorkflow.CanConfirm);
+                refreshDialog.Close();
+            });
+        }
+        finally { File.Delete(source); }
+    }
+
+    [TestMethod]
+    public async Task CatalogueDialogsRenderActionsAtSupportedSizesInFrenchAndChinese()
+    {
+        var source = Path.Combine(Path.GetTempPath(), $"sushi81-catalogue-{Guid.NewGuid():N}.xlsx");
+        await File.WriteAllTextAsync(source, "synthetic");
+        try
+        {
+            RunOnSta(() =>
+            {
+                foreach (var cultureName in RenderCultures)
+                foreach (var size in RenderSizes)
+                {
+                    using var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+                    using var store = new FakeImportStore(CatalogueImportCommitResult.Success(changed: false));
+                    var workflow = CreateWorkflow(store, guard);
+                    workflow.PreviewFromPathAsync(source, CatalogueImportMode.Update).GetAwaiter().GetResult();
+                    using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+                    if (cultureName == "zh-CN") shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == cultureName)).GetAwaiter().GetResult();
+                    var dialog = new CatalogueImportPreviewDialog(null!, workflow, workflow.Preview!, shell.Localized)
+                    {
+                        Width = size.Width,
+                        Height = size.Height,
+                        ShowInTaskbar = false,
+                    };
+                    dialog.Show();
+                    dialog.UpdateLayout();
+                    dialog.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+                    dialog.UpdateLayout();
+                    var buttons = new[] { GetPrivateField<Button>(dialog, "confirm"), GetPrivateField<Button>(dialog, "cancel") };
+                    foreach (var button in buttons)
+                    {
+                        Assert.IsFalse(string.IsNullOrWhiteSpace(button.Content?.ToString()), $"{cultureName} action text is missing.");
+                        Assert.IsGreaterThanOrEqualTo(80d, button.MinWidth, $"{cultureName} action '{button.Content}' has no usable minimum width.");
+                    }
+                    dialog.Close();
+                }
+            });
         }
         finally { File.Delete(source); }
     }
@@ -189,10 +427,26 @@ public sealed class M10Wp4DesktopTests
         CollectionAssert.IsSubsetOf(required, CatalogueImportIssuePresenter.KnownStableCodes.ToArray());
 
         var french = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true).Localized;
-        var issue = new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, "future-code", "raw English exception text");
-        var message = CatalogueImportIssuePresenter.Message(issue, french);
-        StringAssert.Contains(message, "future-code");
-        Assert.IsFalse(message.Contains("raw English exception text", StringComparison.Ordinal));
+        using var chineseShell = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+        chineseShell.ChangeLanguageAsync(chineseShell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+        foreach (var code in CatalogueImportIssuePresenter.KnownStableCodes)
+        {
+            var issue = new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, code, "raw English exception text");
+            var frMessage = CatalogueImportIssuePresenter.Message(issue, french);
+            var zhMessage = CatalogueImportIssuePresenter.Message(issue, chineseShell.Localized);
+            Assert.IsFalse(string.IsNullOrWhiteSpace(frMessage), $"French mapping is empty for {code}.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(zhMessage), $"Chinese mapping is empty for {code}.");
+            Assert.IsFalse(frMessage.Contains("raw English exception text", StringComparison.Ordinal));
+            Assert.IsFalse(zhMessage.Contains("raw English exception text", StringComparison.Ordinal));
+        }
+
+        var unknown = new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, "future-code", "raw English exception text");
+        var frUnknown = CatalogueImportIssuePresenter.Message(unknown, french);
+        var zhUnknown = CatalogueImportIssuePresenter.Message(unknown, chineseShell.Localized);
+        StringAssert.Contains(frUnknown, "future-code");
+        StringAssert.Contains(zhUnknown, "future-code");
+        Assert.IsFalse(frUnknown.Contains("raw English exception text", StringComparison.Ordinal));
+        Assert.IsFalse(zhUnknown.Contains("raw English exception text", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -302,14 +556,60 @@ public sealed class M10Wp4DesktopTests
     private static CatalogueWorkbookWorkflowViewModel CreateWorkflow(
         ICatalogueImportStore store,
         IWriteAuthorityGuard guard,
-        Func<CancellationToken, Task>? refresh = null)
+        Func<CancellationToken, Task>? refresh = null,
+        Func<bool>? presentationBlocked = null)
     {
         var importer = new CatalogueImportService(new EmptyImportGateway(), new EmptyBaselineQueries(), store, guard, new CountingNotifier());
         return new CatalogueWorkbookWorkflowViewModel(
             new CatalogueWorkbookService(new EmptySnapshotQueries(), new EmptyWorkbookGateway()),
             importer,
             guard,
+            presentationRefreshBlocked: presentationBlocked,
             refreshAfterChangedImport: refresh);
+    }
+
+    private static T GetPrivateField<T>(object instance, string fieldName)
+    {
+        var field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.IsNotNull(field, $"Missing private field {fieldName}.");
+        return (T)field!.GetValue(instance)!;
+    }
+
+    private static void ClickButton(Window dialog, string content)
+    {
+        var button = content.Contains("Confirm", StringComparison.Ordinal)
+            ? GetPrivateField<Button>(dialog, "confirm")
+            : GetPrivateField<Button>(dialog, "cancel");
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    }
+
+    private static void PumpDispatcher(Window window) => window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
+
+
+    private static IEnumerable<T> GetVisualDescendants<T>(DependencyObject root) where T : DependencyObject
+    {
+        if (root is T typed) yield return typed;
+        int count;
+        try { count = VisualTreeHelper.GetChildrenCount(root); }
+        catch (InvalidOperationException) { yield break; }
+        for (var index = 0; index < count; index++)
+        {
+            foreach (var descendant in GetVisualDescendants<T>(VisualTreeHelper.GetChild(root, index))) yield return descendant;
+        }
+    }
+
+    private static void RunOnSta(Action action)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try { action(); }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
     private static int CountOccurrences(string source, string value) =>

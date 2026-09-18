@@ -301,7 +301,7 @@ public sealed class CatalogueWorkbookWorkflowViewModel : INotifyPropertyChanged
             {
                 lastCommit = CatalogueImportCommitResult.Failure(new CatalogueImportIssue(
                     CatalogueImportIssueSeverity.Error, "transaction-failed", "The Catalogue import could not be completed.",
-                    preview?.Preview.SourceName, null, null));
+                    Worksheet: null, ExcelRow: null, FieldKey: null));
                 outcome = CatalogueImportWorkflowOutcome.CommitFailed;
                 displayedIssues = lastCommit.Issues;
                 NotifyPreviewChanged();

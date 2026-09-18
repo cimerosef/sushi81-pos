@@ -368,3 +368,16 @@ A worklog entry, `CODEX_DONE`, controller acceptance, owner manual PASSED or gre
 - Local validation before final push: focused M10 WP4 Architecture tests **8/8 passed**; relevant Architecture/WPF/localization/regression filter **102/102 passed**; Desktop Release build **0 warnings / 0 errors**; `git diff --check` passed (only expected CRLF normalization warnings). Exact-head CI remains pending the final repair push.
 - Audits: ClosedXML `0.105.1` remains the sole XLSX dependency; no COM/Interop/macros, schema migration, durable field, import-history or Delete operation; authority guard and existing refresh barrier remain in force; privacy fixtures are synthetic/generated only.
 - Remaining evidence: exact-final-head CI and controller review; owner Windows/Excel manual acceptance remains unexecuted. Blockers: none within this repair scope.
+
+## Entry 2026-09-18 — `M10-WP4-FINAL-WPF-EVIDENCE-CLOSURE-14`
+
+- Authorization/gate state observed: Issue #4 OPEN and pointing to PR #22; controller review `5730800374` and exact handoff `5730810263` authorize this final WP4 evidence closure from starting head `2101c2a6455bb542fdb916126357576bc1bda1ac`.
+- Scope: tests/evidence plus the single authorized Desktop presentation correction only. WP1/WP2/WP3 workbook, parser, planner, commit and persistence semantics remain unchanged; WP5, owner Windows/Excel acceptance, merge and M11+ remain excluded.
+- Presentation correction: a pre-result `transaction-failed` exception now has `Worksheet`, `ExcelRow` and `FieldKey` all null; the source filename remains in the preview Context section and is never misrepresented as a worksheet.
+- Evidence added: direct workflow authority/barrier tests; real STA mode-dialog explicit-choice/cancel/Escape/close coverage; real STA preview failure/no-op/refresh-failure lifecycle coverage; structured issue context and retry barrier checks; FR/zh-CN stable-code/fallback coverage; real rendered action/scroll-surface checks at 640x480, 940x700 and 1280x900.
+- Lineage/evidence correction: repository compare/merge-base confirms valid lineage from the authorized previous starting head `7753e55781af6cc39d35fcc23e3f51ac26d56cfb3`; the prior `CODEX_DONE` `5730734974` contained only a textual starting-head typo and is intentionally not edited or deleted.
+- Files changed: `CatalogueWorkbookWorkflow.cs`; `M10Wp4DesktopTests.cs`; living M10 status/contract/manual-acceptance docs; this worklog.
+- Focused tests: M10 WP4 Architecture suite **15/15 passed**; full Release solution matrix **760/760 passed** across all test assemblies. Release build completed with **0 warnings / 0 errors** and `git diff --check` passed (only expected line-ending notices).
+- Audits: ClosedXML `0.105.1` remains the sole XLSX dependency; no COM/Interop/macros, schema migration, durable field, import-history or Delete operation; authority guard/refresh barrier remain fail-closed; fixtures are synthetic/generated only.
+- Remaining manual evidence: owner Windows/Excel acceptance remains unexecuted. Blockers: none within this authorized evidence closure.
+- Exact-final-head CI remains required after the final push; no post-CI docs-only follow-up is permitted.
