@@ -285,6 +285,29 @@ public sealed class M10Wp3CatalogueImportCommitValidatorTests
         CollectionAssert.Contains(refIssues.Select(issue => issue.Code).ToArray(), "contradictory-operation");
     }
 
+    [TestMethod]
+    public void ActivateAndDeactivateAndContradictoryOptionReferencesAreOrderIndependent()
+    {
+        var categoryId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        var productId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var groupId = Guid.Parse("00000000-0000-0000-0000-000000000003");
+        var optionId = Guid.Parse("00000000-0000-0000-0000-000000000004");
+        var baseline = RichBaseline(categoryId, productId, groupId, optionId, "PL");
+        var activate = OptionOperation(CatalogueImportOperationKind.Activate, optionId, groupId, "Sauce", true);
+        var deactivate = OptionOperation(CatalogueImportOperationKind.Deactivate, optionId, groupId, "Sauce", false);
+        var stateForward = CatalogueImportCommitValidator.Validate(new CatalogueImportPlan(CatalogueImportMode.Update, [activate, deactivate], [], [], "synthetic"), baseline);
+        var stateReverse = CatalogueImportCommitValidator.Validate(new CatalogueImportPlan(CatalogueImportMode.Update, [deactivate, activate], [], [], "synthetic"), baseline);
+        CollectionAssert.Contains(stateForward.Select(issue => issue.Code).ToArray(), "contradictory-state-operation");
+        CollectionAssert.AreEqual(stateForward.Select(issue => issue.Code + "|" + issue.Message).ToArray(), stateReverse.Select(issue => issue.Code + "|" + issue.Message).ToArray());
+
+        var modify = OptionOperation(CatalogueImportOperationKind.Modify, optionId, groupId, "Sauce", false);
+        var wrongReference = activate with { ParentReference = CatalogueImportEntityReference.Existing(groupId, "group:wrong") };
+        var referencesForward = CatalogueImportCommitValidator.Validate(new CatalogueImportPlan(CatalogueImportMode.Update, [modify, wrongReference], [], [], "synthetic"), baseline);
+        var referencesReverse = CatalogueImportCommitValidator.Validate(new CatalogueImportPlan(CatalogueImportMode.Update, [wrongReference, modify], [], [], "synthetic"), baseline);
+        CollectionAssert.Contains(referencesForward.Select(issue => issue.Code).ToArray(), "contradictory-operation");
+        CollectionAssert.AreEqual(referencesForward.Select(issue => issue.Code + "|" + issue.Message).ToArray(), referencesReverse.Select(issue => issue.Code + "|" + issue.Message).ToArray());
+    }
+
     private static CatalogueImportOperation Existing(CatalogueImportOperationKind kind, Guid id, IReadOnlyDictionary<string, string?> values, Guid categoryId) =>
         new(CatalogueImportEntityType.Product, kind, id, $"product:{id:N}", 2, "Products", values,
             CatalogueImportEntityReference.Existing(id, $"product:{id:N}"),

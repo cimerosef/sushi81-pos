@@ -333,3 +333,16 @@ A worklog entry, `CODEX_DONE`, controller acceptance, owner manual PASSED or gre
 - Remaining manual evidence: controller review and owner Windows/Excel acceptance remain unexecuted; WP4/WP5 remain unauthorized.
 - Blockers/unresolved items: none identified within this authorized evidence handoff.
 - Ending pushed PR head: to be recorded in the matching durable `CODEX_DONE` after final push; browser notification result pending durable delivery.
+
+## Entry 2026-09-18 — `M10-WP3-FINAL-EVIDENCE-CLOSURE-11`
+
+- Authorization/gate state observed: Issue #4 OPEN and pointing to PR #22; controller handoff `5728314096` and review `5728308380` authorize this final evidence-only closure from starting head `f3318d135f455b4a9aae9bfb71907ae5474f54c5`.
+- Scope: close only the remaining direct WP3 persistence/evidence gaps. WP4/WPF, WP5, schema changes, permanent Delete semantics, merge and M11+ remain excluded.
+- Evidence added: existing Product → planned-new Category atomic reassignment with one revision advance; new Group → existing Product and new Option → existing Group exact-parent allocation; existing Option re-parent rejection before mutation; complete omitted Product/Group/Option no-delete and exact Category preservation; full Category/Product/Group/Option rollback after an Option write and after transaction-runner pre-commit failure with unchanged revision; real SQLite UNIQUE constraint conflict mapped to `persistence-conflict` with atomic rollback; temp-code namespace collision safety; unaffected Option display order `1000000` staging edge; and final Activate+Deactivate plus contradictory Option-reference order-independence validator cases.
+- Production code: no business behavior or persistence semantics changed. Added only an internal test-only SQLite constraint fault hook, null in production, so the evidence test can execute a genuine constraint statement inside the real import transaction.
+- Files changed: `SqliteCatalogueStore.cs` (test-only internal hook); `M10Wp3CatalogueImportCommitValidatorTests.cs`; `M10Wp3CatalogueImportCommitTests.cs`; this worklog.
+- Focused tests: Application validator/authority WP3 suites **14/14 + 5/5 passed**; Infrastructure WP3 production SQLite suite **23/23 passed**. The real constraint test observed SQLite UNIQUE failure and confirmed `persistence-conflict`, no partial rows and unchanged revision.
+- Full Release tests: **745/745 passed** across all six Release test assemblies. Release build: **0 warnings / 0 errors**. `git diff --check`: passed (only expected CRLF normalization warnings).
+- Audits: ClosedXML **0.105.1** remains the sole XLSX dependency; no COM/Interop. No schema migration, durable field or import-history table. Import remains one transaction with no Delete operation or SQL. Authority/recovery behavior is unchanged. Fixtures use synthetic/generated data only.
+- Exact final pushed head and CI: to be recorded in the matching durable `CODEX_DONE` after the final push; no post-CI docs-only commit is permitted.
+- Remaining manual evidence: controller review and owner Windows/Excel acceptance remain pending; WP4/WP5/M11+ remain unauthorized. Blockers: none within this handoff. Browser notification result pending durable delivery.

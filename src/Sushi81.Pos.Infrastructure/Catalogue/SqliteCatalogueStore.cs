@@ -35,6 +35,9 @@ public sealed class SqliteCatalogueStore(
 
     /// <summary>Test-only import failure seam; production composition leaves it null.</summary>
     internal Func<int, Exception?>? ImportWriteFailureInjector { get; set; }
+    // Test-only fault hook. It can issue an actual SQLite statement inside the
+    // import transaction; production behavior is unchanged when unset.
+    internal Func<SqliteApplicationTransaction, int, Task>? ImportWriteConstraintInjector { get; set; }
 
     /// <summary>Test-only pause after the commit transaction has captured its live baseline.</summary>
     internal Func<CancellationToken, Task>? ImportCommitAfterBaselineReadAsync { get; set; }
@@ -722,6 +725,7 @@ public sealed class SqliteCatalogueStore(
                 : "UPDATE products SET code=$code,normalized_code=$normalized,name=$name,category_id=$category,price_ttc_cents=$price,vat_rate=$vat,is_active=$active,discount_eligible=$discount,options_enabled=$options,updated_at_utc=$updated WHERE product_id=$id;";
             changed += await ExecuteAsync(sqlite, sql, token, ("$id", id.ToString()), ("$code", CatalogueNormalization.Display(Required(first, "code"))), ("$normalized", CatalogueNormalization.Key(Required(first, "code"))), ("$name", CatalogueNormalization.Display(Required(first, "name"))), ("$category", categoryId.ToString()), ("$price", ParseLong(first, "priceCents")), ("$vat", FormatDecimal(ParseDecimal(first, "vatRate"))), ("$active", ParseBool(first, "isActive") ? 1 : 0), ("$discount", ParseBool(first, "discountEligible") ? 1 : 0), ("$options", ParseBool(first, "optionsEnabled") ? 1 : 0), ("$created", now), ("$updated", now));
             if (ImportWriteFailureInjector?.Invoke(changed) is { } injected) throw injected;
+            if (ImportWriteConstraintInjector is { } constraintInjector) await constraintInjector(sqlite, changed);
         }
 
         var groupOps = plan.Operations.Where(value => value.EntityType == CatalogueImportEntityType.OptionGroup).GroupBy(value => value.LocalKey, StringComparer.Ordinal).Select(value => value.ToArray()).ToArray();
@@ -741,6 +745,7 @@ public sealed class SqliteCatalogueStore(
                 : "UPDATE option_groups SET name=$name,selection_mode=$mode,is_required=$required,min_selections=$min,max_selections=$max,display_order=$order,updated_at_utc=$updated WHERE option_group_id=$id;";
             changed += await ExecuteAsync(sqlite, sql, token, ("$id", id.ToString()), ("$product", parentId.ToString()), ("$name", CatalogueNormalization.Display(Required(first, "name"))), ("$mode", Required(first, "selectionMode").ToUpperInvariant()), ("$required", ParseBool(first, "isRequired") ? 1 : 0), ("$min", ParseOptionalInt(first, "minSelections")), ("$max", ParseOptionalInt(first, "maxSelections")), ("$order", ParseInt(first, "displayOrder")), ("$created", now), ("$updated", now));
             if (ImportWriteFailureInjector?.Invoke(changed) is { } injected) throw injected;
+            if (ImportWriteConstraintInjector is { } constraintInjector) await constraintInjector(sqlite, changed);
         }
 
         var optionOps = plan.Operations.Where(value => value.EntityType == CatalogueImportEntityType.Option).GroupBy(value => value.LocalKey, StringComparer.Ordinal).Select(value => value.ToArray()).ToArray();
@@ -760,6 +765,7 @@ public sealed class SqliteCatalogueStore(
                 : "UPDATE options SET name=$name,price_adjustment_ttc_cents=$price,is_active=$active,display_order=$order,updated_at_utc=$updated WHERE option_id=$id;";
             changed += await ExecuteAsync(sqlite, sql, token, ("$id", id.ToString()), ("$group", parentId.ToString()), ("$name", CatalogueNormalization.Display(Required(first, "name"))), ("$price", ParseLong(first, "priceAdjustmentCents")), ("$active", ParseBool(first, "isActive") ? 1 : 0), ("$order", ParseInt(first, "displayOrder")), ("$created", now), ("$updated", now));
             if (ImportWriteFailureInjector?.Invoke(changed) is { } injected) throw injected;
+            if (ImportWriteConstraintInjector is { } constraintInjector) await constraintInjector(sqlite, changed);
         }
         return changed;
     }

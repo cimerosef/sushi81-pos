@@ -158,6 +158,78 @@ public sealed class M10Wp3CatalogueImportCommitTests
     }
 
     [TestMethod]
+    public async Task ExistingProductCanReferencePlannedCategoryAtomically()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var catalogue = new CatalogueService(store);
+        var oldCategory = (await catalogue.CreateCategoryWithCodeAsync("Plats", "PL")).Value!;
+        var productId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P-1", "Original", oldCategory.Id, Money.FromCents(100), 20m, true, true, false, []))).Value!;
+        var baseline = await store.ReadCatalogueImportBaselineAsync();
+        var current = baseline.Products.Single(value => value.Id == productId);
+        var newCategoryKey = "category:new:desserts";
+        var operation = ProductModifyWithCategory(current, "P-1", "Desserts", "DE", CatalogueImportEntityReference.New(newCategoryKey));
+        var plan = new CatalogueImportPlan(CatalogueImportMode.Update, [operation], [], [new(newCategoryKey, "Desserts", "DE")], "synthetic");
+        var revisionBefore = await ReadRevisionAsync(factory);
+
+        var result = await store.CommitAsync(new CatalogueImportCommitRequest(plan, baseline));
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Code)));
+        Assert.AreEqual(revisionBefore + 1, await ReadRevisionAsync(factory));
+        var categories = await store.ListCategoriesAsync();
+        Assert.HasCount(2, categories);
+        var planned = categories.Single(value => value.Name == "Desserts");
+        Assert.AreNotEqual(Guid.Empty, planned.Id);
+        Assert.AreEqual("DE", planned.ShortCode);
+        Assert.AreEqual("Plats", categories.Single(value => value.Id == oldCategory.Id).Name);
+        var saved = await store.GetProductForEditAsync(productId);
+        Assert.IsNotNull(saved);
+        Assert.AreEqual(productId, saved!.Id);
+        Assert.AreEqual(planned.Id, saved.CategoryId);
+    }
+
+    [TestMethod]
+    public async Task NewGroupUsesExistingProductAndNewOptionUsesExistingGroup()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var ids = new DeterministicIds();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), ids, clock);
+        var catalogue = new CatalogueService(store);
+        var category = (await catalogue.CreateCategoryWithCodeAsync("Plats", "PL")).Value!;
+        var productId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P-1", "Original", category.Id, Money.Zero, 20m, true, true, true, []))).Value!;
+        var baseline = await store.ReadCatalogueImportBaselineAsync();
+        var groupKey = "group:new:extras";
+        var createGroup = new CatalogueImportOperation(CatalogueImportEntityType.OptionGroup, CatalogueImportOperationKind.Create, null, groupKey, 2, "OptionGroups",
+            new Dictionary<string, string?> { ["productCode"] = "P-1", ["name"] = "Extras", ["selectionMode"] = "MULTI", ["isRequired"] = "false", ["minSelections"] = "0", ["maxSelections"] = "1", ["displayOrder"] = "0" },
+            CatalogueImportEntityReference.New(groupKey), ParentReference: CatalogueImportEntityReference.Existing(productId, $"product:{productId:N}"));
+        var first = await store.CommitAsync(new CatalogueImportCommitRequest(new CatalogueImportPlan(CatalogueImportMode.Update, [createGroup], [], [], "synthetic"), baseline));
+        Assert.IsTrue(first.Succeeded, string.Join(";", first.Issues.Select(issue => issue.Code)));
+        var afterGroup = await store.ReadCatalogueImportBaselineAsync();
+        var group = afterGroup.Products.Single(value => value.Id == productId).OptionGroups.Single();
+        Assert.AreEqual(productId, group.ProductId);
+        var optionKey = "option:new:sauce";
+        var createOption = new CatalogueImportOperation(CatalogueImportEntityType.Option, CatalogueImportOperationKind.Create, null, optionKey, 2, "Options",
+            new Dictionary<string, string?> { ["name"] = "Sauce", ["priceAdjustmentCents"] = "25", ["isActive"] = "true", ["displayOrder"] = "0" },
+            CatalogueImportEntityReference.New(optionKey), ParentReference: CatalogueImportEntityReference.Existing(group.Id, $"group:{group.Id:N}"));
+        var second = await store.CommitAsync(new CatalogueImportCommitRequest(new CatalogueImportPlan(CatalogueImportMode.Update, [createOption], [], [], "synthetic"), afterGroup));
+        Assert.IsTrue(second.Succeeded, string.Join(";", second.Issues.Select(issue => issue.Code)));
+        var final = await store.ReadCatalogueImportBaselineAsync();
+        var savedGroup = final.Products.Single(value => value.Id == productId).OptionGroups.Single();
+        var option = savedGroup.Options.Single();
+        Assert.AreNotEqual(Guid.Empty, savedGroup.Id);
+        Assert.AreNotEqual(Guid.Empty, option.Id);
+        Assert.AreEqual(productId, savedGroup.ProductId);
+        Assert.AreEqual(savedGroup.Id, option.OptionGroupId);
+        Assert.AreEqual("Original", final.Products.Single(value => value.Id == productId).Name);
+    }
+
+    [TestMethod]
     public async Task MidBatchFailureRollsBackCategoryProductGroupAndOptionWrites()
     {
         using var paths = new TempPaths();
@@ -165,19 +237,16 @@ public sealed class M10Wp3CatalogueImportCommitTests
         var factory = new SqliteConnectionFactory(paths);
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
         var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
-        var workbook = new CatalogueImportWorkbook(CatalogueWorkbookSchema.ContractVersion,
-            [new(2, "P-1", "New", "Plats", "PL", Money.Zero, 20m, true, false, true, null, null)],
-            [new(2, "P-1", "New", "Extras", "MULTI", false, 0, 1, 0, null, null, null, null)],
-            [new(2, "P-1", "New", "Extras", "Sauce", Money.Zero, true, 0, null, null, null, null, null)], [], [], "synthetic");
-        var preview = new CatalogueImportPlanner().Plan(CatalogueImportMode.AddOnly, workbook, CatalogueImportBaseline.Empty);
-        Assert.IsNotNull(preview.Plan, string.Join(";", preview.Preview.Issues.Select(issue => issue.Code)));
-        store.ImportWriteFailureInjector = changed => changed >= 3 ? new InvalidOperationException("synthetic complete-hierarchy failure") : null;
+        var plan = FullHierarchyCreatePlan();
+        var revisionBefore = await ReadRevisionAsync(factory);
+        store.ImportWriteFailureInjector = changed => changed >= 4 ? new InvalidOperationException("synthetic complete-hierarchy failure") : null;
 
-        var result = await store.CommitAsync(new CatalogueImportCommitRequest(preview.Plan!, CatalogueImportBaseline.Empty));
+        var result = await store.CommitAsync(new CatalogueImportCommitRequest(plan, CatalogueImportBaseline.Empty));
 
         Assert.IsFalse(result.Succeeded);
         Assert.IsEmpty(await store.ListCategoriesAsync());
         Assert.IsEmpty(await store.ListProductsAsync());
+        Assert.AreEqual(revisionBefore, await ReadRevisionAsync(factory));
         await using var connection = await factory.OpenLiveConnectionAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM option_groups;";
@@ -195,13 +264,61 @@ public sealed class M10Wp3CatalogueImportCommitTests
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
         var runner = new SqliteTransactionRunner(factory, () => new InvalidOperationException("synthetic commit failure"));
         var store = new SqliteCatalogueStore(factory, runner, new DeterministicIds(), clock);
-        var workbook = new CatalogueImportWorkbook(CatalogueWorkbookSchema.ContractVersion,
-            [new(2, "P-1", "New", "Plats", null, Money.Zero, 20m, true, false, false, null, null)], [], [], [], [], "synthetic");
-        var preview = new CatalogueImportPlanner().Plan(CatalogueImportMode.AddOnly, workbook, CatalogueImportBaseline.Empty);
-        var result = await store.CommitAsync(new CatalogueImportCommitRequest(preview.Plan!, CatalogueImportBaseline.Empty));
+        var plan = FullHierarchyCreatePlan();
+        var revisionBefore = await ReadRevisionAsync(factory);
+        var result = await store.CommitAsync(new CatalogueImportCommitRequest(plan, CatalogueImportBaseline.Empty));
         Assert.IsFalse(result.Succeeded);
         Assert.IsEmpty(await store.ListProductsAsync());
         Assert.IsEmpty(await store.ListCategoriesAsync());
+        Assert.AreEqual(revisionBefore, await ReadRevisionAsync(factory));
+        await using var connection = await factory.OpenLiveConnectionAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM option_groups;";
+        Assert.AreEqual(0L, Convert.ToInt64(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture));
+        command.CommandText = "SELECT COUNT(*) FROM options;";
+        Assert.AreEqual(0L, Convert.ToInt64(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [TestMethod]
+    public async Task RealSqliteConstraintConflictRollsBackAtomicImport()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var catalogue = new CatalogueService(store);
+        var category = (await catalogue.CreateCategoryWithCodeAsync("Plats", "PL")).Value!;
+        var productId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P-1", "Original", category.Id, Money.Zero, 20m, true, true, false, []))).Value!;
+        var baseline = await store.ReadCatalogueImportBaselineAsync();
+        var current = baseline.Products.Single(value => value.Id == productId);
+        store.ImportWriteConstraintInjector = async (sqlite, changed) =>
+        {
+            if (changed < 1) return;
+            await using var command = sqlite.Connection.CreateCommand();
+            command.Transaction = sqlite.Transaction;
+            command.CommandText = "INSERT INTO products(product_id,code,normalized_code,name,category_id,price_ttc_cents,vat_rate,is_active,discount_eligible,options_enabled,created_at_utc,updated_at_utc) VALUES ($id,$code,$normalized,$name,$category,$price,$vat,$active,$discount,$options,$created,$updated);";
+            command.Parameters.AddWithValue("$id", productId.ToString());
+            command.Parameters.AddWithValue("$code", "P-constraint");
+            command.Parameters.AddWithValue("$normalized", "p-constraint");
+            command.Parameters.AddWithValue("$name", "Conflict");
+            command.Parameters.AddWithValue("$category", category.Id.ToString());
+            command.Parameters.AddWithValue("$price", 0);
+            command.Parameters.AddWithValue("$vat", "20");
+            command.Parameters.AddWithValue("$active", 1);
+            command.Parameters.AddWithValue("$discount", 1);
+            command.Parameters.AddWithValue("$options", 0);
+            command.Parameters.AddWithValue("$created", clock.UtcNow.ToString("O"));
+            command.Parameters.AddWithValue("$updated", clock.UtcNow.ToString("O"));
+            await command.ExecuteNonQueryAsync();
+        };
+        var revisionBefore = await ReadRevisionAsync(factory);
+        var result = await store.CommitAsync(new CatalogueImportCommitRequest(new CatalogueImportPlan(CatalogueImportMode.Update, [ProductModify(current, "P-1-updated")], [], [], "synthetic"), baseline));
+
+        Assert.IsFalse(result.Succeeded);
+        CollectionAssert.Contains(result.Issues.Select(issue => issue.Code).ToArray(), "persistence-conflict");
+        Assert.AreEqual(revisionBefore, await ReadRevisionAsync(factory));
+        Assert.AreEqual("P-1", (await store.GetProductForEditAsync(productId))!.Code);
     }
 
     [TestMethod]
@@ -383,6 +500,75 @@ public sealed class M10Wp3CatalogueImportCommitTests
     }
 
     [TestMethod]
+    public async Task ReparentingExistingOptionIsRejectedWithoutMutation()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var catalogue = new CatalogueService(store);
+        var category = (await catalogue.CreateCategoryWithCodeAsync("Plats", "PL")).Value!;
+        var firstId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P-1", "First", category.Id, Money.Zero, 20m, true, true, true,
+            [new OptionGroupDraft(Guid.Empty, "First group", SelectionMode.Multi, false, 0, 1, 0, [new OptionDraft(Guid.Empty, "Sauce", Money.Zero, true, 0)])]))).Value!;
+        var secondId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P-2", "Second", category.Id, Money.Zero, 20m, true, true, true,
+            [new OptionGroupDraft(Guid.Empty, "Second group", SelectionMode.Multi, false, 0, 1, 0, [])]))).Value!;
+        var baseline = await store.ReadCatalogueImportBaselineAsync();
+        var option = baseline.Products.Single(value => value.Id == firstId).OptionGroups.Single().Options.Single();
+        var secondGroup = baseline.Products.Single(value => value.Id == secondId).OptionGroups.Single();
+        var operation = OptionModify(option, secondGroup.Id, 0) with { ParentReference = CatalogueImportEntityReference.Existing(secondGroup.Id, $"group:{secondGroup.Id:N}") };
+        var revisionBefore = await ReadRevisionAsync(factory);
+        var result = await store.CommitAsync(new CatalogueImportCommitRequest(new CatalogueImportPlan(CatalogueImportMode.Update, [operation], [], [], "synthetic"), baseline));
+
+        Assert.IsFalse(result.Succeeded);
+        CollectionAssert.Contains(result.Issues.Select(issue => issue.Code).ToArray(), "reparent-forbidden");
+        Assert.AreEqual(revisionBefore, await ReadRevisionAsync(factory));
+        var after = await store.ReadCatalogueImportBaselineAsync();
+        var firstSaved = after.Products.Single(value => value.Id == firstId).OptionGroups.Single();
+        Assert.AreEqual(firstSaved.Id, firstSaved.Options.Single().OptionGroupId);
+        Assert.IsEmpty(after.Products.Single(value => value.Id == secondId).OptionGroups.Single().Options);
+        Assert.AreEqual("Sauce", firstSaved.Options.Single().Name);
+    }
+
+    [TestMethod]
+    public async Task OmittedProductGroupAndOptionRowsAreAllPreserved()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var catalogue = new CatalogueService(store);
+        var category = (await catalogue.CreateCategoryWithCodeAsync("Plats", "PL")).Value!;
+        var firstId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P-1", "First", category.Id, Money.FromCents(100), 20m, true, true, true,
+            [new OptionGroupDraft(Guid.Empty, "First group", SelectionMode.Multi, false, 0, 1, 0, [new OptionDraft(Guid.Empty, "First option", Money.Zero, true, 0)])]))).Value!;
+        var secondId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P-2", "Second", category.Id, Money.FromCents(200), 20m, true, true, true,
+            [new OptionGroupDraft(Guid.Empty, "Second group", SelectionMode.Multi, false, 0, 1, 0, [new OptionDraft(Guid.Empty, "Second option", Money.Zero, true, 0)])]))).Value!;
+        var baseline = await store.ReadCatalogueImportBaselineAsync();
+        var first = baseline.Products.Single(value => value.Id == firstId);
+        var firstGroup = first.OptionGroups.Single();
+        var firstOption = firstGroup.Options.Single();
+        var plan = new CatalogueImportPlan(CatalogueImportMode.Update,
+            [ProductModify(first, "P-1-updated")], [], [], "synthetic");
+
+        var result = await store.CommitAsync(new CatalogueImportCommitRequest(plan, baseline));
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Code)));
+        var after = await store.ReadCatalogueImportBaselineAsync();
+        Assert.HasCount(2, after.Products);
+        var omittedProduct = after.Products.Single(value => value.Id == secondId);
+        Assert.AreEqual("P-2", omittedProduct.Code);
+        Assert.AreEqual(category.Id, omittedProduct.CategoryId);
+        var omittedGroup = omittedProduct.OptionGroups.Single();
+        Assert.AreEqual("Second group", omittedGroup.Name);
+        var omittedOption = omittedGroup.Options.Single();
+        Assert.AreEqual("Second option", omittedOption.Name);
+        Assert.AreEqual(omittedGroup.Id, omittedOption.OptionGroupId);
+        Assert.AreEqual("Plats", after.Categories.Single(value => value.Id == category.Id).Name);
+        Assert.AreEqual("PL", after.Categories.Single(value => value.Id == category.Id).ShortCode);
+    }
+
+    [TestMethod]
     public async Task ConcurrentWriteAttemptAfterBaselineReadReturnsStableConflictWithoutPartialImport()
     {
         using var paths = new TempPaths();
@@ -444,9 +630,11 @@ public sealed class M10Wp3CatalogueImportCommitTests
         var first = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "A", "First", category.Id, Money.FromCents(100), 20m, true, true, true,
             [
                 new OptionGroupDraft(Guid.Empty, "First group", SelectionMode.Multi, false, 0, 2, 0,
-                    [new OptionDraft(Guid.Empty, "One", Money.Zero, true, 0), new OptionDraft(Guid.Empty, "Two", Money.Zero, true, 1)]),
+                    [new OptionDraft(Guid.Empty, "One", Money.Zero, true, 0), new OptionDraft(Guid.Empty, "Two", Money.Zero, true, 1), new OptionDraft(Guid.Empty, "Edge", Money.Zero, true, 1000000)]),
                 new OptionGroupDraft(Guid.Empty, "Second group", SelectionMode.Multi, false, 0, 2, 1, [])]))).Value!;
         var second = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "B", "Second", category.Id, Money.FromCents(200), 20m, true, true, false, []))).Value!;
+        var tempLikeCode = "__sushi81_import_tmp_" + first.ToString("N") + "_0";
+        var tempLike = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, tempLikeCode, "Temp-like", category.Id, Money.FromCents(300), 20m, true, true, false, []))).Value!;
         var baseline = await store.ReadCatalogueImportBaselineAsync();
         var firstCurrent = baseline.Products.Single(value => value.Id == first);
         var secondCurrent = baseline.Products.Single(value => value.Id == second);
@@ -458,6 +646,10 @@ public sealed class M10Wp3CatalogueImportCommitTests
             edgeCommand.CommandText = "UPDATE option_groups SET display_order=1000000 WHERE option_group_id=$id;";
             edgeCommand.Parameters.AddWithValue("$id", firstGroups[1].Id.ToString());
             await edgeCommand.ExecuteNonQueryAsync();
+            await using var optionEdgeCommand = edgeConnection.CreateCommand();
+            optionEdgeCommand.CommandText = "UPDATE options SET display_order=1000000 WHERE option_id=$id;";
+            optionEdgeCommand.Parameters.AddWithValue("$id", firstOptions[2].Id.ToString());
+            await optionEdgeCommand.ExecuteNonQueryAsync();
         }
         var edgeBaseline = await store.ReadCatalogueImportBaselineAsync();
         baseline = edgeBaseline;
@@ -481,10 +673,14 @@ public sealed class M10Wp3CatalogueImportCommitTests
         Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Code)));
         Assert.AreEqual("B", (await store.GetProductForEditAsync(first))!.Code);
         Assert.AreEqual("A", (await store.GetProductForEditAsync(second))!.Code);
+        Assert.AreEqual(tempLikeCode, (await store.GetProductForEditAsync(tempLike))!.Code);
         var saved = await store.GetProductForEditAsync(first);
         Assert.IsNotNull(saved);
         CollectionAssert.AreEqual(SwappedGroupNames, saved!.Groups.Select(value => value.Name).ToArray());
-        CollectionAssert.AreEqual(SwappedOptionNames, saved.Groups.Single(value => value.Name == "First group").Options.Select(value => value.Name).ToArray());
+        var savedOptions = saved.Groups.Single(value => value.Name == "First group").Options.ToArray();
+        CollectionAssert.AreEqual(SwappedOptionNames, savedOptions.Take(2).Select(value => value.Name).ToArray());
+        Assert.AreEqual("Edge", savedOptions.Single(value => value.Name == "Edge").Name);
+        Assert.AreEqual(1000000, savedOptions.Single(value => value.Name == "Edge").DisplayOrder);
     }
 
     private static CatalogueImportOperation ProductModify(CatalogueImportBaselineProduct product, string code) =>
@@ -497,6 +693,29 @@ public sealed class M10Wp3CatalogueImportCommitTests
             },
             CatalogueImportEntityReference.Existing(product.Id, $"product:{product.Id:N}"),
             CatalogueImportEntityReference.Existing(product.CategoryId, $"category:{product.CategoryId:N}"));
+
+    private static CatalogueImportOperation ProductModifyWithCategory(CatalogueImportBaselineProduct product, string code, string categoryName, string? categoryShortCode, CatalogueImportEntityReference categoryReference) =>
+        new(CatalogueImportEntityType.Product, CatalogueImportOperationKind.Modify, product.Id, $"product:{product.Id:N}", 2, "Products",
+            new Dictionary<string, string?>
+            {
+                ["code"] = code, ["name"] = product.Name, ["category"] = categoryName, ["categoryShortCode"] = categoryShortCode,
+                ["priceCents"] = product.PriceTtc.Cents.ToString(System.Globalization.CultureInfo.InvariantCulture), ["vatRate"] = product.VatRate.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["isActive"] = product.IsActive.ToString(), ["discountEligible"] = product.DiscountEligible.ToString(), ["optionsEnabled"] = product.OptionsEnabled.ToString()
+            },
+            CatalogueImportEntityReference.Existing(product.Id, $"product:{product.Id:N}"), categoryReference);
+
+    private static CatalogueImportPlan FullHierarchyCreatePlan() => new(CatalogueImportMode.Update,
+        [
+            new CatalogueImportOperation(CatalogueImportEntityType.Product, CatalogueImportOperationKind.Create, null, "product:new:rollback", 2, "Products",
+                new Dictionary<string, string?> { ["code"] = "P-rollback", ["name"] = "Rollback", ["category"] = "Desserts", ["categoryShortCode"] = "DE", ["priceCents"] = "0", ["vatRate"] = "20", ["isActive"] = "true", ["discountEligible"] = "true", ["optionsEnabled"] = "true" },
+                CatalogueImportEntityReference.New("product:new:rollback"), CatalogueImportEntityReference.New("category:new:rollback")),
+            new CatalogueImportOperation(CatalogueImportEntityType.OptionGroup, CatalogueImportOperationKind.Create, null, "group:new:rollback", 2, "OptionGroups",
+                new Dictionary<string, string?> { ["productCode"] = "P-rollback", ["name"] = "Rollback group", ["selectionMode"] = "MULTI", ["isRequired"] = "false", ["minSelections"] = "0", ["maxSelections"] = "1", ["displayOrder"] = "0" },
+                CatalogueImportEntityReference.New("group:new:rollback"), ParentReference: CatalogueImportEntityReference.New("product:new:rollback")),
+            new CatalogueImportOperation(CatalogueImportEntityType.Option, CatalogueImportOperationKind.Create, null, "option:new:rollback", 2, "Options",
+                new Dictionary<string, string?> { ["name"] = "Rollback option", ["priceAdjustmentCents"] = "0", ["isActive"] = "true", ["displayOrder"] = "0" },
+                CatalogueImportEntityReference.New("option:new:rollback"), ParentReference: CatalogueImportEntityReference.New("group:new:rollback"))
+        ], [], [new("category:new:rollback", "Desserts", "DE")], "synthetic");
 
     private static CatalogueImportOperation GroupModify(CatalogueImportBaselineOptionGroup group, Guid productId, string productCode, int order) =>
         new(CatalogueImportEntityType.OptionGroup, CatalogueImportOperationKind.Modify, group.Id, $"group:{group.Id:N}", 2, "OptionGroups",
