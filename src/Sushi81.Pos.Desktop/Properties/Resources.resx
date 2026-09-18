@@ -381,15 +381,30 @@ Changements effectifs : {2}</value></data>
   <data name="CatalogueImportFailed" xml:space="preserve"><value>L’import du catalogue n’a pas pu être ouvert.</value></data>
   <data name="CatalogueImportReadOnly" xml:space="preserve"><value>Ce poste est en lecture seule : la confirmation de l’import est indisponible.</value></data>
   <data name="CatalogueImportRefreshFailed" xml:space="preserve"><value>Import réussi, mais l’actualisation de l’interface a échoué ; redémarrez ou actualisez avant de continuer.</value></data>
-  <data name="CatalogueImportGenericIssue" xml:space="preserve"><value>Problème d’import ({0}). Détails : {1}</value></data>
+  <data name="CatalogueImportGenericIssue" xml:space="preserve"><value>Problème d’import ({0}).</value></data>
   <data name="CatalogueImportCategoryShortCodeChange" xml:space="preserve"><value>Le code court d’une catégorie existante a changé ; utilisez le gestionnaire de catégories puis réexportez.</value></data>
   <data name="CatalogueImportStaleConflict" xml:space="preserve"><value>Le catalogue a changé depuis l’aperçu ; relancez l’import.</value></data>
   <data name="CatalogueImportAuthorityBlocked" xml:space="preserve"><value>L’autorité d’écriture locale est indisponible.</value></data>
   <data name="CatalogueImportCommitUnavailable" xml:space="preserve"><value>Le stockage de commit de l’import n’est pas configuré.</value></data>
   <data name="CatalogueImportPersistenceConflict" xml:space="preserve"><value>Le stockage a bloqué l’import atomique ; aucun changement partiel n’est conservé.</value></data>
+  <data name="CatalogueImportConcurrentWriteConflict" xml:space="preserve"><value>Le catalogue a changé ou était occupé simultanément ; relancez l’import avec un aperçu frais.</value></data>
   <data name="CatalogueImportUnreadableWorkbook" xml:space="preserve"><value>Le classeur ne peut pas être lu.</value></data>
   <data name="CatalogueImportMissingSheet" xml:space="preserve"><value>Une feuille obligatoire est absente.</value></data>
   <data name="CatalogueImportUnsupportedSheet" xml:space="preserve"><value>Le classeur contient une feuille non prise en charge.</value></data>
   <data name="CatalogueImportUnsupportedContract" xml:space="preserve"><value>La version du contrat du classeur n’est pas prise en charge.</value></data>
   <data name="CatalogueImportInvalidMode" xml:space="preserve"><value>Le mode d’import est invalide.</value></data>
+  <data name="CatalogueImportWorkbookStructureIssue" xml:space="preserve"><value>La structure ou les métadonnées du classeur sont invalides ; corrigez le classeur ou réexportez-le.</value></data>
+  <data name="CatalogueImportCatalogueValidationIssue" xml:space="preserve"><value>Une valeur du catalogue est invalide ou ambiguë ; corrigez la ligne indiquée puis relancez l’aperçu.</value></data>
+  <data name="CatalogueImportCommitValidationIssue" xml:space="preserve"><value>La modification proposée ne correspond plus au catalogue ; obtenez un aperçu frais avant de confirmer.</value></data>
+  <data name="CatalogueImportCommitFailure" xml:space="preserve"><value>L’import atomique n’a pas été enregistré ; aucune modification partielle n’est conservée.</value></data>
+  <data name="Severity" xml:space="preserve"><value>Gravité</value></data>
+  <data name="Worksheet" xml:space="preserve"><value>Feuille</value></data>
+  <data name="Row" xml:space="preserve"><value>Ligne</value></data>
+  <data name="Field" xml:space="preserve"><value>Champ</value></data>
+  <data name="Message" xml:space="preserve"><value>Message</value></data>
+  <data name="Entity" xml:space="preserve"><value>Élément</value></data>
+  <data name="Actions" xml:space="preserve"><value>Actions</value></data>
+  <data name="Product" xml:space="preserve"><value>Produit</value></data>
+  <data name="OptionGroup" xml:space="preserve"><value>Groupe d’options</value></data>
+  <data name="Option" xml:space="preserve"><value>Option</value></data>
 </root>

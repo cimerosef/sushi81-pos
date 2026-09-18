@@ -381,15 +381,30 @@
   <data name="CatalogueImportFailed" xml:space="preserve"><value>无法打开目录导入文件。</value></data>
   <data name="CatalogueImportReadOnly" xml:space="preserve"><value>当前设备为只读状态，无法确认导入。</value></data>
   <data name="CatalogueImportRefreshFailed" xml:space="preserve"><value>导入已成功，但界面刷新失败；请重启或刷新后再继续。</value></data>
-  <data name="CatalogueImportGenericIssue" xml:space="preserve"><value>导入问题（{0}）。详情：{1}</value></data>
+  <data name="CatalogueImportGenericIssue" xml:space="preserve"><value>导入问题（{0}）。</value></data>
   <data name="CatalogueImportCategoryShortCodeChange" xml:space="preserve"><value>现有分类短代码已更改；请使用分类管理器后重新导出。</value></data>
   <data name="CatalogueImportStaleConflict" xml:space="preserve"><value>预览后目录已变化；请重新导入。</value></data>
   <data name="CatalogueImportAuthorityBlocked" xml:space="preserve"><value>本地写入权威不可用。</value></data>
   <data name="CatalogueImportCommitUnavailable" xml:space="preserve"><value>导入提交存储未配置。</value></data>
   <data name="CatalogueImportPersistenceConflict" xml:space="preserve"><value>存储阻止了原子导入；未保留部分更改。</value></data>
+  <data name="CatalogueImportConcurrentWriteConflict" xml:space="preserve"><value>目录同时发生变化或正忙；请使用新预览重新导入。</value></data>
   <data name="CatalogueImportUnreadableWorkbook" xml:space="preserve"><value>无法读取工作簿。</value></data>
   <data name="CatalogueImportMissingSheet" xml:space="preserve"><value>缺少必需工作表。</value></data>
   <data name="CatalogueImportUnsupportedSheet" xml:space="preserve"><value>工作簿包含不支持的工作表。</value></data>
   <data name="CatalogueImportUnsupportedContract" xml:space="preserve"><value>不支持的工作簿契约版本。</value></data>
   <data name="CatalogueImportInvalidMode" xml:space="preserve"><value>导入模式无效。</value></data>
+  <data name="CatalogueImportWorkbookStructureIssue" xml:space="preserve"><value>工作簿结构或元数据无效；请修正工作簿或重新导出。</value></data>
+  <data name="CatalogueImportCatalogueValidationIssue" xml:space="preserve"><value>目录值无效或不明确；请修正指定行后重新预览。</value></data>
+  <data name="CatalogueImportCommitValidationIssue" xml:space="preserve"><value>拟议更改已不再匹配当前目录；请获取新预览后再确认。</value></data>
+  <data name="CatalogueImportCommitFailure" xml:space="preserve"><value>原子导入未保存；不会保留任何部分更改。</value></data>
+  <data name="Severity" xml:space="preserve"><value>严重性</value></data>
+  <data name="Worksheet" xml:space="preserve"><value>工作表</value></data>
+  <data name="Row" xml:space="preserve"><value>行</value></data>
+  <data name="Field" xml:space="preserve"><value>字段</value></data>
+  <data name="Message" xml:space="preserve"><value>消息</value></data>
+  <data name="Entity" xml:space="preserve"><value>实体</value></data>
+  <data name="Actions" xml:space="preserve"><value>操作</value></data>
+  <data name="Product" xml:space="preserve"><value>产品</value></data>
+  <data name="OptionGroup" xml:space="preserve"><value>选项组</value></data>
+  <data name="Option" xml:space="preserve"><value>选项</value></data>
 </root>

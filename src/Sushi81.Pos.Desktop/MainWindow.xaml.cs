@@ -416,10 +416,10 @@ public partial class MainWindow : Window
                 MessageBoxImage.Information);
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception)
+        catch (Exception)
         {
             MessageBox.Show(this,
-                LocalizedText(this, "CatalogueExportFailed", "Catalogue export failed.") + Environment.NewLine + exception.Message,
+                LocalizedText(this, "CatalogueExportFailed", "Catalogue export failed."),
                 viewModel.Title,
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
@@ -439,10 +439,10 @@ public partial class MainWindow : Window
             preview = await workflow.PreviewFromPathAsync(source, mode, Path.GetFileName(source));
         }
         catch (OperationCanceledException) { return; }
-        catch (Exception exception)
+        catch (Exception)
         {
             MessageBox.Show(this,
-                LocalizedText(this, "CatalogueImportFailed", "Catalogue import could not be opened.") + Environment.NewLine + exception.Message,
+                LocalizedText(this, "CatalogueImportFailed", "Catalogue import could not be opened."),
                 viewModel.Title,
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);

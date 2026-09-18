@@ -1,7 +1,7 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-17  
+**Last updated:** 2026-09-18
 **Current state:** M01 through M09 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. M10 Catalogue `.xlsx` preparation is complete and the project owner has explicitly authorized M10 implementation. Dedicated implementation PR #22 / branch `codex/m10-catalogue-xlsx-authorized` is established. Codex execution remains controlled solely by Issue #4 and exactly one active handoff at a time. M11–M13 remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07–M09 and post-M09 evidence remains authoritative in milestone-specific worklogs/manual-acceptance/PR records. This file is the living current-state summary; historical evidence is not rewritten to match later state.
@@ -34,7 +34,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M08 — Printing and reprinting | Passed | Accepted production candidate `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; PR #14 merged at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`; physical/manual acceptance Passed. |
 | M09 — Hiboutik paste fallback | Passed | Accepted production candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`; PR #17 merged at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; owner Windows/WPF acceptance Passed. |
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | Automated evidence accepted in PR #19 comment `5705723428`; owner A–F acceptance Passed in comment `5715414940`; final controller closure comment `5715705712`; PR #19 CLOSED / MERGED at `861cfba1dfacbb3289395c0370f6d42765b6c223`. Accepted executable candidate remains from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`. |
-| M10 — Catalogue `.xlsx` | In progress | WP1/WP2/WP3 are controller-accepted. WP4 Windows/WPF operator workflow is the sole active handoff in PR #22 / branch `codex/m10-catalogue-xlsx-authorized` under OPEN Issue #4. WP5, manual owner acceptance and merge remain separate gates. |
+| M10 — Catalogue `.xlsx` | In progress | WP1/WP2/WP3 are controller-accepted. WP4 repair `M10-WP4-REPAIR-LOCALIZATION-OUTCOME-WPF-EVIDENCE-13` is the sole active handoff in PR #22 / branch `codex/m10-catalogue-xlsx-authorized` under OPEN Issue #4. WP5, manual owner acceptance and merge remain separate gates. |
 | M11 — Gestion export | Not started | Unauthorized; pending M10. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
@@ -130,7 +130,7 @@ Issue #4 remains the sole Codex execution gate.
 M10 milestone implementation is authorized, but actual Codex execution is narrower:
 
 - Codex may execute only the exact handoff named by Issue #4 while Issue #4 is OPEN;
-- current selected handoff: `M10-WP4-WPF-OPERATOR-WORKFLOW-12`;
+- current selected handoff: `M10-WP4-REPAIR-LOCALIZATION-OUTCOME-WPF-EVIDENCE-13`;
 - branch/PR/handoff pointer must match exactly;
 - a `CODEX_DONE` never authorizes another work package, merge or M11;
 - controller acceptance never auto-opens the next work package;

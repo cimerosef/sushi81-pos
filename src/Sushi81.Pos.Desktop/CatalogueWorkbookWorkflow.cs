@@ -32,24 +32,22 @@ public sealed record CatalogueImportAffectedRowPresentation(
     string EntityType,
     string Actions);
 
+public enum CatalogueImportWorkflowOutcome
+{
+    None,
+    PreviewFailed,
+    CommitFailed,
+    NoChange,
+    Changed,
+    RefreshFailed,
+}
+
 /// <summary>Localized mapping for parser/planner/commit diagnostics.</summary>
 public static class CatalogueImportIssuePresenter
 {
-    private static readonly Dictionary<string, string> KnownMessageKeys =
-        new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["existing-category-short-code-change"] = "CatalogueImportCategoryShortCodeChange",
-            ["stale-conflict"] = "CatalogueImportStaleConflict",
-            ["authority-blocked"] = "CatalogueImportAuthorityBlocked",
-            ["commit-store-unavailable"] = "CatalogueImportCommitUnavailable",
-            ["persistence-conflict"] = "CatalogueImportPersistenceConflict",
-            ["concurrent-write-conflict"] = "CatalogueImportPersistenceConflict",
-            ["unreadable-workbook"] = "CatalogueImportUnreadableWorkbook",
-            ["missing-sheet"] = "CatalogueImportMissingSheet",
-            ["unsupported-sheet"] = "CatalogueImportUnsupportedSheet",
-            ["unsupported-contract-version"] = "CatalogueImportUnsupportedContract",
-            ["invalid-mode"] = "CatalogueImportInvalidMode",
-        };
+    private static readonly IReadOnlyDictionary<string, string> KnownMessageKeys = BuildKnownMessageKeys();
+
+    public static IReadOnlyCollection<string> KnownStableCodes => KnownMessageKeys.Keys.ToArray();
 
     public static IReadOnlyList<CatalogueImportIssuePresentation> Present(
         IEnumerable<CatalogueImportIssue> issues,
@@ -77,15 +75,62 @@ public static class CatalogueImportIssuePresenter
         if (KnownMessageKeys.TryGetValue(issue.Code, out var key) && localized.TryGetValue(key, out var known))
             return known;
 
-        var generic = Read(localized, "CatalogueImportGenericIssue", "Import issue ({0}). Details: {1}");
-        // The stable code is the primary operator-facing identity. The parser text is
-        // retained as secondary detail so an unexpected future code remains diagnosable
-        // without making an English exception the primary localized label.
+        var generic = Read(localized, "CatalogueImportGenericIssue", "Import issue ({0}).");
+        // Future codes retain a stable diagnostic identity without exposing a raw
+        // parser/exception message as the normal operator-facing text.
         return string.Format(
             System.Globalization.CultureInfo.CurrentCulture,
             generic,
-            issue.Code,
-            issue.Message);
+            issue.Code);
+    }
+
+    private static Dictionary<string, string> BuildKnownMessageKeys()
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        Add(result, "CatalogueImportWorkbookStructureIssue",
+            "unreadable-workbook", "missing-sheet", "unsupported-sheet", "unsupported-contract-version",
+            "business-sheet-visibility", "descriptor-corrupt", "duplicate-manifest-key", "duplicate-row-binding",
+            "formula-not-allowed", "malformed-entity-id", "manifest-corrupt", "metadata-corrupt", "metadata-visibility",
+            "misbound-identity", "missing-header", "sheet-order", "unknown-row-key", "wrong-parent-binding");
+        Add(result, "CatalogueImportCatalogueValidationIssue",
+            "add-only-existing-binding", "add-only-product-code-collision", "ambiguous-parent", "category-short-code-duplicate",
+            "category-short-code-too-long", "conflicting-category-short-code", "duplicate-category-name", "duplicate-entity-id",
+            "duplicate-product-code", "duplicate-row-key", "existing-category-short-code-change", "invalid-group-structure",
+            "invalid-mode", "invalid-option-structure", "invalid-scalar", "missing-parent", "price-negative",
+            "required-active-choices", "required-field", "stale-conflict", "unknown-entity-id", "vat-range", "wrong-entity-type",
+            "preview-required");
+        Add(result, "CatalogueImportCommitValidationIssue",
+            "category-name-duplicate", "category-operation-forbidden", "category-payload-mismatch", "category-reference-missing",
+            "category-short-code-invalid", "category-short-code-mismatch", "contradictory-operation", "contradictory-state-operation",
+            "duplicate-baseline-category-id", "duplicate-baseline-group-id", "duplicate-baseline-option-id", "duplicate-baseline-product-id",
+            "duplicate-create", "duplicate-modify", "duplicate-operation", "duplicate-state-operation", "invalid-category-key",
+            "invalid-group-action", "invalid-local-key", "invalid-operation", "invalid-operation-id", "invalid-product",
+            "misbound-reference", "mixed-create", "modify-missing", "modify-redundant", "orphan-category", "parent-payload-mismatch",
+            "parent-reference-missing", "reparent-forbidden", "state-operation-missing", "state-payload-mismatch", "state-redundant",
+            "unexpected-category-reference", "unexpected-parent-reference", "unknown-category-reference", "unknown-parent-reference");
+        Add(result, "CatalogueImportCommitFailure",
+            "authority-blocked", "baseline-token-mismatch", "commit-store-unavailable", "concurrent-write-conflict",
+            "invalid-allocated-id", "invalid-request", "persistence-conflict", "stale-baseline", "transaction-failed", "unknown-reference");
+        result["existing-category-short-code-change"] = "CatalogueImportCategoryShortCodeChange";
+        result["stale-conflict"] = "CatalogueImportStaleConflict";
+        result["stale-baseline"] = "CatalogueImportStaleConflict";
+        result["baseline-token-mismatch"] = "CatalogueImportStaleConflict";
+        result["authority-blocked"] = "CatalogueImportAuthorityBlocked";
+        result["commit-store-unavailable"] = "CatalogueImportCommitUnavailable";
+        result["persistence-conflict"] = "CatalogueImportPersistenceConflict";
+        result["transaction-failed"] = "CatalogueImportPersistenceConflict";
+        result["concurrent-write-conflict"] = "CatalogueImportConcurrentWriteConflict";
+        result["unreadable-workbook"] = "CatalogueImportUnreadableWorkbook";
+        result["missing-sheet"] = "CatalogueImportMissingSheet";
+        result["unsupported-sheet"] = "CatalogueImportUnsupportedSheet";
+        result["unsupported-contract-version"] = "CatalogueImportUnsupportedContract";
+        result["invalid-mode"] = "CatalogueImportInvalidMode";
+        return result;
+    }
+
+    private static void Add(Dictionary<string, string> target, string key, params string[] codes)
+    {
+        foreach (var code in codes) target[code] = key;
     }
 
     private static string Read(IReadOnlyDictionary<string, string> localized, string key, string fallback) =>
@@ -108,6 +153,8 @@ public sealed class CatalogueWorkbookWorkflowViewModel : INotifyPropertyChanged
     private bool commitAttempted;
     private CatalogueImportResult? preview;
     private CatalogueImportCommitResult? lastCommit;
+    private IReadOnlyList<CatalogueImportIssue> displayedIssues = [];
+    private CatalogueImportWorkflowOutcome outcome;
 
     public CatalogueWorkbookWorkflowViewModel(
         CatalogueWorkbookService exporter,
@@ -139,15 +186,19 @@ public sealed class CatalogueWorkbookWorkflowViewModel : INotifyPropertyChanged
 
     public CatalogueImportCommitResult? LastCommit => lastCommit;
 
+    public CatalogueImportWorkflowOutcome Outcome => outcome;
+
+    public bool IsCompleted => !busy && outcome is not CatalogueImportWorkflowOutcome.None;
+
     public IReadOnlyList<CatalogueImportIssuePresentation> Issues =>
-        preview is null ? [] : CatalogueImportIssuePresenter.Present(preview.Preview.Issues, localized);
+        CatalogueImportIssuePresenter.Present(displayedIssues, localized);
 
     public IReadOnlyList<CatalogueImportAffectedRowPresentation> AffectedRows =>
         preview?.Preview.AffectedRows.Select(row => new CatalogueImportAffectedRowPresentation(
             row.Worksheet,
             row.ExcelRow,
-            row.EntityType.ToString(),
-            string.Join(", ", row.Operations.Select(operation => operation.ToString())))).ToArray() ?? [];
+            LocalizeEntity(row.EntityType),
+            string.Join(", ", row.Operations.Select(LocalizeOperation)))).ToArray() ?? [];
 
     public bool CanConfirm => !busy
         && !commitAttempted
@@ -197,6 +248,8 @@ public sealed class CatalogueWorkbookWorkflowViewModel : INotifyPropertyChanged
         // parser attempt fails. A fresh successful preview below resets the gate.
         preview = null;
         lastCommit = null;
+        displayedIssues = [];
+        outcome = CatalogueImportWorkflowOutcome.None;
         commitAttempted = true;
         NotifyPreviewChanged();
         SetBusy(true);
@@ -204,8 +257,21 @@ public sealed class CatalogueWorkbookWorkflowViewModel : INotifyPropertyChanged
         {
             await using var stream = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, useAsync: true);
             preview = await importer.PreviewAsync(stream, mode, sourceName ?? Path.GetFileName(sourcePath), cancellationToken);
+            displayedIssues = preview.Preview.Issues;
             lastCommit = null;
             commitAttempted = false;
+            NotifyPreviewChanged();
+            return preview;
+        }
+        catch (Exception)
+        {
+            var issue = new CatalogueImportIssue(CatalogueImportIssueSeverity.Error, "unreadable-workbook", "The selected workbook could not be read.", "", null, null);
+            preview = new CatalogueImportResult(
+                new CatalogueImportPreview(mode, sourceName ?? Path.GetFileName(sourcePath), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, [issue], [], true),
+                null,
+                CatalogueImportBaseline.Empty);
+            displayedIssues = [issue];
+            outcome = CatalogueImportWorkflowOutcome.PreviewFailed;
             NotifyPreviewChanged();
             return preview;
         }
@@ -227,9 +293,50 @@ public sealed class CatalogueWorkbookWorkflowViewModel : INotifyPropertyChanged
         {
             // Pass the exact immutable object displayed in the preview. No re-plan or
             // reconstruction is allowed between preview and commit.
-            lastCommit = await importer.CommitAsync(preview!, cancellationToken);
-            if (lastCommit.Succeeded && lastCommit.Changed && refreshAfterChangedImport is not null)
-                await refreshAfterChangedImport(cancellationToken);
+            try
+            {
+                lastCommit = await importer.CommitAsync(preview!, cancellationToken);
+            }
+            catch (Exception)
+            {
+                lastCommit = CatalogueImportCommitResult.Failure(new CatalogueImportIssue(
+                    CatalogueImportIssueSeverity.Error, "transaction-failed", "The Catalogue import could not be completed.",
+                    preview?.Preview.SourceName, null, null));
+                outcome = CatalogueImportWorkflowOutcome.CommitFailed;
+                displayedIssues = lastCommit.Issues;
+                NotifyPreviewChanged();
+                return lastCommit;
+            }
+
+            displayedIssues = lastCommit.Issues;
+            if (!lastCommit.Succeeded)
+            {
+                outcome = CatalogueImportWorkflowOutcome.CommitFailed;
+            }
+            else if (!lastCommit.Changed)
+            {
+                outcome = CatalogueImportWorkflowOutcome.NoChange;
+            }
+            else if (refreshAfterChangedImport is null)
+            {
+                outcome = CatalogueImportWorkflowOutcome.Changed;
+            }
+            else
+            {
+                try
+                {
+                    await refreshAfterChangedImport(cancellationToken);
+                    outcome = CatalogueImportWorkflowOutcome.Changed;
+                }
+                catch (Exception)
+                {
+                    // The durable import is already successful. Keep the shell barrier
+                    // fail-closed and distinguish this from a commit-stage failure.
+                    outcome = CatalogueImportWorkflowOutcome.RefreshFailed;
+                }
+            }
+
+            NotifyPreviewChanged();
             return lastCommit;
         }
         finally
@@ -258,6 +365,7 @@ public sealed class CatalogueWorkbookWorkflowViewModel : INotifyPropertyChanged
     {
         localized = values ?? throw new ArgumentNullException(nameof(values));
         OnPropertyChanged(nameof(Issues));
+        OnPropertyChanged(nameof(AffectedRows));
         OnPropertyChanged(nameof(CanConfirm));
     }
 
@@ -286,4 +394,24 @@ public sealed class CatalogueWorkbookWorkflowViewModel : INotifyPropertyChanged
         try { if (File.Exists(path)) File.Delete(path); }
         catch { /* best effort cleanup; the original export failure remains authoritative */ }
     }
+
+    private string LocalizeEntity(CatalogueImportEntityType entityType) => entityType switch
+    {
+        CatalogueImportEntityType.Product => Read("Product", "Product"),
+        CatalogueImportEntityType.OptionGroup => Read("OptionGroup", "Option group"),
+        CatalogueImportEntityType.Option => Read("Option", "Option"),
+        CatalogueImportEntityType.Category => Read("Category", "Category"),
+        _ => Read("Entity", "Entity")
+    };
+
+    private string LocalizeOperation(CatalogueImportOperationKind operation) => operation switch
+    {
+        CatalogueImportOperationKind.Create => Read("Create", "Create"),
+        CatalogueImportOperationKind.Modify => Read("Modify", "Modify"),
+        CatalogueImportOperationKind.Activate => Read("Activate", "Activate"),
+        CatalogueImportOperationKind.Deactivate => Read("Deactivate", "Deactivate"),
+        _ => Read("Actions", "Action")
+    };
+
+    private string Read(string key, string fallback) => localized.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? value : fallback;
 }

@@ -398,6 +398,11 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             .Append("CatalogueImportPersistenceConflict").Append("CatalogueImportUnreadableWorkbook")
             .Append("CatalogueImportMissingSheet").Append("CatalogueImportUnsupportedSheet")
             .Append("CatalogueImportUnsupportedContract").Append("CatalogueImportInvalidMode")
+            .Append("CatalogueImportWorkbookStructureIssue").Append("CatalogueImportCatalogueValidationIssue")
+            .Append("CatalogueImportCommitValidationIssue").Append("CatalogueImportCommitFailure")
+            .Append("CatalogueImportConcurrentWriteConflict")
+            .Append("Severity").Append("Worksheet").Append("Row").Append("Field").Append("Message")
+            .Append("Entity").Append("Actions").Append("Product").Append("OptionGroup").Append("Option")
             .ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         CatalogueWorkflow?.ApplyLocalization(Localized);
