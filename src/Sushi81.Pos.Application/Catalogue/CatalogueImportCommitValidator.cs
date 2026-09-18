@@ -362,7 +362,12 @@ public static class CatalogueImportCommitValidator
             var expected = desired ? CatalogueImportOperationKind.Activate : CatalogueImportOperationKind.Deactivate;
             if (state?.Kind != expected) Add(issues, "state-operation-missing", "Active-state changes require the matching state operation.", canonical);
         }
-        if (state is not null && ParseBool(state, "isActive") != desired) Add(issues, "state-payload-mismatch", "State operation payload does not match its operation kind.", state);
+        if (state is not null)
+        {
+            var stateValue = ParseBool(state, "isActive");
+            if (stateValue != desired || state.Kind == CatalogueImportOperationKind.Activate && !stateValue || state.Kind == CatalogueImportOperationKind.Deactivate && stateValue)
+                Add(issues, "state-payload-mismatch", "State operation payload does not match its operation kind or final active state.", state);
+        }
     }
 
     private static void ValidateResultingState(CatalogueImportPlan plan, CatalogueImportBaseline baseline,

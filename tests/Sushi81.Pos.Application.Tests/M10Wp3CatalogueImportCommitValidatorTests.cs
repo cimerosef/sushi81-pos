@@ -135,6 +135,28 @@ public sealed class M10Wp3CatalogueImportCommitValidatorTests
 
         Assert.AreEqual(CatalogueImportBaselineFingerprint.Compute(baseline), CatalogueImportBaselineFingerprint.Compute(reordered));
         Assert.AreNotEqual(CatalogueImportBaselineFingerprint.Compute(baseline), CatalogueImportBaselineFingerprint.Compute(changed));
+
+        var rich = RichBaseline(categoryA, productA, Guid.Parse("00000000-0000-0000-0000-000000000006"), Guid.Parse("00000000-0000-0000-0000-000000000007"), "PL");
+        var richProduct = rich.Products.Single();
+        var richGroup = richProduct.OptionGroups.Single();
+        var richReordered = rich with
+        {
+            Categories = rich.Categories.Reverse().ToArray(),
+            Products = [richProduct with { OptionGroups = [richGroup with { Options = richGroup.Options.Reverse().ToArray() }] }]
+        };
+        var changedParent = rich with
+        {
+            Products = [richProduct with
+            {
+                OptionGroups = [richGroup with
+                {
+                    ProductId = categoryB,
+                    Options = [richGroup.Options.Single() with { OptionGroupId = categoryB }]
+                }]
+            }]
+        };
+        Assert.AreEqual(CatalogueImportBaselineFingerprint.Compute(rich), CatalogueImportBaselineFingerprint.Compute(richReordered));
+        Assert.AreNotEqual(CatalogueImportBaselineFingerprint.Compute(rich), CatalogueImportBaselineFingerprint.Compute(changedParent));
     }
 
     [TestMethod]
@@ -175,10 +197,116 @@ public sealed class M10Wp3CatalogueImportCommitValidatorTests
         CollectionAssert.Contains(issues.Select(issue => issue.Code).ToArray(), "parent-payload-mismatch");
     }
 
+    [TestMethod]
+    public void DuplicateCreateModifyAndStateActionsAreRejected()
+    {
+        var categoryId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        var productId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var baseline = Baseline(categoryId, productId);
+        var cases = new[]
+        {
+            new[] { CreateProduct("product:new:a", categoryId), CreateProduct("product:new:a", categoryId) },
+            new[] { Existing(CatalogueImportOperationKind.Modify, productId, ProductValues("P-2", "Two"), categoryId), Existing(CatalogueImportOperationKind.Modify, productId, ProductValues("P-2", "Two"), categoryId) },
+            new[] { Existing(CatalogueImportOperationKind.Activate, productId, With(ProductValues("P-1", "One"), "isActive", "true"), categoryId), Existing(CatalogueImportOperationKind.Activate, productId, With(ProductValues("P-1", "One"), "isActive", "true"), categoryId) },
+            new[] { Existing(CatalogueImportOperationKind.Deactivate, productId, With(ProductValues("P-1", "One"), "isActive", "false"), categoryId), Existing(CatalogueImportOperationKind.Deactivate, productId, With(ProductValues("P-1", "One"), "isActive", "false"), categoryId) },
+        };
+
+        foreach (var operations in cases)
+        {
+            var issues = CatalogueImportCommitValidator.Validate(new CatalogueImportPlan(CatalogueImportMode.Update, operations, [], [], "synthetic"), baseline);
+            Assert.IsTrue(issues.Any(issue => issue.Code is "duplicate-operation" or "duplicate-create" or "duplicate-modify" or "duplicate-state-operation"), string.Join(";", issues.Select(issue => issue.Code)));
+        }
+    }
+
+    [TestMethod]
+    public void StateReferenceAndParentMatrixFailsClosed()
+    {
+        var categoryId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        var productId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var groupId = Guid.Parse("00000000-0000-0000-0000-000000000003");
+        var optionId = Guid.Parse("00000000-0000-0000-0000-000000000004");
+        var baseline = RichBaseline(categoryId, productId, groupId, optionId, "PL");
+        var productModifyState = Existing(CatalogueImportOperationKind.Modify, productId, With(ProductValues("P-1", "One"), "isActive", "true"), categoryId);
+        var optionModifyState = OptionOperation(CatalogueImportOperationKind.Modify, optionId, groupId, "Sauce", false) with { Values = OptionValues("Sauce", false, "true") };
+        var productNonStateFromState = Existing(CatalogueImportOperationKind.Activate, productId, With(ProductValues("P-2", "Two"), "isActive", "true"), categoryId);
+        var optionNonStateFromState = OptionOperation(CatalogueImportOperationKind.Activate, optionId, groupId, "Changed", false) with { Values = OptionValues("Changed", false, "true") };
+        var activateMismatch = Existing(CatalogueImportOperationKind.Activate, productId, With(ProductValues("P-1", "One"), "isActive", "false"), categoryId);
+        var deactivateMismatch = Existing(CatalogueImportOperationKind.Deactivate, productId, With(ProductValues("P-1", "One"), "isActive", "true"), categoryId);
+        var missingCategory = Existing(CatalogueImportOperationKind.Modify, productId, ProductValues("P-1", "One"), categoryId) with { CategoryReference = null };
+        var mistypedCategory = Existing(CatalogueImportOperationKind.Modify, productId, ProductValues("P-1", "One"), categoryId) with { CategoryReference = CatalogueImportEntityReference.Existing(categoryId, "category:deadbeef") };
+        var missingProductParent = OptionGroupOperation(CatalogueImportOperationKind.Modify, groupId, productId, "P-1") with { ParentReference = null };
+        var mistypedProductParent = OptionGroupOperation(CatalogueImportOperationKind.Modify, groupId, productId, "P-1") with { ParentReference = CatalogueImportEntityReference.Existing(productId, "product:deadbeef") };
+        var missingGroupParent = OptionOperation(CatalogueImportOperationKind.Modify, optionId, groupId, "Sauce", false) with { ParentReference = null };
+        var mistypedGroupParent = OptionOperation(CatalogueImportOperationKind.Modify, optionId, groupId, "Sauce", false) with { ParentReference = CatalogueImportEntityReference.Existing(groupId, "group:deadbeef") };
+
+        var cases = new[]
+        {
+            (productModifyState, "state-operation-missing"), (optionModifyState, "state-operation-missing"),
+            (productNonStateFromState, "modify-missing"), (optionNonStateFromState, "modify-missing"),
+            (activateMismatch, "state-payload-mismatch"), (deactivateMismatch, "state-payload-mismatch"),
+            (missingCategory, "category-reference-missing"), (mistypedCategory, "unknown-category-reference"),
+            (missingProductParent, "parent-reference-missing"), (mistypedProductParent, "unknown-parent-reference"),
+            (missingGroupParent, "parent-reference-missing"), (mistypedGroupParent, "unknown-parent-reference"),
+        };
+        foreach (var (operation, code) in cases)
+        {
+            var issues = CatalogueImportCommitValidator.Validate(new CatalogueImportPlan(CatalogueImportMode.Update, [operation], [], [], "synthetic"), baseline);
+            CollectionAssert.Contains(issues.Select(issue => issue.Code).ToArray(), code, operation.EntityType + ":" + string.Join(",", issues.Select(issue => issue.Code)));
+        }
+    }
+
+    [TestMethod]
+    public void CategoryPayloadOrphanAndCombinedOptionEvidenceAreBlockingAndOrderIndependent()
+    {
+        var categoryId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+        var productId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var groupId = Guid.Parse("00000000-0000-0000-0000-000000000003");
+        var optionId = Guid.Parse("00000000-0000-0000-0000-000000000004");
+        var baseline = RichBaseline(categoryId, productId, groupId, optionId, "PL");
+        var orphan = new CatalogueImportPlan(CatalogueImportMode.Update, [], [], [new("category:new:orphan", "Desserts", "DE")], "synthetic");
+        CollectionAssert.Contains(CatalogueImportCommitValidator.Validate(orphan, baseline).Select(issue => issue.Code).ToArray(), "orphan-category");
+
+        var nameMismatch = Existing(CatalogueImportOperationKind.Modify, productId, With(ProductValues("P-1", "One"), "category", "Desserts"), categoryId);
+        var shortCodeMismatch = Existing(CatalogueImportOperationKind.Modify, productId, With(ProductValues("P-1", "One"), "categoryShortCode", "DE"), categoryId);
+        var nameIssues = CatalogueImportCommitValidator.Validate(new CatalogueImportPlan(CatalogueImportMode.Update, [nameMismatch], [], [], "synthetic"), baseline);
+        var codeIssues = CatalogueImportCommitValidator.Validate(new CatalogueImportPlan(CatalogueImportMode.Update, [shortCodeMismatch], [], [], "synthetic"), baseline);
+        CollectionAssert.Contains(nameIssues.Select(issue => issue.Code).ToArray(), "category-payload-mismatch");
+        CollectionAssert.Contains(codeIssues.Select(issue => issue.Code).ToArray(), "category-short-code-mismatch");
+
+        var modify = OptionOperation(CatalogueImportOperationKind.Modify, optionId, groupId, "Sauce", false);
+        var activateDifferent = OptionOperation(CatalogueImportOperationKind.Activate, optionId, groupId, "Changed", true);
+        var forward = CatalogueImportCommitValidator.Validate(new CatalogueImportPlan(CatalogueImportMode.Update, [modify, activateDifferent], [], [], "synthetic"), baseline);
+        var reverse = CatalogueImportCommitValidator.Validate(new CatalogueImportPlan(CatalogueImportMode.Update, [activateDifferent, modify], [], [], "synthetic"), baseline);
+        CollectionAssert.Contains(forward.Select(issue => issue.Code).ToArray(), "contradictory-operation");
+        CollectionAssert.AreEqual(forward.Select(issue => issue.Code + "|" + issue.Message).ToArray(), reverse.Select(issue => issue.Code + "|" + issue.Message).ToArray());
+
+        var alteredReferences = activateDifferent with { ParentReference = CatalogueImportEntityReference.Existing(groupId, "group:other") };
+        var refIssues = CatalogueImportCommitValidator.Validate(new CatalogueImportPlan(CatalogueImportMode.Update, [modify, alteredReferences], [], [], "synthetic"), baseline);
+        CollectionAssert.Contains(refIssues.Select(issue => issue.Code).ToArray(), "contradictory-operation");
+    }
+
     private static CatalogueImportOperation Existing(CatalogueImportOperationKind kind, Guid id, IReadOnlyDictionary<string, string?> values, Guid categoryId) =>
         new(CatalogueImportEntityType.Product, kind, id, $"product:{id:N}", 2, "Products", values,
             CatalogueImportEntityReference.Existing(id, $"product:{id:N}"),
             CatalogueImportEntityReference.Existing(categoryId, $"category:{categoryId:N}"));
+
+    private static CatalogueImportOperation CreateProduct(string localKey, Guid categoryId) =>
+        new(CatalogueImportEntityType.Product, CatalogueImportOperationKind.Create, null, localKey, 2, "Products", ProductValues("P-new", "New"),
+            CatalogueImportEntityReference.New(localKey), CatalogueImportEntityReference.Existing(categoryId, $"category:{categoryId:N}"));
+
+    private static CatalogueImportOperation OptionGroupOperation(CatalogueImportOperationKind kind, Guid groupId, Guid productId, string productCode) =>
+        new(CatalogueImportEntityType.OptionGroup, kind, groupId, $"group:{groupId:N}", 2, "OptionGroups",
+            new Dictionary<string, string?> { ["productCode"] = productCode, ["name"] = "Extras", ["selectionMode"] = "MULTI", ["isRequired"] = "false", ["minSelections"] = "0", ["maxSelections"] = "1", ["displayOrder"] = "0" },
+            CatalogueImportEntityReference.Existing(groupId, $"group:{groupId:N}"), ParentReference: CatalogueImportEntityReference.Existing(productId, $"product:{productId:N}"));
+
+    private static CatalogueImportOperation OptionOperation(CatalogueImportOperationKind kind, Guid optionId, Guid groupId, string name, bool active) =>
+        new(CatalogueImportEntityType.Option, kind, optionId, $"option:{optionId:N}", 2, "Options", OptionValues(name, false, active.ToString()),
+            CatalogueImportEntityReference.Existing(optionId, $"option:{optionId:N}"), ParentReference: CatalogueImportEntityReference.Existing(groupId, $"group:{groupId:N}"));
+
+    private static Dictionary<string, string?> OptionValues(string name, bool active, string? activeOverride = null) => new()
+    {
+        ["name"] = name, ["priceAdjustmentCents"] = "0", ["isActive"] = activeOverride ?? active.ToString(), ["displayOrder"] = "0"
+    };
 
     private static Dictionary<string, string?> ProductValues(string code, string name) => new()
     {
@@ -186,8 +314,21 @@ public sealed class M10Wp3CatalogueImportCommitValidatorTests
         ["priceCents"] = "100", ["vatRate"] = "20", ["isActive"] = "true", ["discountEligible"] = "true", ["optionsEnabled"] = "false"
     };
 
+    private static Dictionary<string, string?> With(IReadOnlyDictionary<string, string?> source, string key, string? value)
+    {
+        var copy = new Dictionary<string, string?>(source, StringComparer.Ordinal);
+        copy[key] = value;
+        return copy;
+    }
+
     private static CatalogueImportBaseline Baseline(Guid categoryId, Guid productId, Guid? groupId = null) =>
         new([new(categoryId, "Plats", null)], [Product(productId, categoryId, "P-1", "One", groupId)]);
+
+    private static CatalogueImportBaseline RichBaseline(Guid categoryId, Guid productId, Guid groupId, Guid optionId, string? shortCode) =>
+        new([new(categoryId, "Plats", shortCode)],
+            [new(productId, "P-1", "One", categoryId, "Plats", shortCode, Money.FromCents(100), 20m, false, true, true,
+                [new(groupId, productId, "Extras", SelectionMode.Multi, false, 0, 1, 0,
+                    [new(optionId, groupId, "Sauce", Money.Zero, false, 0)])])]);
 
     private static CatalogueImportBaselineProduct Product(Guid id, Guid categoryId, string code, string name, Guid? groupId = null) =>
         new(id, code, name, categoryId, "Plats", null, Money.FromCents(100), 20m, false, true, false,
