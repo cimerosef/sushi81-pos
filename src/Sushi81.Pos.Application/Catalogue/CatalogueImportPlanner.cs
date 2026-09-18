@@ -69,7 +69,11 @@ public sealed class CatalogueImportPlanner
             if (row.OptionsEnabled is null) AddError(issues, "invalid-scalar", "Options enabled value is missing or invalid.", "Products", row.ExcelRow, "options_enabled");
 
             var categoryKey = CatalogueNormalization.Key(categoryName);
-            var category = categoriesByName.TryGetValue(categoryKey, out var matches) ? matches.SingleOrDefault() : null;
+            // Duplicate normalized current Category names are corruption.  The
+            // planner records the deterministic blocking issue above, but it
+            // must never select an arbitrary row (or throw from SingleOrDefault)
+            // while continuing to build the diagnostic preview.
+            var category = categoriesByName.TryGetValue(categoryKey, out var matches) && matches.Length == 1 ? matches[0] : null;
             // A deterministic surrogate is used only inside the pure validation
             // model. It is never exposed as a durable id in the public plan.
             var categoryId = category?.Id ?? DeterministicGuid($"category:{categoryKey}");
@@ -262,7 +266,7 @@ public sealed class CatalogueImportPlanner
             else if (!string.Equals(entry.EntityType, type, StringComparison.Ordinal)) AddError(issues, "wrong-entity-type", "Row binding entity type is incorrect.", worksheet, row, "row-key");
             else if (id is { } parsed && entry.EntityId != parsed) AddError(issues, "misbound-identity", "Entity identity does not match its manifest binding.", worksheet, row, "entity-id");
         }
-        return new Identity(id, hasId && hasKey && entry is not null && string.Equals(entry.EntityType, type, StringComparison.Ordinal), hasKey ? rowKey : null);
+        return new Identity(id, id is not null && hasId && hasKey && entry is not null && string.Equals(entry.EntityType, type, StringComparison.Ordinal), hasKey ? rowKey : null);
     }
 
     private static ProductCandidate ResolveProductParent(string? parentRowKey, string? code, string? name, CatalogueImportMode mode, Identity childIdentity, Guid? existingParentId,
@@ -430,7 +434,11 @@ public sealed class CatalogueImportPlanner
                 foreach (var row in group)
                     AddError(issues, "existing-category-short-code-change", "Existing Category short code changes are not allowed through import.", "Products", row.Row.ExcelRow, "category_short_code");
         }
-        var shortCodes = current.Where(value => value.NormalizedShortCode is not null).GroupBy(value => value.NormalizedShortCode!, StringComparer.Ordinal).ToDictionary(value => value.Key, value => value.Count(), StringComparer.Ordinal);
+        var shortCodes = current
+            .Select(value => value.ShortCode)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .GroupBy(value => CatalogueNormalization.Key(value), StringComparer.Ordinal)
+            .ToDictionary(value => value.Key, value => value.Count(), StringComparer.Ordinal);
         foreach (var duplicate in shortCodes.Where(value => value.Value > 1))
             AddError(issues, "category-short-code-duplicate", $"Current Catalogue contains duplicate Category short code '{duplicate.Key}'.");
         var newCategoryProposals = products.Where(value => !currentByName.ContainsKey(CatalogueNormalization.Key(value.CategoryName)))
@@ -441,7 +449,8 @@ public sealed class CatalogueImportPlanner
         {
             foreach (var proposal in categoryProposal.Codes)
             {
-                if (shortCodes.TryGetValue(proposal!, out var count) && count > 0) AddError(issues, "category-short-code-duplicate", "New Category short code collides with an existing Category.");
+                var normalizedProposal = CatalogueNormalization.Key(proposal);
+                if (shortCodes.TryGetValue(normalizedProposal, out var count) && count > 0) AddError(issues, "category-short-code-duplicate", "New Category short code collides with an existing Category.");
                 if (CatalogueValidation.ValidateCategoryShortCode(proposal) is { } lengthError) AddError(issues, "category-short-code-too-long", lengthError);
             }
         }

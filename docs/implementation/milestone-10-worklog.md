@@ -246,6 +246,21 @@ A worklog entry, `CODEX_DONE`, controller acceptance, owner manual PASSED or gre
 - Execution topology: isolated worktree `m10-authorized`; root worktree preserved.
 - Browser notification result: pending durable repair `CODEX_DONE` delivery.
 
+## Entry 2026-09-18 — `M10-WP2-REPAIR-NORMALIZATION-EVIDENCE-06`
+
+- Authorization/gate state observed: Issue #4 OPEN and pointing to PR #22; controller review `5721769594` and exact handoff comment `5721775503` authorize this repair from `e48ffc79154b8b791dde89b68c824122a0c68626`.
+- Scope: WP2 read-side normalization/fail-closed repair and direct Application/Infrastructure evidence only. No SQLite business write, durable ID allocation, authority acquisition, notifier, WPF workflow, WP3 commit, merge or later milestone work.
+- Repairs: existing/new Category short-code collision checks now use normalized keys end-to-end; duplicate current normalized Category names never select an arbitrary row or throw; malformed identity inputs fail closed without nullable dereference.
+- Evidence added: direct Category matrix, stale-workbook five-outcome table, product/group/option edit and state cases, Add-only/no-delete/identity/parent-binding cases, domain validation cases, deterministic plan-shape checks, metadata/manifest/formula/visibility workbook cases, and live-parent-rename/fingerprint integration evidence.
+- Files changed: `CatalogueImportPlanner.cs`; Application planner evidence tests; Infrastructure workbook integration tests; this worklog.
+- Dependency/schema/authority impact: ClosedXML remains the sole pinned `0.105.1` XLSX dependency; no COM/Interop/macros, migration or durable field; planner/parser remain read-only with no guard/notifier.
+- Privacy/synthetic-data audit: generated IDs and synthetic catalogue/workbook fixtures only.
+- Focused tests: Application planner/evidence suite **26/26 passed**; Infrastructure workbook/parser/baseline suite **18/18 passed**.
+- Full Release tests: **703/703 passed** across all six Release test assemblies; Release build **passed with zero warnings and zero errors**.
+- `git diff --check`: passed; exact-head CI status is recorded in the matching durable `CODEX_DONE` comment after the repair push.
+- Remaining manual evidence: owner Windows/Excel acceptance remains unexecuted; WP3 atomic persistence, WP4 WPF workflow and WP5 hardening remain outside this handoff.
+- Blockers/unresolved items: none identified within the authorized repair scope at implementation start.
+
 ## Entry 2026-09-17 — `M10-WP2-REPAIR-PLANNER-PARSER-CONFORMANCE-05`
 
 - Authorization/gate state observed: Issue #4 OPEN and pointing to PR #22; exact repair handoff comment `5721408633` matched controller findings `5721396562` at starting head `af2c6d0ddf56e0a2581b8d3677f2cc4297955a3c`.

@@ -503,6 +503,118 @@ public sealed class CatalogueWorkbookIntegrationTests
         Assert.IsTrue(parsed.Issues.Any(issue => issue.Code == "wrong-parent-binding" && issue.FieldKey == "product_row_key"));
     }
 
+    [TestMethod]
+    public async Task MetadataVisibilityAndManifestIntegrityFailClosed()
+    {
+        var productId = Guid.NewGuid();
+        var bytes = await WriteAsync(new CatalogueWorkbookExport([
+            new CatalogueWorkbookProduct(productId, "P-1", "Product", "Plats", null, Money.Zero, 20m, true, false, false, [])], Guid.NewGuid()));
+        var gateway = new ClosedXmlCatalogueWorkbookImportGateway();
+
+        using (var visibleMetadata = new XLWorkbook(new MemoryStream(bytes)))
+        {
+            visibleMetadata.Worksheet("__Sushi81Meta").Visibility = XLWorksheetVisibility.Visible;
+            await using var stream = new MemoryStream(); visibleMetadata.SaveAs(stream); stream.Position = 0;
+            var parsed = await gateway.ReadAsync(stream);
+            CollectionAssert.Contains(parsed.Issues.Select(issue => issue.Code).ToArray(), "metadata-visibility");
+        }
+
+        using (var duplicateBinding = new XLWorkbook(new MemoryStream(bytes)))
+        {
+            var products = duplicateBinding.Worksheet("Products");
+            products.Row(2).CopyTo(products.Row(3));
+            await using var stream = new MemoryStream(); duplicateBinding.SaveAs(stream); stream.Position = 0;
+            var parsed = await gateway.ReadAsync(stream);
+            CollectionAssert.Contains(parsed.Issues.Select(issue => issue.Code).ToArray(), "duplicate-row-binding");
+        }
+
+        using (var unknownBinding = new XLWorkbook(new MemoryStream(bytes)))
+        {
+            unknownBinding.Worksheet("Products").Cell(2, 10).Value = "product:unknown";
+            await using var stream = new MemoryStream(); unknownBinding.SaveAs(stream); stream.Position = 0;
+            var parsed = await gateway.ReadAsync(stream);
+            CollectionAssert.Contains(parsed.Issues.Select(issue => issue.Code).ToArray(), "unknown-row-key");
+        }
+
+        using (var mismatchedId = new XLWorkbook(new MemoryStream(bytes)))
+        {
+            mismatchedId.Worksheet("Products").Cell(2, 11).Value = Guid.NewGuid().ToString("D");
+            await using var stream = new MemoryStream(); mismatchedId.SaveAs(stream); stream.Position = 0;
+            var parsed = await gateway.ReadAsync(stream);
+            CollectionAssert.Contains(parsed.Issues.Select(issue => issue.Code).ToArray(), "misbound-identity");
+        }
+    }
+
+    [TestMethod]
+    public async Task ManifestEntityTypeParentFingerprintAndPopulatedFormulaFailClosed()
+    {
+        var productId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var optionId = Guid.NewGuid();
+        var model = new CatalogueWorkbookExport([new CatalogueWorkbookProduct(productId, "P-1", "Product", "Plats", null, Money.Zero, 20m, true, false, true,
+            [new CatalogueWorkbookOptionGroup(groupId, productId, "P-1", "Product", "Extras", SelectionMode.Multi, false, 0, 1, 0,
+                [new CatalogueWorkbookOption(optionId, groupId, "P-1", "Product", "Extras", "Sauce", Money.Zero, true, 0)])])], Guid.NewGuid());
+        var bytes = await WriteAsync(model);
+        var gateway = new ClosedXmlCatalogueWorkbookImportGateway();
+
+        using (var wrongType = new XLWorkbook(new MemoryStream(bytes)))
+        {
+            var metadata = wrongType.Worksheet("__Sushi81Meta");
+            var row = Enumerable.Range(1, metadata.LastRowUsed()!.RowNumber()).Single(value => metadata.Cell(value, 1).GetString() == "Product");
+            metadata.Cell(row, 1).Value = "Option";
+            await using var stream = new MemoryStream(); wrongType.SaveAs(stream); stream.Position = 0;
+            var parsed = await gateway.ReadAsync(stream);
+            CollectionAssert.Contains(parsed.Issues.Select(issue => issue.Code).ToArray(), "misbound-identity");
+        }
+
+        using (var malformedFingerprint = new XLWorkbook(new MemoryStream(bytes)))
+        {
+            var metadata = malformedFingerprint.Worksheet("__Sushi81Meta");
+            var row = Enumerable.Range(1, metadata.LastRowUsed()!.RowNumber()).Single(value => metadata.Cell(value, 1).GetString() == "OptionGroup");
+            metadata.Cell(row, 8).Value = "not-a-fingerprint";
+            await using var stream = new MemoryStream(); malformedFingerprint.SaveAs(stream); stream.Position = 0;
+            var parsed = await gateway.ReadAsync(stream);
+            CollectionAssert.Contains(parsed.Issues.Select(issue => issue.Code).ToArray(), "manifest-corrupt");
+        }
+
+        using (var formula = new XLWorkbook(new MemoryStream(bytes)))
+        {
+            formula.Worksheet("Products").Cell(2, 5).FormulaA1 = "=1+1";
+            await using var stream = new MemoryStream(); formula.SaveAs(stream); stream.Position = 0;
+            var parsed = await gateway.ReadAsync(stream);
+            Assert.IsTrue(parsed.Issues.Any(issue => issue.Code == "formula-not-allowed" && issue.ExcelRow == 2 && issue.FieldKey == "price_ttc"));
+        }
+    }
+
+    [TestMethod]
+    public async Task ExportedParentDescriptorsRemainValidAfterLiveRenameAndContradictionsBlock()
+    {
+        var categoryId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var optionId = Guid.NewGuid();
+        var exported = new CatalogueWorkbookProduct(productId, "P-1", "Exported product", "Plats", null, Money.Zero, 20m, true, false, true,
+            [new CatalogueWorkbookOptionGroup(groupId, productId, "P-1", "Exported product", "Extras", SelectionMode.Multi, false, 0, 1, 0,
+                [new CatalogueWorkbookOption(optionId, groupId, "P-1", "Exported product", "Extras", "Sauce", Money.Zero, true, 0)])]);
+        var bytes = await WriteAsync(new CatalogueWorkbookExport([exported], Guid.NewGuid()));
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(new MemoryStream(bytes));
+        var live = new CatalogueImportBaseline([new CatalogueImportCategory(categoryId, "Plats", null)],
+            [new CatalogueImportBaselineProduct(productId, "P-1-live", "Live product", categoryId, "Plats", null, Money.Zero, 20m, true, false, true,
+                [new CatalogueImportBaselineOptionGroup(groupId, productId, "Live extras", SelectionMode.Multi, false, 0, 1, 0,
+                    [new CatalogueImportBaselineOption(optionId, groupId, "Sauce", Money.Zero, true, 0)])])]);
+
+        var accepted = new CatalogueImportPlanner().Plan(CatalogueImportMode.Update, parsed, live);
+        Assert.AreEqual(0, accepted.Preview.ErrorCount, string.Join(";", accepted.Preview.Issues.Select(issue => issue.Code)));
+
+        using var tampered = new XLWorkbook(new MemoryStream(bytes));
+        tampered.Worksheet("Options").Cell(2, 1).Value = "WRONG";
+        await using var stream = new MemoryStream(); tampered.SaveAs(stream); stream.Position = 0;
+        var tamperedWorkbook = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(stream);
+        var rejected = new CatalogueImportPlanner().Plan(CatalogueImportMode.Update, tamperedWorkbook, live);
+        CollectionAssert.Contains(rejected.Preview.Issues.Select(issue => issue.Code).ToArray(), "wrong-parent-binding");
+        Assert.IsNull(rejected.Plan);
+    }
+
     private static async Task<byte[]> WriteAsync(CatalogueWorkbookExport model)
     {
         await using var stream = new MemoryStream();
