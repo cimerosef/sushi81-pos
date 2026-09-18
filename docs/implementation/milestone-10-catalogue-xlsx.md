@@ -14,6 +14,8 @@
 
 - `CatalogueImportService.CommitAsync` requires an error-free immutable preview, enters the centralized write-authority scope, calls the import store once, and invokes the durable-change notifier once only after a changed commit has returned successfully.
 - `SqliteCatalogueStore.CommitAsync` reads the complete Catalogue baseline on the same SQLite transaction, compares the canonical order-independent baseline fingerprint before the first write, revalidates references/scalars/resulting hierarchy, allocates new opaque IDs only after validation, and applies one explicit INSERT/UPDATE batch.
+- The commit boundary uses the Application-owned strict entity/action/reference/scalar validator; production commits consume only the real `CatalogueImportResult.PreviewBaseline`, while malformed plans fail closed before allocation or SQL writes.
+- Changed Product codes and changed Group/Option display orders use collision-safe temporary staging only for affected rows; staging orders are outside the business `Int32` range. SQLite BUSY/LOCKED/BUSY_SNAPSHOT failures map to the stable blocking `concurrent-write-conflict` issue.
 - Import persistence never interprets omitted workbook rows as deletion and never calls the aggregate save helpers that delete omitted children. Existing child parent bindings remain immutable; planned references resolve through local/entity maps only.
 - The transaction runner remains the single revision/commit boundary. Rollback, stale-baseline, constraint, injected mid-batch and commit-failure paths return blocking issues without durable Catalogue mutation or notifier calls. Historical order tables are not touched.
 

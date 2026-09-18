@@ -20,6 +20,8 @@ namespace Sushi81.Pos.Infrastructure.IntegrationTests;
 [TestClass]
 public sealed class M10Wp3CatalogueImportCommitTests
 {
+    private static readonly string[] SwappedGroupNames = ["Second group", "First group"];
+    private static readonly string[] SwappedOptionNames = ["Two", "One"];
     [TestMethod]
     public async Task CommitUpdatesExactEntitiesOnceAndNotifiesAfterCommit()
     {
@@ -135,6 +137,116 @@ public sealed class M10Wp3CatalogueImportCommitTests
     }
 
     [TestMethod]
+    public async Task MismatchedPreviewBaselineTokenBlocksBeforeAnyWrite()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var plan = new CatalogueImportPlan(CatalogueImportMode.Update, [], [], [], "synthetic");
+
+        var result = await store.CommitAsync(new CatalogueImportCommitRequest(plan, CatalogueImportBaseline.Empty, "tampered-baseline-token"));
+
+        Assert.IsFalse(result.Succeeded);
+        CollectionAssert.Contains(result.Issues.Select(issue => issue.Code).ToArray(), "baseline-token-mismatch");
+        Assert.IsEmpty(await store.ListProductsAsync());
+        Assert.IsEmpty(await store.ListCategoriesAsync());
+    }
+
+    [TestMethod]
+    public async Task ChangedLiveBaselineIsRejectedAsAStableBlockingConflict()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var runner = new SqliteTransactionRunner(factory);
+        var store = new SqliteCatalogueStore(factory, runner, new DeterministicIds(), clock);
+        var previewBaseline = await store.ReadCatalogueImportBaselineAsync();
+        var plan = new CatalogueImportPlan(CatalogueImportMode.Update, [], [], [], "synthetic");
+        await new CatalogueService(store).CreateCategoryWithCodeAsync("Plats", "PL");
+
+        var result = await store.CommitAsync(new CatalogueImportCommitRequest(plan, previewBaseline));
+
+        Assert.IsFalse(result.Succeeded);
+        CollectionAssert.Contains(result.Issues.Select(issue => issue.Code).ToArray(), "stale-baseline");
+    }
+
+    [TestMethod]
+    public async Task CodeAndDisplayOrderSwapsUseSafeStagingAndPersistExactFinalValues()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var catalogue = new CatalogueService(store);
+        var category = (await catalogue.CreateCategoryWithCodeAsync("Plats", "PL")).Value!;
+        var first = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "A", "First", category.Id, Money.FromCents(100), 20m, true, true, true,
+            [
+                new OptionGroupDraft(Guid.Empty, "First group", SelectionMode.Multi, false, 0, 2, 0,
+                    [new OptionDraft(Guid.Empty, "One", Money.Zero, true, 0), new OptionDraft(Guid.Empty, "Two", Money.Zero, true, 1)]),
+                new OptionGroupDraft(Guid.Empty, "Second group", SelectionMode.Multi, false, 0, 2, 1, [])]))).Value!;
+        var second = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "B", "Second", category.Id, Money.FromCents(200), 20m, true, true, false, []))).Value!;
+        var baseline = await store.ReadCatalogueImportBaselineAsync();
+        var firstCurrent = baseline.Products.Single(value => value.Id == first);
+        var secondCurrent = baseline.Products.Single(value => value.Id == second);
+        var firstGroups = firstCurrent.OptionGroups.OrderBy(value => value.DisplayOrder).ToArray();
+        var firstOptions = firstGroups[0].Options.OrderBy(value => value.DisplayOrder).ToArray();
+        var operations = new List<CatalogueImportOperation>
+        {
+            ProductModify(firstCurrent, "B"),
+            ProductModify(secondCurrent, "A"),
+            GroupModify(firstGroups[0], first, "B", 1),
+            GroupModify(firstGroups[1], first, "B", 0),
+            OptionModify(firstOptions[0], firstGroups[0].Id, 1),
+            OptionModify(firstOptions[1], firstGroups[0].Id, 0),
+        };
+        var plan = new CatalogueImportPlan(CatalogueImportMode.Update, operations, [], [], "synthetic");
+
+        var result = await store.CommitAsync(new CatalogueImportCommitRequest(plan, baseline));
+
+        Assert.IsTrue(result.Succeeded, string.Join(";", result.Issues.Select(issue => issue.Code)));
+        Assert.AreEqual("B", (await store.GetProductForEditAsync(first))!.Code);
+        Assert.AreEqual("A", (await store.GetProductForEditAsync(second))!.Code);
+        var saved = await store.GetProductForEditAsync(first);
+        Assert.IsNotNull(saved);
+        CollectionAssert.AreEqual(SwappedGroupNames, saved!.Groups.Select(value => value.Name).ToArray());
+        CollectionAssert.AreEqual(SwappedOptionNames, saved.Groups.Single(value => value.Name == "First group").Options.Select(value => value.Name).ToArray());
+    }
+
+    private static CatalogueImportOperation ProductModify(CatalogueImportBaselineProduct product, string code) =>
+        new(CatalogueImportEntityType.Product, CatalogueImportOperationKind.Modify, product.Id, $"product:{product.Id:N}", 2, "Products",
+            new Dictionary<string, string?>
+            {
+                ["code"] = code, ["name"] = product.Name, ["category"] = product.CategoryName, ["categoryShortCode"] = product.CategoryShortCode,
+                ["priceCents"] = product.PriceTtc.Cents.ToString(System.Globalization.CultureInfo.InvariantCulture), ["vatRate"] = product.VatRate.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["isActive"] = product.IsActive.ToString(), ["discountEligible"] = product.DiscountEligible.ToString(), ["optionsEnabled"] = product.OptionsEnabled.ToString()
+            },
+            CatalogueImportEntityReference.Existing(product.Id, $"product:{product.Id:N}"),
+            CatalogueImportEntityReference.Existing(product.CategoryId, $"category:{product.CategoryId:N}"));
+
+    private static CatalogueImportOperation GroupModify(CatalogueImportBaselineOptionGroup group, Guid productId, string productCode, int order) =>
+        new(CatalogueImportEntityType.OptionGroup, CatalogueImportOperationKind.Modify, group.Id, $"group:{group.Id:N}", 2, "OptionGroups",
+            new Dictionary<string, string?>
+            {
+                ["productCode"] = productCode, ["name"] = group.Name, ["selectionMode"] = group.SelectionMode.ToString(), ["isRequired"] = group.IsRequired.ToString(),
+                ["minSelections"] = group.MinSelections?.ToString(System.Globalization.CultureInfo.InvariantCulture), ["maxSelections"] = group.MaxSelections?.ToString(System.Globalization.CultureInfo.InvariantCulture), ["displayOrder"] = order.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            },
+            CatalogueImportEntityReference.Existing(group.Id, $"group:{group.Id:N}"),
+            ParentReference: CatalogueImportEntityReference.Existing(productId, $"product:{productId:N}"));
+
+    private static CatalogueImportOperation OptionModify(CatalogueImportBaselineOption option, Guid groupId, int order) =>
+        new(CatalogueImportEntityType.Option, CatalogueImportOperationKind.Modify, option.Id, $"option:{option.Id:N}", 2, "Options",
+            new Dictionary<string, string?>
+            {
+                ["name"] = option.Name, ["priceAdjustmentCents"] = option.PriceAdjustmentTtc.Cents.ToString(System.Globalization.CultureInfo.InvariantCulture), ["isActive"] = option.IsActive.ToString(), ["displayOrder"] = order.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            },
+            CatalogueImportEntityReference.Existing(option.Id, $"option:{option.Id:N}"),
+            ParentReference: CatalogueImportEntityReference.Existing(groupId, $"group:{groupId:N}"));
+
+    [TestMethod]
     public async Task CatalogueImportLeavesHistoricalOrderSnapshotAndReprintDataUnchanged()
     {
         using var paths = new TempPaths();
@@ -177,7 +289,12 @@ public sealed class M10Wp3CatalogueImportCommitTests
         editedWorkbook.Worksheet("Products").Cell(2, 7).Value = false;
         editedWorkbook.Worksheet("Products").Cell(2, 8).Value = false;
         editedWorkbook.Worksheet("Products").Cell(2, 9).Value = false;
+        editedWorkbook.Worksheet("OptionGroups").Cell(2, 1).Value = "P-9";
+        editedWorkbook.Worksheet("OptionGroups").Cell(2, 2).Value = "Plat modifie";
         editedWorkbook.Worksheet("OptionGroups").Cell(2, 3).Value = "Extras modifies";
+        editedWorkbook.Worksheet("Options").Cell(2, 1).Value = "P-9";
+        editedWorkbook.Worksheet("Options").Cell(2, 2).Value = "Plat modifie";
+        editedWorkbook.Worksheet("Options").Cell(2, 3).Value = "Extras modifies";
         editedWorkbook.Worksheet("Options").Cell(2, 4).Value = "Sauce modifiee";
         editedWorkbook.Worksheet("Options").Cell(2, 5).Value = 1.50m;
         editedWorkbook.Worksheet("Options").Cell(2, 6).Value = false;

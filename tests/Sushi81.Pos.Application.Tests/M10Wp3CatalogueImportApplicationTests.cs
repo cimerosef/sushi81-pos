@@ -61,6 +61,24 @@ public sealed class M10Wp3CatalogueImportApplicationTests
         Assert.AreEqual(0, notifier.Calls);
     }
 
+    [TestMethod]
+    public async Task CommitWaitsForTheAuthorityScopeBeforeCallingTheStore()
+    {
+        using var guard = new BlockingGuard();
+        await using var held = await guard.EnterWriteScopeAsync();
+        var store = new RecordingStore(CatalogueImportCommitResult.Success(changed: true));
+        var service = CreateService(store, guard, new RecordingNotifier());
+        var commit = service.CommitAsync(Preview(store));
+
+        await Task.Delay(50);
+        Assert.AreEqual(0, store.CommitCalls);
+        await held.DisposeAsync();
+        var result = await commit;
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual(1, store.CommitCalls);
+    }
+
     private static CatalogueImportService CreateService(RecordingStore store, IWriteAuthorityGuard guard, RecordingNotifier notifier) =>
         new(new NoOpGateway(), store, store, guard, notifier);
 
@@ -93,5 +111,28 @@ public sealed class M10Wp3CatalogueImportApplicationTests
     {
         public WriteAuthorityState State => state;
         public void RequireWriteAuthority() { if (state != WriteAuthorityState.Authoritative) throw new WriteAuthorityException(state); }
+    }
+
+    private sealed class BlockingGuard : IWriteAuthorityGuard, IDisposable
+    {
+        private readonly SemaphoreSlim gate = new(1, 1);
+        public WriteAuthorityState State => WriteAuthorityState.Authoritative;
+        public void RequireWriteAuthority() { }
+        public async ValueTask<IAsyncDisposable> EnterWriteScopeAsync(CancellationToken cancellationToken = default)
+        {
+            await gate.WaitAsync(cancellationToken);
+            return new Scope(gate);
+        }
+        public void Dispose() => gate.Dispose();
+
+        private sealed class Scope(SemaphoreSlim gate) : IAsyncDisposable
+        {
+            private int released;
+            public ValueTask DisposeAsync()
+            {
+                if (Interlocked.Exchange(ref released, 1) == 0) gate.Release();
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 }

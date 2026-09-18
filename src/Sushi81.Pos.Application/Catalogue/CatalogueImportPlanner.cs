@@ -672,6 +672,4 @@ public sealed class CatalogueImportService
         }
     }
 
-    public Task<CatalogueImportCommitResult> CommitAsync(CatalogueImportPlan plan, CatalogueImportBaseline previewBaseline, CancellationToken cancellationToken = default) =>
-        CommitAsync(new CatalogueImportResult(new CatalogueImportPreview(plan.Mode, plan.SourceName, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, plan.NewCategories.Count, 0, 0, [], plan.AffectedRows), plan, previewBaseline), cancellationToken);
 }
