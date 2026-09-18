@@ -59,6 +59,7 @@ public sealed class M10Wp3CatalogueImportCommitTests
         Assert.IsGreaterThan(0, planned.Preview.ProductModifyCount, $"ops={planned.Plan?.Operations.Count}; names={string.Join(",", planned.Plan?.Operations.Select(value => value.Kind) ?? [])}");
         planned = planned with { PreviewBaseline = baseline };
 
+        var revisionBefore = await ReadRevisionAsync(factory);
         var notifier = new RecordingNotifier();
         var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
         var service = new CatalogueImportService(workbook, store, store, guard, notifier);
@@ -66,6 +67,7 @@ public sealed class M10Wp3CatalogueImportCommitTests
         Assert.IsTrue(committed.Succeeded, $"preview={planned.Preview.ProductModifyCount}; " + string.Join(";", committed.Issues.Select(issue => issue.Code)));
         Assert.IsTrue(committed.Changed);
         Assert.AreEqual(1, notifier.Calls);
+        Assert.AreEqual(revisionBefore + 1, await ReadRevisionAsync(factory));
         Assert.AreEqual("Updated", (await store.GetProductForEditAsync(productId))!.Name);
         Assert.AreEqual(250, (await store.GetProductForEditAsync(productId))!.PriceTtc.Cents);
     }
@@ -155,6 +157,69 @@ public sealed class M10Wp3CatalogueImportCommitTests
     }
 
     [TestMethod]
+    public async Task NoOpImportDoesNotAdvanceBusinessRevision()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var baseline = await store.ReadCatalogueImportBaselineAsync();
+        var before = await ReadRevisionAsync(factory);
+
+        var result = await store.CommitAsync(new CatalogueImportCommitRequest(new CatalogueImportPlan(CatalogueImportMode.Update, [], [], [], "synthetic"), baseline));
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.IsFalse(result.Changed);
+        Assert.AreEqual(before, await ReadRevisionAsync(factory));
+    }
+
+    [TestMethod]
+    public async Task EmptyOrCollidingGeneratedIdsFailBeforeAnyImportWrite()
+    {
+        foreach (var ids in new IIdGenerator[] { new EmptyIds(), new FixedIds() })
+        {
+            using var paths = new TempPaths();
+            var clock = new FixedClock();
+            var factory = new SqliteConnectionFactory(paths);
+            await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+            var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), ids, clock);
+            var workbook = new CatalogueImportWorkbook(CatalogueWorkbookSchema.ContractVersion,
+                [new(2, "P-1", "New", "Plats", "PL", Money.FromCents(100), 20m, true, false, false, null, null)], [], [], [], [], "synthetic");
+            var preview = new CatalogueImportPlanner().Plan(CatalogueImportMode.AddOnly, workbook, CatalogueImportBaseline.Empty);
+            Assert.IsNotNull(preview.Plan, string.Join(";", preview.Preview.Issues.Select(issue => issue.Code)));
+
+            var result = await store.CommitAsync(new CatalogueImportCommitRequest(preview.Plan!, CatalogueImportBaseline.Empty));
+
+            Assert.IsFalse(result.Succeeded);
+            CollectionAssert.Contains(result.Issues.Select(issue => issue.Code).ToArray(), "invalid-allocated-id");
+            Assert.IsEmpty(await store.ListProductsAsync());
+            Assert.IsEmpty(await store.ListCategoriesAsync());
+        }
+    }
+
+    [TestMethod]
+    public async Task ProductionWriteAuthorityGuardBlocksImportUntilHeldScopeReleases()
+    {
+        using var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+        await using var held = await guard.EnterWriteScopeAsync();
+        var store = new RecordingImportStore();
+        var service = new CatalogueImportService(new NoOpImportGateway(), store, store, guard, new RecordingNotifier());
+        var preview = new CatalogueImportResult(
+            new CatalogueImportPreview(CatalogueImportMode.Update, "synthetic", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, [], []),
+            new CatalogueImportPlan(CatalogueImportMode.Update, [], [], [], "synthetic"), CatalogueImportBaseline.Empty);
+
+        var commit = service.CommitAsync(preview);
+        await Task.Delay(50);
+        Assert.AreEqual(0, store.CommitCalls);
+        await held.DisposeAsync();
+
+        var result = await commit;
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreEqual(1, store.CommitCalls);
+    }
+
+    [TestMethod]
     public async Task ChangedLiveBaselineIsRejectedAsAStableBlockingConflict()
     {
         using var paths = new TempPaths();
@@ -171,6 +236,44 @@ public sealed class M10Wp3CatalogueImportCommitTests
 
         Assert.IsFalse(result.Succeeded);
         CollectionAssert.Contains(result.Issues.Select(issue => issue.Code).ToArray(), "stale-baseline");
+    }
+
+    [TestMethod]
+    public async Task ConcurrentWriteAttemptAfterBaselineReadReturnsStableConflictWithoutPartialImport()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var catalogue = new CatalogueService(store);
+        var category = (await catalogue.CreateCategoryWithCodeAsync("Plats", "PL")).Value!;
+        var productId = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P-1", "Original", category.Id, Money.FromCents(100), 20m, true, true, false, []))).Value!;
+        var baseline = await store.ReadCatalogueImportBaselineAsync();
+        var current = baseline.Products.Single(value => value.Id == productId);
+        store.ImportCommitAfterBaselineReadAsync = async token =>
+        {
+            await using var connection = new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+            {
+                DataSource = paths.LiveDatabasePath,
+                Mode = Microsoft.Data.Sqlite.SqliteOpenMode.ReadWrite,
+                Cache = Microsoft.Data.Sqlite.SqliteCacheMode.Private,
+                Pooling = false,
+                DefaultTimeout = 5
+            }.ToString());
+            await connection.OpenAsync(token);
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE products SET name='Concurrent writer' WHERE product_id=$id;";
+            command.Parameters.AddWithValue("$id", productId.ToString());
+            await command.ExecuteNonQueryAsync(token);
+        };
+
+        var result = await store.CommitAsync(new CatalogueImportCommitRequest(
+            new CatalogueImportPlan(CatalogueImportMode.Update, [ProductModify(current, "P-2")], [], [], "synthetic"), baseline));
+
+        Assert.IsFalse(result.Succeeded);
+        CollectionAssert.Contains(result.Issues.Select(issue => issue.Code).ToArray(), "concurrent-write-conflict");
+        Assert.AreEqual("Original", (await store.GetProductForEditAsync(productId))!.Name);
     }
 
     [TestMethod]
@@ -245,6 +348,15 @@ public sealed class M10Wp3CatalogueImportCommitTests
             },
             CatalogueImportEntityReference.Existing(option.Id, $"option:{option.Id:N}"),
             ParentReference: CatalogueImportEntityReference.Existing(groupId, $"group:{groupId:N}"));
+
+    private static async Task<long> ReadRevisionAsync(SqliteConnectionFactory factory)
+    {
+        await using var connection = await factory.OpenLiveConnectionAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT value FROM foundation_metadata WHERE key='business_data_revision';";
+        var value = await command.ExecuteScalarAsync();
+        return long.TryParse(Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture), out var revision) ? revision : 0;
+    }
 
     [TestMethod]
     public async Task CatalogueImportLeavesHistoricalOrderSnapshotAndReprintDataUnchanged()
@@ -345,6 +457,22 @@ public sealed class M10Wp3CatalogueImportCommitTests
         public Task NotifyCommittedAsync(CancellationToken cancellationToken = default) { Calls++; return Task.CompletedTask; }
     }
 
+    private sealed class NoOpImportGateway : ICatalogueWorkbookImportGateway
+    {
+        public Task<CatalogueImportWorkbook> ReadAsync(Stream source, string? sourceName = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class RecordingImportStore : ICatalogueImportStore
+    {
+        public int CommitCalls { get; private set; }
+        public Task<CatalogueImportBaseline> ReadCatalogueImportBaselineAsync(CancellationToken cancellationToken = default) => Task.FromResult(CatalogueImportBaseline.Empty);
+        public Task<CatalogueImportCommitResult> CommitAsync(CatalogueImportCommitRequest request, CancellationToken cancellationToken = default)
+        {
+            CommitCalls++;
+            return Task.FromResult(CatalogueImportCommitResult.Success(changed: true));
+        }
+    }
+
     private sealed class NoopDispatcher : IOrderPrintDispatcher
     {
         public Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -361,6 +489,17 @@ public sealed class M10Wp3CatalogueImportCommitTests
     {
         private int count;
         public Guid NewId() => Guid.Parse($"00000000-0000-0000-0000-{Interlocked.Increment(ref count):D12}");
+    }
+
+    private sealed class EmptyIds : IIdGenerator
+    {
+        public Guid NewId() => Guid.Empty;
+    }
+
+    private sealed class FixedIds : IIdGenerator
+    {
+        private static readonly Guid Fixed = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        public Guid NewId() => Fixed;
     }
 
     private sealed class TempPaths : IAppPaths, IDisposable

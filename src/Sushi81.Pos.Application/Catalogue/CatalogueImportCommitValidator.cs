@@ -23,6 +23,8 @@ public static class CatalogueImportCommitValidator
         var options = BuildMap((baseline.Products ?? []).SelectMany(value => value.OptionGroups).SelectMany(value => value.Options), value => value.Id, issues, "duplicate-baseline-option-id");
         var operations = plan.Operations ?? [];
 
+        if (!Enum.IsDefined(plan.Mode)) Add(issues, "invalid-mode", "The import mode is invalid.");
+        ValidateCombinedOperations(operations, issues);
         ValidateCategories(plan, baseline, categories, operations, issues);
         ValidateOperationReferences(plan, categories, products, groups, options, issues);
         ValidateOperations(plan, baseline, categories, products, groups, options, issues);
@@ -261,58 +263,83 @@ public static class CatalogueImportCommitValidator
         foreach (var entityGroup in (plan.Operations ?? []).GroupBy(value => (value.EntityType, value.LocalKey)))
         {
             var set = entityGroup.ToArray();
-            var first = set[0];
+            var canonical = CanonicalOperation(set);
             if (set.Select(value => value.Kind).Distinct().Count() != set.Length)
-                Add(issues, "duplicate-operation", "An entity contains a duplicate operation kind.", first);
+                Add(issues, "duplicate-operation", "An entity contains a duplicate operation kind.", canonical);
             if (set.Count(value => value.Kind == CatalogueImportOperationKind.Create) > 1)
-                Add(issues, "duplicate-create", "An entity has more than one Create operation.", first);
+                Add(issues, "duplicate-create", "An entity has more than one Create operation.", canonical);
             if (set.Any(value => value.Kind == CatalogueImportOperationKind.Create) && set.Length > 1)
-                Add(issues, "mixed-create", "Create cannot be mixed with another operation kind.", first);
-            if (first.EntityType == CatalogueImportEntityType.OptionGroup && set.Any(value => value.Kind is CatalogueImportOperationKind.Activate or CatalogueImportOperationKind.Deactivate))
-                Add(issues, "invalid-group-action", "OptionGroup does not support Activate or Deactivate operations.", first);
+                Add(issues, "mixed-create", "Create cannot be mixed with another operation kind.", canonical);
+            if (canonical.EntityType == CatalogueImportEntityType.OptionGroup && set.Any(value => value.Kind is CatalogueImportOperationKind.Activate or CatalogueImportOperationKind.Deactivate))
+                Add(issues, "invalid-group-action", "OptionGroup does not support Activate or Deactivate operations.", canonical);
             if (set.Count(value => value.Kind is CatalogueImportOperationKind.Activate or CatalogueImportOperationKind.Deactivate) > 1)
-                Add(issues, "duplicate-state-operation", "An entity cannot carry duplicate or contradictory state operations.", first);
+                Add(issues, "duplicate-state-operation", "An entity cannot carry duplicate or contradictory state operations.", canonical);
             if (set.Any(value => value.Kind == CatalogueImportOperationKind.Activate) && set.Any(value => value.Kind == CatalogueImportOperationKind.Deactivate))
-                Add(issues, "contradictory-state-operation", "Activate and Deactivate cannot be combined.", first);
+                Add(issues, "contradictory-state-operation", "Activate and Deactivate cannot be combined.", canonical);
 
-            if (first.EntityId is not { } id) continue;
-            if (first.EntityType == CatalogueImportEntityType.Product && products.TryGetValue(id, out var product)) ValidateProductDelta(set, product, categories, issues);
-            if (first.EntityType == CatalogueImportEntityType.OptionGroup && groups.TryGetValue(id, out var group)) ValidateGroupDelta(set, group, products, issues);
-            if (first.EntityType == CatalogueImportEntityType.Option && options.TryGetValue(id, out var option)) ValidateOptionDelta(set, option, issues);
+            if (canonical.EntityId is not { } id) continue;
+            if (canonical.EntityType == CatalogueImportEntityType.Product && products.TryGetValue(id, out var product)) ValidateProductDelta(set, canonical, product, categories, issues);
+            if (canonical.EntityType == CatalogueImportEntityType.OptionGroup && groups.TryGetValue(id, out var group)) ValidateGroupDelta(set, canonical, group, products, issues);
+            if (canonical.EntityType == CatalogueImportEntityType.Option && options.TryGetValue(id, out var option)) ValidateOptionDelta(set, canonical, option, issues);
         }
     }
 
-    private static void ValidateProductDelta(IReadOnlyList<CatalogueImportOperation> operations, CatalogueImportBaselineProduct current,
+    private static void ValidateCombinedOperations(IReadOnlyList<CatalogueImportOperation> operations, List<CatalogueImportIssue> issues)
+    {
+        foreach (var group in operations.GroupBy(value => (value.EntityType, value.LocalKey)))
+        {
+            var canonical = CanonicalOperation(group);
+            foreach (var operation in group)
+            {
+                var samePayload = operation.EntityId == canonical.EntityId && Equals(operation.EntityReference, canonical.EntityReference)
+                    && Equals(operation.CategoryReference, canonical.CategoryReference) && Equals(operation.ParentReference, canonical.ParentReference)
+                    && ValuesEqual(operation.Values, canonical.Values);
+                if (!samePayload)
+                    Add(issues, "contradictory-operation", "Operations for one entity must carry one canonical final payload and reference set; only the operation kind may differ.", operation);
+            }
+        }
+    }
+
+    private static CatalogueImportOperation CanonicalOperation(IEnumerable<CatalogueImportOperation> operations) =>
+        operations.OrderBy(OperationPayload, StringComparer.Ordinal).ThenBy(value => value.Kind).First();
+
+    private static string OperationPayload(CatalogueImportOperation operation)
+    {
+        var values = string.Join("\u001f", (operation.Values ?? new Dictionary<string, string?>()).OrderBy(value => value.Key, StringComparer.Ordinal).Select(value => value.Key + "=" + value.Value));
+        return string.Join("\u001e", operation.EntityType, operation.LocalKey, operation.EntityId?.ToString("N") ?? string.Empty,
+            operation.EntityReference?.ExistingId?.ToString("N") ?? string.Empty, operation.EntityReference?.LocalKey ?? string.Empty,
+            operation.CategoryReference?.ExistingId?.ToString("N") ?? string.Empty, operation.CategoryReference?.LocalKey ?? string.Empty,
+            operation.ParentReference?.ExistingId?.ToString("N") ?? string.Empty, operation.ParentReference?.LocalKey ?? string.Empty, values);
+    }
+
+    private static void ValidateProductDelta(IReadOnlyList<CatalogueImportOperation> operations, CatalogueImportOperation canonical, CatalogueImportBaselineProduct current,
         IReadOnlyDictionary<Guid, CatalogueImportCategory> categories, List<CatalogueImportIssue> issues)
     {
-        var first = operations[0];
-        var desiredCode = Get(first, "code");
-        var desiredName = Get(first, "name");
-        var desiredCategory = ResolveCategory(first, categories);
+        var desiredCode = Get(canonical, "code");
+        var desiredName = Get(canonical, "name");
+        var desiredCategory = ResolveCategory(canonical, categories);
         var nonActiveChanged = desiredCode is null || desiredName is null || desiredCategory is null ||
             !string.Equals(CatalogueNormalization.Display(desiredCode), current.Code, StringComparison.Ordinal) ||
             !string.Equals(CatalogueNormalization.Display(desiredName), current.Name, StringComparison.Ordinal) ||
-            desiredCategory.Value != current.CategoryId || ParseMoney(first, "priceCents") != current.PriceTtc.Cents || ParseDecimal(first, "vatRate") != current.VatRate ||
-            ParseBool(first, "discountEligible") != current.DiscountEligible || ParseBool(first, "optionsEnabled") != current.OptionsEnabled;
-        RequireModify(operations, nonActiveChanged, issues, "Product", first);
-        ValidateState(operations, current.IsActive, ParseBool(first, "isActive"), issues);
+            desiredCategory.Value != current.CategoryId || ParseMoney(canonical, "priceCents") != current.PriceTtc.Cents || ParseDecimal(canonical, "vatRate") != current.VatRate ||
+            ParseBool(canonical, "discountEligible") != current.DiscountEligible || ParseBool(canonical, "optionsEnabled") != current.OptionsEnabled;
+        RequireModify(operations, nonActiveChanged, issues, "Product", canonical);
+        ValidateState(operations, current.IsActive, ParseBool(canonical, "isActive"), issues, canonical);
     }
 
-    private static void ValidateGroupDelta(IReadOnlyList<CatalogueImportOperation> operations, CatalogueImportBaselineOptionGroup current,
+    private static void ValidateGroupDelta(IReadOnlyList<CatalogueImportOperation> operations, CatalogueImportOperation canonical, CatalogueImportBaselineOptionGroup current,
         IReadOnlyDictionary<Guid, CatalogueImportBaselineProduct> products, List<CatalogueImportIssue> issues)
     {
-        var first = operations[0];
-        var mode = ParseMode(first, "selectionMode");
-        var changed = !string.Equals(CatalogueNormalization.Display(Get(first, "name")), current.Name, StringComparison.Ordinal) || mode != current.SelectionMode || ParseBool(first, "isRequired") != current.IsRequired || ParseNullableInt(first, "minSelections") != current.MinSelections || ParseNullableInt(first, "maxSelections") != current.MaxSelections || ParseInt(first, "displayOrder") != current.DisplayOrder;
-        RequireModify(operations, changed, issues, "OptionGroup", first);
+        var mode = ParseMode(canonical, "selectionMode");
+        var changed = !string.Equals(CatalogueNormalization.Display(Get(canonical, "name")), current.Name, StringComparison.Ordinal) || mode != current.SelectionMode || ParseBool(canonical, "isRequired") != current.IsRequired || ParseNullableInt(canonical, "minSelections") != current.MinSelections || ParseNullableInt(canonical, "maxSelections") != current.MaxSelections || ParseInt(canonical, "displayOrder") != current.DisplayOrder;
+        RequireModify(operations, changed, issues, "OptionGroup", canonical);
     }
 
-    private static void ValidateOptionDelta(IReadOnlyList<CatalogueImportOperation> operations, CatalogueImportBaselineOption current, List<CatalogueImportIssue> issues)
+    private static void ValidateOptionDelta(IReadOnlyList<CatalogueImportOperation> operations, CatalogueImportOperation canonical, CatalogueImportBaselineOption current, List<CatalogueImportIssue> issues)
     {
-        var first = operations[0];
-        var changed = !string.Equals(CatalogueNormalization.Display(Get(first, "name")), current.Name, StringComparison.Ordinal) || ParseMoney(first, "priceAdjustmentCents") != current.PriceAdjustmentTtc.Cents || ParseInt(first, "displayOrder") != current.DisplayOrder;
-        RequireModify(operations, changed, issues, "Option", first);
-        ValidateState(operations, current.IsActive, ParseBool(first, "isActive"), issues);
+        var changed = !string.Equals(CatalogueNormalization.Display(Get(canonical, "name")), current.Name, StringComparison.Ordinal) || ParseMoney(canonical, "priceAdjustmentCents") != current.PriceAdjustmentTtc.Cents || ParseInt(canonical, "displayOrder") != current.DisplayOrder;
+        RequireModify(operations, changed, issues, "Option", canonical);
+        ValidateState(operations, current.IsActive, ParseBool(canonical, "isActive"), issues, canonical);
     }
 
     private static void RequireModify(IReadOnlyList<CatalogueImportOperation> operations, bool changed, List<CatalogueImportIssue> issues, string entity, CatalogueImportOperation first)
@@ -323,9 +350,9 @@ public static class CatalogueImportCommitValidator
         if (operations.Count(value => value.Kind == CatalogueImportOperationKind.Modify) > 1) Add(issues, "duplicate-modify", $"{entity} cannot carry duplicate Modify operations.", first);
     }
 
-    private static void ValidateState(IReadOnlyList<CatalogueImportOperation> operations, bool current, bool desired, List<CatalogueImportIssue> issues)
+    private static void ValidateState(IReadOnlyList<CatalogueImportOperation> operations, bool current, bool desired, List<CatalogueImportIssue> issues, CatalogueImportOperation canonical)
     {
-        var state = operations.FirstOrDefault(value => value.Kind is CatalogueImportOperationKind.Activate or CatalogueImportOperationKind.Deactivate);
+        var state = operations.Where(value => value.Kind is CatalogueImportOperationKind.Activate or CatalogueImportOperationKind.Deactivate).OrderBy(OperationPayload, StringComparer.Ordinal).ThenBy(value => value.Kind).FirstOrDefault();
         if (current == desired)
         {
             if (state is not null) Add(issues, "state-redundant", "An unchanged active state cannot carry a state operation.", state);
@@ -333,7 +360,7 @@ public static class CatalogueImportCommitValidator
         else
         {
             var expected = desired ? CatalogueImportOperationKind.Activate : CatalogueImportOperationKind.Deactivate;
-            if (state?.Kind != expected) Add(issues, "state-operation-missing", "Active-state changes require the matching state operation.", operations[0]);
+            if (state?.Kind != expected) Add(issues, "state-operation-missing", "Active-state changes require the matching state operation.", canonical);
         }
         if (state is not null && ParseBool(state, "isActive") != desired) Add(issues, "state-payload-mismatch", "State operation payload does not match its operation kind.", state);
     }
@@ -348,10 +375,10 @@ public static class CatalogueImportCommitValidator
         var productStates = products.Values.ToDictionary(value => value.Id, value => new ProductState(value.Code, value.Name, value.CategoryId, value.PriceTtc.Cents, value.VatRate, value.IsActive, value.DiscountEligible, value.OptionsEnabled));
         foreach (var group in (plan.Operations ?? []).Where(value => value.EntityType == CatalogueImportEntityType.Product).GroupBy(value => value.LocalKey))
         {
-            var first = group.First();
-            var id = first.EntityId ?? DeterministicId(first.LocalKey);
-            var category = ResolveCategory(first, categories) ?? DeterministicId(first.CategoryReference?.LocalKey ?? "category");
-            productStates[id] = new(Get(first, "code") ?? string.Empty, Get(first, "name") ?? string.Empty, category, ParseMoney(first, "priceCents"), ParseDecimal(first, "vatRate"), ParseBool(first, "isActive"), ParseBool(first, "discountEligible"), ParseBool(first, "optionsEnabled"));
+            var canonical = CanonicalOperation(group);
+            var id = canonical.EntityId ?? DeterministicId(canonical.LocalKey);
+            var category = ResolveCategory(canonical, categories) ?? DeterministicId(canonical.CategoryReference?.LocalKey ?? "category");
+            productStates[id] = new(Get(canonical, "code") ?? string.Empty, Get(canonical, "name") ?? string.Empty, category, ParseMoney(canonical, "priceCents"), ParseDecimal(canonical, "vatRate"), ParseBool(canonical, "isActive"), ParseBool(canonical, "discountEligible"), ParseBool(canonical, "optionsEnabled"));
         }
         foreach (var duplicate in productStates.Values.GroupBy(value => CatalogueNormalization.Key(value.Code), StringComparer.Ordinal).Where(value => value.Key.Length == 0 || value.Count() > 1))
             Add(issues, "duplicate-product-code", "The resulting Catalogue contains a duplicate or empty Product code.");
@@ -361,8 +388,8 @@ public static class CatalogueImportCommitValidator
         var groupStates = groups.Values.ToDictionary(value => value.Id, value => new GroupState(value.ProductId, value.Name, value.SelectionMode, value.IsRequired, value.MinSelections, value.MaxSelections, value.DisplayOrder));
         foreach (var group in (plan.Operations ?? []).Where(value => value.EntityType == CatalogueImportEntityType.OptionGroup).GroupBy(value => value.LocalKey))
         {
-            var first = group.First();
-            groupStates[first.EntityId ?? DeterministicId(first.LocalKey)] = new(ResolveParentProduct(first), Get(first, "name") ?? string.Empty, ParseMode(first, "selectionMode"), ParseBool(first, "isRequired"), ParseNullableInt(first, "minSelections"), ParseNullableInt(first, "maxSelections"), ParseInt(first, "displayOrder"));
+            var canonical = CanonicalOperation(group);
+            groupStates[canonical.EntityId ?? DeterministicId(canonical.LocalKey)] = new(ResolveParentProduct(canonical), Get(canonical, "name") ?? string.Empty, ParseMode(canonical, "selectionMode"), ParseBool(canonical, "isRequired"), ParseNullableInt(canonical, "minSelections"), ParseNullableInt(canonical, "maxSelections"), ParseInt(canonical, "displayOrder"));
         }
         foreach (var duplicate in groupStates.Values.GroupBy(value => (value.ProductId, value.Order)).Where(value => value.Count() > 1)) Add(issues, "invalid-group-structure", "Option group display order must be unique within a Product.");
         foreach (var value in groupStates.Values)
@@ -371,8 +398,8 @@ public static class CatalogueImportCommitValidator
         var optionStates = options.Values.ToDictionary(value => value.Id, value => new OptionState(value.OptionGroupId, value.Name, value.PriceAdjustmentTtc.Cents, value.IsActive, value.DisplayOrder));
         foreach (var option in (plan.Operations ?? []).Where(value => value.EntityType == CatalogueImportEntityType.Option).GroupBy(value => value.LocalKey))
         {
-            var first = option.First();
-            optionStates[first.EntityId ?? DeterministicId(first.LocalKey)] = new(ResolveParentGroup(first), Get(first, "name") ?? string.Empty, ParseMoney(first, "priceAdjustmentCents"), ParseBool(first, "isActive"), ParseInt(first, "displayOrder"));
+            var canonical = CanonicalOperation(option);
+            optionStates[canonical.EntityId ?? DeterministicId(canonical.LocalKey)] = new(ResolveParentGroup(canonical), Get(canonical, "name") ?? string.Empty, ParseMoney(canonical, "priceAdjustmentCents"), ParseBool(canonical, "isActive"), ParseInt(canonical, "displayOrder"));
         }
         foreach (var duplicate in optionStates.Values.GroupBy(value => (value.GroupId, value.Order)).Where(value => value.Count() > 1)) Add(issues, "invalid-option-structure", "Option display order must be unique within an OptionGroup.");
         foreach (var value in optionStates.Values)
@@ -403,6 +430,11 @@ public static class CatalogueImportCommitValidator
     }
     private static Dictionary<string, TValue> FirstByKey<TValue>(IEnumerable<TValue> values, Func<TValue, string> keySelector)
         => values.GroupBy(keySelector, StringComparer.Ordinal).ToDictionary(value => value.Key, value => value.First(), StringComparer.Ordinal);
+    private static bool ValuesEqual(IReadOnlyDictionary<string, string?>? left, IReadOnlyDictionary<string, string?>? right)
+    {
+        if (left is null || right is null) return left is null && right is null;
+        return left.Count == right.Count && left.All(pair => right.TryGetValue(pair.Key, out var value) && string.Equals(pair.Value, value, StringComparison.Ordinal));
+    }
     private static string? Get(CatalogueImportOperation operation, string key) => operation.Values is not null && operation.Values.TryGetValue(key, out var value) ? value : null;
     private static long ParseMoney(CatalogueImportOperation operation, string key) => long.TryParse(Get(operation, key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : long.MinValue;
     private static decimal ParseDecimal(CatalogueImportOperation operation, string key) => decimal.TryParse(Get(operation, key), NumberStyles.Number, CultureInfo.InvariantCulture, out var value) ? value : decimal.MinValue;

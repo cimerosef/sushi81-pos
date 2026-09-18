@@ -304,3 +304,18 @@ A worklog entry, `CODEX_DONE`, controller acceptance, owner manual PASSED or gre
 - Blockers/unresolved items: none identified within the authorized repair scope.
 - Execution topology: isolated worktree `m10-authorized`; root worktree preserved.
 - Browser notification result: pending durable repair `CODEX_DONE` delivery.
+
+## Entry 2026-09-18 — `M10-WP3-REPAIR-CONTRADICTIONS-EVIDENCE-09`
+
+- Authorization/gate state observed: Issue #4 OPEN and pointing to PR #22; controller review `5727488193` and exact handoff `5727495209` authorize this repair from starting head `8ea404465b07620762c2b297ad1ba07c450386ad8`.
+- Scope: close the remaining WP3 contradictory-combined-operation and typed durable-ID-resolution findings; keep semantic validation in the Application boundary; add direct Application/production-SQLite evidence. WP4/WPF workflow, WP5 hardening, schema changes, permanent deletion, merge and later milestones remain excluded.
+- Repairs: combined operations are canonicalized by entity type/local key with deterministic payload/reference equality independent of list order; only operation kind may differ. Final-state/action validation uses that canonical payload. Infrastructure no longer contains the removed duplicate semantic validation helpers. New durable IDs use typed Category/Product/OptionGroup/Option namespaces; untyped alias resolution is rejected and allocation remains after validation inside the single transaction.
+- Evidence added: order-independent contradictory Product operations, defined Modify plus state final payload, invalid mode and planned Category collisions/orphans, baseline fingerprint order independence, key/reference/parent payload mismatch, production `WriteAuthorityGuard` barrier, exact revision/no-op/concurrency/rollback/history cases, and empty/colliding generated-ID fail-closed evidence. Combined operation semantics are covered for both list orders.
+- Files changed: `CatalogueImportCommitValidator.cs`; `SqliteCatalogueStore.cs`; `M10Wp3CatalogueImportApplicationTests.cs`; `M10Wp3CatalogueImportCommitValidatorTests.cs`; `M10Wp3CatalogueImportCommitTests.cs`; this worklog.
+- Focused tests before final full run: Application validator suite **10/10 passed**, Application authority/commit suite **5/5 passed**, Infrastructure WP3 commit suite **12/12 passed**.
+- Starting-head correction: prior docs-only follow-up head `8ea404465b07620762c2b297ad1ba07c450386ad8` follows the green implementation/evidence head `a6a05d6df66bdb917113694ad77f58c44e2aa9a1`; this repair must finish with CI green on its own final pushed head.
+- Full Release tests: **730/730 passed** across all six Release test assemblies; Release build: **0 warnings / 0 errors**. `git diff --check`: passed (only expected CRLF normalization warnings for edited text files). Exact-head CI: pending final push and observation. Dependency audit: ClosedXML **0.105.1** remains the sole XLSX library; no COM/Interop/macros. Schema audit: no migration, durable business field or import-history table. Authority/recovery audit: one production `WriteAuthorityGuard` scope, one SQLite import transaction and one successful post-commit notification; no-op/authority/validation/concurrency/rollback failures notify zero times. Delete audit: import path has no Delete operation or SQL. Privacy audit: synthetic/generated fixtures only.
+- Remaining manual evidence: controller review and owner Windows/Excel acceptance remain unexecuted; WP4/WP5 remain unauthorized.
+- Blockers/unresolved items: none identified within this authorized repair scope at implementation start.
+- Execution topology: isolated worktree `m10-authorized`; root worktree preserved.
+- Browser notification result: pending durable `CODEX_DONE` delivery.
