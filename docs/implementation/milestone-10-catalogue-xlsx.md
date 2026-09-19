@@ -1,6 +1,6 @@
 # M10 — Catalogue `.xlsx` import/export — implementation contract
 
-**Status:** **WP1–WP4 CONTROLLER-ACCEPTED — WP5 FINAL HARDENING EVIDENCE / OWNER-CANDIDATE REGENERATION COMPLETE, CONTROLLER REVIEW PENDING**
+**Status:** **WP1–WP5 CONTROLLER-ACCEPTED — OWNER A/B PASS RECORDED; SCENARIO C DIAGNOSTIC REMEDIATION ACTIVE / OWNER RETEST PENDING**
 **Prepared/finalized:** 2026-09-17  
 **Milestone:** M10  
 **Primary acceptance ownership:** AC-CAT-008 through AC-CAT-011; catalogue portion of AC-ARCH-005  
@@ -8,7 +8,7 @@
 **Category short-code decision:** Approved — `docs/decisions/m10-category-short-code-workbook-semantics.md`  
 **M11+ scope:** explicitly excluded
 
-> WP1–WP4 are controller-accepted. WP5 preserves the accepted Application/SQLite/WPF semantics; its final hardening evidence and exact self-contained owner-candidate regeneration are complete pending controller review. The live Issue #4 body controls any later execution; historical handoff records are not rewritten. This status does not authorize owner manual acceptance, merge, M11, M12 or M13.
+> WP1–WP5 are controller-accepted. Owner Scenarios A/B passed; Scenario C correctly blocked an attempted existing-Category short-code change but showed generic rather than frozen actionable Category-manager/re-export guidance. The narrow diagnostic remediation is active under the live Issue #4 handoff. Scenario C requires owner retest, D–L remain not run, and PR #22 remains unmerged. Historical handoff records are not rewritten. This status does not authorize merge, M11, M12 or M13.
 
 ### WP3 implemented mechanics (current-state contract)
 
@@ -657,7 +657,7 @@ The implementation authorization and execution conditions are now complete for t
 4. project owner explicitly approved **“批准 M10 implementation”**;
 5. `milestone-10-authorization.md` is **AUTHORIZED**;
 6. dedicated implementation PR/mailbox #22 is established;
-7. the exact WP5 handoff is published in the PR #22 mailbox;
+7. the exact live Issue #4 handoff is published in the PR #22 mailbox;
 8. any subsequent execution must use the live Issue #4 pointer and state.
 
-WP5 execution is limited to the exact Issue #4 pointer. Completion does not mark owner acceptance Passed or authorize merge/M11.
+Execution is limited to the exact Issue #4 pointer. Completion does not mark Scenario C passed, authorize D–L continuation, or authorize merge/M11.

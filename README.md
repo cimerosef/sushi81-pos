@@ -24,7 +24,7 @@ Recent merge baselines:
 
 The accepted M09 production candidate remains `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`. The independent post-M09 dashboard accepted executable candidate remains sourced from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`; PR #19 final closure head was `d55e36a244327c55b81f6fb1040c0ef46dbe154a` before merge.
 
-M10 — Catalogue `.xlsx` import/export — is in implementation on PR #22 (`codex/m10-catalogue-xlsx-authorized`). WP1–WP5 were controller-accepted, but owner Scenario A found protected-sheet sorting blocked in real Excel; the narrow protection/VAT repair is active. The repaired candidate must be owner-retested before B–L resumes; M10 is not marked Passed. Live Issue #4 controls any later Codex execution. M11, M12 and M13 remain unauthorized.
+M10 — Catalogue `.xlsx` import/export — is on PR #22 (`codex/m10-catalogue-xlsx-authorized`). WP1–WP5 are controller-accepted; owner Scenarios A and B passed, while Scenario C correctly blocked an attempted existing-Category short-code change but failed its required actionable preview guidance. The narrow diagnostic remediation is active; Scenario C must be owner-retested on its next candidate, D–L remain not run, PR #22 remains unmerged, and M10 is not marked Passed. Live Issue #4 controls later Codex execution. M11, M12 and M13 remain unauthorized.
 
 Controlling M09 records:
 

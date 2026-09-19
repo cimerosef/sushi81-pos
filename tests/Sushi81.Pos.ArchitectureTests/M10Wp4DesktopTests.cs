@@ -257,6 +257,62 @@ public sealed class M10Wp4DesktopTests
     }
 
     [TestMethod]
+    public async Task OwnerRealisticExistingCategoryShortCodeChangeUsesSpecificFrenchAndChineseGuidance()
+    {
+        var source = Path.Combine(Path.GetTempPath(), $"sushi81-catalogue-{Guid.NewGuid():N}.xlsx");
+        File.WriteAllText(source, "synthetic");
+        try
+        {
+            var workbook = new CatalogueImportWorkbook(CatalogueWorkbookSchema.ContractVersion,
+                [
+                    new CatalogueImportProductRow(2, "P-1", "Normal", "Plats", "PL", Money.FromCents(100), 20m, true, false, false, null, null),
+                    new CatalogueImportProductRow(3, "P-2", "Blank preserve", "Plats", null, Money.FromCents(100), 20m, true, false, false, null, null),
+                    new CatalogueImportProductRow(4, "P-3", "Changed", "Plats", "XX", Money.FromCents(100), 20m, true, false, false, null, null)
+                ], [], [], [], []);
+            using var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+            using var store = new FakeImportStore(CatalogueImportCommitResult.Success(changed: true))
+            {
+                Baseline = new CatalogueImportBaseline([new CatalogueImportCategory(Guid.NewGuid(), "Plats", "PL")], [])
+            };
+            var notifier = new CountingNotifier();
+            var importer = new CatalogueImportService(new FixedImportGateway(workbook), store, store, guard, notifier);
+            var workflow = new CatalogueWorkbookWorkflowViewModel(
+                new CatalogueWorkbookService(new EmptySnapshotQueries(), new EmptyWorkbookGateway()), importer, guard);
+
+            await workflow.PreviewFromPathAsync(source, CatalogueImportMode.Update);
+
+            Assert.IsTrue(workflow.Preview!.HasErrors);
+            Assert.IsNull(workflow.Preview.Plan);
+            Assert.IsFalse(workflow.CanConfirm);
+            Assert.IsNull(workflow.LastCommit);
+            Assert.AreEqual(0, store.CommitCount);
+            Assert.AreEqual(0, notifier.Count);
+
+            using var french = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+            workflow.ApplyLocalization(french.Localized);
+            var frenchIssue = workflow.Issues.Single(issue => issue.Code == "existing-category-short-code-change");
+            Assert.AreEqual("Products", frenchIssue.Worksheet);
+            Assert.AreEqual("4", frenchIssue.Row);
+            Assert.AreEqual("category_short_code", frenchIssue.Field);
+            Assert.AreEqual(french.Localized["CatalogueImportCategoryShortCodeChange"], frenchIssue.Message);
+            Assert.IsFalse(workflow.Issues.Any(issue => issue.Code == "conflicting-category-short-code"));
+
+            using var chinese = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+            await chinese.ChangeLanguageAsync(chinese.Languages.Single(language => language.CultureName == "zh-CN"));
+            workflow.ApplyLocalization(chinese.Localized);
+            var chineseIssue = workflow.Issues.Single(issue => issue.Code == "existing-category-short-code-change");
+            Assert.AreEqual("Products", chineseIssue.Worksheet);
+            Assert.AreEqual("4", chineseIssue.Row);
+            Assert.AreEqual("category_short_code", chineseIssue.Field);
+            Assert.AreEqual(chinese.Localized["CatalogueImportCategoryShortCodeChange"], chineseIssue.Message);
+            Assert.IsFalse(workflow.Issues.Any(issue => issue.Code == "conflicting-category-short-code"));
+            Assert.AreEqual(0, store.CommitCount);
+            Assert.AreEqual(0, notifier.Count);
+        }
+        finally { File.Delete(source); }
+    }
+
+    [TestMethod]
     public async Task ProductionShellCatalogueWorkflowRefreshCallbackCompletesThroughThePresentationBarrier()
     {
         var source = Path.Combine(Path.GetTempPath(), $"sushi81-catalogue-{Guid.NewGuid():N}.xlsx");

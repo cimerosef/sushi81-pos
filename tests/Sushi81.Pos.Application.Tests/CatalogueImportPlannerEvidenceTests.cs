@@ -241,6 +241,42 @@ public sealed class CatalogueImportPlannerEvidenceTests
             Assert.AreEqual(testCase.PlanExpected, result.Plan is not null, testCase.Name);
             if (testCase.Error is not null)
                 CollectionAssert.Contains(result.Preview.Issues.Select(issue => issue.Code).ToArray(), testCase.Error, testCase.Name);
+            if (testCase.Name == "existing blank current cannot be set")
+            {
+                var issue = result.Preview.Issues.Single(issue => issue.Code == "existing-category-short-code-change");
+                Assert.AreEqual("Products", issue.Worksheet);
+                Assert.AreEqual(2, issue.ExcelRow);
+                Assert.AreEqual("category_short_code", issue.FieldKey);
+            }
+            if (testCase.Name == "new repeated conflict")
+                Assert.IsFalse(result.Preview.Issues.Any(issue => issue.Code == "existing-category-short-code-change"));
+        }
+    }
+
+    [TestMethod]
+    public void ExistingCategoryRepeatedRowsKeepSpecificShortCodeGuidanceInUpdateAndAddOnlyModes()
+    {
+        var baseline = new CatalogueImportBaseline(
+            [new CatalogueImportCategory(Guid.NewGuid(), "Plats", "PL")], []);
+        var workbook = new CatalogueImportWorkbook(CatalogueWorkbookSchema.ContractVersion,
+            [
+                ProductRow(2, "P-1", "Normal", "Plats", "PL"),
+                ProductRow(3, "P-2", "Blank preserve", "Plats", null),
+                ProductRow(4, "P-3", "Changed", "Plats", "XX")
+            ], [], [], [], []);
+
+        foreach (var mode in new[] { CatalogueImportMode.Update, CatalogueImportMode.AddOnly })
+        {
+            var result = new CatalogueImportPlanner().Plan(mode, workbook, baseline);
+
+            Assert.IsTrue(result.HasErrors, mode.ToString());
+            Assert.IsNull(result.Plan, mode.ToString());
+            var issue = result.Preview.Issues.Single(value => value.Code == "existing-category-short-code-change");
+            Assert.AreEqual("Products", issue.Worksheet, mode.ToString());
+            Assert.AreEqual(4, issue.ExcelRow, mode.ToString());
+            Assert.AreEqual("category_short_code", issue.FieldKey, mode.ToString());
+            Assert.IsFalse(result.Preview.Issues.Any(value => value.Code == "conflicting-category-short-code"), mode.ToString());
+            Assert.IsFalse(result.Preview.Issues.Any(value => value.Code == "existing-category-short-code-change" && value.ExcelRow is 2 or 3), mode.ToString());
         }
     }
 

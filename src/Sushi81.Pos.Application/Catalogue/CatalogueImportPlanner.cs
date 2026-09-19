@@ -428,11 +428,12 @@ public sealed class CatalogueImportPlanner
         foreach (var group in products.GroupBy(value => CatalogueNormalization.Key(value.CategoryName), StringComparer.Ordinal))
         {
             var proposals = group.Select(value => NormalizeOptional(value.Row.CategoryShortCode)).Where(value => value is not null).Select(CatalogueNormalization.Key).Distinct(StringComparer.Ordinal).ToArray();
-            if (proposals.Length > 1)
+            var hasUnambiguousExistingCategory = currentByName.TryGetValue(group.Key, out var existing) && existing.Length == 1;
+            // Existing Categories are validated per Product row above so the changed
+            // short-code cell receives the actionable Category-manager guidance.
+            // The repeated-row conflict remains a new-Category validation only.
+            if (!hasUnambiguousExistingCategory && proposals.Length > 1)
                 foreach (var row in group) AddError(issues, "conflicting-category-short-code", "Repeated Category rows propose conflicting short codes.", "Products", row.Row.ExcelRow, "category_short_code");
-            if (currentByName.TryGetValue(group.Key, out var existing) && existing.Length == 1 && proposals.Length > 0 && existing[0].NormalizedShortCode is { } currentCode && proposals[0] != currentCode)
-                foreach (var row in group)
-                    AddError(issues, "existing-category-short-code-change", "Existing Category short code changes are not allowed through import.", "Products", row.Row.ExcelRow, "category_short_code");
         }
         var shortCodes = current
             .Select(value => value.ShortCode)

@@ -1,8 +1,8 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-18
-**Current state:** M01 through M09 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. M10 Catalogue `.xlsx` is on PR #22 / branch `codex/m10-catalogue-xlsx-authorized`; WP1–WP5 are controller-accepted, but owner Scenario A found protected-sheet sorting blocked in real Excel and the narrow protection/VAT repair is active. Owner acceptance is suspended at Scenario A; M10 is not marked Passed. Live Issue #4 controls any later Codex execution. M11–M13 remain unauthorized.
+**Last updated:** 2026-09-19
+**Current state:** M01 through M09 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. M10 Catalogue `.xlsx` is on PR #22 / branch `codex/m10-catalogue-xlsx-authorized`; WP1–WP5 are controller-accepted, owner Scenarios A/B passed, and Scenario C correctly blocked an existing-Category short-code change but exposed generic instead of required actionable guidance. The narrow diagnostic remediation is active; Scenario C must be owner-retested on its next candidate, D–L remain not run, PR #22 remains unmerged, and M10 is not marked Passed. Live Issue #4 controls later Codex execution. M11–M13 remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07–M09 and post-M09 evidence remains authoritative in milestone-specific worklogs/manual-acceptance/PR records. This file is the living current-state summary; historical evidence is not rewritten to match later state.
 
@@ -34,7 +34,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M08 — Printing and reprinting | Passed | Accepted production candidate `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; PR #14 merged at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`; physical/manual acceptance Passed. |
 | M09 — Hiboutik paste fallback | Passed | Accepted production candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`; PR #17 merged at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; owner Windows/WPF acceptance Passed. |
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | Automated evidence accepted in PR #19 comment `5705723428`; owner A–F acceptance Passed in comment `5715414940`; final controller closure comment `5715705712`; PR #19 CLOSED / MERGED at `861cfba1dfacbb3289395c0370f6d42765b6c223`. Accepted executable candidate remains from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`. |
-| M10 — Catalogue `.xlsx` | Partial | WP1–WP5 are controller-accepted. Owner Scenario A found protected-sheet sorting blocked in real Excel; the narrow protection/VAT repair is active on PR #22. Owner A–L acceptance, merge and M11 remain separate gates; M10 is not Passed. Live Issue #4 controls future Codex execution. |
+| M10 — Catalogue `.xlsx` | Partial | WP1–WP5 are controller-accepted. Owner Scenarios A/B passed; Scenario C correctly blocked an existing-Category short-code change but failed its actionable-preview requirement, so narrow diagnostic remediation is active on PR #22. Scenario C requires owner retest, D–L remain not run, and merge/M11 remain separate gates; M10 is not Passed. Live Issue #4 controls future Codex execution. |
 | M11 — Gestion export | Not started | Unauthorized; pending M10. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
@@ -78,7 +78,7 @@ Preparation audit result:
 - historical orders: current Catalogue import must not rewrite snapshots;
 - M11/M12/M13 boundaries: preserved.
 
-WP1–WP5 implementation packages are controller-accepted. Owner Scenario A found protected-sheet sorting blocked in real Excel; the narrow protection/VAT repair is active, and a repaired exact self-contained `win-x64` candidate must be regenerated for owner re-test. Owner Windows/Excel A–L acceptance remains suspended at Scenario A and is not performed by Codex. This does not mark M10 Passed or authorize merge/M11.
+WP1–WP5 implementation packages are controller-accepted. Owner Scenarios A/B passed. Scenario C's negative existing-Category short-code subcase correctly blocked without mutation, but its preview exposed generic rather than frozen actionable Category-manager/re-export guidance; narrow diagnostic remediation is active and its next exact self-contained `win-x64` candidate must be owner-retested. D–L remain not run and are not performed by Codex. This does not mark M10 Passed or authorize merge/M11.
 
 ## 5. M10 Category `short_code` owner decision
 
