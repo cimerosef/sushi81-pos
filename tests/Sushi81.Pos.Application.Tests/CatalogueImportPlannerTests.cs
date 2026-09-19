@@ -171,6 +171,38 @@ public sealed class CatalogueImportPlannerTests
     }
 
     [TestMethod]
+    public void PlannedNewCategoryCanonicalizesBlankProductShortCodeForUpdateAndAddOnly()
+    {
+        var workbook = new CatalogueImportWorkbook(CatalogueWorkbookSchema.ContractVersion,
+            [
+                new CatalogueImportProductRow(2, "P-1", "First", "Test", "D81", Money.Zero, 20m, true, false, false, null, null),
+                new CatalogueImportProductRow(3, "P-2", "Second", "Test", null, Money.Zero, 20m, true, false, false, null, null)
+            ], [], [], [], []);
+
+        foreach (var mode in new[] { CatalogueImportMode.Update, CatalogueImportMode.AddOnly })
+        {
+            var result = new CatalogueImportPlanner().Plan(mode, workbook, CatalogueImportBaseline.Empty);
+            Assert.AreEqual(0, result.Preview.ErrorCount, mode.ToString());
+            Assert.IsNotNull(result.Plan, mode.ToString());
+            Assert.HasCount(1, result.Plan!.NewCategories);
+            Assert.AreEqual("D81", result.Plan.NewCategories[0].ShortCode);
+            Assert.IsTrue(result.Plan.Operations.Where(operation => operation.EntityType == CatalogueImportEntityType.Product)
+                .All(operation => operation.Values["categoryShortCode"] == "D81"));
+            if (mode == CatalogueImportMode.AddOnly)
+                Assert.IsTrue(result.Plan.Operations.All(operation => operation.Kind == CatalogueImportOperationKind.Create));
+        }
+
+        var conflict = new CatalogueImportWorkbook(CatalogueWorkbookSchema.ContractVersion,
+            [
+                new CatalogueImportProductRow(2, "P-1", "First", "Test", "D81", Money.Zero, 20m, true, false, false, null, null),
+                new CatalogueImportProductRow(3, "P-2", "Second", "Test", "RX", Money.Zero, 20m, true, false, false, null, null)
+            ], [], [], [], []);
+        var conflicted = new CatalogueImportPlanner().Plan(CatalogueImportMode.AddOnly, conflict, CatalogueImportBaseline.Empty);
+        Assert.IsNull(conflicted.Plan);
+        CollectionAssert.Contains(conflicted.Preview.Issues.Select(issue => issue.Code).ToArray(), "conflicting-category-short-code");
+    }
+
+    [TestMethod]
     public void SelectionModeAcceptsOnlySingleOrMultiWords()
     {
         var workbook = new CatalogueImportWorkbook(CatalogueWorkbookSchema.ContractVersion,

@@ -121,6 +121,78 @@ public sealed class M10Wp3CatalogueImportCommitTests
     }
 
     [TestMethod]
+    public async Task NewCategoryBlankShortCodeCreatesCanonicalFullHierarchyAtomically()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var workbook = NewCategoryBlankShortCodeWorkbook();
+
+        var preview = new CatalogueImportPlanner().Plan(CatalogueImportMode.Update, workbook, CatalogueImportBaseline.Empty);
+        Assert.AreEqual(0, preview.Preview.ErrorCount, string.Join(";", preview.Preview.Issues.Select(issue => issue.Code)));
+        Assert.AreEqual(2, preview.Preview.ProductCreateCount);
+        Assert.AreEqual(1, preview.Preview.OptionGroupCreateCount);
+        Assert.AreEqual(2, preview.Preview.OptionCreateCount);
+        Assert.AreEqual(1, preview.Preview.NewCategoryCount);
+        Assert.AreEqual(0, preview.Preview.WarningCount);
+        Assert.IsNotNull(preview.Plan);
+        Assert.IsTrue(preview.Plan!.Operations.Where(operation => operation.EntityType == CatalogueImportEntityType.Product)
+            .All(operation => operation.Values["categoryShortCode"] == "D81"));
+
+        var notifier = new RecordingNotifier();
+        var baseline = CatalogueImportBaseline.Empty;
+        var revisionBefore = await ReadRevisionAsync(factory);
+        var planned = preview with { PreviewBaseline = baseline };
+        var committed = await new CatalogueImportService(new NoOpImportGateway(), store, store,
+            new WriteAuthorityGuard(WriteAuthorityState.Authoritative), notifier).CommitAsync(planned);
+
+        Assert.IsTrue(committed.Succeeded, string.Join(";", committed.Issues.Select(issue => issue.Code)));
+        Assert.IsTrue(committed.Changed);
+        Assert.AreEqual(1, notifier.Calls);
+        Assert.AreEqual(revisionBefore + 1, await ReadRevisionAsync(factory));
+        var categories = await store.ListCategoriesAsync();
+        Assert.HasCount(1, categories);
+        Assert.AreEqual("D81", categories.Single().ShortCode);
+        var products = await store.ListProductsAsync();
+        Assert.HasCount(2, products);
+        Assert.IsTrue(products.All(product => product.CategoryId == categories.Single().Id));
+        Assert.HasCount(2, products.Select(product => product.Id).Distinct());
+        var persisted = await store.ReadCatalogueImportBaselineAsync();
+        var first = persisted.Products.Single(product => product.Code == "P-1");
+        Assert.HasCount(1, first.OptionGroups);
+        Assert.HasCount(2, first.OptionGroups.Single().Options);
+        Assert.HasCount(2, first.OptionGroups.Single().Options.Select(option => option.Id).Distinct());
+    }
+
+    [TestMethod]
+    public async Task NewCategoryBlankShortCodeAddOnlyCreatesOnlyNewEntities()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var preview = new CatalogueImportPlanner().Plan(CatalogueImportMode.AddOnly, NewCategoryBlankShortCodeWorkbook(), CatalogueImportBaseline.Empty);
+
+        Assert.AreEqual(0, preview.Preview.ErrorCount, string.Join(";", preview.Preview.Issues.Select(issue => issue.Code)));
+        Assert.IsNotNull(preview.Plan);
+        Assert.IsTrue(preview.Plan!.Operations.All(operation => operation.Kind == CatalogueImportOperationKind.Create));
+        Assert.IsTrue(preview.Plan.Operations.Where(operation => operation.EntityType == CatalogueImportEntityType.Product)
+            .All(operation => operation.Values["categoryShortCode"] == "D81"));
+        var committed = await new CatalogueImportService(new NoOpImportGateway(), store, store,
+            new WriteAuthorityGuard(WriteAuthorityState.Authoritative), new RecordingNotifier()).CommitAsync(preview with { PreviewBaseline = CatalogueImportBaseline.Empty });
+
+        Assert.IsTrue(committed.Succeeded, string.Join(";", committed.Issues.Select(issue => issue.Code)));
+        Assert.HasCount(1, await store.ListCategoriesAsync());
+        Assert.HasCount(2, await store.ListProductsAsync());
+        var persisted = await store.ReadCatalogueImportBaselineAsync();
+        Assert.HasCount(1, persisted.Products.Single(product => product.Code == "P-1").OptionGroups);
+        Assert.HasCount(2, persisted.Products.Single(product => product.Code == "P-1").OptionGroups.Single().Options);
+    }
+
+    [TestMethod]
     public async Task UpdateBlankIdRowsAllocateTypedIdsAndBindExactParents()
     {
         using var paths = new TempPaths();
@@ -744,6 +816,17 @@ public sealed class M10Wp3CatalogueImportCommitTests
         var value = await command.ExecuteScalarAsync();
         return long.TryParse(Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture), out var revision) ? revision : 0;
     }
+
+    private static CatalogueImportWorkbook NewCategoryBlankShortCodeWorkbook() => new(CatalogueWorkbookSchema.ContractVersion,
+        [
+            new(2, "P-1", "First", "Test M10 D", "D81", Money.FromCents(100), 20m, true, false, true, null, null),
+            new(3, "P-2", "Second", "Test M10 D", null, Money.FromCents(125), 20m, true, false, false, null, null)
+        ],
+        [new(2, "P-1", "First", "Extras", "MULTI", false, 0, 2, 0, null, null, null, null)],
+        [
+            new(2, "P-1", "First", "Extras", "Sauce", Money.Zero, true, 0, null, null, null, null, null),
+            new(3, "P-1", "First", "Extras", "Gingembre", Money.FromCents(25), true, 1, null, null, null, null, null)
+        ], [], [], "synthetic");
 
     [TestMethod]
     public async Task CatalogueImportLeavesHistoricalOrderSnapshotAndReprintDataUnchanged()

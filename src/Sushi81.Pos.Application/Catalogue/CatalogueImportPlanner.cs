@@ -185,6 +185,7 @@ public sealed class CatalogueImportPlanner
         ValidateCategories(productCandidates, currentCategories, categoriesByName, issues);
         ValidateResultingCatalogue(resultingProducts, resultingGroups, resultingOptions, issues);
 
+        var newCategories = NewCategories(productCandidates, currentCategories);
         var operations = new List<CatalogueImportOperation>();
         var affected = new List<CatalogueImportAffectedRow>();
         foreach (var candidate in productCandidates)
@@ -195,7 +196,7 @@ public sealed class CatalogueImportPlanner
             if (candidate.Identity.IsExisting && candidate.Current is not null && candidate.IsActive != candidate.Current.IsActive)
                 kinds.Add(candidate.IsActive ? CatalogueImportOperationKind.Activate : CatalogueImportOperationKind.Deactivate);
             AddOperations(operations, affected, CatalogueImportEntityType.Product, candidate.Identity.Id, candidate.LocalKey, candidate, kinds,
-                new Dictionary<string, string?> { ["code"] = candidate.Code, ["name"] = candidate.Name, ["category"] = candidate.CategoryName, ["categoryShortCode"] = candidate.CategoryShortCode, ["priceCents"] = candidate.PriceTtc.Cents.ToString(System.Globalization.CultureInfo.InvariantCulture), ["vatRate"] = candidate.VatRate.ToString(System.Globalization.CultureInfo.InvariantCulture), ["isActive"] = candidate.IsActive.ToString(), ["discountEligible"] = candidate.DiscountEligible.ToString(), ["optionsEnabled"] = candidate.OptionsEnabled.ToString() },
+                new Dictionary<string, string?> { ["code"] = candidate.Code, ["name"] = candidate.Name, ["category"] = candidate.CategoryName, ["categoryShortCode"] = ResolvedCategoryShortCode(candidate, newCategories), ["priceCents"] = candidate.PriceTtc.Cents.ToString(System.Globalization.CultureInfo.InvariantCulture), ["vatRate"] = candidate.VatRate.ToString(System.Globalization.CultureInfo.InvariantCulture), ["isActive"] = candidate.IsActive.ToString(), ["discountEligible"] = candidate.DiscountEligible.ToString(), ["optionsEnabled"] = candidate.OptionsEnabled.ToString() },
                 candidate.EntityReference, candidate.CategoryReference, null);
         }
         foreach (var candidate in groupCandidates)
@@ -224,7 +225,6 @@ public sealed class CatalogueImportPlanner
             .ThenBy(issue => issue.Code, StringComparer.Ordinal).ThenBy(issue => issue.Message, StringComparer.Ordinal).ToArray();
         var errorCount = orderedIssues.Count(issue => issue.IsBlocking);
         var warningCount = orderedIssues.Length - errorCount;
-        var newCategories = NewCategories(productCandidates, currentCategories);
         var preview = new CatalogueImportPreview(mode, effectiveSource,
             operations.Count(op => op.EntityType == CatalogueImportEntityType.Product && op.Kind == CatalogueImportOperationKind.Create),
             operations.Count(op => op.EntityType == CatalogueImportEntityType.Product && op.Kind == CatalogueImportOperationKind.Modify),
@@ -511,6 +511,13 @@ public sealed class CatalogueImportPlanner
                 return new CatalogueImportPlannedCategory(NewCategoryKey(group.Key), group.First().CategoryName, displayCode);
             })
             .OrderBy(value => value.LocalKey, StringComparer.Ordinal).ToArray();
+    }
+
+    private static string? ResolvedCategoryShortCode(ProductCandidate candidate, IReadOnlyList<CatalogueImportPlannedCategory> newCategories)
+    {
+        if (candidate.CategoryReference.IsExisting) return candidate.CategoryShortCode;
+        var planned = newCategories.FirstOrDefault(value => string.Equals(value.LocalKey, candidate.CategoryReference.LocalKey, StringComparison.Ordinal));
+        return planned?.ShortCode ?? candidate.CategoryShortCode;
     }
 
     private static bool ProductChanged(ProductCandidate value) => value.Current is null || value.Code != value.Current.Code || value.Name != value.Current.Name || value.CategoryId != value.Current.CategoryId || value.PriceTtc != value.Current.PriceTtc || value.VatRate != value.Current.VatRate || value.DiscountEligible != value.Current.DiscountEligible || value.OptionsEnabled != value.Current.OptionsEnabled;

@@ -198,12 +198,12 @@ public static class CatalogueImportCommitValidator
         else if (!reference.LocalKey.StartsWith("category:new:", StringComparison.Ordinal) || !planned.TryGetValue(reference.LocalKey, out var plannedCategory))
             Add(issues, "unknown-category-reference", "New Category reference does not resolve to a planned Category.", operation);
         else
-            ValidateCategoryPayload(operation, plannedCategory.Name, plannedCategory.ShortCode, issues);
+            ValidateCategoryPayload(operation, plannedCategory.Name, plannedCategory.ShortCode, issues, allowBlankForPlannedNonBlank: true);
 
         if (category is not null) ValidateCategoryPayload(operation, category.Name, category.ShortCode, issues);
     }
 
-    private static void ValidateCategoryPayload(CatalogueImportOperation operation, string name, string? shortCode, List<CatalogueImportIssue> issues)
+    private static void ValidateCategoryPayload(CatalogueImportOperation operation, string name, string? shortCode, List<CatalogueImportIssue> issues, bool allowBlankForPlannedNonBlank = false)
     {
         var value = Get(operation, "category");
         if (value is null || !string.Equals(CatalogueNormalization.Key(value), CatalogueNormalization.Key(name), StringComparison.Ordinal))
@@ -211,7 +211,8 @@ public static class CatalogueImportCommitValidator
         var code = Get(operation, "categoryShortCode");
         var expected = string.IsNullOrWhiteSpace(shortCode) ? null : CatalogueNormalization.Key(shortCode);
         var actual = string.IsNullOrWhiteSpace(code) ? null : CatalogueNormalization.Key(code);
-        if (!string.Equals(actual, expected, StringComparison.Ordinal)) Add(issues, "category-short-code-mismatch", "Product Category short-code data does not match its explicit Category reference.", operation);
+        var blankCompatible = allowBlankForPlannedNonBlank && expected is not null && actual is null;
+        if (!blankCompatible && !string.Equals(actual, expected, StringComparison.Ordinal)) Add(issues, "category-short-code-mismatch", "Product Category short-code data does not match its explicit Category reference.", operation);
     }
 
     private static void ValidateProductParent(CatalogueImportOperation operation, CatalogueImportEntityReference reference,

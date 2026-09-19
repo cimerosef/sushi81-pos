@@ -286,6 +286,34 @@ public sealed class M10Wp3CatalogueImportCommitValidatorTests
     }
 
     [TestMethod]
+    public void PlannedNewCategoryBlankShortCodePayloadIsAcceptedInEitherOperationOrder()
+    {
+        const string categoryKey = "category:new:test";
+        var category = new CatalogueImportPlannedCategory(categoryKey, "Test", "D81");
+        var first = PlannedProduct("product:new:first", categoryKey, "D81");
+        var blank = PlannedProduct("product:new:blank", categoryKey, null);
+
+        var forward = CatalogueImportCommitValidator.Validate(
+            new CatalogueImportPlan(CatalogueImportMode.Update, [first, blank], [], [category], "synthetic"), CatalogueImportBaseline.Empty);
+        var reverse = CatalogueImportCommitValidator.Validate(
+            new CatalogueImportPlan(CatalogueImportMode.Update, [blank, first], [], [category], "synthetic"), CatalogueImportBaseline.Empty);
+
+        Assert.IsEmpty(forward);
+        Assert.IsEmpty(reverse);
+
+        var conflict = CatalogueImportCommitValidator.Validate(
+            new CatalogueImportPlan(CatalogueImportMode.Update, [PlannedProduct("product:new:conflict", categoryKey, "RX")], [], [category], "synthetic"), CatalogueImportBaseline.Empty);
+        CollectionAssert.Contains(conflict.Select(issue => issue.Code).ToArray(), "category-short-code-mismatch");
+
+        var uncoded = new CatalogueImportPlannedCategory(categoryKey, "Test", null);
+        Assert.IsEmpty(CatalogueImportCommitValidator.Validate(
+            new CatalogueImportPlan(CatalogueImportMode.Update, [PlannedProduct("product:new:uncoded-blank", categoryKey, null)], [], [uncoded], "synthetic"), CatalogueImportBaseline.Empty));
+        CollectionAssert.Contains(CatalogueImportCommitValidator.Validate(
+            new CatalogueImportPlan(CatalogueImportMode.Update, [PlannedProduct("product:new:uncoded-value", categoryKey, "D81")], [], [uncoded], "synthetic"), CatalogueImportBaseline.Empty)
+            .Select(issue => issue.Code).ToArray(), "category-short-code-mismatch");
+    }
+
+    [TestMethod]
     public void ActivateAndDeactivateAndContradictoryOptionReferencesAreOrderIndependent()
     {
         var categoryId = Guid.Parse("00000000-0000-0000-0000-000000000002");
@@ -316,6 +344,15 @@ public sealed class M10Wp3CatalogueImportCommitValidatorTests
     private static CatalogueImportOperation CreateProduct(string localKey, Guid categoryId) =>
         new(CatalogueImportEntityType.Product, CatalogueImportOperationKind.Create, null, localKey, 2, "Products", ProductValues("P-new", "New"),
             CatalogueImportEntityReference.New(localKey), CatalogueImportEntityReference.Existing(categoryId, $"category:{categoryId:N}"));
+
+    private static CatalogueImportOperation PlannedProduct(string localKey, string categoryKey, string? categoryShortCode)
+    {
+        var values = With(ProductValues("P-new", "New"), "category", "Test");
+        values["code"] = localKey.Replace("product:new:", "P-", StringComparison.Ordinal);
+        values["categoryShortCode"] = categoryShortCode;
+        return new(CatalogueImportEntityType.Product, CatalogueImportOperationKind.Create, null, localKey, 2, "Products", values,
+            CatalogueImportEntityReference.New(localKey), CatalogueImportEntityReference.New(categoryKey));
+    }
 
     private static CatalogueImportOperation OptionGroupOperation(CatalogueImportOperationKind kind, Guid groupId, Guid productId, string productCode) =>
         new(CatalogueImportEntityType.OptionGroup, kind, groupId, $"group:{groupId:N}", 2, "OptionGroups",
