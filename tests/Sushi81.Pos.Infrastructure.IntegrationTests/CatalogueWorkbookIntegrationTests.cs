@@ -102,6 +102,47 @@ public sealed class CatalogueWorkbookIntegrationTests
     }
 
     [TestMethod]
+    public async Task ProtectedVisibleSheetsUnlockSortRangesAndUseStableVatNumberFormat()
+    {
+        var bytes = await WriteAsync(new CatalogueWorkbookExport(
+            [
+                new CatalogueWorkbookProduct(Guid.NewGuid(), "P-55", "Five", "Plats", null, Money.Zero, 5.5m, true, false, false, []),
+                new CatalogueWorkbookProduct(Guid.NewGuid(), "P-10", "Ten", "Plats", null, Money.Zero, 10m, true, false, false, []),
+                new CatalogueWorkbookProduct(Guid.NewGuid(), "P-20", "Twenty", "Plats", null, Money.Zero, 20m, true, false, false, [])
+            ], Guid.NewGuid()));
+
+        using var workbook = new XLWorkbook(new MemoryStream(bytes));
+        var products = workbook.Worksheet("Products");
+        var groups = workbook.Worksheet("OptionGroups");
+        var options = workbook.Worksheet("Options");
+
+        foreach (var (sheet, lastColumn) in new[] { (products, 11), (groups, 12), (options, 12) })
+        {
+            var lastRow = sheet.LastRowUsed()?.RowNumber() ?? 1;
+            for (var row = 1; row <= Math.Max(2, lastRow); row++)
+            for (var column = 1; column <= lastColumn; column++)
+                Assert.IsFalse(sheet.Cell(row, column).Style.Protection.Locked, $"{sheet.Name}!{row},{column}");
+
+            Assert.IsTrue(sheet.Protection.IsProtected);
+            Assert.IsTrue(sheet.Protection.AllowedElements.HasFlag(XLSheetProtectionElements.Sort));
+            Assert.IsTrue(sheet.Protection.AllowedElements.HasFlag(XLSheetProtectionElements.AutoFilter));
+            Assert.IsTrue(sheet.Protection.AllowedElements.HasFlag(XLSheetProtectionElements.InsertRows));
+            Assert.IsFalse(sheet.Protection.AllowedElements.HasFlag(XLSheetProtectionElements.FormatColumns));
+        }
+
+        var vatRows = Enumerable.Range(2, 3).ToArray();
+        var vatValues = vatRows.Select(row => products.Cell(row, 6).GetValue<decimal>()).ToArray();
+        Assert.HasCount(3, vatValues);
+        Assert.IsTrue(vatValues.Contains(5.5m));
+        Assert.IsTrue(vatValues.Contains(10m));
+        Assert.IsTrue(vatValues.Contains(20m));
+        foreach (var row in vatRows)
+            Assert.AreEqual("0.00", products.Cell(row, 6).Style.NumberFormat.Format);
+        Assert.AreEqual(XLWorksheetVisibility.VeryHidden, workbook.Worksheet("__Sushi81Meta").Visibility);
+        Assert.IsTrue(workbook.Worksheet("__Sushi81Meta").Protection.IsProtected);
+    }
+
+    [TestMethod]
     public async Task SortingFullBoundedRangeKeepsTechnicalBindingsWithBusinessRows()
     {
         var firstId = Guid.NewGuid();

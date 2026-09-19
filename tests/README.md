@@ -2,7 +2,7 @@
 
 Automated tests for Sushi81 POS live under this directory.
 
-**Current status:** M01–M09 and the post-M09 Hiboutik daily CB/Espèce dashboard regression/evidence suites are part of the merged project baseline. The post-M09 enhancement was merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`. M10 WP1–WP4 are controller-accepted; WP5 final production-path hardening evidence and exact owner-candidate regeneration are complete on PR #22 pending controller review. Owner Windows/Excel acceptance remains unexecuted; M10 is not Passed.
+**Current status:** M01–M09 and the post-M09 Hiboutik daily CB/Espèce dashboard regression/evidence suites are part of the merged project baseline. The post-M09 enhancement was merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`. M10 WP1–WP5 are controller-accepted; owner Scenario A found protected-sheet sorting blocked in real Excel, so the narrow protection/VAT repair is active on PR #22. Owner A–L acceptance remains suspended at Scenario A; M10 is not Passed.
 
 The authoritative test strategy comes from `../docs/acceptance-criteria.md`, approved acceptance amendments, the frozen/amended V1 documents and milestone-specific implementation contracts under `../docs/implementation/`.
 

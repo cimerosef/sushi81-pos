@@ -208,6 +208,9 @@ the complete model from one read connection/transaction and has no multi-read fa
 - technical columns hidden;
 - row-local helper cells participating in a sortable range may be unlocked for Excel
   compatibility, but remain hidden and are never trusted without manifest validation;
+- the complete protected AutoFilter range, including visible header cells, is
+  unlocked because real Excel refuses protected sorting when any participating cell
+  is locked; importer header validation remains the trust boundary;
 - worksheet protection does not allow normal column formatting/unhide;
 - intended business cells editable;
 - protection must preserve practical normal Excel editing/inserting/sorting/filtering where possible;

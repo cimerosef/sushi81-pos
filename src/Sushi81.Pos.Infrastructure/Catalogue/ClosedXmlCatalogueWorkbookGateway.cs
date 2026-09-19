@@ -65,7 +65,7 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
         }
 
         sheet.Column(5).Style.NumberFormat.Format = "0.00";
-        sheet.Column(6).Style.NumberFormat.Format = "0.##";
+        sheet.Column(6).Style.NumberFormat.Format = "0.00";
         FinishVisibleSheet(sheet, row - 1, 9, 11);
     }
 
@@ -212,8 +212,11 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
         // business cells, while remaining hidden and excluded from FormatColumns /
         // unhide permissions.  The VeryHidden manifest remains authoritative and
         // future import must validate every helper against it.
-        sheet.Range(2, 1, newRowTemplate, technicalColumns).Style.Protection.Locked = false;
-        sheet.Range(1, 1, 1, technicalColumns).Style.Protection.Locked = true;
+        // Excel's protected-sheet sort checks the complete AutoFilter range,
+        // including its header row. Keep that range unlocked so header/filter
+        // sorting works in real Excel; importer header validation remains the
+        // trust boundary for any external header edit.
+        sheet.Range(1, 1, newRowTemplate, technicalColumns).Style.Protection.Locked = false;
         if (effectiveLastRow >= 1) sheet.Range(1, 1, effectiveLastRow, technicalColumns).SetAutoFilter();
         for (var column = businessColumns + 1; column <= technicalColumns; column++)
         {

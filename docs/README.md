@@ -4,7 +4,7 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M09 Passed/merged; the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement is Passed/merged; M10 WP5 final hardening evidence and owner-candidate regeneration are complete pending controller review.**
+**Phase 6 implementation active: M01–M09 Passed/merged; the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement is Passed/merged; M10 WP1–WP5 are controller-accepted, while the owner-reported Scenario A protected-sort defect is under narrow remediation.**
 
 M08 — Printing and reprinting — Passed project-owner Windows/WPF/physical-print acceptance and was merged through PR #14 to `main` at merge commit `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. Accepted production candidate: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; final pass-record head: `5f8c92c29116e17a3365ecd8801f7e13f107269c`; final exact-head CI #675 succeeded.
 
@@ -12,7 +12,7 @@ M09 implementation, automated evidence and owner Windows/WPF manual acceptance a
 
 The independent post-M09 Hiboutik daily payment dashboard enhancement is Passed and merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`. It adds exactly two passive read-only values to the existing top Caisse dashboard and does not alter ordinary POS-originated summaries. Automated evidence and owner Windows/WPF A–F acceptance are recorded in PR #19 comments `5705723428` and `5715414940`; final controller closure was accepted on head `d55e36a244327c55b81f6fb1040c0ef46dbe154a` before merge.
 
-M10 — Catalogue `.xlsx` import/export — is on PR #22 (`codex/m10-catalogue-xlsx-authorized`). WP1–WP4 are controller-accepted; WP5 final hardening evidence and owner-candidate regeneration are complete pending controller review. Owner Windows/Excel acceptance remains unexecuted and M10 is not marked Passed. Live Issue #4 controls any later execution; M11+ remain unauthorized.
+M10 — Catalogue `.xlsx` import/export — is on PR #22 (`codex/m10-catalogue-xlsx-authorized`). WP1–WP5 are controller-accepted, but owner Scenario A found protected-sheet sorting blocked in real Excel; a narrow protection/VAT repair is active. Owner acceptance remains suspended at Scenario A; M10 is not marked Passed. Live Issue #4 controls any later execution; M11+ remain unauthorized.
 
 The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`; the living current control state is `implementation-status.md`.
 
