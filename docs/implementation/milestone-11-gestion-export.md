@@ -39,8 +39,8 @@ Scope:
 - add durable batch/immutable payload/per-order emission/correction metadata;
 - implement selection for CREATE/UPDATE/CANCEL;
 - implement Closed gate, optional inclusive fulfilment-date filtering and explicit POS source inclusion;
-- implement SettlementDate from effective-dated payment facts;
-- implement UPDATE pending/applicability and CANCEL precedence;
+- implement SettlementDate from effective-dated payment facts, including zero-total Closed handling;
+- implement UPDATE pending/applicability and CANCEL precedence, including last-emitted-snapshot anchoring;
 - preserve authority/recovery semantics;
 - no Desktop UI and no workbook generation beyond test doubles.
 
@@ -53,10 +53,54 @@ Required evidence:
 - pre-export edit remains CREATE;
 - post-export modification UPDATE state;
 - Open UPDATE waits;
-- CANCEL supersedes un-emitted UPDATE;
+- CANCEL supersedes un-emitted UPDATE and uses last successful positive emitted snapshot/date;
 - Hiboutik never creates export events;
 - write-authority blocked-path test;
 - recovery/business-revision compatibility.
+
+### WP1 technical execution detail
+
+WP1 should prefer a simple derived-correction ledger rather than coupling every order mutation to a second lifecycle subsystem.
+
+Recommended invariant:
+
+- successful export emissions are durable facts;
+- current pending UPDATE/CANCEL is derived from the current committed order plus the last successful export emission;
+- a current positive-snapshot hash equal to the last successful positive-snapshot hash means no UPDATE even if the order was edited and restored;
+- no successful CREATE/UPDATE/CANCEL fact is written until the later workbook/finalization stage reports success.
+
+Expected migration version: **8**.
+
+A simple reliable physical model may use:
+
+1. an export-batch table containing BatchId, schema version, generated metadata, filter metadata, status, immutable canonical payload, payload hash and counts;
+2. an export-emission table keyed to successful batch/order/action, retaining the per-order canonical positive snapshot/hash for CREATE/UPDATE so later duplicate/update/cancel decisions do not depend on current Catalogue state.
+
+Physical names may differ, but these invariants must remain.
+
+Selection algorithm:
+
+- no prior successful emission + current POS Closed/non-Cancelled -> CREATE;
+- no prior successful emission + current Open/Cancelled/Hiboutik -> no action;
+- last successful action CANCEL -> no later action;
+- last successful positive action + current Cancelled -> CANCEL anchored to that last positive emitted snapshot;
+- last successful positive action + current Open -> no emitted action yet;
+- last successful positive action + current Closed + canonical positive snapshot differs -> UPDATE;
+- last successful positive action + current Closed + canonical positive snapshot equal -> no action;
+- HIBOUTIK_PASTE -> never any Gestion action.
+
+Date filter:
+
+- CREATE/UPDATE: current candidate fulfilment date;
+- CANCEL: last successful positive emitted fulfilment date.
+
+SettlementDate:
+
+- positive total: effective business date at which cumulative signed CB+Espèce reaches the committed total;
+- zero total: business-local ClosedAt date;
+- positive-total Closed invariant failure: blocking export diagnostic, never guessed.
+
+WP1 must keep ClosedXML out of Application and must not add Desktop UI.
 
 ### WP2 — ClosedXML workbook, validation, safe finalization and exact regeneration
 
