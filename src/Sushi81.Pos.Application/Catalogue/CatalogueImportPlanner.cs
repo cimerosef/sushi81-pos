@@ -701,7 +701,12 @@ public sealed class CatalogueImportService
     {
         ArgumentNullException.ThrowIfNull(source);
         var workbook = await workbookGateway.ReadAsync(source, sourceName, cancellationToken);
-        var baseline = workbook.HasErrors ? CatalogueImportBaseline.Empty : await baselineQueries.ReadCatalogueImportBaselineAsync(cancellationToken);
+        // Keep the live read-only baseline available even when the workbook has
+        // blocking diagnostics. The planner carries those root Errors through
+        // and remains fail-closed (Plan == null), while the real baseline keeps
+        // valid unaffected identities contextualized instead of producing
+        // unrelated unknown-entity-id cascades.
+        var baseline = await baselineQueries.ReadCatalogueImportBaselineAsync(cancellationToken);
         var result = new CatalogueImportPlanner().Plan(mode, workbook, baseline, sourceName);
         return result with { PreviewBaseline = baseline };
     }

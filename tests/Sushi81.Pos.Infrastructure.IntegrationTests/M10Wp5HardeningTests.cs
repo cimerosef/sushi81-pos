@@ -450,6 +450,58 @@ public sealed class M10Wp5HardeningTests
     }
 
     [TestMethod]
+    public async Task RealPreviewWithMalformedExistingIdentityKeepsBaselineAndSuppressesUnrelatedUnknownIds()
+    {
+        using var paths = new TempPaths();
+        var clock = new FixedClock();
+        var factory = new SqliteConnectionFactory(paths);
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var catalogue = new CatalogueService(store);
+        var category = (await catalogue.CreateCategoryWithCodeAsync("Plats", "PL")).Value!;
+        await catalogue.CreateProductAsync(new ProductDraft(
+            Guid.Empty, "P-1", "Product", category.Id, Money.FromCents(100), 20m, true, false, true,
+            [new OptionGroupDraft(Guid.Empty, "Extras", SelectionMode.Multi, false, 0, 2, 0,
+                [new OptionDraft(Guid.Empty, "Sauce", Money.FromCents(25), true, 0)])]));
+
+        var sourcePath = Path.Combine(paths.TempDirectory, "baseline.xlsx");
+        await ExportAsync(store, sourcePath);
+        var exported = await File.ReadAllBytesAsync(sourcePath);
+        var service = new CatalogueImportService(new ClosedXmlCatalogueWorkbookImportGateway(), store, store,
+            new WriteAuthorityGuard(WriteAuthorityState.Authoritative), new RecordingNotifier());
+        var cases = new (string Name, string Sheet, int IdentityColumn)[]
+        {
+            ("product", "Products", 11),
+            ("option-group", "OptionGroups", 12),
+            ("option", "Options", 11)
+        };
+
+        foreach (var testCase in cases)
+        {
+            using var workbook = new XLWorkbook(new MemoryStream(exported));
+            workbook.Worksheet(testCase.Sheet).Cell(2, testCase.IdentityColumn).Value = "not-a-guid";
+            await using var mutated = new MemoryStream();
+            workbook.SaveAs(mutated);
+            mutated.Position = 0;
+
+            var preview = await service.PreviewAsync(mutated, CatalogueImportMode.Update, $"{testCase.Name}.xlsx");
+            var issues = preview.Preview.Issues;
+
+            Assert.IsTrue(preview.HasErrors, testCase.Name);
+            Assert.IsNull(preview.Plan, testCase.Name);
+            Assert.IsNotNull(preview.PreviewBaseline, testCase.Name);
+            Assert.HasCount(1, preview.PreviewBaseline!.Products, testCase.Name);
+            Assert.AreEqual(0, preview.Preview.ProductCreateCount, testCase.Name);
+            Assert.AreEqual(0, preview.Preview.OptionGroupCreateCount, testCase.Name);
+            Assert.AreEqual(0, preview.Preview.OptionCreateCount, testCase.Name);
+            Assert.AreEqual(0, preview.Preview.NewCategoryCount, testCase.Name);
+            Assert.IsTrue(issues.Any(issue => issue.Code == "malformed-entity-id"), testCase.Name);
+            Assert.IsFalse(issues.Any(issue => issue.Code == "unknown-entity-id"),
+                $"{testCase.Name}: {string.Join(";", issues.Select(issue => issue.Code))}");
+        }
+    }
+
+    [TestMethod]
     public async Task MissingAndUnsupportedSheetsBlockGatewayAndProductionPreviewBeforeMutation()
     {
         using var paths = new TempPaths();

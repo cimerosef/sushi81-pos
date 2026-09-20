@@ -1,15 +1,15 @@
 # M10 — Catalogue `.xlsx` import/export — final owner manual acceptance
 
-**Status:** OWNER A/B PASS RECORDED; SCENARIO C FAILED / DIAGNOSTIC-REPAIR CANDIDATE PENDING OWNER RETEST
+**Status:** OWNER A/B PASS RECORDED; SCENARIO C RETEST PENDING; G1 FAILED / PREVIEW-BASELINE-REPAIR CANDIDATE PENDING OWNER RETEST
 
-**Prepared/finalized:** 2026-09-17; owner A/B evidence recorded 2026-09-19; Scenario C diagnostic repair active
+**Prepared/finalized:** 2026-09-17; owner A/B evidence recorded 2026-09-19; Scenario C and G1 repair-24 candidates active for owner retest
 **Milestone:** M10  
-**Owner result:** PARTIAL — Scenario A PASS, Scenario B PASS, Scenario C FAIL / owner retest required; D–L NOT RUN
-**Implementation authorization:** WP1–WP5 are controller-accepted; the narrow Scenario C diagnostic repair is active on unmerged PR #22; no owner result authorizes merge or M11+
+**Owner result:** PARTIAL — Scenario A PASS, Scenario B PASS, Scenario C owner retest required, G1 FAIL / owner retest required; D–L NOT RUN
+**Implementation authorization:** WP1–WP5 are controller-accepted; the narrow Scenario C and G1 diagnostic repairs are active on unmerged PR #22; no owner result authorizes merge or M11+
 **Candidate source head:** prior owner candidate `4b0bbe7953efa6dad0aa5c9e718252b38af3b768` exposed the Scenario C guidance failure; the replacement repair candidate is recorded in this handoff's matching `CODEX_DONE`
 **Candidate executable / ZIP:** replacement candidate paths, sizes and hashes are recorded in this handoff's matching `CODEX_DONE`
 
-> This checklist is for the project owner. Codex must not pre-check boxes or mark the result Passed.
+> This checklist is for the project owner. Codex must not pre-check boxes or mark the result Passed. Repair-24 addresses the production Preview baseline cascade observed in G1; owner retest resumes with G1 only after controller review.
 
 ## 0. Preconditions
 
