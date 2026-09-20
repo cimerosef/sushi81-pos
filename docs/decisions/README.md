@@ -49,11 +49,31 @@ The two self-join/self-service records were produced during the same closed-gate
 
 ## Current M09 Hiboutik paste decisions
 
-M09 must read the original Phase 4 Hiboutik decisions together with the later owner-approved preparation amendment:
+M09 reads the original Phase 4 Hiboutik decisions together with the later owner-approved preparation amendment:
 
 - `hiboutik-paste-simplification.md` — ordinary-order fallback rather than a separate emergency-order subsystem;
 - `hiboutik-paste-option-confirmation.md` — exact product-code matching and ordinary option confirmation;
 - `hiboutik-paste-total-calculation.md` — ordinary Sushi81 pricing remains authoritative;
-- `m09-hiboutik-paste-operator-workflow-and-source-reference.md` — **Approved 2026-09-14 V1 amendment** controlling the product-detail-block paste scope, explicit unresolved-line operator handoff, passive `Hiboutik` identification, and nullable read-only `source_total_ttc` reconciliation reference.
+- `m09-hiboutik-paste-operator-workflow-and-source-reference.md` — Approved 2026-09-14 V1 amendment controlling product-detail-block paste scope, explicit unresolved-line operator handoff, passive `Hiboutik` identification and nullable read-only `source_total_ttc` reconciliation reference.
 
-Where the older Phase 4 records require the source discriminator to be completely invisible or forbid retaining any Hiboutik source total, the 2026-09-14 M09 amendment supersedes those narrow clauses. It does **not** restore the former emergency-order UI/model, discrepancy workflow, dedicated Hiboutik reference field or Hiboutik-specific payment/reconciliation subsystem.
+Where older Phase 4 records require the source discriminator to be completely invisible or forbid retaining any Hiboutik source total, the 2026-09-14 M09 amendment supersedes those narrow clauses. It does **not** restore the former emergency-order UI/model, discrepancy workflow, dedicated Hiboutik reference field or Hiboutik-specific payment/reconciliation subsystem.
+
+## Current M10 Catalogue workbook decision
+
+M10 must read the Catalogue baseline together with:
+
+- `m10-category-short-code-workbook-semantics.md` — **Approved 2026-09-17 V1 amendment** defining how the later M04 Category `short_code` business field is preserved in the three-sheet Catalogue `.xlsx` workflow.
+
+The controlling M10 short-code result is:
+
+- `Products` visibly carries Category name + Category short code;
+- no operator-facing `Categories` worksheet is introduced;
+- `category_id` stays technical/non-operator identity;
+- new Categories created by import may receive one optional consistent short code;
+- existing Category short code is preserve/consistency data only and cannot be cleared/replaced through workbook import;
+- conflicting repeated Category short-code meaning is a blocking Error;
+- existing Category short-code changes remain in the in-app Category manager.
+
+The matching acceptance clarification is `../acceptance-criteria-amendment-m10-category-short-code-workbook.md`, and the consolidated operational baseline is `../catalogue-management.md`.
+
+This specification decision closes M10 readiness but does **not** authorize M10 implementation.

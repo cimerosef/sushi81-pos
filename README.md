@@ -11,18 +11,20 @@ The approved V1 product, business, architecture, data, storage, paste-import, pr
 Formal freeze record: `docs/v1-specification-freeze.md`  
 Implementation acceptance contract: `docs/acceptance-criteria.md` plus approved acceptance amendments.
 
-M01 through M08 are **Passed and merged**.
+M01 through M09 are **Passed and merged**.
 
 Recent merge baselines:
 
 - M05 — Lifecycle, payments, search and operational dashboard — merged through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`;
 - M06 — Local recovery and authoritative/read-only enforcement — merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`;
 - M07 — Pairing, target-directed handoff and disaster recovery — merged through PR #13 at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`;
-- M08 — Printing and reprinting — Passed owner/manual acceptance and merged through PR #14 at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`.
+- M08 — Printing and reprinting — merged through PR #14 at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`;
+- M09 — Hiboutik paste-order fallback — merged through PR #17 at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`;
+- Post-M09 — Hiboutik daily CB/Espèce dashboard — Passed/merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`.
 
-M09 — Hiboutik paste-order fallback — implementation, automated evidence and owner Windows/WPF manual acceptance are **Passed and merged** through PR #17 at merge commit `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`. The accepted production candidate remains `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d` with EXE SHA-256 `CDC1257A698FE90237316FFE92361BF20EEF97CB44065AFBF70202EE0D0A26BA` and ZIP SHA-256 `00CEFAECB56666FABB03B7D141A4B75D18CF4DAA1A270358E7D3C457D5736319`. The approved amendment covers product-detail-block paste input, fail-safe unresolved-line operator handling, passive Hiboutik source identification and nullable read-only `source_total_ttc` reference amount while keeping ordinary POS pricing authoritative.
+The accepted M09 production candidate remains `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`. The independent post-M09 dashboard accepted executable candidate remains sourced from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`; PR #19 final closure head was `d55e36a244327c55b81f6fb1040c0ef46dbe154a` before merge.
 
-The independent post-M09 Hiboutik daily payment dashboard enhancement is **Passed** on branch `codex/post-m09-hiboutik-daily-payment-dashboard` / PR #19. It is limited to exactly two passive read-only top-Caisse values, `Hiboutik CB aujourd'hui` and `Hiboutik Espèce aujourd'hui`, derived from non-Cancelled `HIBOUTIK_PASTE` payment adjustments by effective business date. Automated evidence and owner Windows/WPF A–F acceptance are recorded in PR #19 comments `5705723428` and `5715414940`; PR #19 remains OPEN / unmerged pending final controller closure review and separate explicit project-owner merge approval. GitHub Issue #4 remains the sole execution gate. M10 and later milestones remain unauthorized.
+M10 — Catalogue `.xlsx` import/export — is on PR #22 (`codex/m10-catalogue-xlsx-authorized`). WP1–WP5 are controller-accepted; owner Scenarios A and B passed, while Scenario C correctly blocked an attempted existing-Category short-code change but failed its required actionable preview guidance. The narrow diagnostic remediation is active; Scenario C must be owner-retested on its next candidate, D–L remain not run, PR #22 remains unmerged, and M10 is not marked Passed. Live Issue #4 controls later Codex execution. M11, M12 and M13 remain unauthorized.
 
 Controlling M09 records:
 
@@ -41,6 +43,16 @@ Controlling post-M09 dashboard records:
 - `docs/implementation/post-m09-hiboutik-daily-payment-dashboard-authorization.md`;
 - `docs/implementation/post-m09-hiboutik-daily-payment-dashboard.md`;
 - `docs/implementation/post-m09-hiboutik-daily-payment-dashboard-worklog.md`.
+
+Current M10 implementation package:
+
+- `docs/decisions/m10-category-short-code-workbook-semantics.md`;
+- `docs/acceptance-criteria-amendment-m10-category-short-code-workbook.md`;
+- `docs/implementation/milestone-10-preparation-readiness.md`;
+- `docs/implementation/milestone-10-catalogue-xlsx.md`;
+- `docs/implementation/milestone-10-final-manual-acceptance.md`;
+- `docs/implementation/milestone-10-worklog.md`;
+- `docs/implementation/milestone-10-authorization.md` — AUTHORIZED; execution remains limited to the exact Issue #4 handoff.
 
 Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. OneDrive remains recovery/archive storage and historical diagnostic transport rather than the normal authority gate.
 

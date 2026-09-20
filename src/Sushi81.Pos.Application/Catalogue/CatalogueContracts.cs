@@ -124,7 +124,8 @@ public sealed record ProductSummary(
     decimal VatRate,
     bool IsActive,
     bool DiscountEligible,
-    bool OptionsEnabled);
+    bool OptionsEnabled,
+    string? CategoryShortCode = null);
 
 public sealed record OptionDraft(
     Guid Id,

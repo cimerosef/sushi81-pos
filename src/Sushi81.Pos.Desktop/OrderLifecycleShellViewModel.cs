@@ -582,6 +582,9 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
             DetailLines.Add(line);
         }
     }
+
+    public Task RefreshAfterCatalogueImportAsync(CancellationToken cancellationToken = default) =>
+        RefreshAfterLiveDatabaseReplacementAsync(cancellationToken);
     private void LoadEditableFields(OrderSnapshot order) { EditFulfilment = order.Fulfilment; editPickupDiscountRequested = order.PickupDiscountApplied; OnPropertyChanged(nameof(EditPickupDiscountRequested)); OnPropertyChanged(nameof(IsEditPickupDiscountEnabled)); EditPlannedDate = order.PlannedFulfilmentDate.ToDateTime(TimeOnly.MinValue); EditPlannedHour = order.PlannedFulfilmentTime?.Hour; EditPlannedMinute = order.PlannedFulfilmentTime?.Minute; EditTelephone = order.Telephone ?? string.Empty; EditAddress = order.DeliveryAddress ?? string.Empty; EditComment = order.Comment ?? string.Empty; EditTotal = order.TotalTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture); EditCard = order.CardPaymentTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture); EditCash = order.CashPaymentTtc.Euros.ToString("0.00", CultureInfo.CurrentCulture); EffectivePaymentDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue); RaiseEditPaymentProperties(); }
     private string LocalizeStatus(OrderStatus status) => status switch { OrderStatus.Open => Text("OrderStatusOpen", "Ouverte"), OrderStatus.Closed => Text("OrderStatusClosed", "Clôturée"), _ => Text("OrderStatusCancelled", "Annulée") };
     private string Text(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;

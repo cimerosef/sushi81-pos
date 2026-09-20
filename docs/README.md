@@ -4,13 +4,15 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M09 Passed/merged; the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement is Passed and awaiting separate merge approval.**
+**Phase 6 implementation active: M01–M09 Passed/merged; the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement is Passed/merged; M10 WP1–WP5 are controller-accepted, owner Scenarios A/B passed, and Scenario C's narrow existing-Category short-code guidance remediation is active.**
 
 M08 — Printing and reprinting — Passed project-owner Windows/WPF/physical-print acceptance and was merged through PR #14 to `main` at merge commit `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. Accepted production candidate: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; final pass-record head: `5f8c92c29116e17a3365ecd8801f7e13f107269c`; final exact-head CI #675 succeeded.
 
-M09 implementation, automated evidence and owner Windows/WPF manual acceptance are complete and merged through PR #17 at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`. The accepted production candidate remains `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`, with accepted EXE/ZIP hashes recorded in `implementation/milestone-09-final-manual-acceptance.md`. The owner-approved 2026-09-14 amendment narrows paste input to the Hiboutik product-detail block, requires fail-safe unresolved-line operator handling, permits passive read-only Hiboutik source identification, and permits nullable read-only `source_total_ttc` as a reconciliation reference while keeping ordinary POS pricing authoritative.
+M09 implementation, automated evidence and owner Windows/WPF manual acceptance are complete and merged through PR #17 at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`. The accepted production candidate remains `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`, with accepted EXE/ZIP hashes recorded in `implementation/milestone-09-final-manual-acceptance.md`.
 
-The independent post-M09 Hiboutik daily payment dashboard enhancement is **Passed** on branch `codex/post-m09-hiboutik-daily-payment-dashboard` / PR #19. It adds exactly two passive read-only values to the existing top Caisse dashboard and does not alter ordinary POS-originated summaries. Automated evidence and owner Windows/WPF A–F acceptance are recorded in PR #19 comments `5705723428` and `5715414940`. PR #19 remains OPEN / unmerged pending final controller closure review and separate explicit project-owner merge approval. Issue #4 remains the sole Codex execution gate, and M10 and later milestones remain unauthorized.
+The independent post-M09 Hiboutik daily payment dashboard enhancement is Passed and merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`. It adds exactly two passive read-only values to the existing top Caisse dashboard and does not alter ordinary POS-originated summaries. Automated evidence and owner Windows/WPF A–F acceptance are recorded in PR #19 comments `5705723428` and `5715414940`; final controller closure was accepted on head `d55e36a244327c55b81f6fb1040c0ef46dbe154a` before merge.
+
+M10 — Catalogue `.xlsx` import/export — is on PR #22 (`codex/m10-catalogue-xlsx-authorized`). WP1–WP5 are controller-accepted; owner Scenarios A/B passed, while Scenario C correctly blocked an existing-Category short-code change but failed the frozen actionable preview-message requirement. The narrow diagnostic remediation is active; Scenario C must be owner-retested on its next candidate, D–L remain not run, PR #22 remains unmerged, and M10 is not marked Passed. Live Issue #4 controls later execution; M11+ remain unauthorized.
 
 The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`; the living current control state is `implementation-status.md`.
 
@@ -25,7 +27,7 @@ The V1 Specification remains frozen-and-amended. The formal freeze record is `v1
 
 - `order-lifecycle.md` — Approved — Phase 2 baseline.
 - `business-rules.md` — Approved — Phase 2 baseline.
-- `catalogue-management.md` — Approved — Phase 2 baseline, amended for filtered bulk activation/deactivation.
+- `catalogue-management.md` — Approved — Phase 2 baseline, amended for filtered bulk activation/deactivation, Category short-code business data and the 2026-09-17 M10 short-code workbook contract.
 
 ### Phase 3 — Core technical architecture
 
@@ -48,7 +50,9 @@ M08 owner-selected visual/identity detail is frozen in `decisions/m08-print-layo
 - `acceptance-criteria.md` — Approved — Phase 5 baseline (V1 Specification).
 - `acceptance-criteria-amendment-filtered-catalogue-bulk-activation.md` — Approved amendment adding AC-CAT-013.
 - `acceptance-criteria-amendment-m07-self-join-disaster-recovery.md` — Approved M07 amendment.
-- `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md` — Approved 2026-09-14 M09 acceptance amendment for AC-HIB-001 through AC-HIB-009 where stated.
+- `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md` — Approved 2026-09-14 M09 acceptance amendment.
+- `acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` — Approved post-M09 dashboard amendment.
+- `acceptance-criteria-amendment-m10-category-short-code-workbook.md` — Approved 2026-09-17 clarification of AC-CAT-008 through AC-CAT-011 for Category short-code workbook behavior.
 - `v1-specification-freeze.md` — Approved — Phase 5 baseline, amended through approved post-freeze decisions.
 
 ### Phase 6 — Implementation planning and controlled execution
@@ -69,27 +73,39 @@ Historical completed milestone records remain under `implementation/` and in the
 - M05 — Passed/merged through PR #10;
 - M06 — Passed/merged through PR #11;
 - M07 — Passed/merged through PR #13;
-- M08 — Passed/merged through PR #14.
+- M08 — Passed/merged through PR #14;
+- M09 — Passed/merged through PR #17;
+- post-M09 dashboard — Passed/merged through PR #19.
 
 Current M09 control package:
 
-- `decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md` — owner-approved V1 amendment;
-- `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md` — amended AC-HIB acceptance contract;
-- `paste-order-import.md` — consolidated amended operational specification;
-- `implementation/milestone-09-preparation-readiness.md` — readiness/control record;
-- `implementation/milestone-09-hiboutik-paste-fallback.md` — detailed authorized implementation contract;
-- `implementation/milestone-09-final-manual-acceptance.md` — prepared owner Windows/WPF checklist;
-- `implementation/milestone-09-authorization.md` — durable explicit project-owner implementation authorization;
-- `samples/pasted-orders/hiboutik-product-block-synthetic.txt` — synthetic source-structure fixture only.
+- `decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`;
+- `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md`;
+- `paste-order-import.md`;
+- `implementation/milestone-09-preparation-readiness.md`;
+- `implementation/milestone-09-hiboutik-paste-fallback.md`;
+- `implementation/milestone-09-final-manual-acceptance.md`;
+- `implementation/milestone-09-authorization.md`;
+- `samples/pasted-orders/hiboutik-product-block-synthetic.txt`.
 
-Current post-M09 dashboard control package:
+Post-M09 dashboard control package:
 
-- `decisions/post-m09-hiboutik-daily-payment-dashboard.md` — approved narrow business decision;
-- `acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` — AC-HIB-010 and related clarification;
-- `implementation/post-m09-hiboutik-daily-payment-dashboard-authorization.md` — durable owner authorization;
-- `implementation/post-m09-hiboutik-daily-payment-dashboard.md` — implementation contract;
-- `implementation/post-m09-hiboutik-daily-payment-dashboard-manual-acceptance.md` — owner checklist;
-- `implementation/post-m09-hiboutik-daily-payment-dashboard-worklog.md` — execution evidence.
+- `decisions/post-m09-hiboutik-daily-payment-dashboard.md`;
+- `acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md`;
+- `implementation/post-m09-hiboutik-daily-payment-dashboard-authorization.md`;
+- `implementation/post-m09-hiboutik-daily-payment-dashboard.md`;
+- `implementation/post-m09-hiboutik-daily-payment-dashboard-manual-acceptance.md`;
+- `implementation/post-m09-hiboutik-daily-payment-dashboard-worklog.md`.
+
+Current M10 implementation package:
+
+- `decisions/m10-category-short-code-workbook-semantics.md` — Approved owner decision;
+- `acceptance-criteria-amendment-m10-category-short-code-workbook.md` — Approved acceptance clarification;
+- `implementation/milestone-10-preparation-readiness.md` — readiness complete / ready for separate authorization;
+- `implementation/milestone-10-catalogue-xlsx.md` — frozen implementation contract with WP5 evidence/candidate regeneration pending controller review;
+- `implementation/milestone-10-final-manual-acceptance.md` — CANDIDATE PREPARED / OWNER NOT YET EXECUTED;
+- `implementation/milestone-10-worklog.md` — implementation/evidence ledger;
+- `implementation/milestone-10-authorization.md` — AUTHORIZED; the current executable scope is controlled by Issue #4.
 
 ## Decision records
 
@@ -102,7 +118,8 @@ Relevant later decisions include:
 - `decisions/target-directed-authority-handoff.md` and `decisions/github-handoff-transport.md`;
 - M07 self-join/DR/recovery-ordering decisions;
 - `decisions/m08-print-layout-and-receipt-identity.md`;
-- `decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`.
+- `decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`;
+- `decisions/m10-category-short-code-workbook-semantics.md`.
 
 Where a later Approved decision explicitly supersedes a narrow older clause, the later decision controls until the next complete consolidation pass. A genuine unresolved contradiction still requires implementation to stop rather than guess.
 

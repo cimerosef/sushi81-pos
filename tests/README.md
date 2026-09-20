@@ -1,26 +1,32 @@
 # Tests
 
-Automated tests for Sushi81 POS live under this directory once implementation begins.
+Automated tests for Sushi81 POS live under this directory.
 
-**Current status:** M01–M06 regression/evidence suites are green. M06 final Release verification is 364/364 Passed with project-owner Windows/WPF manual acceptance Passed; M06 was merged through PR #11 at merge commit `2c5eb52740d0c12e3e837579ecceac6d0600b59e`. M07 is next but is not yet implementation-authorized. M02 GitHub transport tests use deterministic fake HTTP/synthetic state only, with separate sanitized historical live evidence recorded in the M02 report.
+**Current status:** M01–M09 and the post-M09 Hiboutik daily CB/Espèce dashboard regression/evidence suites are part of the merged project baseline. The post-M09 enhancement was merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`. M10 WP1–WP5 are controller-accepted; owner Scenarios A/B passed, while Scenario C correctly blocked an existing-Category short-code change but exposed generic instead of actionable guidance. The narrow diagnostic remediation is active on PR #22; Scenario C must be owner-retested, D–L remain not run, and M10 is not Passed.
 
-The test strategy is authoritative from `../docs/acceptance-criteria.md` and the approved V1 documents under `../docs/`.
+The authoritative test strategy comes from `../docs/acceptance-criteria.md`, approved acceptance amendments, the frozen/amended V1 documents and milestone-specific implementation contracts under `../docs/implementation/`.
 
 Implementation should convert acceptance criteria into automated unit/integration/regression tests wherever practical, including business pricing, lifecycle/payment arithmetic, effective payment-date attribution, catalogue validation/import, Hiboutik paste parsing, data persistence/migrations, storage/handoff/recovery/archive behavior, deterministic print models and export contracts.
 
 Use only synthetic or sanitized fixtures. Never commit real customer, order, payment, credential or other sensitive production data.
 
-GitHub transport tests must validate strict Release Asset server receipts, exact snapshot/grant names, target binding, digest/size integrity, durable relinquishment ordering, restart safety and newest-three retention without live GitHub dependencies.
+GitHub transport tests must validate strict Release Asset server receipts, exact snapshot/grant names, target binding, digest/size integrity, durable relinquishment ordering, restart safety and retention without live GitHub dependencies in ordinary automated suites.
 
-M03 domain and infrastructure tests use isolated temporary SQLite databases and synthetic catalogue/settings values. They
-cover normalization and validation boundaries, migration 2/default singleton idempotence, aggregate transactionality,
-opaque identity preservation, deterministic option ordering, activation/deactivation, atomic filtered bulk activation/deactivation
-(including stale/missing rollback, injected failure rollback, timestamp and aggregate preservation), cascade deletion, code reuse
-and settings round-trip persistence. Desktop tests cover composed-filter capture/latest-debounce synchronization, immutable
-bulk snapshots, localized actions/confirmation resources, filter-state preservation and the absence of bulk deletion.
+Existing Catalogue coverage includes normalization/validation, opaque identity preservation, Category short-code persistence, deterministic option ordering, activation/deactivation, filtered bulk atomicity/conflict rollback, aggregate persistence, authority rejection and WPF Catalogue behavior.
 
-M04/M05 infrastructure tests also use isolated temporary SQLite databases and synthetic orders. They cover persisted order
-snapshots, migration 5 reference backfill/allocation, signed CB/Espèce deltas, same-ID modification and automatic reopen,
-Close/Cancel financial exclusions, live reference/telephone/comment search, and operational summary queries.
+Existing order/lifecycle/storage/printing/M09/post-M09 suites cover historical order snapshots, payment/date arithmetic, same-ID modification, search/dashboard queries, authority/recovery, handoff/DR, deterministic printing, Hiboutik parsing/import orchestration, source-aware reporting boundaries and the two passive Hiboutik daily payment values.
 
-M06 adds automated coverage for centralized authoritative-write rejection before business mutation, durable authority/read-only restart reconstruction, fail-closed missing/corrupt authority state, validated latest-five local-recovery retention, post-commit recovery scheduling/debounce/single-flight/shutdown flush, and real STA/WPF read-only/transition/recovery-required presentation. The separate final operator acceptance is recorded in `../docs/implementation/milestone-06-final-manual-acceptance.md`.
+## M10 WP5 evidence — controller review pending
+
+The prepared M10 contract requires future authorized tests at these levels:
+
+- pure import-planner tests for Update/Add-only identity semantics, Category name/short-code rules, parent relationships, validation, preview and no-delete overlay;
+- real temp `.xlsx` ClosedXML contract tests for three visible sheets, hidden/locked technical columns, VeryHidden metadata, round-trip, corrupt/tampered workbook rejection and no COM/Interop;
+- SQLite integration tests for one-transaction whole-import commit, failure rollback, no implicit deletion, concurrency conflict, business revision/recovery notification and historical-order independence;
+- Application tests for export/preview as reads and authoritative-only commit;
+- STA/WPF tests for localized Export/Import/Preview workflow, Confirm gating, Cancel/close safety and Catalogue refresh/state preservation;
+- full M03/M04/M06/M07 plus whole-solution Release regression.
+
+The owner-approved M10 Category short-code acceptance clarification is `../docs/acceptance-criteria-amendment-m10-category-short-code-workbook.md`. WP5 adds real temporary-file production-path round-trip/edit/tamper evidence and the final automated regression/audit matrix; it does not execute owner Windows/Excel acceptance.
+
+The live Issue #4 body controls any later executable handoff. This evidence record does not authorize the owner checklist, merge or any later milestone.

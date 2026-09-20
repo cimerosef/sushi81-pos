@@ -60,6 +60,8 @@ public static partial class CompositionRoot
         IOrderPrintApplicationService? printService = null;
         PrinterSetupViewModel? printerSetup = null;
         HiboutikImportOrchestrator? hiboutikImportOrchestrator = null;
+        CatalogueWorkbookService? catalogueWorkbookService = null;
+        CatalogueImportService? catalogueImportService = null;
 
         try
         {
@@ -113,6 +115,14 @@ public static partial class CompositionRoot
             var catalogueStore = new SqliteCatalogueStore(connectionFactory, transactionRunner, idGenerator, clock);
             var settingsStore = new SqliteBusinessSettingsStore(connectionFactory, transactionRunner, clock);
             catalogueService = new CatalogueService(catalogueStore, authorityGuard, durableChangeNotifier);
+            var catalogueWorkbookGateway = new ClosedXmlCatalogueWorkbookGateway();
+            catalogueWorkbookService = new CatalogueWorkbookService(catalogueStore, catalogueWorkbookGateway);
+            catalogueImportService = new CatalogueImportService(
+                catalogueWorkbookGateway,
+                catalogueStore,
+                catalogueStore,
+                authorityGuard,
+                durableChangeNotifier);
             settingsService = new BusinessSettingsService(settingsStore, authorityGuard, durableChangeNotifier);
             var orderStore = new SqliteOrderStore(connectionFactory, transactionRunner, null, idGenerator, clock);
             var orderCatalogueQueries = new OrderEntryCatalogueService(catalogueStore);
@@ -209,7 +219,9 @@ public static partial class CompositionRoot
             authorityPhase,
             printService,
             printerSetup,
-            hiboutikImportOrchestrator);
+            hiboutikImportOrchestrator,
+            catalogueWorkbookService,
+            catalogueImportService);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,
