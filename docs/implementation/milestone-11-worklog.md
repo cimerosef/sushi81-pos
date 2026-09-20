@@ -34,3 +34,16 @@ Owner decisions:
 The approved decision and acceptance amendment were prepared. Readiness disposition: PASS / ready for separate implementation authorization.
 
 No production code, schema or executable handoff was created during this preparation step.
+
+
+## 2026-09-20 — M11-PREPARATION-CONTROL-PACKAGE-02
+
+Created documentation-only preparation line:
+
+- branch: `prep/m11-gestion-export`;
+- draft PR #23: `M11 preparation: Gestion intermediate export readiness and contracts`;
+- Issue #4 remained CLOSED;
+- no `CODEX_HANDOFF_READY` was published;
+- authorization record remains NOT AUTHORIZED.
+
+The implementation split is frozen as WP1–WP4 in `milestone-11-gestion-export.md`. The first WP1 execution handoff is prepared only as a non-executable template pending separate explicit project-owner implementation authorization.
