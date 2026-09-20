@@ -27,7 +27,7 @@ The accepted M09 production candidate remains `7d0144d452231fe92cf7c31e027e9b1bb
 
 M10 is Passed/merged. Controller final closure is PR #22 comment `5750090951`; the accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`.
 
-M11 — Gestion intermediate export — is in documentation/specification **Preparation** on draft PR #23 / branch `prep/m11-gestion-export`. Readiness is complete, the 2026-09-20 export clarification is owner-approved, and the implementation/control/manual-acceptance package is prepared. M11 production implementation is **NOT AUTHORIZED** until a separate explicit project-owner implementation approval. Issue #4 remains CLOSED with no active Codex handoff. M12/M13 remain unauthorized.
+M11 — Gestion intermediate export — readiness is complete and the project owner authorized implementation on 2026-09-20. The dedicated implementation line is `codex/m11-gestion-export-authorized` / PR #24. Codex may execute only the exact active handoff named by OPEN Issue #4 and matching PR #24; WP2–WP4 do not auto-authorize. M12/M13 remain unauthorized.
 
 Controlling M09 records:
 
@@ -66,7 +66,7 @@ Current M11 preparation package:
 - `docs/implementation/milestone-11-gestion-export.md`;
 - `docs/implementation/milestone-11-final-manual-acceptance.md`;
 - `docs/implementation/milestone-11-worklog.md`;
-- `docs/implementation/milestone-11-authorization.md` — NOT AUTHORIZED.
+- `docs/implementation/milestone-11-authorization.md` — AUTHORIZED; execution remains limited to the exact Issue #4 handoff.
 
 Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. OneDrive remains recovery/archive storage and historical diagnostic transport rather than the normal authority gate.
 
