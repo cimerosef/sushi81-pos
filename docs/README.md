@@ -4,7 +4,7 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M10 are Passed/merged. M11 Gestion export preparation/readiness is complete on draft PR #23 and awaits separate project-owner implementation authorization.**
+**Phase 6 implementation active: M01–M10 are Passed/merged. M11 Gestion export readiness is complete and implementation is owner-authorized on PR #24; execution remains limited to the exact live Issue #4 handoff.**
 
 M08 — Printing and reprinting — Passed project-owner Windows/WPF/physical-print acceptance and was merged through PR #14 to `main` at merge commit `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. Accepted production candidate: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; final pass-record head: `5f8c92c29116e17a3365ecd8801f7e13f107269c`; final exact-head CI #675 succeeded.
 
@@ -14,7 +14,7 @@ The independent post-M09 Hiboutik daily payment dashboard enhancement is Passed 
 
 M10 — Catalogue `.xlsx` import/export — Passed and merged through PR #22 at `299df8b44a1959497ad46f861e44db32913b4d11`. Controller final closure is comment `5750090951`; accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`.
 
-M11 — Gestion intermediate export — is in **Preparation** on draft PR #23 / `prep/m11-gestion-export`. The readiness audit and owner-approved export clarification are complete. Production implementation remains NOT AUTHORIZED; Issue #4 is CLOSED and there is no executable handoff.
+M11 — Gestion intermediate export — is owner-**Authorized** on branch `codex/m11-gestion-export-authorized` / PR #24. The readiness audit and approved export clarification are complete. Execution is still package-gated: Codex may act only on the exact matching live Issue #4 / PR #24 handoff.
 
 The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`; the living current control state is `implementation-status.md`.
 
@@ -120,8 +120,9 @@ Current M11 preparation package:
 - `implementation/milestone-11-gestion-export.md` — prepared implementation contract;
 - `implementation/milestone-11-final-manual-acceptance.md` — prepared owner checklist;
 - `implementation/milestone-11-worklog.md` — preparation/evidence ledger;
-- `implementation/milestone-11-authorization.md` — NOT AUTHORIZED;
-- draft preparation PR #23 / `prep/m11-gestion-export`.
+- `implementation/milestone-11-authorization.md` — AUTHORIZED; executable scope is controlled by Issue #4;
+- draft preparation PR #23 / `prep/m11-gestion-export` — historical preparation line;
+- implementation PR #24 / `codex/m11-gestion-export-authorized` — active implementation mailbox.
 
 ## Decision records
 
