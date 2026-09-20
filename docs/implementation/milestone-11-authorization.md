@@ -60,7 +60,7 @@ Implementation split:
 3. WP3 — Desktop export workflow;
 4. WP4 — integration hardening and owner candidate.
 
-Only **WP1** may be made executable first. WP2–WP4 remain non-executable until later controller review/handoff.
+WP1 and WP2 are controller-accepted. WP3 may be made executable only by its own exact handoff. WP4 remains non-executable until later controller review/handoff.
 
 ## Hard boundaries
 
