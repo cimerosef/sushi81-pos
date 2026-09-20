@@ -1,23 +1,23 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-20
-**Current state:** M01 through M09 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. M10 Catalogue `.xlsx` is on PR #22 / branch `codex/m10-catalogue-xlsx-authorized`; WP1–WP5, owner A–L functional acceptance and the final-delivery usability checks are complete. Scenario I is accepted by prior/manual evidence reuse rather than a fresh computer-B replay. The accepted runtime candidate is the exact polish-25 head `34e61c67785aa6c8c0ca84a545e31de30b17ac39`; the remaining scope is documentation/governance closure and final controller review. M10 is closure-ready but remains unmerged until that review and separate explicit owner merge approval. Historical candidate failures remain preserved as evidence; M11–M13 remain unauthorized.
+**Last updated:** 2026-09-20  
+**Current state:** M01 through M10 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current merged `main` is M10 merge commit `299df8b44a1959497ad46f861e44db32913b4d11`. M11 Gestion intermediate export preparation/readiness is complete on draft PR #23 / branch `prep/m11-gestion-export`; the material export clarification is owner-approved, but M11 production implementation remains NOT AUTHORIZED. Issue #4 is CLOSED with no active Codex handoff. M12/M13 remain unauthorized.
 
-> Historical implementation/evidence through M06 remains preserved byte-for-byte at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). M07–M09 and post-M09 evidence remains authoritative in milestone-specific worklogs/manual-acceptance/PR records. This file is the living current-state summary; historical evidence is not rewritten to match later state.
+> Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
 ## 1. Status vocabulary
 
 - `Not started` — no conforming implementation evidence yet.
 - `Preparation` — specification/contract/checklist preparation is occurring or complete, but implementation is not authorized and Codex must not execute.
-- `Authorized` — project-owner implementation approval is durable, but Codex still requires the complete branch/PR/mailbox/open-gate execution prerequisites.
-- `In progress` — an authorized executable handoff is active under the OPEN Issue #4 gate.
+- `Authorized` — project-owner implementation approval is durable, but execution still requires the matching implementation branch/PR/handoff/open gate.
+- `In progress` — an authorized executable handoff is active under OPEN Issue #4.
 - `Partial` — some evidence exists, but complete acceptance is not yet satisfied.
-- `Closure-ready` — owner acceptance is complete on the accepted candidate; final controller closure and separate explicit merge approval remain outstanding.
-- `Passed` — required automated/manual evidence is recorded and passes on the applicable accepted build.
+- `Closure-ready` — owner acceptance is complete; final controller closure and separate explicit merge approval remain.
+- `Passed` — required automated/manual evidence is recorded and passes.
 - `Blocked — amendment required` — a genuine material specification conflict prevents conforming implementation.
-- `Blocked — architecture decision required` — an approved protocol remains safe, but a required technical capability still needs an architecture decision/proof.
-- `Not applicable — amended` — allowed only when an approved specification amendment explicitly makes the criterion inapplicable/replaces it.
+- `Blocked — architecture decision required` — a required technical capability still needs an approved architecture decision/proof.
+- `Not applicable — amended` — only when an approved specification amendment explicitly replaces a criterion.
 
 Only `Passed` and properly approved `Not applicable — amended` satisfy final V1 acceptance.
 
@@ -28,133 +28,110 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M01 — Foundation and safe persistence spine | Passed | Merged through PR #1. |
 | M02 — Remote handoff feasibility/revalidation | Passed | Approved target-directed GitHub Release Asset transport revalidation Passed. |
 | M03 — Catalogue and settings | Passed | Merged through PR #5; final Windows/WPF acceptance Passed. |
-| M04 — Order-entry vertical slice | Passed | Merged through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a`; final Windows/WPF acceptance Passed. |
-| M05 — Lifecycle/payments/search/dashboard | Passed | Merged through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`; final Windows/WPF acceptance Passed. |
-| M06 — Local recovery/read-only enforcement | Passed | Merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`; final Windows/WPF acceptance Passed. |
-| M07 — Pairing, target-directed handoff and disaster recovery | Passed | Accepted production head `e971580ef43d3b50366d51733ca9431ca0997e8d`; PR #13 merged at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`; final multi-device owner acceptance Passed. |
-| M08 — Printing and reprinting | Passed | Accepted production candidate `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; PR #14 merged at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`; physical/manual acceptance Passed. |
-| M09 — Hiboutik paste fallback | Passed | Accepted production candidate `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`; PR #17 merged at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; owner Windows/WPF acceptance Passed. |
-| Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | Automated evidence accepted in PR #19 comment `5705723428`; owner A–F acceptance Passed in comment `5715414940`; final controller closure comment `5715705712`; PR #19 CLOSED / MERGED at `861cfba1dfacbb3289395c0370f6d42765b6c223`. Accepted executable candidate remains from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`. |
-| M10 — Catalogue `.xlsx` | Closure-ready | WP1–WP5, owner A–L functional acceptance and final-delivery Excel bulk-paste/responsive Preview usability are PASS. Scenario I is accepted by evidence reuse rather than a fresh computer-B replay. Accepted runtime candidate is exact head `34e61c67785aa6c8c0ca84a545e31de30b17ac39`; PR #22 remains open/unmerged pending final controller closure and separate explicit owner merge approval. M11–M13 remain unauthorized. |
-| M11 — Gestion export | Not started | Unauthorized; pending M10. |
+| M04 — Order-entry vertical slice | Passed | Merged through PR #6 at `ab218263bd4eee9c1be203d36acc552988cef43a`. |
+| M05 — Lifecycle/payments/search/dashboard | Passed | Merged through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`. |
+| M06 — Local recovery/read-only enforcement | Passed | Merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`. |
+| M07 — Pairing, target-directed handoff and disaster recovery | Passed | PR #13 merged at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`; final multi-device owner acceptance Passed. |
+| M08 — Printing and reprinting | Passed | PR #14 merged at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`; physical/manual acceptance Passed. |
+| M09 — Hiboutik paste fallback | Passed | PR #17 merged at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; owner Windows/WPF acceptance Passed. |
+| Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | PR #19 merged at `861cfba1dfacbb3289395c0370f6d42765b6c223`; controller/owner acceptance complete. |
+| M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
+| M11 — Gestion intermediate export | Preparation | Readiness/spec/code-seam audit complete; owner-approved M11 clarification recorded; draft preparation PR #23 open; implementation NOT AUTHORIZED. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
 
 ## 3. Current merged baseline
 
-Current authoritative `main` baseline before M10 implementation:
+Current authoritative `main`:
 
-`861cfba1dfacbb3289395c0370f6d42765b6c223`
+`299df8b44a1959497ad46f861e44db32913b4d11`
 
-This is PR #19's merge commit.
+This is PR #22's M10 merge commit.
 
-Post-M09 closure facts:
+M10 closure facts:
 
-- PR #19: CLOSED / MERGED;
-- final closure head before merge: `d55e36a244327c55b81f6fb1040c0ef46dbe154a`;
-- owner final acceptance: PR #19 comment `5715414940`;
-- final controller closure acceptance: PR #19 comment `5715705712`;
-- Issue #18: CLOSED / completed.
+- PR #22: CLOSED / MERGED;
+- final documentation head before merge: `e4df426ac58243fbc29b2eb64b2d9adf7b7b9620`;
+- accepted runtime candidate: `34e61c67785aa6c8c0ca84a545e31de30b17ac39`;
+- owner A–L + final usability acceptance: PASS;
+- controller final closure: comment `5750090951`;
+- runtime exact-head CI run `35512075546`: success, 787/787, 0 warnings/errors;
+- documentation closure CI run `35513279968`: success, 787/787, 0 warnings/errors.
 
-Any older living wording saying PR #19 is OPEN/unmerged is stale state-accounting text and is superseded by GitHub merge metadata/current `main`. Historical PR/evidence text remains historical and is not rewritten.
+Historical M10 failures/repairs remain in the M10 worklog and PR #22 and are not rewritten here.
 
-## 4. M10 preparation/readiness and implementation state
+## 4. M11 preparation/readiness
 
-M10 primary ownership:
+Preparation line:
 
-- AC-CAT-008;
-- AC-CAT-009;
-- AC-CAT-010;
-- AC-CAT-011;
-- Catalogue portion of AC-ARCH-005.
+- branch: `prep/m11-gestion-export`;
+- draft PR: #23 — `M11 preparation: Gestion intermediate export readiness and contracts`;
+- production code changes: none;
+- schema changes: none yet;
+- executable `CODEX_HANDOFF_READY`: none.
 
-Preparation audit result:
+Primary acceptance ownership:
 
-- existing Domain/Application/SQLite/WPF Catalogue seams: PASS;
-- ClosedXML architecture selection: already Approved; one pinned/tested dependency may be added within authorized M10 implementation;
-- expected SQLite migration: none;
-- whole-import transaction boundary: dedicated one-transaction batch commit required;
-- missing workbook rows: mechanically no-delete through overlay planning;
-- authority/recovery: export/parse/preview are reads; commit must use centralized authority guard and one post-commit durable-change notification;
-- historical orders: current Catalogue import must not rewrite snapshots;
-- M11/M12/M13 boundaries: preserved.
+- AC-EXP-001 through AC-EXP-011;
+- AC-HIB-008 final Gestion-export exclusion cross-check;
+- export portion of AC-ARCH-005.
 
-WP1–WP5 implementation packages, owner A–L functional acceptance and the final-delivery usability checks are complete. Scenario I is accepted by prior/manual evidence reuse rather than a fresh computer-B replay. Historical Scenario C/G1 failures and their repair candidates remain preserved in the worklog and PR comments. The accepted runtime candidate is exact head `34e61c67785aa6c8c0ca84a545e31de30b17ac39`; its final Excel bulk-paste and responsive Preview checks are recorded as PASS in PR #22 comment `5750016695`. The remaining M10 scope is documentation/governance closure and final controller review; M10 is closure-ready but not merged, and M11–M13 remain unauthorized.
+Readiness result:
 
-## 5. M10 Category `short_code` owner decision
+- existing OrderSnapshot/lifecycle/payment/snapshot seams: reusable;
+- existing centralized authority/recovery seams: reusable;
+- M10 ClosedXML boundary: reusable as architecture/dependency precedent;
+- M11 requires a new versioned SQLite migration because no export batch/ledger/immutable payload history exists;
+- workbook contract remains fixed four-sheet schema version 1.0;
+- exact regeneration requires immutable emitted payload retained in SQLite;
+- M09 Hiboutik orders are explicitly excluded from every Gestion export action;
+- M12 archive and M13 packaging remain out of scope.
 
-The audit found one material gap because Category `short_code` became V1 business data after the original three-sheet workbook baseline.
+Owner-approved 2026-09-20 clarification:
 
-The project owner approved the proposed semantics on 2026-09-17.
+- Closed is the positive-sale lifecycle export gate; Open never emits CREATE/UPDATE;
+- existing exact-payment Close invariant remains unchanged;
+- SettlementDate uses effective payment business date, not merely Close/recording date;
+- UPDATE waits until current committed state is Closed;
+- CANCEL supersedes an un-emitted pending UPDATE;
+- CANCEL does not require current Closed/settled state;
+- workbook fields are fixed contract fields; operator selects order scope, not columns.
 
 Controlling records:
 
-- `decisions/m10-category-short-code-workbook-semantics.md`;
-- `acceptance-criteria-amendment-m10-category-short-code-workbook.md`;
-- aligned `catalogue-management.md`.
+- `decisions/m11-export-lifecycle-and-settlement-clarifications.md`;
+- `acceptance-criteria-amendment-m11-gestion-export.md`;
+- amended `export.md`;
+- `implementation/milestone-11-preparation-readiness.md`;
+- `implementation/milestone-11-gestion-export.md`;
+- `implementation/milestone-11-final-manual-acceptance.md`;
+- `implementation/milestone-11-worklog.md`;
+- `implementation/milestone-11-authorization.md` — **NOT AUTHORIZED**.
 
-Frozen behavior:
+Work-package plan:
 
-- visible Product-row Category name + Category short code;
-- no operator-facing Categories worksheet;
-- no operator-managed `category_id`;
-- new Category may be created with one optional consistent short code;
-- existing Category short code is preserve/consistency data only;
-- blank preserves; same normalized value is valid; different non-blank value blocks;
-- existing Category short code cannot be cleared/replaced by workbook import;
-- Category manager remains the global edit workflow;
-- conflicts are blocking Errors and therefore prevent the entire atomic import.
+1. WP1 — export state model, migration, selection and Application contracts;
+2. WP2 — ClosedXML workbook, validation, safe finalization and exact regeneration;
+3. WP3 — Desktop export workflow;
+4. WP4 — integration hardening and owner candidate.
 
-No material M10 business/spec decision remains open.
+No material M11 business/spec decision remains open.
 
-## 6. M10 implementation control package
-
-Finalized preparation head approved by owner:
-
-`6fda83115ccde97e8d0538205eff2b769b353f71`
-
-Implementation line:
-
-- branch: `codex/m10-catalogue-xlsx-authorized`;
-- PR #22 — `M10: Catalogue .xlsx import/export`;
-- owner implementation authorization: explicit `批准 M10 implementation` on 2026-09-17;
-- authorization record: `implementation/milestone-10-authorization.md` — **AUTHORIZED**;
-- preparation/readiness: `implementation/milestone-10-preparation-readiness.md` — complete;
-- implementation contract: `implementation/milestone-10-catalogue-xlsx.md`;
-- final manual acceptance checklist: `implementation/milestone-10-final-manual-acceptance.md` — OWNER A–L + FINAL USABILITY PASS / CLOSURE-READY;
-- worklog: `implementation/milestone-10-worklog.md`.
-
-Historical PR #21 is VOID/CLOSED and must not be used as a mailbox.
-
-## 7. Current gate state
+## 5. Current execution gate
 
 Issue #4 remains the sole Codex execution gate.
 
-M10 milestone implementation is authorized, but actual Codex execution is narrower:
+Current state:
 
-- Codex may execute only the exact handoff named by the live Issue #4 body while Issue #4 is OPEN;
-- historical handoff IDs and starting heads remain in their original PR/worklog records and are not rewritten by this living summary;
-- branch/PR/handoff pointer must match exactly;
-- a `CODEX_DONE` never authorizes another work package, merge or M11;
-- controller acceptance never auto-opens the next work package;
-- merge always requires separate explicit owner approval;
-- M11/M12/M13 remain unauthorized.
+- Issue #4: CLOSED;
+- active Codex handoff: none;
+- M11 implementation authorization: NOT GRANTED;
+- PR #23 is preparation/docs only and is not an executable mailbox;
+- no production M11 code/test/schema work may start yet;
+- M12/M13 remain unauthorized.
 
-## 8. Accepted M10 runtime candidate and closure evidence
+A separate explicit project-owner M11 implementation authorization is required before the controller may create the dedicated implementation branch/PR/mailbox and publish the first executable WP1 handoff. Only after branch/PR/handoff/Issue #4 pointers match may the gate be reopened.
 
-The accepted runtime candidate is preserved at the polish-25 exact head; documentation closure does not regenerate or replace it:
+## 6. Evidence preservation
 
-- source head: `34e61c67785aa6c8c0ca84a545e31de30b17ac39`;
-- EXE: `artifacts/m10-win-x64-final-polish-p25/Sushi81.Pos.Desktop.exe`, 162,816 bytes, SHA-256 `FD49066E245837F8664C76B48D8978405E5A2457BC859FB6C8C734B456192A82`;
-- ZIP: `artifacts/m10-win-x64-final-polish-p25.zip`, 69,962,650 bytes, SHA-256 `A53C639C84709274F56019F4B11FCE3AE58F10258174614FE7030912A3676AA2`;
-- focused workbook protection/paste evidence: 20/20 passed;
-- focused STA/WPF Preview evidence: 1/1 passed across 640×480, 940×700 and 1280×900 in fr-FR and zh-CN;
-- full Release solution: 787/787 passed; Release build: 0 warnings / 0 errors;
-- exact-head GitHub Actions run `35512075546`, job `106081601962`: success;
-- owner A–L functional acceptance and final-delivery usability PASS: PR #22 comment `5750016695` and Issue #4 closure record `5750020351`.
-
-M10 remains open/unmerged until the controller records final closure and the project owner separately approves merge. No CODEX_DONE or controller acceptance authorizes M11–M13.
-
-## 9. Evidence preservation
-
-Historical milestone worklogs, acceptance records, decision records, PR discussions and exact-head evidence remain authoritative in place. Current-state reconciliation changes only living status summaries; it does not rewrite historical failures, remediation or acceptance chronology.
+Historical milestone worklogs, acceptance records, decision records, PR discussions and exact-head evidence remain authoritative in place. Current-state reconciliation changes only this living summary.
