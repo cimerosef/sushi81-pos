@@ -144,7 +144,17 @@ V1 is fixed:
 
 Fields/data types remain those in `export.md`. Operators select order scope, not columns.
 
-CREATE/UPDATE carry complete committed order/line/tax snapshot rows. CANCEL is keyed by stable OrderId and does not require positive line/tax rows.
+Frozen mapping:
+
+- UnitBaseTTC = saved per-unit product base TTC;
+- OptionAdjustmentTTC = signed whole-line sum of saved per-unit adjustments × quantity;
+- LineTTC = persisted calculated line TTC;
+- OrderLines VATRate = saved product VAT rate;
+- TaxBreakdown TTC/VATAmount come from persisted tax buckets and TaxableHT = TTC - VATAmount.
+
+CREATE/UPDATE carry complete committed order/line/tax snapshot rows.
+
+CANCEL is keyed by stable OrderId, carries no positive line/tax rows and is anchored to the last successfully emitted positive snapshot so later un-emitted modifications cannot leak into the cancellation payload. Action/OrderStatus indicate cancellation; remaining Orders business fields reproduce the last emitted state being reversed.
 
 Historical values must come from persisted sale snapshots, never current Catalogue state.
 
@@ -193,7 +203,7 @@ For first positive export, explicitly include only ordinary `POS` source, curren
 
 Do not implement source eligibility as merely “not Hiboutik”; explicit POS inclusion is safer.
 
-Optional date filtering is inclusive and uses fulfilment/business date. It narrows CREATE and applicable corrections but never changes the underlying pending/export state.
+Optional date filtering is inclusive and uses fulfilment/business date. CREATE and UPDATE use the candidate current snapshot fulfilment date. CANCEL uses the last successfully emitted positive snapshot fulfilment date being reversed. The filter narrows the run but never changes underlying pending/export state.
 
 ## 11. Hiboutik boundary
 
@@ -234,7 +244,7 @@ Export-ledger/payload facts belong inside the authoritative live SQLite database
 
 Owner acceptance should be short and high-value:
 
-A. Mixed selection / CREATE contract — eligible Closed POS orders export; Open, Cancelled and Hiboutik orders do not; Excel shows four sheets and correct native numeric/date/text cell types.
+A. Mixed selection / CREATE contract — eligible Closed POS orders export; Open, Cancelled and Hiboutik orders do not; Excel shows four sheets, correct native numeric/date/text cell types and expected line/tax mapping.
 
 B. Optional inclusive date range + duplicate protection — boundary dates include correctly; second ordinary export does not repeat successful unchanged CREATE.
 
