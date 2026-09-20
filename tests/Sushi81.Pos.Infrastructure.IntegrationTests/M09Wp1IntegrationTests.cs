@@ -35,7 +35,7 @@ public sealed class M09Wp1IntegrationTests
         var snapshots = new RecordingSnapshotService();
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, snapshots).InitializeAsync();
 
-        Assert.AreEqual(7L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(8L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.HasCount(1, snapshots.Changes);
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM pragma_table_info('orders') WHERE name='source_total_ttc_cents';"));
         Assert.IsNull((await store.GetByIdAsync(existing.Id))!.SourceTotalTtc);
