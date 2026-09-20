@@ -134,14 +134,37 @@ Reopening issue #4 resumes queued work. Queued handoffs must be processed **seri
 
 When ChatGPT has completed review/design work, no user decision is required, and Codex should execute the next task, ChatGPT must:
 
-1. leave a top-level comment on the active implementation PR containing a unique marker:
+1. leave one new top-level comment on the active implementation PR whose **first line is exactly**:
 
    `CODEX_HANDOFF_READY: <unique-id>`
 
-2. include the complete executable Codex instruction in that same PR comment, or an unambiguous pointer to an authoritative committed implementation contract;
-3. optionally repeat the same marker at the end of the ChatGPT conversation response for human visibility.
+   The first line contains only that marker and unique ID. Do not append a SHA, branch, punctuation, status text or other metadata to the marker line.
+
+2. in the same PR comment, provide explicit fields immediately after the marker:
+
+   - `START_HEAD: <full 40-character commit SHA>`
+   - `BRANCH: <authorized implementation branch>`
+   - `PR: #<active implementation PR>`
+   - `SCOPE: <short package description>`
+
+3. include the complete executable Codex instruction in that same PR comment, or an unambiguous pointer to an authoritative committed implementation contract;
+4. optionally repeat the marker in the ChatGPT conversation response for human visibility.
+
+The PR top-level comment is the **only authoritative task mailbox entry**. Issue #4 remains the execution switch/status pointer and must not contain a competing full copy of the task instruction. It may name the currently active handoff ID and point to the authoritative PR comment.
 
 Every handoff ID is single-use. Codex must never process the same `CODEX_HANDOFF_READY` ID twice. Each distinct handoff ID must receive its own durable matching `CODEX_DONE: <same-id>` completion record; an older `CODEX_DONE` must not be edited or reused to represent a newer handoff.
+
+A historical READY whose ID already has a matching DONE is completed history, never active work.
+
+Before publishing a new executable handoff, ChatGPT/controller must read back and verify:
+
+- active PR is open;
+- authorized branch head equals `START_HEAD`;
+- no other uncompleted READY exists;
+- the immediately previous package has either been accepted or the new handoff is an explicit repair of it;
+- issue #4 state is consistent with intended execution.
+
+When a completed package is controller-accepted and the next package is already within durable owner authorization with no new user decision required, ChatGPT should publish the next handoff **in the same review turn** to avoid an unnecessary idle mailbox gap.
 
 The Execution Gate does not prevent ChatGPT from publishing handoffs. A handoff published while issue #4 is closed is queued, not cancelled.
 
