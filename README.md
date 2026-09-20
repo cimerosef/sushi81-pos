@@ -11,7 +11,7 @@ The approved V1 product, business, architecture, data, storage, paste-import, pr
 Formal freeze record: `docs/v1-specification-freeze.md`  
 Implementation acceptance contract: `docs/acceptance-criteria.md` plus approved acceptance amendments.
 
-M01 through M09 are **Passed and merged**.
+M01 through M10 are **Passed and merged**.
 
 Recent merge baselines:
 
@@ -20,11 +20,14 @@ Recent merge baselines:
 - M07 — Pairing, target-directed handoff and disaster recovery — merged through PR #13 at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`;
 - M08 — Printing and reprinting — merged through PR #14 at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`;
 - M09 — Hiboutik paste-order fallback — merged through PR #17 at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`;
-- Post-M09 — Hiboutik daily CB/Espèce dashboard — Passed/merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`.
+- Post-M09 — Hiboutik daily CB/Espèce dashboard — Passed/merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`;
+- M10 — Catalogue `.xlsx` import/export — Passed/merged through PR #22 at `299df8b44a1959497ad46f861e44db32913b4d11`.
 
 The accepted M09 production candidate remains `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`. The independent post-M09 dashboard accepted executable candidate remains sourced from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`; PR #19 final closure head was `d55e36a244327c55b81f6fb1040c0ef46dbe154a` before merge.
 
-M10 — Catalogue `.xlsx` import/export — is on PR #22 (`codex/m10-catalogue-xlsx-authorized`). WP1–WP5 are controller-accepted; owner Scenarios A and B passed, while Scenario C correctly blocked an attempted existing-Category short-code change but failed its required actionable preview guidance. The narrow diagnostic remediation is active; Scenario C must be owner-retested on its next candidate, D–L remain not run, PR #22 remains unmerged, and M10 is not marked Passed. Live Issue #4 controls later Codex execution. M11, M12 and M13 remain unauthorized.
+M10 is Passed/merged. Controller final closure is PR #22 comment `5750090951`; the accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`.
+
+M11 — Gestion intermediate export — is in documentation/specification **Preparation** on draft PR #23 / branch `prep/m11-gestion-export`. Readiness is complete, the 2026-09-20 export clarification is owner-approved, and the implementation/control/manual-acceptance package is prepared. M11 production implementation is **NOT AUTHORIZED** until a separate explicit project-owner implementation approval. Issue #4 remains CLOSED with no active Codex handoff. M12/M13 remain unauthorized.
 
 Controlling M09 records:
 
@@ -44,7 +47,7 @@ Controlling post-M09 dashboard records:
 - `docs/implementation/post-m09-hiboutik-daily-payment-dashboard.md`;
 - `docs/implementation/post-m09-hiboutik-daily-payment-dashboard-worklog.md`.
 
-Current M10 implementation package:
+M10 completed control package:
 
 - `docs/decisions/m10-category-short-code-workbook-semantics.md`;
 - `docs/acceptance-criteria-amendment-m10-category-short-code-workbook.md`;
@@ -53,6 +56,17 @@ Current M10 implementation package:
 - `docs/implementation/milestone-10-final-manual-acceptance.md`;
 - `docs/implementation/milestone-10-worklog.md`;
 - `docs/implementation/milestone-10-authorization.md` — AUTHORIZED; execution remains limited to the exact Issue #4 handoff.
+
+Current M11 preparation package:
+
+- `docs/decisions/m11-export-lifecycle-and-settlement-clarifications.md`;
+- `docs/acceptance-criteria-amendment-m11-gestion-export.md`;
+- amended `docs/export.md`;
+- `docs/implementation/milestone-11-preparation-readiness.md`;
+- `docs/implementation/milestone-11-gestion-export.md`;
+- `docs/implementation/milestone-11-final-manual-acceptance.md`;
+- `docs/implementation/milestone-11-worklog.md`;
+- `docs/implementation/milestone-11-authorization.md` — NOT AUTHORIZED.
 
 Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. OneDrive remains recovery/archive storage and historical diagnostic transport rather than the normal authority gate.
 
