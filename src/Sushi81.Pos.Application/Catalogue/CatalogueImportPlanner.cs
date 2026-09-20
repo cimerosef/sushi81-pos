@@ -51,9 +51,12 @@ public sealed class CatalogueImportPlanner
         foreach (var row in workbook.Products ?? [])
         {
             var identity = ResolveIdentity(mode, "Product", row.ProductId, row.ProductRowKey, row.ExcelRow, "Products", manifest, seenKeys, seenIds, issues);
-            var current = identity.Id is { } productId && productsById.TryGetValue(productId, out var existing) ? existing : null;
-            if (identity.IsExisting && current is null)
+            var current = !identity.IsInvalidExisting && identity.Id is { } productId && productsById.TryGetValue(productId, out var existing) ? existing : null;
+            if (identity.Id is { } suppliedProductId && !productsById.ContainsKey(suppliedProductId))
+            {
                 AddError(issues, "unknown-entity-id", "Product identity is not present in the current Catalogue.", "Products", row.ExcelRow, "product_id");
+                identity = identity with { IsInvalidExisting = true };
+            }
 
             var localKey = identity.IsExisting ? $"product:{identity.Id!.Value:N}" : NewLocalKey("product", row.ExcelRow, row.ProductCode, row.ProductName);
             var code = Display(row.ProductCode);
@@ -95,7 +98,7 @@ public sealed class CatalogueImportPlanner
             candidate = PreserveLiveWhenWorkbookUnchanged(candidate, manifest);
             productCandidates.Add(candidate);
             productByLocalKey[localKey] = candidate;
-            if (identity.Id is { } existingId) productByExistingId[existingId] = candidate;
+            if (identity.IsExisting && !identity.IsInvalidExisting && identity.Id is { } existingId) productByExistingId[existingId] = candidate;
 
             if (identity.IsExisting && current is not null)
                 ValidateProductStaleness(candidate, manifest, issues);
@@ -103,8 +106,8 @@ public sealed class CatalogueImportPlanner
 
         // A resulting catalogue contains omitted current Products unchanged.
         var resultingProducts = new List<ProductCandidate>();
-        resultingProducts.AddRange(productCandidates);
-        foreach (var current in currentProducts.Where(value => productCandidates.All(candidate => candidate.Identity.Id != value.Id)))
+        resultingProducts.AddRange(productCandidates.Where(candidate => !candidate.Identity.IsInvalidExisting));
+        foreach (var current in currentProducts.Where(value => productCandidates.All(candidate => !candidate.Identity.IsExisting || candidate.Identity.IsInvalidExisting || candidate.Identity.Id != value.Id)))
             resultingProducts.Add(ProductCandidate.FromCurrent(current));
 
         var codeGroups = resultingProducts.Where(value => value.Code.Length > 0)
@@ -123,9 +126,12 @@ public sealed class CatalogueImportPlanner
         foreach (var row in workbook.OptionGroups ?? [])
         {
             var identity = ResolveIdentity(mode, "OptionGroup", row.OptionGroupId, row.OptionGroupRowKey, row.ExcelRow, "OptionGroups", manifest, seenKeys, seenIds, issues);
-            var current = identity.Id is { } groupId && groupsById.TryGetValue(groupId, out var existing) ? existing : null;
-            if (identity.IsExisting && current is null)
+            var current = !identity.IsInvalidExisting && identity.Id is { } groupId && groupsById.TryGetValue(groupId, out var existing) ? existing : null;
+            if (identity.Id is { } suppliedGroupId && !groupsById.ContainsKey(suppliedGroupId))
+            {
                 AddError(issues, "unknown-entity-id", "OptionGroup identity is not present in the current Catalogue.", "OptionGroups", row.ExcelRow, "option_group_id");
+                identity = identity with { IsInvalidExisting = true };
+            }
 
             var product = ResolveProductParent(row.ProductRowKey, row.ProductCode, row.ProductName, mode, identity, current?.ProductId, productCandidates, resultingProducts, manifest, issues, "OptionGroups", row.ExcelRow);
             var localKey = identity.IsExisting ? $"group:{identity.Id!.Value:N}" : NewLocalKey("group", row.ExcelRow, row.GroupName, row.ProductCode);
@@ -145,8 +151,8 @@ public sealed class CatalogueImportPlanner
         }
 
         var resultingGroups = new List<GroupCandidate>();
-        resultingGroups.AddRange(groupCandidates);
-        foreach (var current in currentProducts.SelectMany(value => value.OptionGroups).Where(value => groupCandidates.All(candidate => candidate.Identity.Id != value.Id)))
+        resultingGroups.AddRange(groupCandidates.Where(candidate => !candidate.IsInvalidForResult));
+        foreach (var current in currentProducts.SelectMany(value => value.OptionGroups).Where(value => groupCandidates.All(candidate => !candidate.Identity.IsExisting || candidate.IsInvalidForResult || candidate.Identity.Id != value.Id)))
         {
             var parent = resultingProducts.FirstOrDefault(value => value.Identity.Id == current.ProductId) ?? ProductCandidate.FromCurrent(currentProducts.Single(value => value.Id == current.ProductId));
             resultingGroups.Add(GroupCandidate.FromCurrent(current, parent));
@@ -156,9 +162,12 @@ public sealed class CatalogueImportPlanner
         foreach (var row in workbook.Options ?? [])
         {
             var identity = ResolveIdentity(mode, "Option", row.OptionId, row.OptionRowKey, row.ExcelRow, "Options", manifest, seenKeys, seenIds, issues);
-            var current = identity.Id is { } optionId && optionsById.TryGetValue(optionId, out var existing) ? existing : null;
-            if (identity.IsExisting && current is null)
+            var current = !identity.IsInvalidExisting && identity.Id is { } optionId && optionsById.TryGetValue(optionId, out var existing) ? existing : null;
+            if (identity.Id is { } suppliedOptionId && !optionsById.ContainsKey(suppliedOptionId))
+            {
                 AddError(issues, "unknown-entity-id", "Option identity is not present in the current Catalogue.", "Options", row.ExcelRow, "option_id");
+                identity = identity with { IsInvalidExisting = true };
+            }
             var parent = ResolveGroupParent(row.ProductRowKey, row.OptionGroupRowKey, row.ProductCode, row.ProductName, row.OptionGroupName, mode, identity, current?.OptionGroupId, groupCandidates, resultingGroups, productCandidates, resultingProducts, manifest, issues, "Options", row.ExcelRow);
             var optionName = Display(row.OptionName);
             if (optionName.Length == 0) AddError(issues, "required-field", "Option name is required.", "Options", row.ExcelRow, "option_name");
@@ -174,8 +183,8 @@ public sealed class CatalogueImportPlanner
         }
 
         var resultingOptions = new List<OptionCandidate>();
-        resultingOptions.AddRange(optionCandidates);
-        foreach (var current in currentProducts.SelectMany(value => value.OptionGroups).SelectMany(value => value.Options).Where(value => optionCandidates.All(candidate => candidate.Identity.Id != value.Id)))
+        resultingOptions.AddRange(optionCandidates.Where(candidate => !candidate.IsInvalidForResult));
+        foreach (var current in currentProducts.SelectMany(value => value.OptionGroups).SelectMany(value => value.Options).Where(value => optionCandidates.All(candidate => !candidate.Identity.IsExisting || candidate.IsInvalidForResult || candidate.Identity.Id != value.Id)))
         {
             var group = resultingGroups.FirstOrDefault(value => value.Id == current.OptionGroupId)
                 ?? resultingGroups.First(value => value.Current?.Id == current.OptionGroupId);
@@ -190,6 +199,7 @@ public sealed class CatalogueImportPlanner
         var affected = new List<CatalogueImportAffectedRow>();
         foreach (var candidate in productCandidates)
         {
+            if (candidate.IsInvalidForResult) continue;
             var kinds = new List<CatalogueImportOperationKind>();
             if (!candidate.Identity.IsExisting) kinds.Add(CatalogueImportOperationKind.Create);
             else if (candidate.Current is not null && ProductChanged(candidate)) kinds.Add(CatalogueImportOperationKind.Modify);
@@ -201,6 +211,7 @@ public sealed class CatalogueImportPlanner
         }
         foreach (var candidate in groupCandidates)
         {
+            if (candidate.IsInvalidForResult) continue;
             var kinds = new List<CatalogueImportOperationKind>();
             if (!candidate.Identity.IsExisting) kinds.Add(CatalogueImportOperationKind.Create);
             else if (candidate.Current is not null && GroupChanged(candidate)) kinds.Add(CatalogueImportOperationKind.Modify);
@@ -210,6 +221,7 @@ public sealed class CatalogueImportPlanner
         }
         foreach (var candidate in optionCandidates)
         {
+            if (candidate.IsInvalidForResult) continue;
             var kinds = new List<CatalogueImportOperationKind>();
             if (!candidate.Identity.IsExisting) kinds.Add(CatalogueImportOperationKind.Create);
             else if (candidate.Current is not null && OptionChanged(candidate)) kinds.Add(CatalogueImportOperationKind.Modify);
@@ -246,33 +258,66 @@ public sealed class CatalogueImportPlanner
     {
         var hasId = !string.IsNullOrWhiteSpace(idText);
         var hasKey = !string.IsNullOrWhiteSpace(rowKey);
+        var invalidExisting = false;
         if (mode == CatalogueImportMode.AddOnly && (hasId || hasKey))
+        {
             AddError(issues, "add-only-existing-binding", "Add-only rows must not contain existing entity identity or binding.", worksheet, row, hasId ? "entity-id" : "row-key");
+            invalidExisting = true;
+        }
         Guid? id = null;
         if (hasId)
         {
             if (!Guid.TryParse(idText, out var parsed) || parsed == Guid.Empty)
+            {
                 AddError(issues, "malformed-entity-id", "Entity identity is malformed.", worksheet, row, "entity-id");
-            else if (!seenIds.Add(parsed)) AddError(issues, "duplicate-entity-id", "Entity identity is duplicated in the workbook.", worksheet, row, "entity-id");
+                invalidExisting = true;
+            }
+            else if (!seenIds.Add(parsed))
+            {
+                AddError(issues, "duplicate-entity-id", "Entity identity is duplicated in the workbook.", worksheet, row, "entity-id");
+                invalidExisting = true;
+            }
             else id = parsed;
         }
-        if (hasKey && !seenKeys.Add(rowKey!)) AddError(issues, "duplicate-row-key", "Row binding key is duplicated in the workbook.", worksheet, row, "row-key");
+        if (hasKey && !seenKeys.Add(rowKey!))
+        {
+            AddError(issues, "duplicate-row-key", "Row binding key is duplicated in the workbook.", worksheet, row, "row-key");
+            invalidExisting = true;
+        }
         if (hasId != hasKey && mode == CatalogueImportMode.Update)
+        {
             AddError(issues, "misbound-identity", "Existing entity identity and row binding must be supplied together.", worksheet, row, "row-key");
+            invalidExisting = true;
+        }
         CatalogueImportManifestEntry? entry = null;
         if (hasKey)
         {
-            if (!manifest.TryGetValue(rowKey!, out entry)) AddError(issues, "unknown-row-key", "Row binding key is not present in the workbook manifest.", worksheet, row, "row-key");
-            else if (!string.Equals(entry.EntityType, type, StringComparison.Ordinal)) AddError(issues, "wrong-entity-type", "Row binding entity type is incorrect.", worksheet, row, "row-key");
-            else if (id is { } parsed && entry.EntityId != parsed) AddError(issues, "misbound-identity", "Entity identity does not match its manifest binding.", worksheet, row, "entity-id");
+            if (!manifest.TryGetValue(rowKey!, out entry))
+            {
+                AddError(issues, "unknown-row-key", "Row binding key is not present in the workbook manifest.", worksheet, row, "row-key");
+                invalidExisting = true;
+            }
+            else if (!string.Equals(entry.EntityType, type, StringComparison.Ordinal))
+            {
+                AddError(issues, "wrong-entity-type", "Row binding entity type is incorrect.", worksheet, row, "row-key");
+                invalidExisting = true;
+            }
+            else if (id is { } parsed && entry.EntityId != parsed)
+            {
+                AddError(issues, "misbound-identity", "Entity identity does not match its manifest binding.", worksheet, row, "entity-id");
+                invalidExisting = true;
+            }
         }
-        return new Identity(id, id is not null && hasId && hasKey && entry is not null && string.Equals(entry.EntityType, type, StringComparison.Ordinal), hasKey ? rowKey : null);
+        var isExisting = id is not null && hasId && hasKey && entry is not null && string.Equals(entry.EntityType, type, StringComparison.Ordinal) && !invalidExisting;
+        return new Identity(id, isExisting, hasKey ? rowKey : null, invalidExisting);
     }
 
     private static ProductCandidate ResolveProductParent(string? parentRowKey, string? code, string? name, CatalogueImportMode mode, Identity childIdentity, Guid? existingParentId,
         IReadOnlyList<ProductCandidate> explicitProducts, IReadOnlyList<ProductCandidate> resultingProducts, IReadOnlyDictionary<string, CatalogueImportManifestEntry> manifest,
         List<CatalogueImportIssue> issues, string worksheet, int row)
     {
+        if (childIdentity.IsInvalidExisting)
+            return ProductCandidate.Placeholder(code);
         if (childIdentity.IsExisting && existingParentId is { } parentId)
         {
             var bound = explicitProducts.FirstOrDefault(value => value.Identity.Id == parentId) ?? resultingProducts.FirstOrDefault(value => value.Identity.Id == parentId);
@@ -288,9 +333,13 @@ public sealed class CatalogueImportPlanner
         }
 
         var key = CatalogueNormalization.Key(code);
+        if (explicitProducts.Any(value => value.Identity.IsInvalidExisting && string.Equals(value.NormalizedCode, key, StringComparison.Ordinal)))
+            return ProductCandidate.Placeholder(code);
         var matches = resultingProducts.Where(value => string.Equals(CatalogueNormalization.Key(value.Code), key, StringComparison.Ordinal)).ToArray();
         if (matches.Length != 1)
+        {
             AddError(issues, matches.Length == 0 ? "missing-parent" : "ambiguous-parent", "Parent Product must resolve to exactly one Product by normalized code.", worksheet, row, "product_code");
+        }
         var resolved = matches.FirstOrDefault() ?? ProductCandidate.Placeholder(code);
         ValidateProductDescriptors(code, name, resolved, null, issues, worksheet, row);
         return resolved;
@@ -300,6 +349,8 @@ public sealed class CatalogueImportPlanner
         IReadOnlyList<GroupCandidate> explicitGroups, IReadOnlyList<GroupCandidate> resultingGroups, IReadOnlyList<ProductCandidate> explicitProducts, IReadOnlyList<ProductCandidate> resultingProducts,
         IReadOnlyDictionary<string, CatalogueImportManifestEntry> manifest, List<CatalogueImportIssue> issues, string worksheet, int row)
     {
+        if (childIdentity.IsInvalidExisting)
+            return new GroupParent(GroupCandidate.Placeholder(ProductCandidate.Placeholder(productCode), groupName));
         if (childIdentity.IsExisting && existingGroupId is { } groupId)
         {
             var bound = explicitGroups.FirstOrDefault(value => value.Identity.Id == groupId) ?? resultingGroups.FirstOrDefault(value => value.Id == groupId);
@@ -316,7 +367,10 @@ public sealed class CatalogueImportPlanner
             }
         }
 
-        var products = resultingProducts.Where(value => string.Equals(value.NormalizedCode, CatalogueNormalization.Key(productCode), StringComparison.Ordinal)).ToArray();
+        var normalizedProductCode = CatalogueNormalization.Key(productCode);
+        if (explicitProducts.Any(value => value.Identity.IsInvalidExisting && string.Equals(value.NormalizedCode, normalizedProductCode, StringComparison.Ordinal)))
+            return new GroupParent(GroupCandidate.Placeholder(ProductCandidate.Placeholder(productCode), groupName));
+        var products = resultingProducts.Where(value => string.Equals(value.NormalizedCode, normalizedProductCode, StringComparison.Ordinal)).ToArray();
         if (products.Length != 1)
         {
             AddError(issues, products.Length == 0 ? "missing-parent" : "ambiguous-parent", "Parent Product must resolve to exactly one Product by normalized code.", worksheet, row, "product_code");
@@ -324,7 +378,11 @@ public sealed class CatalogueImportPlanner
         }
         var groups = resultingGroups.Where(value => value.Product.Id == products[0].Id && string.Equals(CatalogueNormalization.Key(value.Name), CatalogueNormalization.Key(groupName), StringComparison.Ordinal)).ToArray();
         if (groups.Length != 1)
+        {
+            if (groups.Length == 0 && explicitGroups.Any(value => value.Identity.IsInvalidExisting && value.Product.Id == products[0].Id && string.Equals(CatalogueNormalization.Key(value.Name), CatalogueNormalization.Key(groupName), StringComparison.Ordinal)))
+                return new GroupParent(GroupCandidate.Placeholder(products[0], groupName));
             AddError(issues, groups.Length == 0 ? "missing-parent" : "ambiguous-parent", "Parent OptionGroup must resolve to exactly one group by exact normalized name.", worksheet, row, "option_group_name");
+        }
         var resolvedGroup = groups.FirstOrDefault() ?? GroupCandidate.Placeholder(products[0], groupName);
         ValidateOptionParentDescriptors(productCode, productName, groupName, resolvedGroup, null, issues, worksheet, row);
         return new GroupParent(resolvedGroup);
@@ -425,6 +483,7 @@ public sealed class CatalogueImportPlanner
 
     private static void ValidateCategories(IReadOnlyList<ProductCandidate> products, IReadOnlyList<CatalogueImportCategory> current, IReadOnlyDictionary<string, CatalogueImportCategory[]> currentByName, List<CatalogueImportIssue> issues)
     {
+        products = products.Where(value => !value.Identity.IsInvalidExisting).ToArray();
         foreach (var group in products.GroupBy(value => CatalogueNormalization.Key(value.CategoryName), StringComparer.Ordinal))
         {
             var proposals = group.Select(value => NormalizeOptional(value.Row.CategoryShortCode)).Where(value => value is not null).Select(CatalogueNormalization.Key).Distinct(StringComparer.Ordinal).ToArray();
@@ -499,7 +558,7 @@ public sealed class CatalogueImportPlanner
     private static IReadOnlyList<CatalogueImportPlannedCategory> NewCategories(IReadOnlyList<ProductCandidate> products, IReadOnlyList<CatalogueImportCategory> current)
     {
         var currentNames = current.Select(value => value.NormalizedName).ToHashSet(StringComparer.Ordinal);
-        return products.GroupBy(value => CatalogueNormalization.Key(value.CategoryName), StringComparer.Ordinal)
+        return products.Where(value => !value.Identity.IsInvalidExisting).GroupBy(value => CatalogueNormalization.Key(value.CategoryName), StringComparer.Ordinal)
             .Where(group => group.Key.Length > 0 && !currentNames.Contains(group.Key))
             .Select(group =>
             {
@@ -563,11 +622,12 @@ public sealed class CatalogueImportPlanner
     private static string InferCode(string message) => message.Contains("required", StringComparison.OrdinalIgnoreCase) ? "required-field" : message.Contains("VAT", StringComparison.OrdinalIgnoreCase) ? "vat-range" : message.Contains("price", StringComparison.OrdinalIgnoreCase) ? "price-negative" : message.Contains("Option", StringComparison.OrdinalIgnoreCase) ? "invalid-option-structure" : "invalid-group-structure";
     private static void AddError(List<CatalogueImportIssue> issues, string code, string message, string? worksheet = null, int? row = null, string? field = null) => issues.Add(new(CatalogueImportIssueSeverity.Error, code, message, worksheet, row, field));
 
-    private sealed record Identity(Guid? Id, bool IsExisting, string? Key = null);
+    private sealed record Identity(Guid? Id, bool IsExisting, string? Key = null, bool IsInvalidExisting = false);
     private sealed record GroupParent(GroupCandidate Group);
     private abstract record RowBase(int ExcelRow, string Worksheet);
     private sealed record ProductCandidate(CatalogueImportProductRow Row, Identity Identity, string LocalKey, CatalogueImportBaselineProduct? Current, CatalogueImportCategory? Category, Guid CategoryId, string Code, string Name, string CategoryName, string? CategoryShortCode, Money PriceTtc, decimal VatRate, bool IsActive, bool DiscountEligible, bool OptionsEnabled) : RowBase(Row.ExcelRow, "Products")
     {
+        public bool IsInvalidForResult => Identity.IsInvalidExisting;
         public Guid Id => Identity.Id ?? DeterministicGuid(LocalKey);
         public CatalogueImportEntityReference EntityReference => Identity.IsExisting
             ? CatalogueImportEntityReference.Existing(Identity.Id!.Value, LocalKey)
@@ -582,6 +642,7 @@ public sealed class CatalogueImportPlanner
     }
     private sealed record GroupCandidate(CatalogueImportOptionGroupRow Row, Identity Identity, string LocalKey, CatalogueImportBaselineOptionGroup? Current, ProductCandidate Product, string Name, SelectionMode SelectionMode, bool IsRequired, int? MinSelections, int? MaxSelections, int DisplayOrder) : RowBase(Row.ExcelRow, "OptionGroups")
     {
+        public bool IsInvalidForResult => Identity.IsInvalidExisting || Product.LocalKey == "product:placeholder";
         public Guid Id => Identity.Id ?? DeterministicGuid(LocalKey);
         public CatalogueImportEntityReference EntityReference => Identity.IsExisting
             ? CatalogueImportEntityReference.Existing(Identity.Id!.Value, LocalKey)
@@ -592,6 +653,7 @@ public sealed class CatalogueImportPlanner
     }
     private sealed record OptionCandidate(CatalogueImportOptionRow Row, Identity Identity, string LocalKey, CatalogueImportBaselineOption? Current, GroupParent Parent, string Name, Money PriceAdjustmentTtc, bool IsActive, int DisplayOrder) : RowBase(Row.ExcelRow, "Options")
     {
+        public bool IsInvalidForResult => Identity.IsInvalidExisting || Parent.Group.LocalKey == "group:placeholder" || Parent.Group.Product.LocalKey == "product:placeholder";
         public Guid Id => Identity.Id ?? DeterministicGuid(LocalKey);
         public CatalogueImportEntityReference EntityReference => Identity.IsExisting
             ? CatalogueImportEntityReference.Existing(Identity.Id!.Value, LocalKey)

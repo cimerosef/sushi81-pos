@@ -158,6 +158,53 @@ public sealed class CatalogueImportPlannerEvidenceTests
     }
 
     [TestMethod]
+    public void InvalidExistingIdentityNeverFallsThroughToCreateOrCascade()
+    {
+        var categoryId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var optionId = Guid.NewGuid();
+        var category = new CatalogueImportCategory(categoryId, "Plats", null);
+        var current = Product(productId, "P-1", "Product", categoryId, "Plats", null, optionsEnabled: true,
+            [new CatalogueImportBaselineOptionGroup(groupId, productId, "Extras", SelectionMode.Multi, false, 0, 1, 0,
+                [new CatalogueImportBaselineOption(optionId, groupId, "Sauce", Money.Zero, true, 0)])]);
+        var baseline = new CatalogueImportBaseline([category], [current]);
+        var productExport = WorkbookProduct(current);
+        var groupExport = new CatalogueWorkbookOptionGroup(groupId, productId, "P-1", "Product", "Extras", SelectionMode.Multi, false, 0, 1, 0, []);
+        var optionExport = new CatalogueWorkbookOption(optionId, groupId, "P-1", "Product", "Extras", "Sauce", Money.Zero, true, 0);
+        var bindings = new[]
+        {
+            ProductManifest(productId, productExport),
+            new CatalogueImportManifestEntry("OptionGroup", $"group:{groupId:N}", groupId, $"product:{productId:N}", "OptionGroups", 2, CatalogueWorkbookFingerprint.OptionGroup(groupExport), CatalogueWorkbookFingerprint.ParentProduct("P-1", "Product")),
+            new CatalogueImportManifestEntry("Option", $"option:{optionId:N}", optionId, $"group:{groupId:N}", "Options", 2, CatalogueWorkbookFingerprint.Option(optionExport), CatalogueWorkbookFingerprint.ParentOptionGroup("P-1", "Product", "Extras"))
+        };
+
+        var malformedProduct = new CatalogueImportWorkbook(CatalogueWorkbookSchema.ContractVersion,
+            [ProductRow(2, productExport, $"product:{productId:N}", Guid.Empty) with { ProductId = "NOT-A-GUID" }],
+            [new CatalogueImportOptionGroupRow(2, "P-1", "Product", "Extras", "MULTI", false, 0, 1, 0, null, null, null, null)],
+            [new CatalogueImportOptionRow(2, "P-1", "Product", "Extras", "Sauce", Money.Zero, true, 0, null, null, null, null, null)],
+            bindings, []);
+        var malformedProductResult = new CatalogueImportPlanner().Plan(CatalogueImportMode.Update, malformedProduct, baseline);
+        Assert.AreEqual(0, malformedProductResult.Preview.ProductCreateCount);
+        Assert.AreEqual(0, malformedProductResult.Preview.OptionGroupCreateCount);
+        Assert.AreEqual(0, malformedProductResult.Preview.OptionCreateCount);
+        Assert.AreEqual(0, malformedProductResult.Preview.NewCategoryCount);
+        Assert.IsFalse(malformedProductResult.Preview.Issues.Any(issue => issue.Code is "missing-parent" or "ambiguous-parent"));
+
+        var malformedGroup = new CatalogueImportWorkbook(CatalogueWorkbookSchema.ContractVersion, [],
+            [new CatalogueImportOptionGroupRow(2, "P-1", "Product", "Extras", "MULTI", false, 0, 1, 0, $"product:{productId:N}", $"group:{groupId:N}", productId.ToString("D"), "NOT-A-GUID")], [], bindings, []);
+        var malformedGroupResult = new CatalogueImportPlanner().Plan(CatalogueImportMode.Update, malformedGroup, baseline);
+        Assert.AreEqual(0, malformedGroupResult.Preview.OptionGroupCreateCount);
+        Assert.IsFalse(malformedGroupResult.Preview.Issues.Any(issue => issue.Code is "missing-parent" or "ambiguous-parent"));
+
+        var malformedOption = new CatalogueImportWorkbook(CatalogueWorkbookSchema.ContractVersion, [], [],
+            [new CatalogueImportOptionRow(2, "P-1", "Product", "Extras", "Sauce", Money.Zero, true, 0, $"product:{productId:N}", $"group:{groupId:N}", $"option:{optionId:N}", "NOT-A-GUID", groupId.ToString("D"))], bindings, []);
+        var malformedOptionResult = new CatalogueImportPlanner().Plan(CatalogueImportMode.Update, malformedOption, baseline);
+        Assert.AreEqual(0, malformedOptionResult.Preview.OptionCreateCount);
+        Assert.IsFalse(malformedOptionResult.Preview.Issues.Any(issue => issue.Code is "missing-parent" or "ambiguous-parent"));
+    }
+
+    [TestMethod]
     public void NewAndExistingParentResolutionIsExplicitAndAmbiguityBlocks()
     {
         var categoryId = Guid.NewGuid();
