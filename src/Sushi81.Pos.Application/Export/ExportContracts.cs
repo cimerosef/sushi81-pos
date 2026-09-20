@@ -72,7 +72,13 @@ public sealed record ExportOrderPayload(
     IReadOnlyList<ExportTaxPayload> TaxBreakdown)
 {
     public ExportOrderPayload WithAction(ExportAction action, string? orderStatus = null) =>
-        this with { Action = action, OrderStatus = orderStatus ?? OrderStatus };
+        this with
+        {
+            Action = action,
+            OrderStatus = orderStatus ?? OrderStatus,
+            Lines = action == ExportAction.Cancel ? Array.Empty<ExportLinePayload>() : Lines,
+            TaxBreakdown = action == ExportAction.Cancel ? Array.Empty<ExportTaxPayload>() : TaxBreakdown
+        };
 }
 
 public sealed record ExportLinePayload(
@@ -157,7 +163,7 @@ public interface IExportLedgerStore
 {
     Task<IReadOnlyList<ExportEmissionRecord>> ListLatestSuccessfulEmissionsAsync(CancellationToken cancellationToken = default);
     Task PrepareBatchAsync(ExportBatchRecord batch, CancellationToken cancellationToken = default);
-    Task MarkBatchSucceededAsync(Guid batchId, IReadOnlyList<ExportEmissionRecord> emissions, DateTimeOffset completedAtUtc, CancellationToken cancellationToken = default);
+    Task MarkBatchSucceededAsync(Guid batchId, DateTimeOffset completedAtUtc, CancellationToken cancellationToken = default);
 }
 
 public static class ExportPayloadSerializer
@@ -181,6 +187,9 @@ public static class ExportPayloadSerializer
     public static string SerializePositive(ExportOrderPayload payload) =>
         JsonSerializer.Serialize(payload with { Action = ExportAction.Create }, JsonOptions);
 
+    public static string SerializeAction(ExportOrderPayload payload) =>
+        JsonSerializer.Serialize(payload ?? throw new ArgumentNullException(nameof(payload)), JsonOptions);
+
     public static string ComputeSha256(string canonicalJson)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(canonicalJson);
@@ -193,6 +202,13 @@ public static class ExportPayloadSerializer
         var payload = JsonSerializer.Deserialize<ExportOrderPayload>(json, JsonOptions)
             ?? throw new InvalidDataException("The durable export positive snapshot payload is empty.");
         return payload with { Action = ExportAction.Create };
+    }
+
+    public static ExportBatchPayload DeserializeBatch(string json)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(json);
+        return JsonSerializer.Deserialize<ExportBatchPayload>(json, JsonOptions)
+            ?? throw new InvalidDataException("The durable export batch payload is empty.");
     }
 }
 
@@ -481,20 +497,7 @@ public sealed class GestionExportService(
             throw new ArgumentException("Only a prepared batch can be marked successful.", nameof(batch));
 
         await using var authorityScope = await authorityGuard.EnterWriteScopeAsync(cancellationToken);
-        var emissions = batch.Payload.Orders.Select(order =>
-        {
-            var positive = order with { Action = ExportAction.Create };
-            return new ExportEmissionRecord(
-                batch.Payload.Meta.BatchId,
-                order.OrderId,
-                order.Action,
-                ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializePositive(positive)),
-                positive,
-                positive.FulfilmentDate,
-                positive.SettlementDate,
-                completedAtUtc);
-        }).ToArray();
-        await ledger.MarkBatchSucceededAsync(batch.Payload.Meta.BatchId, emissions, completedAtUtc, cancellationToken);
+        await ledger.MarkBatchSucceededAsync(batch.Payload.Meta.BatchId, completedAtUtc, cancellationToken);
         await notifier.NotifyCommittedAsync(cancellationToken);
     }
 }

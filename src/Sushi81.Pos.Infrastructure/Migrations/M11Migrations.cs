@@ -23,6 +23,14 @@ public static class M11Migrations
                 payload_hash TEXT NOT NULL,
                 completed_at_utc TEXT NULL
             );
+            CREATE TABLE export_batch_orders (
+                batch_id TEXT NOT NULL REFERENCES export_batches(batch_id) ON DELETE CASCADE,
+                order_id TEXT NOT NULL,
+                action TEXT NOT NULL CHECK(action IN ('CREATE','UPDATE','CANCEL')),
+                action_payload_hash TEXT NOT NULL,
+                expected_previous_positive_hash TEXT NULL,
+                PRIMARY KEY(batch_id, order_id)
+            );
             CREATE TABLE export_emissions (
                 emission_id TEXT NOT NULL PRIMARY KEY,
                 batch_id TEXT NOT NULL REFERENCES export_batches(batch_id) ON DELETE RESTRICT,
@@ -39,6 +47,8 @@ public static class M11Migrations
                 ON export_emissions(order_id, emitted_at_utc DESC, emission_id DESC);
             CREATE INDEX ix_export_batches_status_time
                 ON export_batches(status, generated_at_utc DESC, batch_id DESC);
+            CREATE INDEX ix_export_batch_orders_order
+                ON export_batch_orders(order_id, batch_id);
             """)
     ];
 }

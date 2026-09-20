@@ -80,6 +80,56 @@ public sealed class M11ExportSelectionTests
         Assert.AreEqual(ExportAction.Cancel, cancel.Actions[0].Action);
         Assert.AreEqual(emittedPositive.Comment, cancel.Actions[0].Comment);
         Assert.AreEqual("CANCELLED", cancel.Actions[0].OrderStatus);
+        Assert.AreEqual(emittedPositive.TotalTtcCents, cancel.Actions[0].TotalTtcCents);
+        Assert.AreEqual(emittedPositive.FulfilmentDate, cancel.Actions[0].FulfilmentDate);
+        Assert.AreEqual(emittedPositive.SettlementDate, cancel.Actions[0].SettlementDate);
+        Assert.IsEmpty(cancel.Actions[0].Lines);
+        Assert.IsEmpty(cancel.Actions[0].TaxBreakdown);
+    }
+
+    [TestMethod]
+    public void InitialCancelledOrderIsExcludedAndRestoredCanonicalSnapshotDoesNotCreateUpdate()
+    {
+        var cancelledId = Guid.Parse("13100000-0000-0000-0000-000000000001");
+        Assert.IsEmpty(ExportSelectionRules.Select(
+            [Source(cancelledId, OrderStatus.Cancelled, OrderSourceType.Pos, 1000)],
+            [],
+            new ExportSelectionOptions(),
+            Utc).Actions);
+
+        var orderId = Guid.Parse("13100000-0000-0000-0000-000000000002");
+        var source = Source(orderId, OrderStatus.Closed, OrderSourceType.Pos, 1000);
+        Assert.IsTrue(ExportSelectionRules.TryBuildPositivePayload(source, Utc, out var positive, out _));
+        var history = new ExportEmissionRecord(
+            Guid.Parse("13100000-0000-0000-0000-000000000099"),
+            orderId,
+            ExportAction.Create,
+            ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializePositive(positive)),
+            positive,
+            positive.FulfilmentDate,
+            positive.SettlementDate,
+            DateTimeOffset.UtcNow);
+
+        Assert.IsEmpty(ExportSelectionRules.Select([source], [history], new ExportSelectionOptions(), Utc).Actions);
+    }
+
+    [TestMethod]
+    public void ZeroTotalClosedOrderUsesBusinessLocalClosedAtDate()
+    {
+        var source = Source(Guid.Parse("13200000-0000-0000-0000-000000000001"), OrderStatus.Closed, OrderSourceType.Pos, 0) with
+        {
+            Snapshot = Source(Guid.Parse("13200000-0000-0000-0000-000000000001"), OrderStatus.Closed, OrderSourceType.Pos, 0).Snapshot with
+            {
+                ClosedAt = new DateTimeOffset(2026, 9, 20, 23, 30, 0, TimeSpan.Zero)
+            },
+            PaymentAdjustments = []
+        };
+
+        var result = ExportSelectionRules.Select([source], [], new ExportSelectionOptions(), Utc);
+
+        Assert.IsFalse(result.IsBlocked);
+        Assert.HasCount(1, result.Actions);
+        Assert.AreEqual(new DateOnly(2026, 9, 20), result.Actions[0].SettlementDate);
     }
 
     [TestMethod]

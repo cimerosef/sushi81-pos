@@ -76,7 +76,12 @@ public sealed class SqliteGestionExportStore(
 
             var batchId = ParseGuid(reader.GetString(0));
             var action = ParseAction(reader.GetString(2));
-            var positive = ExportPayloadSerializer.DeserializePositive(reader.GetString(4));
+            var positiveJson = reader.GetString(4);
+            var positive = ExportPayloadSerializer.DeserializePositive(positiveJson);
+            var computedHash = ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializePositive(positive));
+            if (!string.Equals(computedHash, reader.GetString(3), StringComparison.Ordinal)
+                || positive.OrderId != orderId)
+                throw new InvalidDataException("The durable export positive snapshot is malformed or tampered.");
             result.Add(new ExportEmissionRecord(
                 batchId,
                 orderId,
@@ -101,6 +106,7 @@ public sealed class SqliteGestionExportStore(
         var payloadHash = ExportPayloadSerializer.ComputeSha256(payloadJson);
         if (!string.Equals(payloadHash, batch.PayloadHash, StringComparison.Ordinal))
             throw new InvalidDataException("The export batch payload hash does not match its canonical payload.");
+        ValidateBatchPayload(batch.Payload, batch.Payload.Meta.BatchId);
 
         await transactionRunner.ExecuteAsync(async (transaction, token) =>
         {
@@ -119,43 +125,136 @@ public sealed class SqliteGestionExportStore(
                 ("$orders", batch.Payload.Meta.OrderCount),
                 ("$lines", batch.Payload.Meta.OrderLineCount),
                 ("$taxes", batch.Payload.Meta.TaxBreakdownCount),
-                ("$payload", payloadJson),
-                ("$hash", batch.PayloadHash));
+                 ("$payload", payloadJson),
+                 ("$hash", batch.PayloadHash));
+
+            foreach (var order in batch.Payload.Orders)
+            {
+                var latest = await ReadLatestSuccessfulEmissionAsync(sqlite, order.OrderId, token);
+                var expectedPreviousHash = latest?.PositiveSnapshotHash;
+                if (order.Action == ExportAction.Create && latest is not null)
+                    throw new InvalidOperationException("A CREATE batch cannot be prepared after a successful export emission already exists for the order.");
+                if (order.Action is ExportAction.Update or ExportAction.Cancel
+                    && (latest is null || latest.Action == ExportAction.Cancel))
+                    throw new InvalidOperationException("The export batch action has no valid successful positive predecessor.");
+
+                await ExecuteAsync(sqlite, """
+                    INSERT INTO export_batch_orders(batch_id,order_id,action,action_payload_hash,expected_previous_positive_hash)
+                    VALUES ($batch,$order,$action,$payloadHash,$expectedPreviousHash);
+                    """, token,
+                    ("$batch", batch.Payload.Meta.BatchId.ToString()),
+                    ("$order", order.OrderId.ToString()),
+                    ("$action", ActionName(order.Action)),
+                    ("$payloadHash", ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializeAction(order))),
+                    ("$expectedPreviousHash", expectedPreviousHash));
+            }
         }, cancellationToken);
     }
 
     public async Task MarkBatchSucceededAsync(
         Guid batchId,
-        IReadOnlyList<ExportEmissionRecord> emissions,
         DateTimeOffset completedAtUtc,
         CancellationToken cancellationToken = default)
     {
         if (batchId == Guid.Empty) throw new ArgumentException("A batch identity is required.", nameof(batchId));
-        ArgumentNullException.ThrowIfNull(emissions);
-        if (emissions.Any(emission => emission.BatchId != batchId))
-            throw new ArgumentException("Every emission must belong to the batch being finalized.", nameof(emissions));
 
         await transactionRunner.ExecuteAsync(async (transaction, token) =>
         {
             var sqlite = RequireSqlite(transaction);
+            var persistedBatch = await ReadPersistedBatchAsync(sqlite, batchId, token)
+                ?? throw new InvalidOperationException("The export batch is missing.");
+            if (!string.Equals(persistedBatch.Status, "PREPARED", StringComparison.Ordinal))
+                throw new InvalidOperationException("The export batch is missing or is no longer in PREPARED state.");
+
+            if (!string.Equals(
+                    ExportPayloadSerializer.ComputeSha256(persistedBatch.PayloadJson),
+                    persistedBatch.PayloadHash,
+                    StringComparison.Ordinal))
+                throw new InvalidDataException("The persisted export batch payload hash does not match its payload.");
+
+            var payload = ExportPayloadSerializer.DeserializeBatch(persistedBatch.PayloadJson);
+            ValidateBatchPayload(payload, batchId);
+            var batchOrders = await ReadBatchOrdersAsync(sqlite, batchId, token);
+            if (batchOrders.Count != payload.Orders.Count)
+                throw new InvalidDataException("The persisted export batch order ledger does not match the immutable batch payload.");
+
+            var emissions = new List<ExportEmissionRecord>(payload.Orders.Count);
+            foreach (var order in payload.Orders)
+            {
+                if (!batchOrders.TryGetValue(order.OrderId, out var batchOrder)
+                    || batchOrder.Action != order.Action
+                    || !string.Equals(
+                        batchOrder.ActionPayloadHash,
+                        ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializeAction(order)),
+                        StringComparison.Ordinal))
+                    throw new InvalidDataException("The persisted export batch order ledger does not match the immutable batch payload.");
+
+                var latest = await ReadLatestSuccessfulEmissionAsync(sqlite, order.OrderId, token);
+                ExportOrderPayload positive;
+                switch (order.Action)
+                {
+                    case ExportAction.Create:
+                        if (latest is not null || batchOrder.ExpectedPreviousPositiveHash is not null)
+                            throw new InvalidOperationException("A stale PREPARED CREATE batch cannot be finalized after another successful emission.");
+                        positive = order with { Action = ExportAction.Create };
+                        break;
+
+                    case ExportAction.Update:
+                        if (latest is null
+                            || latest.Action == ExportAction.Cancel
+                            || string.IsNullOrWhiteSpace(batchOrder.ExpectedPreviousPositiveHash)
+                            || !string.Equals(latest.PositiveSnapshotHash, batchOrder.ExpectedPreviousPositiveHash, StringComparison.Ordinal))
+                            throw new InvalidOperationException("A stale PREPARED UPDATE batch cannot be finalized after the export chain advanced.");
+                        positive = order with { Action = ExportAction.Create };
+                        if (string.Equals(
+                                ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializePositive(positive)),
+                                latest.PositiveSnapshotHash,
+                                StringComparison.Ordinal))
+                            throw new InvalidOperationException("An UPDATE batch cannot emit an unchanged positive snapshot.");
+                        break;
+
+                    case ExportAction.Cancel:
+                        if (latest is null
+                            || latest.Action == ExportAction.Cancel
+                            || string.IsNullOrWhiteSpace(batchOrder.ExpectedPreviousPositiveHash)
+                            || !string.Equals(latest.PositiveSnapshotHash, batchOrder.ExpectedPreviousPositiveHash, StringComparison.Ordinal))
+                            throw new InvalidOperationException("A stale PREPARED CANCEL batch cannot be finalized after the export chain advanced.");
+                        positive = ExportPayloadSerializer.DeserializePositive(latest.PositivePayloadJson);
+                        if (positive.OrderId != order.OrderId
+                            || positive.FulfilmentDate != order.FulfilmentDate
+                            || positive.SettlementDate != order.SettlementDate
+                            || order.Lines.Count != 0
+                            || order.TaxBreakdown.Count != 0
+                            || !string.Equals(order.OrderStatus, "CANCELLED", StringComparison.Ordinal))
+                            throw new InvalidDataException("The persisted CANCEL payload is not anchored to the last positive snapshot.");
+                        break;
+
+                    default:
+                        throw new InvalidDataException("The persisted export batch contains an unsupported action.");
+                }
+
+                var positiveJson = ExportPayloadSerializer.SerializePositive(positive);
+                var positiveHash = ExportPayloadSerializer.ComputeSha256(positiveJson);
+                emissions.Add(new ExportEmissionRecord(
+                    batchId,
+                    order.OrderId,
+                    order.Action,
+                    positiveHash,
+                    positive,
+                    positive.FulfilmentDate,
+                    positive.SettlementDate,
+                    completedAtUtc));
+            }
+
             var updated = await ExecuteAsync(sqlite,
                 "UPDATE export_batches SET status='SUCCESS',completed_at_utc=$completed WHERE batch_id=$batch AND status='PREPARED';",
                 token, ("$completed", Format(completedAtUtc)), ("$batch", batchId.ToString()));
             if (updated != 1)
                 throw new InvalidOperationException("The export batch is missing or is no longer in PREPARED state.");
 
-            var emissionIds = new HashSet<Guid>();
             foreach (var emission in emissions)
             {
-                if (!emissionIds.Add(emission.OrderId))
-                    throw new InvalidDataException("An export batch cannot emit more than one action for the same order.");
-
-                var positive = emission.PositivePayload with { Action = ExportAction.Create };
-                var positiveJson = ExportPayloadSerializer.SerializePositive(positive);
-                var positiveHash = ExportPayloadSerializer.ComputeSha256(positiveJson);
-                if (!string.Equals(positiveHash, emission.PositiveSnapshotHash, StringComparison.Ordinal))
-                    throw new InvalidDataException("The export emission positive snapshot hash does not match its canonical payload.");
-
+                var positiveJson = ExportPayloadSerializer.SerializePositive(emission.PositivePayload);
                 await ExecuteAsync(sqlite, """
                     INSERT INTO export_emissions(emission_id,batch_id,order_id,action,positive_snapshot_hash,positive_payload_json,
                         fulfilment_date,settlement_date,emitted_at_utc)
@@ -201,6 +300,136 @@ public sealed class SqliteGestionExportStore(
         }
         return result;
     }
+
+    private static void ValidateBatchPayload(ExportBatchPayload payload, Guid expectedBatchId)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        if (payload.Meta is null
+            || payload.Orders is null
+            || payload.Meta.BatchId != expectedBatchId
+            || payload.Meta.OrderCount != payload.Orders.Count
+            || payload.Meta.OrderLineCount != payload.Orders.Sum(order => order.Lines.Count)
+            || payload.Meta.TaxBreakdownCount != payload.Orders.Sum(order => order.TaxBreakdown.Count))
+            throw new InvalidDataException("The export batch metadata does not match its immutable payload.");
+
+        var orderIds = new HashSet<Guid>();
+        foreach (var order in payload.Orders)
+        {
+            if (order.OrderId == Guid.Empty || !orderIds.Add(order.OrderId))
+                throw new InvalidDataException("An export batch cannot contain duplicate or empty order identities.");
+
+            if (order.Action == ExportAction.Cancel
+                && (order.Lines.Count != 0
+                    || order.TaxBreakdown.Count != 0
+                    || !string.Equals(order.OrderStatus, "CANCELLED", StringComparison.Ordinal)))
+                throw new InvalidDataException("A CANCEL export payload must contain no lines or tax breakdown and must be CANCELLED.");
+
+            if (order.Action is ExportAction.Create or ExportAction.Update
+                && !string.Equals(order.OrderStatus, "CLOSED", StringComparison.Ordinal))
+                throw new InvalidDataException("A positive export payload must be CLOSED.");
+
+            if (order.Lines.Any(line => line.OrderId != order.OrderId)
+                || order.TaxBreakdown.Any(tax => tax.OrderId != order.OrderId))
+                throw new InvalidDataException("The export batch contains a child payload for another order.");
+        }
+    }
+
+    private static async Task<PersistedBatch?> ReadPersistedBatchAsync(
+        SqliteApplicationTransaction sqlite,
+        Guid batchId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = sqlite.Connection.CreateCommand();
+        command.Transaction = sqlite.Transaction;
+        command.CommandText = "SELECT status,payload_json,payload_hash FROM export_batches WHERE batch_id=$batch;";
+        command.Parameters.AddWithValue("$batch", batchId.ToString());
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+            return null;
+        return new PersistedBatch(reader.GetString(0), reader.GetString(1), reader.GetString(2));
+    }
+
+    private static async Task<Dictionary<Guid, PersistedBatchOrder>> ReadBatchOrdersAsync(
+        SqliteApplicationTransaction sqlite,
+        Guid batchId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = sqlite.Connection.CreateCommand();
+        command.Transaction = sqlite.Transaction;
+        command.CommandText = """
+            SELECT order_id,action,action_payload_hash,expected_previous_positive_hash
+            FROM export_batch_orders
+            WHERE batch_id=$batch;
+            """;
+        command.Parameters.AddWithValue("$batch", batchId.ToString());
+        var result = new Dictionary<Guid, PersistedBatchOrder>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var orderId = ParseGuid(reader.GetString(0));
+            if (!result.TryAdd(
+                    orderId,
+                    new PersistedBatchOrder(
+                        ParseAction(reader.GetString(1)),
+                        reader.GetString(2),
+                        reader.IsDBNull(3) ? null : reader.GetString(3))))
+                throw new InvalidDataException("The durable export batch order ledger contains a duplicate order.");
+        }
+        return result;
+    }
+
+    private static async Task<PersistedEmission?> ReadLatestSuccessfulEmissionAsync(
+        SqliteApplicationTransaction sqlite,
+        Guid orderId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = sqlite.Connection.CreateCommand();
+        command.Transaction = sqlite.Transaction;
+        command.CommandText = """
+            SELECT e.action,e.positive_snapshot_hash,e.positive_payload_json,e.fulfilment_date,e.settlement_date
+            FROM export_emissions e
+            JOIN export_batches b ON b.batch_id=e.batch_id
+            WHERE b.status='SUCCESS' AND e.order_id=$order
+            ORDER BY e.emitted_at_utc DESC,e.emission_id DESC
+            LIMIT 1;
+            """;
+        command.Parameters.AddWithValue("$order", orderId.ToString());
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+            return null;
+
+        var action = ParseAction(reader.GetString(0));
+        var positiveJson = reader.GetString(2);
+        var positive = ExportPayloadSerializer.DeserializePositive(positiveJson);
+        var positiveHash = reader.GetString(1);
+        if (positive.OrderId != orderId
+            || !string.Equals(
+                ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializePositive(positive)),
+                positiveHash,
+                StringComparison.Ordinal))
+            throw new InvalidDataException("The durable export positive snapshot is malformed or tampered.");
+
+        return new PersistedEmission(
+            action,
+            positiveHash,
+            positiveJson,
+            DateOnly.ParseExact(reader.GetString(3), "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            DateOnly.ParseExact(reader.GetString(4), "yyyy-MM-dd", CultureInfo.InvariantCulture));
+    }
+
+    private sealed record PersistedBatch(string Status, string PayloadJson, string PayloadHash);
+
+    private sealed record PersistedBatchOrder(
+        ExportAction Action,
+        string ActionPayloadHash,
+        string? ExpectedPreviousPositiveHash);
+
+    private sealed record PersistedEmission(
+        ExportAction Action,
+        string PositiveSnapshotHash,
+        string PositivePayloadJson,
+        DateOnly FulfilmentDate,
+        DateOnly SettlementDate);
 
     private static async Task<int> ExecuteAsync(SqliteApplicationTransaction sqlite, string sql, CancellationToken token, params (string Name, object? Value)[] parameters)
     {
