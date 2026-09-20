@@ -244,8 +244,8 @@ Current state as of 2026-09-20:
 - M01 through M10: Passed / merged;
 - M10 merge/current main: `299df8b44a1959497ad46f861e44db32913b4d11`;
 - M10 controller final closure: PR #22 comment `5750090951`;
-- M11 Gestion export: preparation/readiness completed on `prep/m11-gestion-export`; approved M11 clarification recorded; production implementation remains NOT AUTHORIZED pending separate project-owner authorization;
-- Issue #4: CLOSED; active Codex handoff: none;
+- M11 Gestion export: preparation/readiness completed; approved M11 clarification recorded; project owner authorized implementation on 2026-09-20; dedicated implementation line is `codex/m11-gestion-export-authorized` / PR #24 and execution remains controlled by Issue #4;
+- Issue #4 remains the live execution switch; only an OPEN gate with a matching PR #24 CODEX_HANDOFF_READY permits Codex execution;
 - M12 and M13: unauthorized.
 
 Preparation/specification approval does not authorize M11 production implementation, merge, M12 or M13.
