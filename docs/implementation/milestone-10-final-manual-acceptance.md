@@ -1,15 +1,15 @@
 # M10 — Catalogue `.xlsx` import/export — final owner manual acceptance
 
-**Status:** OWNER A/B PASS RECORDED; SCENARIO C RETEST PENDING; G1 FAILED / PREVIEW-BASELINE-REPAIR CANDIDATE PENDING OWNER RETEST
+**Status:** OWNER A–L FUNCTIONAL ACCEPTANCE PASS; FINAL-DELIVERY USABILITY POLISH ACTIVE; TARGETED OWNER RETEST PENDING
 
-**Prepared/finalized:** 2026-09-17; owner A/B evidence recorded 2026-09-19; Scenario C and G1 repair-24 candidates active for owner retest
+**Prepared/finalized:** 2026-09-17; owner A–L evidence recorded 2026-09-19/20; final-delivery usability polish-25 active for targeted owner retest
 **Milestone:** M10  
-**Owner result:** PARTIAL — Scenario A PASS, Scenario B PASS, Scenario C owner retest required, G1 FAIL / owner retest required; D–L NOT RUN
-**Implementation authorization:** WP1–WP5 are controller-accepted; the narrow Scenario C and G1 diagnostic repairs are active on unmerged PR #22; no owner result authorizes merge or M11+
-**Candidate source head:** prior owner candidate `4b0bbe7953efa6dad0aa5c9e718252b38af3b768` exposed the Scenario C guidance failure; the replacement repair candidate is recorded in this handoff's matching `CODEX_DONE`
-**Candidate executable / ZIP:** replacement candidate paths, sizes and hashes are recorded in this handoff's matching `CODEX_DONE`
+**Owner result:** A–L functional acceptance PASS. Scenario I is accepted by prior/manual evidence reuse rather than a fresh computer-B replay. Final-delivery usability polish-25 remains pending targeted retest of Excel bulk paste and responsive Preview layout.
+**Implementation authorization:** WP1–WP5 and owner A–L acceptance are controller-recorded; polish-25 is the only active work on unmerged PR #22; no owner result authorizes merge or M11+
+**Candidate source head:** the polish-25 exact-head candidate, paths, sizes and hashes are recorded in its matching `CODEX_DONE`
+**Candidate executable / ZIP:** polish-25 candidate paths, sizes and hashes are recorded in its matching `CODEX_DONE`
 
-> This checklist is for the project owner. Codex must not pre-check boxes or mark the result Passed. Repair-24 addresses the production Preview baseline cascade observed in G1; owner retest resumes with G1 only after controller review.
+> This checklist is for the project owner. Codex must not pre-check boxes or mark the result final. A–L functional acceptance is complete; the targeted retest after polish-25 covers only the Excel bulk-paste and responsive Preview usability items. Historical candidate failures and their repairs remain preserved as evidence.
 
 ## 0. Preconditions
 

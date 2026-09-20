@@ -177,17 +177,26 @@ internal sealed class CatalogueImportPreviewDialog : Window
         buttons.Children.Add(cancel);
         root.Children.Add(buttons);
 
-        var content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        var panel = new StackPanel();
+        // Keep the compact/contextual sections auto-sized while the two central
+        // data surfaces consume all remaining height.  The grids own their
+        // internal scrolling, so a maximized window grows the affected-row
+        // surface instead of leaving a large blank outer ScrollViewer panel.
+        var content = new Grid();
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // status
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // context
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // summary
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // notices
+        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 90 }); // issues
+        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(2, GridUnitType.Star), MinHeight = 110 }); // affected rows
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // categories
         status = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) };
-        panel.Children.Add(status);
-        panel.Children.Add(BuildContext());
-        panel.Children.Add(BuildSummary());
-        panel.Children.Add(BuildNotices());
-        panel.Children.Add(BuildIssues());
-        panel.Children.Add(BuildAffectedRows());
-        panel.Children.Add(BuildCategories());
-        content.Content = panel;
+        AddContentRow(content, status, 0);
+        AddContentRow(content, BuildContext(), 1);
+        AddContentRow(content, BuildSummary(), 2);
+        AddContentRow(content, BuildNotices(), 3);
+        AddContentRow(content, BuildIssues(), 4);
+        AddContentRow(content, BuildAffectedRows(), 5);
+        AddContentRow(content, BuildCategories(), 6);
         root.Children.Add(content);
         Content = root;
         PreviewKeyDown += OnPreviewKeyDown;
@@ -234,31 +243,37 @@ internal sealed class CatalogueImportPreviewDialog : Window
         return panel;
     }
 
-    private StackPanel BuildIssues()
+    private Grid BuildIssues()
     {
         var heading = new TextBlock { Text = Read(localized, "ErrorsAndWarnings", "Errors and warnings"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 4, 0, 4) };
-        issuesGrid = new DataGrid { ItemsSource = workflow.Issues, AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, Height = 190, MinHeight = 90, HeadersVisibility = DataGridHeadersVisibility.Column, RowHeight = double.NaN };
+        issuesGrid = new DataGrid { ItemsSource = workflow.Issues, AutoGenerateColumns = false, IsReadOnly = true, MinHeight = 90, VerticalAlignment = VerticalAlignment.Stretch, HeadersVisibility = DataGridHeadersVisibility.Column, RowHeight = double.NaN, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         AddColumn(issuesGrid, Read(localized, "Severity", "Severity"), "SeverityText", 95);
         AddColumn(issuesGrid, Read(localized, "Worksheet", "Worksheet"), "Worksheet", 120);
         AddColumn(issuesGrid, Read(localized, "Row", "Row"), "Row", 58);
         AddColumn(issuesGrid, Read(localized, "Field", "Field"), "Field", 120);
         AddColumn(issuesGrid, Read(localized, "Message", "Message"), "Message", 480, wrap: true);
-        var panel = new StackPanel();
+        var panel = new Grid();
+        panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        panel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 90 });
         panel.Children.Add(heading);
+        Grid.SetRow(issuesGrid, 1);
         panel.Children.Add(issuesGrid);
         return panel;
     }
 
-    private StackPanel BuildAffectedRows()
+    private Grid BuildAffectedRows()
     {
         var heading = new TextBlock { Text = Read(localized, "AffectedRows", "Affected rows"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 4) };
-        affectedRowsGrid = new DataGrid { ItemsSource = workflow.AffectedRows, AutoGenerateColumns = false, IsReadOnly = true, CanUserAddRows = false, Height = 130, MinHeight = 70 };
+        affectedRowsGrid = new DataGrid { ItemsSource = workflow.AffectedRows, AutoGenerateColumns = false, IsReadOnly = true, MinHeight = 110, VerticalAlignment = VerticalAlignment.Stretch, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         AddColumn(affectedRowsGrid, Read(localized, "Worksheet", "Worksheet"), "Worksheet", 120);
         AddColumn(affectedRowsGrid, Read(localized, "Row", "Row"), "ExcelRow", 70);
         AddColumn(affectedRowsGrid, Read(localized, "Entity", "Entity"), "EntityType", 120);
         AddColumn(affectedRowsGrid, Read(localized, "Actions", "Actions"), "Actions", 300, wrap: true);
-        var panel = new StackPanel();
+        var panel = new Grid();
+        panel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        panel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 110 });
         panel.Children.Add(heading);
+        Grid.SetRow(affectedRowsGrid, 1);
         panel.Children.Add(affectedRowsGrid);
         return panel;
     }
@@ -339,6 +354,12 @@ internal sealed class CatalogueImportPreviewDialog : Window
         closeAllowed = true;
         DialogResult = false;
         e.Handled = true;
+    }
+
+    private static void AddContentRow(Grid grid, UIElement child, int row)
+    {
+        Grid.SetRow(child, row);
+        grid.Children.Add(child);
     }
 
     private static void AddContextRow(Grid grid, int row, string label, string value)

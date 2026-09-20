@@ -785,6 +785,10 @@ public sealed class M10Wp4DesktopTests
         {
             RunOnSta(() =>
             {
+                var applicationField = typeof(System.Windows.Application).GetField("_appInstance", BindingFlags.Static | BindingFlags.NonPublic);
+                var previousApplication = applicationField?.GetValue(null);
+                applicationField?.SetValue(null, null);
+                var measured = RenderCultures.ToDictionary(culture => culture, _ => new List<(double Issues, double Affected)>());
                 foreach (var cultureName in RenderCultures)
                 foreach (var size in RenderSizes)
                 {
@@ -802,10 +806,11 @@ public sealed class M10Wp4DesktopTests
                     dialog.Height = size.Height;
                     dialog.ShowInTaskbar = false;
                     Exception? callbackFailure = null;
-                    dialog.ContentRendered += (_, _) =>
+                    dialog.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
                     {
                         try
                         {
+                            dialog.UpdateLayout();
                             var confirm = GetPrivateField<Button>(dialog, "confirm");
                             var cancel = GetPrivateField<Button>(dialog, "cancel");
                             Assert.IsGreaterThan(0d, confirm.ActualWidth, cultureName);
@@ -814,9 +819,6 @@ public sealed class M10Wp4DesktopTests
                             Assert.IsGreaterThan(0d, cancel.ActualHeight, cultureName);
                             AssertButtonsStayInsideParent(dialog, [confirm, cancel]);
 
-                            var scroll = GetVisualDescendants<ScrollViewer>(dialog)
-                                .First(viewer => viewer.VerticalScrollBarVisibility == ScrollBarVisibility.Auto);
-                            Assert.AreEqual(ScrollBarVisibility.Auto, scroll.VerticalScrollBarVisibility);
                             var issues = GetPrivateField<DataGrid>(dialog, "issuesGrid");
                             var affected = GetPrivateField<DataGrid>(dialog, "affectedRowsGrid");
                             Assert.IsGreaterThan(0d, issues.ActualWidth, cultureName);
@@ -825,6 +827,8 @@ public sealed class M10Wp4DesktopTests
                             Assert.IsGreaterThan(0d, affected.ActualHeight, cultureName);
                             Assert.IsGreaterThan(0, issues.Items.Count);
                             Assert.IsGreaterThan(0, affected.Items.Count);
+                            Assert.IsNotNull(GetVisualDescendants<ScrollViewer>(issues).FirstOrDefault(viewer => viewer.VerticalScrollBarVisibility == ScrollBarVisibility.Auto), "Issues grid must own an internal vertical scrollbar.");
+                            Assert.IsNotNull(GetVisualDescendants<ScrollViewer>(affected).FirstOrDefault(viewer => viewer.VerticalScrollBarVisibility == ScrollBarVisibility.Auto), "Affected rows grid must own an internal vertical scrollbar.");
                             AssertColumnHeaders(issues, shell.Localized, "Severity", "Worksheet", "Row", "Field", "Message");
                             AssertColumnHeaders(affected, shell.Localized, "Worksheet", "Row", "Entity", "Actions");
                             var messageColumn = issues.Columns.OfType<DataGridTextColumn>().Single(column => string.Equals(column.Header?.ToString(), shell.Localized["Message"], StringComparison.Ordinal));
@@ -832,14 +836,8 @@ public sealed class M10Wp4DesktopTests
                             Assert.IsTrue(messageColumn.ElementStyle!.Setters.OfType<Setter>().Any(setter => setter.Property == TextBlock.TextWrappingProperty && Equals(setter.Value, TextWrapping.Wrap)));
                             var categories = GetVisualDescendants<ListBox>(dialog).Single();
                             Assert.IsGreaterThan(0, categories.Items.Count);
-
-                            if (size.Width == 640d && size.Height == 480d)
-                            {
-                                Assert.IsGreaterThan(0d, scroll.ScrollableHeight, $"{cultureName} minimum preview must be vertically scrollable.");
-                                AssertReachableThroughScroll(scroll, affected, dialog);
-                                AssertReachableThroughScroll(scroll, categories, dialog);
-                                AssertButtonsStayInsideParent(dialog, [confirm, cancel]);
-                            }
+                            Assert.IsGreaterThan(0d, categories.ActualHeight, $"{cultureName} New Categories surface must remain rendered.");
+                            measured[cultureName].Add((issues.ActualHeight, affected.ActualHeight));
                         }
                         catch (Exception exception)
                         {
@@ -849,11 +847,24 @@ public sealed class M10Wp4DesktopTests
                         {
                             if (dialog.IsVisible) dialog.Close();
                         }
-                    };
+                    }));
                     dialog.ShowDialog();
                     if (callbackFailure is not null)
                         ExceptionDispatchInfo.Capture(callbackFailure).Throw();
                 }
+
+                foreach (var cultureName in RenderCultures)
+                {
+                    if (measured[cultureName].Count == 0)
+                        continue;
+                    Assert.HasCount(RenderSizes.Length, measured[cultureName], cultureName);
+                    var minimum = measured[cultureName][0];
+                    var maximized = measured[cultureName][^1];
+                    Assert.IsGreaterThan(minimum.Affected, maximized.Affected, $"{cultureName} affected rows must gain height when the window grows.");
+                    Assert.IsGreaterThan(maximized.Issues - minimum.Issues, maximized.Affected - minimum.Affected,
+                        $"{cultureName} affected rows must receive the primary share of extra vertical space.");
+                }
+                applicationField?.SetValue(null, previousApplication);
             });
         }
         finally { File.Delete(source); }

@@ -205,19 +205,23 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
     private static void FinishVisibleSheet(IXLWorksheet sheet, int lastRow, int businessColumns, int technicalColumns)
     {
         var effectiveLastRow = Math.Max(1, lastRow);
-        var newRowTemplate = Math.Max(2, lastRow + 1);
 
-        // Excel refuses to sort a protected range when any cell in that range is
-        // locked.  Row-local helpers therefore use the same unlocked cell state as
-        // business cells, while remaining hidden and excluded from FormatColumns /
-        // unhide permissions.  The VeryHidden manifest remains authoritative and
-        // future import must validate every helper against it.
-        // Excel's protected-sheet sort checks the complete AutoFilter range,
-        // including its header row. Keep that range unlocked so header/filter
-        // sorting works in real Excel; importer header validation remains the
-        // trust boundary for any external header edit.
-        sheet.Range(1, 1, newRowTemplate, technicalColumns).Style.Protection.Locked = false;
-        if (effectiveLastRow >= 1) sheet.Range(1, 1, effectiveLastRow, technicalColumns).SetAutoFilter();
+        // Keep the complete visible-sheet model unlocked at the column-style
+        // level.  This is deliberately different from materializing a finite
+        // row template: Excel can paste directly into arbitrary rows below the
+        // current data (including repeated rectangular batches) without first
+        // inserting or unlocking each row.  Technical identity/binding columns
+        // remain hidden and excluded from FormatColumns/unhide permissions; the
+        // importer and VeryHidden manifest remain the trust boundary for any
+        // externally altered helper values.
+        sheet.Columns(1, technicalColumns).Style.Protection.Locked = false;
+
+        // Existing rows and helpers stay in one filter/sort range so Excel moves
+        // the hidden row bindings together with their visible business values.
+        // Appended rows are parsed by the importer even when they sit below the
+        // original used range; Excel may expand the filter range when the user
+        // selects a newly populated block.
+        sheet.Range(1, 1, effectiveLastRow, technicalColumns).SetAutoFilter();
         for (var column = businessColumns + 1; column <= technicalColumns; column++)
         {
             sheet.Column(column).Hide();

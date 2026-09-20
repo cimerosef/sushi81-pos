@@ -102,6 +102,100 @@ public sealed class CatalogueWorkbookIntegrationTests
     }
 
     [TestMethod]
+    public async Task VisibleSheetsSupportArbitraryBulkPasteRowsWithoutChangingTechnicalBindings()
+    {
+        var firstProductId = Guid.NewGuid();
+        var secondProductId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var optionId = Guid.NewGuid();
+        var model = new CatalogueWorkbookExport(
+            [
+                new CatalogueWorkbookProduct(firstProductId, "P-01", "First", "Plats", "P1", Money.FromCents(100), 20m, true, false, true, []),
+                new CatalogueWorkbookProduct(secondProductId, "P-02", "Second", "Plats", "P2", Money.FromCents(200), 20m, true, false, true,
+                    [new CatalogueWorkbookOptionGroup(groupId, secondProductId, "P-02", "Second", "Extras", SelectionMode.Multi, false, 0, 2, 0,
+                        [new CatalogueWorkbookOption(optionId, groupId, "P-02", "Second", "Extras", "Sauce", Money.FromCents(25), true, 0)])])
+            ],
+            Guid.NewGuid());
+
+        using var workbook = new XLWorkbook(new MemoryStream(await WriteAsync(model)));
+        var products = workbook.Worksheet("Products");
+        var groups = workbook.Worksheet("OptionGroups");
+        var options = workbook.Worksheet("Options");
+        var existingProductKey = products.Cell(2, 10).GetString();
+        var existingProductId = products.Cell(2, 11).GetString();
+
+        // A visible rectangular edit over existing rows must leave hidden helper
+        // identities untouched. This models a normal multi-row/multi-column paste.
+        products.Cell(2, 2).Value = "First edited";
+        products.Cell(2, 3).Value = "Plats";
+        products.Cell(3, 2).Value = "Second edited";
+        products.Cell(3, 3).Value = "Plats";
+        Assert.AreEqual(existingProductKey, products.Cell(2, 10).GetString());
+        Assert.AreEqual(existingProductId, products.Cell(2, 11).GetString());
+
+        const int farRow = 5000;
+        // Entire columns, rather than a finite row template, carry the unlocked
+        // style so repeated appended batches do not require row insertion first.
+        foreach (var (sheet, businessColumns, technicalColumns) in new[]
+        {
+            (products, 9, 11),
+            (groups, 8, 12),
+            (options, 7, 12),
+        })
+        {
+            for (var column = 1; column <= technicalColumns; column++)
+                Assert.IsFalse(sheet.Cell(farRow, column).Style.Protection.Locked, $"{sheet.Name}!{farRow},{column}");
+            Assert.IsTrue(sheet.Protection.IsProtected);
+            Assert.IsTrue(sheet.Protection.AllowedElements.HasFlag(XLSheetProtectionElements.Sort));
+            Assert.IsTrue(sheet.Protection.AllowedElements.HasFlag(XLSheetProtectionElements.AutoFilter));
+            Assert.IsFalse(sheet.Protection.AllowedElements.HasFlag(XLSheetProtectionElements.FormatColumns));
+            Assert.IsTrue(sheet.Column(businessColumns + 1).IsHidden);
+        }
+
+        // Populate two complete Product rows and one complete child row below the
+        // current data without inserting rows. Technical identity/binding cells
+        // remain blank, making these true-create candidates to the importer.
+        SetProductBusinessRow(products, farRow, "P-NEW-1", "New one", "New category", "N1");
+        SetProductBusinessRow(products, farRow + 1, "P-NEW-2", "New two", "New category", "N2");
+        groups.Cell(farRow, 1).Value = "P-NEW-1";
+        groups.Cell(farRow, 2).Value = "New one";
+        groups.Cell(farRow, 3).Value = "Extras";
+        groups.Cell(farRow, 4).Value = "MULTI";
+        groups.Cell(farRow, 5).Value = false;
+        groups.Cell(farRow, 6).Value = 0;
+        groups.Cell(farRow, 7).Value = 2;
+        groups.Cell(farRow, 8).Value = 0;
+        options.Cell(farRow, 1).Value = "P-NEW-1";
+        options.Cell(farRow, 2).Value = "New one";
+        options.Cell(farRow, 3).Value = "Extras";
+        options.Cell(farRow, 4).Value = "Sauce";
+        options.Cell(farRow, 5).Value = 0.25m;
+        options.Cell(farRow, 6).Value = true;
+        options.Cell(farRow, 7).Value = 0;
+
+        await using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        stream.Position = 0;
+        using var reopened = new XLWorkbook(stream);
+        foreach (var (sheet, technicalColumns) in new[] { (reopened.Worksheet("Products"), 11), (reopened.Worksheet("OptionGroups"), 12), (reopened.Worksheet("Options"), 12) })
+            for (var column = 1; column <= technicalColumns; column++)
+                Assert.IsFalse(sheet.Cell(farRow, column).Style.Protection.Locked, $"{sheet.Name}!{farRow},{column}");
+
+        await using var importedStream = new MemoryStream();
+        reopened.SaveAs(importedStream);
+        importedStream.Position = 0;
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(importedStream, "bulk-paste.xlsx");
+        Assert.IsFalse(parsed.HasErrors, string.Join(";", parsed.Issues.Select(issue => $"{issue.Code}:{issue.Worksheet}:{issue.ExcelRow}:{issue.FieldKey}")));
+        var newProducts = parsed.Products.Where(row => row.ExcelRow is farRow or (farRow + 1)).ToArray();
+        Assert.HasCount(2, newProducts);
+        Assert.IsTrue(newProducts.All(row => string.IsNullOrWhiteSpace(row.ProductRowKey) && string.IsNullOrWhiteSpace(row.ProductId)));
+        var newGroups = parsed.OptionGroups.Single(row => row.ExcelRow == farRow);
+        Assert.IsTrue(string.IsNullOrWhiteSpace(newGroups.OptionGroupRowKey) && string.IsNullOrWhiteSpace(newGroups.OptionGroupId));
+        var newOptions = parsed.Options.Single(row => row.ExcelRow == farRow);
+        Assert.IsTrue(string.IsNullOrWhiteSpace(newOptions.OptionRowKey) && string.IsNullOrWhiteSpace(newOptions.OptionId));
+    }
+
+    [TestMethod]
     public async Task ProtectedVisibleSheetsUnlockSortRangesAndUseStableVatNumberFormat()
     {
         var bytes = await WriteAsync(new CatalogueWorkbookExport(
@@ -661,6 +755,19 @@ public sealed class CatalogueWorkbookIntegrationTests
         await using var stream = new MemoryStream();
         await new ClosedXmlCatalogueWorkbookGateway().WriteAsync(model, stream);
         return stream.ToArray();
+    }
+
+    private static void SetProductBusinessRow(IXLWorksheet sheet, int row, string code, string name, string category, string shortCode)
+    {
+        sheet.Cell(row, 1).Value = code;
+        sheet.Cell(row, 2).Value = name;
+        sheet.Cell(row, 3).Value = category;
+        sheet.Cell(row, 4).Value = shortCode;
+        sheet.Cell(row, 5).Value = 1.25m;
+        sheet.Cell(row, 6).Value = 20m;
+        sheet.Cell(row, 7).Value = true;
+        sheet.Cell(row, 8).Value = false;
+        sheet.Cell(row, 9).Value = true;
     }
 
     private sealed class FixedClock : IBusinessClock
