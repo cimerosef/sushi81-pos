@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Last updated:** 2026-09-20  
-**Current state:** M01 through M10 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current merged `main` is M10 merge commit `299df8b44a1959497ad46f861e44db32913b4d11`. M11 Gestion intermediate export preparation/readiness is complete and implementation is owner-AUTHORIZED on dedicated branch `codex/m11-gestion-export-authorized` / PR #24. Execution remains fail-closed until Issue #4 is OPEN with an exact matching active CODEX_HANDOFF_READY. M12/M13 remain unauthorized. M12/M13 remain unauthorized.
+**Current state:** M01 through M10 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current merged `main` is M10 merge commit `299df8b44a1959497ad46f861e44db32913b4d11`. M11 Gestion intermediate export is owner-AUTHORIZED on `codex/m11-gestion-export-authorized` / PR #24. WP1 and WP2 are controller-accepted; WP3 is the next executable package once its exact handoff is published. M12/M13 remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -36,7 +36,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M09 — Hiboutik paste fallback | Passed | PR #17 merged at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; owner Windows/WPF acceptance Passed. |
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | PR #19 merged at `861cfba1dfacbb3289395c0370f6d42765b6c223`; controller/owner acceptance complete. |
 | M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
-| M11 — Gestion intermediate export | Authorized | Owner authorized M11 implementation on 2026-09-20. Dedicated implementation branch `codex/m11-gestion-export-authorized` / PR #24 created. Actual execution is limited to the exact active Issue #4 handoff. |
+| M11 — Gestion intermediate export | In progress | WP1 and WP2 controller-accepted. WP3 Desktop export workflow is next under an exact PR #24 handoff; WP4 follows later. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
 
@@ -74,7 +74,9 @@ Implementation line:
 - PR #24 — `M11: Gestion intermediate export`;
 - owner implementation authorization: granted 2026-09-20;
 - authorization record: `implementation/milestone-11-authorization.md` — AUTHORIZED;
-- first executable package may be WP1 only after the live Issue #4 / PR #24 handoff pointers match.
+- WP1: ACCEPTED at `678bf476c259f628582c7ae5e66c7ed641f32952`;
+- WP2: ACCEPTED at `a9774e2a6795adafee75b18f061289e47811caf5`, controller comment `5752144083`;
+- WP3: next package, executable only under its own exact PR #24 handoff.
 
 Primary acceptance ownership:
 
@@ -112,7 +114,7 @@ Controlling records:
 - `implementation/milestone-11-gestion-export.md`;
 - `implementation/milestone-11-final-manual-acceptance.md`;
 - `implementation/milestone-11-worklog.md`;
-- `implementation/milestone-11-authorization.md` — **NOT AUTHORIZED**.
+- `implementation/milestone-11-authorization.md` — **AUTHORIZED**.
 
 Work-package plan:
 
@@ -132,8 +134,11 @@ Current authorized control line:
 - dedicated implementation branch: `codex/m11-gestion-export-authorized`;
 - dedicated implementation PR/mailbox: #24;
 - M11 implementation authorization: GRANTED;
-- the first package is WP1 only;
-- Issue #4 must be OPEN and contain the same active handoff identifier/start head as PR #24 before Codex executes;
+- WP1: ACCEPTED;
+- WP2: ACCEPTED;
+- WP3: next executable package under its own unique PR #24 `CODEX_HANDOFF_READY`;
+- WP4: not yet executable;
+- Issue #4 must be OPEN before Codex executes;
 - M12/M13 remain unauthorized.
 
 The live Issue #4 body is the sole execution switch. Closing Issue #4 immediately revokes execution permission without changing the durable owner authorization.
