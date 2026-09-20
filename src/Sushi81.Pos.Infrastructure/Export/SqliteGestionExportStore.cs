@@ -17,7 +17,7 @@ public sealed class SqliteGestionExportStore(
     SqliteConnectionFactory connectionFactory,
     SqliteOrderStore orderStore,
     ITransactionRunner transactionRunner,
-    IIdGenerator idGenerator) : IExportOrderSourceReader, IExportLedgerStore, IExportBatchHistoryReader
+    IIdGenerator idGenerator) : IExportOrderSourceReader, IExportLedgerStore, IExportBatchHistoryReader, IExportPreparedBatchReader
 {
     private readonly SqliteConnectionFactory connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     private readonly SqliteOrderStore orderStore = orderStore ?? throw new ArgumentNullException(nameof(orderStore));
@@ -158,6 +158,31 @@ public sealed class SqliteGestionExportStore(
                 ?? throw new InvalidDataException("The export history contains a missing successful batch.");
             if (batch.Status != ExportBatchStatus.Success)
                 throw new InvalidDataException("The export history contains a batch with an invalid status.");
+            result.Add(batch);
+        }
+
+        return result;
+    }
+
+    public async Task<IReadOnlyList<ExportBatchRecord>> ListPreparedBatchesAsync(CancellationToken cancellationToken = default)
+    {
+        var batchIds = new List<Guid>();
+        await using (var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken))
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT batch_id FROM export_batches WHERE status='PREPARED' ORDER BY generated_at_utc ASC, batch_id ASC;";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+                batchIds.Add(ParseGuid(reader.GetString(0)));
+        }
+
+        var result = new List<ExportBatchRecord>(batchIds.Count);
+        foreach (var batchId in batchIds)
+        {
+            var batch = await GetBatchAsync(batchId, cancellationToken)
+                ?? throw new InvalidDataException("The pending export list contains a missing prepared batch.");
+            if (batch.Status != ExportBatchStatus.Prepared)
+                throw new InvalidDataException("The pending export list contains a batch with an invalid status.");
             result.Add(batch);
         }
 

@@ -108,7 +108,7 @@
               <DataGrid.Columns>
                 <DataGridTextColumn Header="BatchId" Binding="{Binding BatchId}" Width="2*" />
                 <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportGeneratedAt], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding GeneratedAtText}" Width="1.4*" />
-                <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportDestination], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding FilterText}" Width="2*" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportScope], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding FilterText}" Width="2*" />
                 <DataGridTextColumn Header="{Binding DataContext.Localized[Actions], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding OrderCount}" Width="90" />
                 <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportStatus], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding StatusText}" Width="100" />
               </DataGrid.Columns>
@@ -117,6 +117,17 @@
               <Button Content="{Binding DataContext.Localized[GestionExportRefresh], RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,4" Margin="0,0,8,0" Click="OnRefreshGestionExportHistory" />
               <Button Content="{Binding DataContext.Localized[GestionExportRegenerate], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanRegenerate}" Padding="12,4" Click="OnRegenerateGestionExport" />
             </WrapPanel>
+            <TextBlock Text="{Binding DataContext.Localized[GestionExportPending], RelativeSource={RelativeSource AncestorType=Window}}" FontWeight="SemiBold" Margin="0,12,0,5" />
+            <DataGrid ItemsSource="{Binding PendingBatches}" SelectedItem="{Binding SelectedPreparedBatch, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MinHeight="90" MaxHeight="220" ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0,0,0,8">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="BatchId" Binding="{Binding BatchId}" Width="2*" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportGeneratedAt], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding PreparedAtText}" Width="1.4*" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportScope], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding FilterText}" Width="2*" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[Actions], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding OrderCount}" Width="90" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportStatus], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding StatusText}" Width="100" />
+              </DataGrid.Columns>
+            </DataGrid>
+            <Button Content="{Binding DataContext.Localized[GestionExportRetryPrepared], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanRetryPrepared}" Padding="12,4" HorizontalAlignment="Left" Click="OnRetryPreparedGestionExport" />
             <TextBlock Text="{Binding AuthorityStatusText}" Margin="0,8,0,0" Foreground="DarkOrange" TextWrapping="Wrap" />
           </StackPanel>
         </ScrollViewer>

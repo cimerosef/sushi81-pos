@@ -141,7 +141,8 @@ public static partial class CompositionRoot
                  gestionExportStore,
                  authorityGuard,
                  typeof(CompositionRoot).Assembly.GetName().Version?.ToString() ?? "1.0.0",
-                 presentationRefreshBlocked: () => false);
+                  presentationRefreshBlocked: () => false,
+                  preparedBatchReader: gestionExportStore);
              var orderCatalogueQueries = new OrderEntryCatalogueService(catalogueStore);
             hiboutikImportOrchestrator = new HiboutikImportOrchestrator(orderCatalogueQueries, settingsStore);
             orderLifecycleService = new OrderLifecycleService(orderStore, idGenerator, clock, authorityGuard, durableChangeNotifier, orderCatalogueQueries, settingsStore);

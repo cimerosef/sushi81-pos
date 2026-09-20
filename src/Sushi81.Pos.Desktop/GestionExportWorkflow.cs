@@ -27,6 +27,16 @@ public sealed record GestionExportHistoryRow(
     int OrderCount,
     string StatusText);
 
+public sealed record GestionExportPreparedBatchRow(
+    Guid BatchId,
+    DateTimeOffset PreparedAt,
+    DateOnly? FilterStartDate,
+    DateOnly? FilterEndDate,
+    string PreparedAtText,
+    string FilterText,
+    int OrderCount,
+    string StatusText);
+
 /// <summary>
 /// Presentation-owned orchestration for the M11 Desktop workflow. Preview uses only
 /// read paths; export is the sole path that prepares and finalizes a new batch.
@@ -35,6 +45,7 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
 {
     private readonly GestionExportWorkbookService workbookService;
     private readonly IExportBatchHistoryReader historyReader;
+    private readonly IExportPreparedBatchReader? preparedBatchReader;
     private readonly IWriteAuthorityGuard authorityGuard;
     private readonly string appVersion;
     private readonly Func<bool> presentationRefreshBlocked;
@@ -48,6 +59,7 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
     private string statusMessage = string.Empty;
     private string failureMessage = string.Empty;
     private GestionExportHistoryRow? selectedHistory;
+    private GestionExportPreparedBatchRow? selectedPreparedBatch;
 
     public GestionExportWorkflowViewModel(
         GestionExportWorkbookService workbookService,
@@ -55,15 +67,18 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         IWriteAuthorityGuard authorityGuard,
         string appVersion,
         IReadOnlyDictionary<string, string>? localized = null,
-        Func<bool>? presentationRefreshBlocked = null)
+        Func<bool>? presentationRefreshBlocked = null,
+        IExportPreparedBatchReader? preparedBatchReader = null)
     {
         this.workbookService = workbookService ?? throw new ArgumentNullException(nameof(workbookService));
         this.historyReader = historyReader ?? throw new ArgumentNullException(nameof(historyReader));
         this.authorityGuard = authorityGuard ?? throw new ArgumentNullException(nameof(authorityGuard));
+        this.preparedBatchReader = preparedBatchReader;
         this.appVersion = string.IsNullOrWhiteSpace(appVersion) ? "1.0.0" : appVersion;
         this.localized = localized ?? new Dictionary<string, string>(StringComparer.Ordinal);
         this.presentationRefreshBlocked = presentationRefreshBlocked ?? (() => false);
         History = [];
+        PendingBatches = [];
         Diagnostics = [];
         ActionSummary =
         [
@@ -76,6 +91,8 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<GestionExportHistoryRow> History { get; }
+
+    public ObservableCollection<GestionExportPreparedBatchRow> PendingBatches { get; }
 
     public ObservableCollection<GestionExportDiagnosticPresentation> Diagnostics { get; }
 
@@ -119,6 +136,8 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
 
     public bool CanRegenerate => !busy && selectedHistory is not null && !IsPresentationRefreshBlocked;
 
+    public bool CanRetryPrepared => !busy && selectedPreparedBatch is not null && IsAuthoritative && !IsPresentationRefreshBlocked;
+
     private bool IsPresentationRefreshBlocked => businessPresentationRefreshBlocked || presentationRefreshBlocked();
 
     public bool HasPreview => preview is not null;
@@ -134,6 +153,18 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
             selectedHistory = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(CanRegenerate));
+        }
+    }
+
+    public GestionExportPreparedBatchRow? SelectedPreparedBatch
+    {
+        get => selectedPreparedBatch;
+        set
+        {
+            if (ReferenceEquals(selectedPreparedBatch, value)) return;
+            selectedPreparedBatch = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanRetryPrepared));
         }
     }
 
@@ -226,16 +257,21 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         StatusMessage = Read("GestionExportBusy", "Generating and validating the export workbook…");
         try
         {
-            var result = await workbookService.GenerateAsync(options, appVersion, finalPath, cancellationToken);
-            if (result is null)
+            var outcome = await workbookService.GenerateWithOutcomeAsync(options, appVersion, finalPath, cancellationToken);
+            if (outcome.Result is null)
             {
-                StatusMessage = Read("GestionExportNoPending", "There are no pending export actions for this scope.");
+                preview = outcome.Selection;
+                UpdateSelectionPresentation();
+                StatusMessage = outcome.Selection.IsBlocked
+                    ? Format("GestionExportBlockedAtExport", "Export blocked: {0}", outcome.Selection.Diagnostics[0].Message)
+                    : Read("GestionExportNoPending", "There are no pending export actions for this scope.");
                 return null;
             }
 
-            StatusMessage = Format("GestionExportSucceeded", "Export succeeded: {0}.", Path.GetFileName(result.FinalPath));
+            StatusMessage = Format("GestionExportSucceeded", "Export succeeded: {0}.", Path.GetFileName(outcome.Result.FinalPath));
             await RefreshHistoryCoreAsync(cancellationToken);
-            return result;
+            await RefreshPreviewCoreAsync(cancellationToken);
+            return outcome.Result;
         }
         catch (OperationCanceledException)
         {
@@ -291,6 +327,44 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         }
     }
 
+    public async Task<ExportWorkbookResult?> RetryPreparedAsync(string finalPath, CancellationToken cancellationToken = default)
+    {
+        if (!CanRetryPrepared || selectedPreparedBatch is not { } selected) return null;
+        if (string.IsNullOrWhiteSpace(finalPath))
+        {
+            ValidationMessage = Read("GestionExportDestinationRequired", "Choose an export destination.");
+            return null;
+        }
+
+        SetBusy(true);
+        FailureMessage = string.Empty;
+        StatusMessage = Read("GestionExportPreparedRetryBusy", "Retrying the pending export batch…");
+        try
+        {
+            var result = await workbookService.FinalizePreparedBatchAsync(selected.BatchId, finalPath, cancellationToken);
+            await RefreshHistoryCoreAsync(cancellationToken);
+            await RefreshPreviewCoreAsync(cancellationToken);
+            StatusMessage = Format("GestionExportPreparedRetrySucceeded", "Pending batch completed: {0}.", Path.GetFileName(result.FinalPath));
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = Read("GestionExportCancelled", "Export cancelled.");
+            return null;
+        }
+        catch (Exception exception)
+        {
+            FailureMessage = Read("GestionExportPreparedRetryFailure", "The pending batch could not be completed; it remains available for retry.");
+            StatusMessage = FailureMessage;
+            _ = exception;
+            return null;
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
     public async Task RefreshHistoryAsync(CancellationToken cancellationToken = default)
     {
         if (busy) return;
@@ -312,6 +386,7 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CanPreview));
         OnPropertyChanged(nameof(CanExport));
         OnPropertyChanged(nameof(CanRegenerate));
+        OnPropertyChanged(nameof(CanRetryPrepared));
     }
 
     public void RefreshPresentationState()
@@ -319,6 +394,7 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CanPreview));
         OnPropertyChanged(nameof(CanExport));
         OnPropertyChanged(nameof(CanRegenerate));
+        OnPropertyChanged(nameof(CanRetryPrepared));
     }
 
     public void SetBusinessPresentationRefreshBlocked(bool blocked)
@@ -333,20 +409,58 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         localized = values ?? throw new ArgumentNullException(nameof(values));
         UpdateSelectionPresentation();
         RebuildHistory(History.Select(row => row.BatchId).ToArray());
+        RebuildPendingBatches(PendingBatches.Select(row => row.BatchId).ToArray());
         OnPropertyChanged(nameof(InclusiveDateText));
         OnPropertyChanged(nameof(SelectionSummary));
         OnPropertyChanged(nameof(StatusMessage));
+        OnPropertyChanged(nameof(AuthorityStatusText));
+    }
+
+    public async Task RefreshAfterLiveDatabaseReplacementAsync(CancellationToken cancellationToken = default)
+    {
+        if (busy)
+            throw new InvalidOperationException("The Gestion export workflow is busy while the live database is being replaced.");
+
+        ClearDatabaseBoundState();
+        SetBusy(true);
+        try
+        {
+            await RefreshHistoryCoreAsync(cancellationToken);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
     }
 
     private async Task RefreshHistoryCoreAsync(CancellationToken cancellationToken)
     {
         var batches = await historyReader.ListSuccessfulBatchesAsync(cancellationToken);
+        var prepared = preparedBatchReader is null
+            ? Array.Empty<ExportBatchRecord>()
+            : await preparedBatchReader.ListPreparedBatchesAsync(cancellationToken);
         var selectedId = selectedHistory?.BatchId;
+        var selectedPreparedId = selectedPreparedBatch?.BatchId;
         History.Clear();
+        PendingBatches.Clear();
         foreach (var batch in batches.Where(batch => batch.Status == ExportBatchStatus.Success))
             History.Add(ToHistoryRow(batch));
+        foreach (var batch in prepared.Where(batch => batch.Status == ExportBatchStatus.Prepared))
+            PendingBatches.Add(ToPreparedBatchRow(batch));
         SelectedHistory = selectedId is { } id ? History.FirstOrDefault(row => row.BatchId == id) : History.FirstOrDefault();
+        SelectedPreparedBatch = selectedPreparedId is { } preparedId
+            ? PendingBatches.FirstOrDefault(row => row.BatchId == preparedId)
+            : PendingBatches.FirstOrDefault();
         OnPropertyChanged(nameof(CanRegenerate));
+        OnPropertyChanged(nameof(CanRetryPrepared));
+    }
+
+    private async Task RefreshPreviewCoreAsync(CancellationToken cancellationToken)
+    {
+        if (!TryBuildOptions(out var options))
+            return;
+        preview = await workbookService.SelectAsync(options, cancellationToken);
+        UpdateSelectionPresentation();
     }
 
     private bool TryBuildOptions(out ExportSelectionOptions options)
@@ -406,6 +520,23 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         UpdateSelectionPresentation();
     }
 
+    private void ClearDatabaseBoundState()
+    {
+        preview = null;
+        selectedHistory = null;
+        selectedPreparedBatch = null;
+        History.Clear();
+        PendingBatches.Clear();
+        ValidationMessage = string.Empty;
+        StatusMessage = string.Empty;
+        FailureMessage = string.Empty;
+        UpdateSelectionPresentation();
+        OnPropertyChanged(nameof(SelectedHistory));
+        OnPropertyChanged(nameof(SelectedPreparedBatch));
+        OnPropertyChanged(nameof(CanRegenerate));
+        OnPropertyChanged(nameof(CanRetryPrepared));
+    }
+
     private void NotifyDateState()
     {
         OnPropertyChanged(nameof(StartDate));
@@ -429,6 +560,20 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
             Read("GestionExportSuccessStatus", "SUCCESS"));
     }
 
+    private GestionExportPreparedBatchRow ToPreparedBatchRow(ExportBatchRecord batch)
+    {
+        var meta = batch.Payload.Meta;
+        return new GestionExportPreparedBatchRow(
+            meta.BatchId,
+            meta.GeneratedAt,
+            meta.FilterStartDate,
+            meta.FilterEndDate,
+            meta.GeneratedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture),
+            FormatFilter(meta.FilterStartDate, meta.FilterEndDate),
+            meta.OrderCount,
+            Read("GestionExportPreparedStatus", "PREPARED"));
+    }
+
     private void RebuildHistory(Guid[] ids)
     {
         if (ids.Length == 0) return;
@@ -444,6 +589,23 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
                     StatusText = Read("GestionExportSuccessStatus", "SUCCESS"),
                 });
         SelectedHistory = selectedId is { } selected ? History.FirstOrDefault(row => row.BatchId == selected) : History.FirstOrDefault();
+    }
+
+    private void RebuildPendingBatches(Guid[] ids)
+    {
+        if (ids.Length == 0) return;
+        var selectedId = selectedPreparedBatch?.BatchId;
+        var current = PendingBatches.ToDictionary(row => row.BatchId);
+        PendingBatches.Clear();
+        foreach (var id in ids)
+            if (current.TryGetValue(id, out var row))
+                PendingBatches.Add(row with
+                {
+                    PreparedAtText = row.PreparedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture),
+                    FilterText = FormatFilter(row.FilterStartDate, row.FilterEndDate),
+                    StatusText = Read("GestionExportPreparedStatus", "PREPARED"),
+                });
+        SelectedPreparedBatch = selectedId is { } selected ? PendingBatches.FirstOrDefault(row => row.BatchId == selected) : PendingBatches.FirstOrDefault();
     }
 
     private string FormatDateRange() => (startDate, endDate) switch
@@ -474,6 +636,7 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CanPreview));
         OnPropertyChanged(nameof(CanExport));
         OnPropertyChanged(nameof(CanRegenerate));
+        OnPropertyChanged(nameof(CanRetryPrepared));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

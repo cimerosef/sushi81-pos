@@ -23,6 +23,11 @@ public sealed record ExportWorkbookResult(
     string FinalPath,
     bool IsRegeneration);
 
+/// <summary>Distinguishes an empty selection from a selection blocked by diagnostics.</summary>
+public sealed record ExportWorkbookGenerationOutcome(
+    ExportWorkbookResult? Result,
+    ExportSelectionResult Selection);
+
 /// <summary>
 /// Orchestrates the durable WP1 batch with the WP2 workbook boundary.  A batch is
 /// marked SUCCESS only after a staged workbook has been reopened, validated and
@@ -52,17 +57,29 @@ public sealed class GestionExportWorkbookService(
         string finalPath,
         CancellationToken cancellationToken = default)
     {
+        var outcome = await GenerateWithOutcomeAsync(options, appVersion, finalPath, cancellationToken);
+        return outcome.Result;
+    }
+
+    public async Task<ExportWorkbookGenerationOutcome> GenerateWithOutcomeAsync(
+        ExportSelectionOptions options,
+        string appVersion,
+        string finalPath,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(appVersion);
         authorityGuard.RequireWriteAuthority();
         var normalizedPath = NormalizeFinalPath(finalPath);
         var preparation = await exportService.PrepareBatchAsync(options, appVersion, cancellationToken);
         if (preparation.Batch is null)
-            return null;
+            return new ExportWorkbookGenerationOutcome(null, preparation.Selection);
 
         await GenerateAndFinalizeAsync(preparation.Batch.Payload, normalizedPath, cancellationToken);
         await exportService.MarkBatchSucceededAsync(preparation.Batch, clock.UtcNow, cancellationToken);
-        return new ExportWorkbookResult(preparation.Batch.Payload.Meta.BatchId, normalizedPath, false);
+        return new ExportWorkbookGenerationOutcome(
+            new ExportWorkbookResult(preparation.Batch.Payload.Meta.BatchId, normalizedPath, false),
+            preparation.Selection);
     }
 
     /// <summary>Regenerates an already successful batch without selecting current orders or emitting a new action.</summary>

@@ -419,12 +419,20 @@ Changements effectifs : {2}</value></data>
   <data name="GestionExportHistory" xml:space="preserve"><value>Lots réussis</value></data>
   <data name="GestionExportRegenerate" xml:space="preserve"><value>Régénérer le lot sélectionné</value></data>
   <data name="GestionExportDestination" xml:space="preserve"><value>Périmètre / filtre</value></data>
+  <data name="GestionExportScope" xml:space="preserve"><value>Périmètre / filtre</value></data>
   <data name="GestionExportStatus" xml:space="preserve"><value>Statut</value></data>
   <data name="GestionExportAuthority" xml:space="preserve"><value>Poste autoritaire : la génération d’un nouvel export est disponible. L’aperçu et l’historique restent en lecture seule.</value></data>
   <data name="GestionExportReadOnly" xml:space="preserve"><value>Poste en lecture seule : le nouvel export est indisponible ; la régénération d’un lot réussi reste sans mutation métier.</value></data>
   <data name="GestionExportBusy" xml:space="preserve"><value>Génération et validation du classeur en cours…</value></data>
   <data name="GestionExportRetry" xml:space="preserve"><value>Réessayer</value></data>
+  <data name="GestionExportPending" xml:space="preserve"><value>Lots à finaliser</value></data>
+  <data name="GestionExportRetryPrepared" xml:space="preserve"><value>Réessayer le lot en attente</value></data>
+  <data name="GestionExportPreparedStatus" xml:space="preserve"><value>PREPARED</value></data>
+  <data name="GestionExportPreparedRetryBusy" xml:space="preserve"><value>Nouvelle tentative du lot en attente…</value></data>
+  <data name="GestionExportPreparedRetrySucceeded" xml:space="preserve"><value>Lot en attente terminé : {0}.</value></data>
+  <data name="GestionExportPreparedRetryFailure" xml:space="preserve"><value>Le lot en attente n’a pas pu être terminé ; il reste disponible pour une nouvelle tentative.</value></data>
   <data name="GestionExportNoPending" xml:space="preserve"><value>Aucune action d’export en attente pour ce périmètre.</value></data>
+  <data name="GestionExportBlockedAtExport" xml:space="preserve"><value>Export bloqué : {0}</value></data>
   <data name="GestionExportSucceeded" xml:space="preserve"><value>Export réussi : {0}.</value></data>
   <data name="GestionExportFailure" xml:space="preserve"><value>L’export n’a pas pu être terminé.</value></data>
   <data name="GestionExportCancelled" xml:space="preserve"><value>Export annulé.</value></data>

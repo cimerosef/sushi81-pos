@@ -173,6 +173,12 @@ public interface IExportBatchHistoryReader
     Task<IReadOnlyList<ExportBatchRecord>> ListSuccessfulBatchesAsync(CancellationToken cancellationToken = default);
 }
 
+/// <summary>Read-only access to durable PREPARED batches that remain retryable.</summary>
+public interface IExportPreparedBatchReader
+{
+    Task<IReadOnlyList<ExportBatchRecord>> ListPreparedBatchesAsync(CancellationToken cancellationToken = default);
+}
+
 public static class ExportPayloadSerializer
 {
     private static readonly JsonSerializerOptions JsonOptions = new()

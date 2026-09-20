@@ -469,6 +469,17 @@ public partial class MainWindow : Window
             MessageBox.Show(this, workflow.FailureMessage, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
+    private async void OnRetryPreparedGestionExport(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { GestionExportWorkflow: { CanRetryPrepared: true, SelectedPreparedBatch: { } selected } workflow } viewModel) return;
+        var suggested = $"Sushi81_POS_Export_Retry_{selected.PreparedAt.ToLocalTime():yyyyMMdd_HHmmss}_{selected.BatchId:D}.xlsx";
+        var target = fileDialogs.ShowSave(this, suggested, LocalizedText(this, "CatalogueFileFilter", "Excel workbook (*.xlsx)|*.xlsx"));
+        if (string.IsNullOrWhiteSpace(target)) return;
+        var result = await workflow.RetryPreparedAsync(target);
+        if (result is null && !string.IsNullOrWhiteSpace(workflow.FailureMessage))
+            MessageBox.Show(this, workflow.FailureMessage, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
     private async void OnImportCatalogue(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { CatalogueWorkflow: { CanImport: true } workflow } viewModel) return;

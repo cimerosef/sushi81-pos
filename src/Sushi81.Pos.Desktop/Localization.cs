@@ -414,9 +414,11 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("GestionExport").Append("GestionExportSection").Append("GestionExportStartDate").Append("GestionExportEndDate").Append("GestionExportGeneratedAt")
              .Append("GestionExportInclusiveHint").Append("GestionExportPreview").Append("GestionExportRefresh")
              .Append("GestionExportExport").Append("GestionExportHistory").Append("GestionExportRegenerate")
-             .Append("GestionExportDestination").Append("GestionExportStatus").Append("GestionExportAuthority")
-             .Append("GestionExportReadOnly").Append("GestionExportBusy").Append("GestionExportRetry")
-             .Append("GestionExportNoPending").Append("GestionExportSucceeded").Append("GestionExportFailure")
+              .Append("GestionExportDestination").Append("GestionExportScope").Append("GestionExportStatus").Append("GestionExportAuthority")
+              .Append("GestionExportReadOnly").Append("GestionExportBusy").Append("GestionExportRetry")
+              .Append("GestionExportPending").Append("GestionExportRetryPrepared").Append("GestionExportPreparedStatus")
+              .Append("GestionExportPreparedRetryBusy").Append("GestionExportPreparedRetrySucceeded").Append("GestionExportPreparedRetryFailure")
+              .Append("GestionExportNoPending").Append("GestionExportBlockedAtExport").Append("GestionExportSucceeded").Append("GestionExportFailure")
              .Append("GestionExportCancelled").Append("GestionExportInvalidRange").Append("GestionExportDestinationRequired")
              .Append("GestionExportPreviewBusy").Append("GestionExportPreviewReady").Append("GestionExportPreviewBlocked")
              .Append("GestionExportSelectionSummary").Append("GestionExportAllDates").Append("GestionExportFromDate")
@@ -847,6 +849,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
             if (Lifecycle is { } lifecycle)
                 await lifecycle.RefreshAfterLiveDatabaseReplacementAsync(cancellationToken);
+
+            if (GestionExportWorkflow is { } gestionExportWorkflow)
+                await gestionExportWorkflow.RefreshAfterLiveDatabaseReplacementAsync(cancellationToken);
 
             SetBusinessPresentationRefreshBlocked(false);
             RefreshResources();
