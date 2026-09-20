@@ -5,6 +5,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Media;
 using Sushi81.Pos.Application.Export;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Ids;
@@ -18,7 +19,7 @@ namespace Sushi81.Pos.ArchitectureTests;
 
 [TestClass]
 [DoNotParallelize]
-public sealed class M11Wp3DesktopTests
+public sealed class M01Wp3DesktopTests
 {
     [TestMethod]
     public async Task DefaultPreviewIsReadOnlyAndUsesAllApplicableDates()
@@ -49,6 +50,52 @@ public sealed class M11Wp3DesktopTests
     }
 
     [TestMethod]
+    public async Task InclusiveDateRangeForwardsExactBoundariesAndSelectsBothBoundariesOnly()
+    {
+        using var fixture = CreateFixture(WriteAuthorityState.Authoritative);
+        fixture.Store.Sources.Add(ValidSource(Guid.Parse("27100000-0000-0000-0000-000000000001"), new DateOnly(2026, 9, 19), "before"));
+        fixture.Store.Sources.Add(ValidSource(Guid.Parse("27100000-0000-0000-0000-000000000002"), new DateOnly(2026, 9, 20), "start"));
+        fixture.Store.Sources.Add(ValidSource(Guid.Parse("27100000-0000-0000-0000-000000000003"), new DateOnly(2026, 9, 21), "end"));
+        fixture.Store.Sources.Add(ValidSource(Guid.Parse("27100000-0000-0000-0000-000000000004"), new DateOnly(2026, 9, 22), "after"));
+        fixture.Workflow.StartDate = new DateTime(2026, 9, 20, 23, 59, 59);
+        fixture.Workflow.EndDate = new DateTime(2026, 9, 21, 1, 2, 3);
+
+        await fixture.Workflow.PreviewAsync();
+
+        Assert.HasCount(2, fixture.Workflow.Preview!.Actions);
+        CollectionAssert.Contains(fixture.Workflow.Preview.Actions.Select(action => action.OrderId.ToString("D")).ToArray(), "27100000-0000-0000-0000-000000000002");
+        CollectionAssert.Contains(fixture.Workflow.Preview.Actions.Select(action => action.OrderId.ToString("D")).ToArray(), "27100000-0000-0000-0000-000000000003");
+    }
+
+    [TestMethod]
+    public async Task PreviewSummarizesMixedCreateUpdateAndCancelActions()
+    {
+        using var fixture = CreateFixture(WriteAuthorityState.Authoritative);
+        var create = ValidSource(Guid.Parse("27200000-0000-0000-0000-000000000001"), new DateOnly(2026, 9, 20), "create");
+        var updateId = Guid.Parse("27200000-0000-0000-0000-000000000002");
+        var update = ValidSource(updateId, new DateOnly(2026, 9, 20), "updated");
+        var oldUpdate = ValidSource(updateId, new DateOnly(2026, 9, 20), "old");
+        var cancelId = Guid.Parse("27200000-0000-0000-0000-000000000003");
+        var cancelled = ValidSource(cancelId, new DateOnly(2026, 9, 20), "cancelled") with
+        {
+            Snapshot = ValidSource(cancelId, new DateOnly(2026, 9, 20), "cancelled").Snapshot with
+            {
+                Status = OrderStatus.Cancelled,
+                CancelledAt = new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeSpan.Zero)
+            }
+        };
+        fixture.Store.Sources.AddRange([create, update, cancelled]);
+        fixture.Store.LatestEmissions.Add(EmissionFor(oldUpdate, ExportAction.Create));
+        fixture.Store.LatestEmissions.Add(EmissionFor(ValidSource(cancelId, new DateOnly(2026, 9, 20), "cancelled"), ExportAction.Create));
+
+        await fixture.Workflow.PreviewAsync();
+
+        Assert.AreEqual(1, fixture.Workflow.ActionSummary.Single(item => item.Action == "CREATE").Count);
+        Assert.AreEqual(1, fixture.Workflow.ActionSummary.Single(item => item.Action == "UPDATE").Count);
+        Assert.AreEqual(1, fixture.Workflow.ActionSummary.Single(item => item.Action == "CANCEL").Count);
+    }
+
+    [TestMethod]
     public async Task ExportKeepsBlockingSelectionDistinctFromAnEmptySelection()
     {
         using var fixture = CreateFixture(WriteAuthorityState.Authoritative);
@@ -63,6 +110,8 @@ public sealed class M11Wp3DesktopTests
             StringAssert.Contains(fixture.Workflow.StatusMessage, "blocked");
             Assert.HasCount(1, fixture.Workflow.Diagnostics);
             Assert.AreEqual("SETTLEMENT_DATE_UNAVAILABLE", fixture.Workflow.Diagnostics[0].Code);
+            StringAssert.Contains(fixture.Workflow.Diagnostics[0].Message, "Settlement date");
+            StringAssert.Contains(fixture.Workflow.StatusMessage, "Settlement date");
             Assert.AreEqual(0, fixture.Store.PrepareCount);
             Assert.IsFalse(File.Exists(path));
         }
@@ -70,6 +119,122 @@ public sealed class M11Wp3DesktopTests
         {
             if (File.Exists(path)) File.Delete(path);
         }
+    }
+
+    [TestMethod]
+    public async Task AuthoritativeExportPreparesSucceedsRefreshesHistoryAndClearsPendingPreview()
+    {
+        using var fixture = CreateFixture(WriteAuthorityState.Authoritative);
+        fixture.Store.Sources.Add(ValidSource(Guid.Parse("27300000-0000-0000-0000-000000000001"), new DateOnly(2026, 9, 20), "new export"));
+        var path = Path.Combine(Path.GetTempPath(), $"sushi81-success-{Guid.NewGuid():N}.xlsx");
+        try
+        {
+            var result = await fixture.Workflow.ExportAsync(path);
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual(1, fixture.Store.PrepareCount);
+            Assert.AreEqual(1, fixture.Store.SuccessCount);
+            Assert.HasCount(1, fixture.Workflow.History);
+            Assert.IsFalse(fixture.Workflow.Preview!.IsBlocked);
+            Assert.IsEmpty(fixture.Workflow.Preview.Actions);
+            StringAssert.Contains(fixture.Workflow.StatusMessage, "Export succeeded");
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [TestMethod]
+    public async Task NonAuthoritativeExportDoesNotPrepareEmitOrCreateOutput()
+    {
+        using var fixture = CreateFixture(WriteAuthorityState.NonAuthoritativeReadOnly);
+        fixture.Store.Sources.Add(ValidSource(Guid.Parse("27300000-0000-0000-0000-000000000002"), new DateOnly(2026, 9, 20), "read only"));
+        var path = Path.Combine(Path.GetTempPath(), $"sushi81-readonly-{Guid.NewGuid():N}.xlsx");
+
+        var result = await fixture.Workflow.ExportAsync(path);
+
+        Assert.IsNull(result);
+        Assert.AreEqual(0, fixture.Store.PrepareCount);
+        Assert.AreEqual(0, fixture.Store.SuccessCount);
+        Assert.IsEmpty(fixture.Store.LatestEmissions);
+        Assert.IsFalse(File.Exists(path));
+    }
+
+    [TestMethod]
+    public async Task ReentrantExportIsRejectedWhileTheFirstExportIsBusyAndRestoresCommandState()
+    {
+        var gateway = new BlockingWorkbookGateway();
+        using var fixture = CreateFixture(WriteAuthorityState.Authoritative, gateway);
+        fixture.Store.Sources.Add(ValidSource(Guid.Parse("27300000-0000-0000-0000-000000000003"), new DateOnly(2026, 9, 20), "busy"));
+        var firstPath = Path.Combine(Path.GetTempPath(), $"sushi81-busy-first-{Guid.NewGuid():N}.xlsx");
+        var secondPath = Path.Combine(Path.GetTempPath(), $"sushi81-busy-second-{Guid.NewGuid():N}.xlsx");
+        try
+        {
+            var first = fixture.Workflow.ExportAsync(firstPath);
+            await gateway.WriteStarted.Task;
+            Assert.IsTrue(fixture.Workflow.IsBusy);
+            Assert.IsFalse(fixture.Workflow.CanExport);
+            Assert.IsNull(await fixture.Workflow.ExportAsync(secondPath));
+            Assert.AreEqual(1, fixture.Store.PrepareCount);
+            gateway.Release.TrySetResult(null);
+            Assert.IsNotNull(await first);
+            Assert.IsFalse(fixture.Workflow.IsBusy);
+            Assert.IsTrue(fixture.Workflow.CanExport);
+        }
+        finally
+        {
+            if (File.Exists(firstPath)) File.Delete(firstPath);
+            if (File.Exists(secondPath)) File.Delete(secondPath);
+        }
+    }
+
+    [TestMethod]
+    public async Task SuccessfulBatchCanBeRegeneratedReadOnlyWithoutNewLedgerMutation()
+    {
+        using var fixture = CreateFixture(WriteAuthorityState.Authoritative);
+        fixture.Store.Sources.Add(ValidSource(Guid.Parse("27300000-0000-0000-0000-000000000004"), new DateOnly(2026, 9, 20), "regenerate"));
+        var firstPath = Path.Combine(Path.GetTempPath(), $"sushi81-regenerate-source-{Guid.NewGuid():N}.xlsx");
+        var secondPath = Path.Combine(Path.GetTempPath(), $"sushi81-regenerate-copy-{Guid.NewGuid():N}.xlsx");
+        try
+        {
+            Assert.IsNotNull(await fixture.Workflow.ExportAsync(firstPath));
+            var batchId = fixture.Workflow.SelectedHistory!.BatchId;
+            var prepareCount = fixture.Store.PrepareCount;
+            var successCount = fixture.Store.SuccessCount;
+            var emissionCount = fixture.Store.LatestEmissions.Count;
+            fixture.Guard.SetState(WriteAuthorityState.NonAuthoritativeReadOnly);
+            fixture.Workflow.RefreshAuthorityState();
+
+            var result = await fixture.Workflow.RegenerateAsync(secondPath);
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual(batchId, result!.BatchId);
+            Assert.AreEqual(prepareCount, fixture.Store.PrepareCount);
+            Assert.AreEqual(successCount, fixture.Store.SuccessCount);
+            Assert.HasCount(emissionCount, fixture.Store.LatestEmissions);
+            Assert.IsFalse(fixture.Workflow.CanExport);
+            Assert.IsTrue(fixture.Workflow.CanRegenerate);
+        }
+        finally
+        {
+            if (File.Exists(firstPath)) File.Delete(firstPath);
+            if (File.Exists(secondPath)) File.Delete(secondPath);
+        }
+    }
+
+    [TestMethod]
+    public async Task OrdinaryExportFailureRestoresBusyStateAndLeavesRetryablePreparedBatch()
+    {
+        using var fixture = CreateFixture(WriteAuthorityState.Authoritative, new ThrowingWorkbookGateway());
+        fixture.Store.Sources.Add(ValidSource(Guid.Parse("27300000-0000-0000-0000-000000000005"), new DateOnly(2026, 9, 20), "failure"));
+        var path = Path.Combine(Path.GetTempPath(), $"sushi81-failure-{Guid.NewGuid():N}.xlsx");
+
+        Assert.IsNull(await fixture.Workflow.ExportAsync(path));
+
+        Assert.IsFalse(fixture.Workflow.IsBusy);
+        Assert.IsTrue(fixture.Workflow.CanExport);
+        Assert.IsFalse(string.IsNullOrWhiteSpace(fixture.Workflow.FailureMessage));
+        Assert.AreEqual(1, fixture.Store.PrepareCount);
+        Assert.HasCount(1, fixture.Store.Prepared);
+        if (File.Exists(path)) File.Delete(path);
     }
 
     [TestMethod]
@@ -92,6 +257,8 @@ public sealed class M11Wp3DesktopTests
 
             Assert.IsNotNull(result);
             Assert.AreEqual(batch.Payload.Meta.BatchId, result!.BatchId);
+            Assert.AreEqual(0, fixture.Store.PrepareCount);
+            Assert.AreEqual(1, fixture.Store.SuccessCount);
             Assert.IsEmpty(fixture.Store.Prepared);
             Assert.HasCount(1, fixture.Store.Successful);
             Assert.IsEmpty(fixture.Workflow.PendingBatches);
@@ -132,12 +299,16 @@ public sealed class M11Wp3DesktopTests
         using var fixture = CreateFixture(WriteAuthorityState.Authoritative, new ThrowingWorkbookGateway());
         fixture.Store.Prepared.Add(PreparedBatch(Guid.Parse("26000000-0000-0000-0000-000000000004")));
         await fixture.Workflow.RefreshHistoryAsync();
+        var batchId = fixture.Workflow.SelectedPreparedBatch!.BatchId;
 
         var path = Path.Combine(Path.GetTempPath(), $"sushi81-retry-failure-{Guid.NewGuid():N}.xlsx");
         var result = await fixture.Workflow.RetryPreparedAsync(path);
 
         Assert.IsNull(result);
+        Assert.AreEqual(0, fixture.Store.PrepareCount);
+        Assert.AreEqual(0, fixture.Store.SuccessCount);
         Assert.HasCount(1, fixture.Store.Prepared);
+        Assert.AreEqual(batchId, fixture.Workflow.SelectedPreparedBatch!.BatchId);
         Assert.IsTrue(fixture.Workflow.CanRetryPrepared);
         StringAssert.Contains(fixture.Workflow.StatusMessage, "remains available");
         if (File.Exists(path)) File.Delete(path);
@@ -160,31 +331,82 @@ public sealed class M11Wp3DesktopTests
     }
 
     [TestMethod]
+    public async Task BlockingSettlementDiagnosticUsesLocalizedDesktopTextInFrenchAndChinese()
+    {
+        using var fixture = CreateFixture(WriteAuthorityState.Authoritative);
+        fixture.Store.Sources.Add(BlockingSource());
+
+        await fixture.Workflow.PreviewAsync();
+        StringAssert.Contains(fixture.Workflow.Diagnostics.Single().Message, "Settlement date");
+
+        fixture.Workflow.ApplyLocalization(new Dictionary<string, string>
+        {
+            ["GestionExportDiagnosticSettlementDateUnavailable"] = "无法根据已记录的付款确定结算日期。",
+            ["GestionExportBlockedAtExport"] = "导出被阻止：{0}"
+        });
+        StringAssert.Contains(fixture.Workflow.Diagnostics.Single().Message, "结算日期");
+
+        var path = Path.Combine(Path.GetTempPath(), $"sushi81-localized-blocked-{Guid.NewGuid():N}.xlsx");
+        try
+        {
+            await fixture.Workflow.ExportAsync(path);
+            StringAssert.Contains(fixture.Workflow.StatusMessage, "结算日期");
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    [TestMethod]
     public void GestionExportSurfaceConstructsAndBindsOnSta()
     {
         RunOnSta(() =>
         {
             using var fixture = CreateFixture(WriteAuthorityState.Authoritative);
-            var xaml = File.ReadAllText(LocateRepositoryFile("src", "Sushi81.Pos.Desktop", "MainWindow.xaml"));
-            var surface = new Grid();
-            var history = new DataGrid();
-            history.SetBinding(ItemsControl.ItemsSourceProperty, new Binding(nameof(fixture.Workflow.History))
+            var dialogs = new CancelFileDialogs();
+            var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                startupSucceeded: true,
+                authorityGuard: fixture.Guard,
+                gestionExportWorkflow: fixture.Workflow);
+            var window = new MainWindow(shell, fileDialogs: dialogs)
             {
-                Source = fixture.Workflow
-            });
-            var dateFilter = new DatePicker();
-            dateFilter.SetBinding(DatePicker.SelectedDateProperty, new Binding(nameof(fixture.Workflow.StartDate))
-            {
-                Source = fixture.Workflow
-            });
-            surface.Children.Add(history);
-            surface.Children.Add(dateFilter);
+                ShowInTaskbar = false,
+                Width = 980,
+                Height = 700
+            };
 
-            Assert.AreEqual(2, surface.Children.Count);
-            Assert.IsNotNull(history.GetBindingExpression(ItemsControl.ItemsSourceProperty));
-            Assert.IsNotNull(dateFilter.GetBindingExpression(DatePicker.SelectedDateProperty));
-            StringAssert.Contains(xaml, "GestionExportPending");
-            StringAssert.Contains(xaml, "SelectedPreparedBatch");
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                var gestion = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["GestionExport"]);
+                gestion.IsSelected = true;
+                window.UpdateLayout();
+
+                var datePickers = VisualDescendants<DatePicker>(window)
+                    .Where(picker => picker.GetBindingExpression(DatePicker.SelectedDateProperty)?.ParentBinding.Path.Path is "StartDate" or "EndDate")
+                    .ToArray();
+                Assert.HasCount(2, datePickers);
+                Assert.AreEqual("StartDate", datePickers[0].GetBindingExpression(DatePicker.SelectedDateProperty)!.ParentBinding.Path.Path);
+                Assert.AreEqual("EndDate", datePickers[1].GetBindingExpression(DatePicker.SelectedDateProperty)!.ParentBinding.Path.Path);
+                var grids = VisualDescendants<DataGrid>(window)
+                    .Where(grid => grid.GetBindingExpression(ItemsControl.ItemsSourceProperty)?.ParentBinding.Path.Path is "History" or "PendingBatches")
+                    .ToArray();
+                Assert.HasCount(2, grids);
+                Assert.AreEqual("History", grids[0].GetBindingExpression(ItemsControl.ItemsSourceProperty)!.ParentBinding.Path.Path);
+                Assert.AreEqual("PendingBatches", grids[1].GetBindingExpression(ItemsControl.ItemsSourceProperty)!.ParentBinding.Path.Path);
+
+                var export = VisualDescendants<Button>(window).Single(button => button.Content?.ToString() == shell.Localized["GestionExportExport"]);
+                Assert.IsTrue(export.IsEnabled);
+                export.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.AreEqual(1, dialogs.SaveCalls);
+                Assert.AreEqual(0, fixture.Store.PrepareCount);
+                Assert.AreEqual(0, fixture.Store.SuccessCount);
+            }
+            finally
+            {
+                window.Close();
+                shell.Dispose();
+            }
         });
     }
 
@@ -230,7 +452,7 @@ public sealed class M11Wp3DesktopTests
             "GestionExportHistory", "GestionExportRegenerate", "GestionExportAuthority", "GestionExportReadOnly",
             "GestionExportBusy", "GestionExportRetry", "GestionExportScope", "GestionExportPending",
             "GestionExportRetryPrepared", "GestionExportInvalidRange",
-            "GestionExportNoPending", "GestionExportBlockedAtExport"
+            "GestionExportNoPending", "GestionExportBlockedAtExport", "GestionExportDiagnosticSettlementDateUnavailable"
         })
         {
             Assert.IsFalse(string.IsNullOrWhiteSpace(french.Localized[key]), $"French resource missing: {key}");
@@ -251,6 +473,7 @@ public sealed class M11Wp3DesktopTests
             ["GestionExportAllDates"] = "All applicable dates",
             ["GestionExportSelectionSummary"] = "{0} action(s): {1} CREATE, {2} UPDATE, {3} CANCEL.",
             ["GestionExportBlocking"] = "Blocking",
+            ["GestionExportDiagnosticSettlementDateUnavailable"] = "Settlement date is unavailable for this order.",
             ["GestionExportCreate"] = "CREATE",
             ["GestionExportUpdate"] = "UPDATE",
             ["GestionExportCancel"] = "CANCEL",
@@ -273,9 +496,32 @@ public sealed class M11Wp3DesktopTests
         return Path.Combine([directory!.FullName, .. parts]);
     }
 
+    private static IEnumerable<T> VisualDescendants<T>(DependencyObject root) where T : DependencyObject
+    {
+        if (root is T match) yield return match;
+        var children = 0;
+        try { children = VisualTreeHelper.GetChildrenCount(root); }
+        catch (InvalidOperationException) { yield break; }
+        for (var index = 0; index < children; index++)
+            foreach (var descendant in VisualDescendants<T>(VisualTreeHelper.GetChild(root, index))) yield return descendant;
+    }
+
     private sealed record Fixture(WriteAuthorityGuard Guard, FakeStore Store, GestionExportWorkflowViewModel Workflow) : IDisposable
     {
         public void Dispose() => Guard.Dispose();
+    }
+
+    private sealed class CancelFileDialogs : ICatalogueWorkbookFileDialogs
+    {
+        public int SaveCalls { get; private set; }
+
+        public string? ShowSave(object owner, string suggestedFileName, string? filter = null)
+        {
+            SaveCalls++;
+            return null;
+        }
+
+        public string? ShowOpen(object owner, string? filter = null) => null;
     }
 
     private sealed class FakeStore : IExportOrderSourceReader, IExportLedgerStore, IExportBatchHistoryReader, IExportPreparedBatchReader
@@ -283,6 +529,7 @@ public sealed class M11Wp3DesktopTests
         public int SelectionReadCount { get; private set; }
         public int PrepareCount { get; private set; }
         public int SuccessCount { get; private set; }
+        public List<ExportEmissionRecord> LatestEmissions { get; } = [];
         public List<ExportOrderSourceRecord> Sources { get; } = [];
         public List<ExportBatchRecord> Prepared { get; } = [];
         public List<ExportBatchRecord> Successful { get; } = [];
@@ -294,7 +541,7 @@ public sealed class M11Wp3DesktopTests
         }
 
         public Task<IReadOnlyList<ExportEmissionRecord>> ListLatestSuccessfulEmissionsAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<ExportEmissionRecord>>([]);
+            Task.FromResult<IReadOnlyList<ExportEmissionRecord>>(LatestEmissions);
 
         public Task<ExportBatchRecord?> GetBatchAsync(Guid batchId, CancellationToken cancellationToken = default) =>
             Task.FromResult<ExportBatchRecord?>(Prepared.Concat(Successful).SingleOrDefault(batch => batch.Payload.Meta.BatchId == batchId));
@@ -302,6 +549,7 @@ public sealed class M11Wp3DesktopTests
         public Task PrepareBatchAsync(ExportBatchRecord batch, CancellationToken cancellationToken = default)
         {
             PrepareCount++;
+            Prepared.Add(batch);
             return Task.CompletedTask;
         }
 
@@ -311,6 +559,19 @@ public sealed class M11Wp3DesktopTests
             var batch = Prepared.Single(batch => batch.Payload.Meta.BatchId == batchId);
             Prepared.Remove(batch);
             Successful.Add(batch with { Status = ExportBatchStatus.Success, CompletedAtUtc = completedAtUtc });
+            LatestEmissions.AddRange(batch.Payload.Orders.Select(order =>
+            {
+                var positive = order with { Action = ExportAction.Create };
+                return new ExportEmissionRecord(
+                    batchId,
+                    order.OrderId,
+                    order.Action,
+                    ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializePositive(positive)),
+                    positive,
+                    order.FulfilmentDate,
+                    order.SettlementDate,
+                    completedAtUtc);
+            }));
             return Task.CompletedTask;
         }
 
@@ -347,6 +608,20 @@ public sealed class M11Wp3DesktopTests
         public Task ValidateAsync(Stream source, ExportBatchPayload expectedPayload, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
+    private sealed class BlockingWorkbookGateway : IExportWorkbookGateway
+    {
+        public TaskCompletionSource<object?> WriteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<object?> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task WriteAsync(ExportBatchPayload payload, Stream destination, CancellationToken cancellationToken = default)
+        {
+            WriteStarted.TrySetResult(null);
+            await Release.Task.WaitAsync(cancellationToken);
+        }
+
+        public Task ValidateAsync(Stream source, ExportBatchPayload expectedPayload, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
     private static ExportBatchRecord PreparedBatch(Guid batchId)
     {
         var payload = new ExportBatchPayload(
@@ -356,6 +631,43 @@ public sealed class M11Wp3DesktopTests
             payload,
             ExportBatchStatus.Prepared,
             ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializeBatch(payload)));
+    }
+
+    private static ExportOrderSourceRecord ValidSource(Guid id, DateOnly fulfilmentDate, string comment)
+    {
+        var template = BlockingSource();
+        var snapshot = template.Snapshot with
+        {
+            Id = id,
+            CreatedAt = new DateTimeOffset(fulfilmentDate.ToDateTime(new TimeOnly(8, 0)), TimeSpan.Zero),
+            ClosedAt = new DateTimeOffset(fulfilmentDate.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero),
+            PlannedFulfilmentDate = fulfilmentDate,
+            Comment = comment,
+            Status = OrderStatus.Closed,
+            CancelledAt = null
+        };
+        var adjustment = new PaymentAdjustment(
+            Guid.NewGuid(),
+            id,
+            PaymentBucket.Card,
+            Money.FromCents(1000),
+            new DateTimeOffset(fulfilmentDate.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero),
+            new DateTimeOffset(fulfilmentDate.ToDateTime(new TimeOnly(12, 1)), TimeSpan.Zero));
+        return new ExportOrderSourceRecord(snapshot, [adjustment]);
+    }
+
+    private static ExportEmissionRecord EmissionFor(ExportOrderSourceRecord source, ExportAction action)
+    {
+        Assert.IsTrue(ExportSelectionRules.TryBuildPositivePayload(source, TimeZoneInfo.Utc, out var positive, out var diagnostic), diagnostic?.Message);
+        return new ExportEmissionRecord(
+            Guid.Parse("27400000-0000-0000-0000-000000000001"),
+            source.Snapshot.Id,
+            action,
+            ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializePositive(positive)),
+            positive,
+            positive.FulfilmentDate,
+            positive.SettlementDate,
+            new DateTimeOffset(2026, 9, 20, 12, 0, 0, TimeSpan.Zero));
     }
 
     private static ExportOrderSourceRecord BlockingSource()

@@ -263,7 +263,7 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
                 preview = outcome.Selection;
                 UpdateSelectionPresentation();
                 StatusMessage = outcome.Selection.IsBlocked
-                    ? Format("GestionExportBlockedAtExport", "Export blocked: {0}", outcome.Selection.Diagnostics[0].Message)
+                    ? Format("GestionExportBlockedAtExport", "Export blocked: {0}", LocalizeDiagnosticMessage(outcome.Selection.Diagnostics[0]))
                     : Read("GestionExportNoPending", "There are no pending export actions for this scope.");
                 return null;
             }
@@ -496,7 +496,7 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
                 Read("GestionExportBlocking", "Blocking"),
                 diagnostic.OrderId.ToString("D"),
                 diagnostic.Code,
-                diagnostic.Message));
+                LocalizeDiagnosticMessage(diagnostic)));
         }
 
         SelectionSummary = Format(
@@ -512,6 +512,15 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(Preview));
         OnPropertyChanged(nameof(HasPreview));
     }
+
+    private string LocalizeDiagnosticMessage(ExportSelectionDiagnostic diagnostic) =>
+        diagnostic.Code switch
+        {
+            "SETTLEMENT_DATE_UNAVAILABLE" => Read(
+                "GestionExportDiagnosticSettlementDateUnavailable",
+                "Settlement date is unavailable for this order."),
+            _ => diagnostic.Message
+        };
 
     private void ClearSelectionState()
     {

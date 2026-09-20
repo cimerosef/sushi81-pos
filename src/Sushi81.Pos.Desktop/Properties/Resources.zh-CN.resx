@@ -433,6 +433,7 @@
   <data name="GestionExportPreparedRetryFailure" xml:space="preserve"><value>待完成批次无法完成；仍可再次重试。</value></data>
   <data name="GestionExportNoPending" xml:space="preserve"><value>此范围没有待处理的导出操作。</value></data>
   <data name="GestionExportBlockedAtExport" xml:space="preserve"><value>导出被阻止：{0}</value></data>
+  <data name="GestionExportDiagnosticSettlementDateUnavailable" xml:space="preserve"><value>无法根据已记录的付款确定结算日期。</value></data>
   <data name="GestionExportSucceeded" xml:space="preserve"><value>导出成功：{0}。</value></data>
   <data name="GestionExportFailure" xml:space="preserve"><value>导出未能完成。</value></data>
   <data name="GestionExportCancelled" xml:space="preserve"><value>导出已取消。</value></data>

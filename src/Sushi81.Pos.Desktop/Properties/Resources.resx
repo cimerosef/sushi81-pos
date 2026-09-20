@@ -433,6 +433,7 @@ Changements effectifs : {2}</value></data>
   <data name="GestionExportPreparedRetryFailure" xml:space="preserve"><value>Le lot en attente n’a pas pu être terminé ; il reste disponible pour une nouvelle tentative.</value></data>
   <data name="GestionExportNoPending" xml:space="preserve"><value>Aucune action d’export en attente pour ce périmètre.</value></data>
   <data name="GestionExportBlockedAtExport" xml:space="preserve"><value>Export bloqué : {0}</value></data>
+  <data name="GestionExportDiagnosticSettlementDateUnavailable" xml:space="preserve"><value>La date de règlement ne peut pas être déterminée à partir des paiements enregistrés.</value></data>
   <data name="GestionExportSucceeded" xml:space="preserve"><value>Export réussi : {0}.</value></data>
   <data name="GestionExportFailure" xml:space="preserve"><value>L’export n’a pas pu être terminé.</value></data>
   <data name="GestionExportCancelled" xml:space="preserve"><value>Export annulé.</value></data>

@@ -423,8 +423,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("GestionExportPreviewBusy").Append("GestionExportPreviewReady").Append("GestionExportPreviewBlocked")
              .Append("GestionExportSelectionSummary").Append("GestionExportAllDates").Append("GestionExportFromDate")
              .Append("GestionExportToDate").Append("GestionExportDateRange").Append("GestionExportCreate")
-             .Append("GestionExportUpdate").Append("GestionExportCancel").Append("GestionExportBlocking")
-             .Append("GestionExportSuccessStatus").Append("GestionExportRegenerateBusy").Append("GestionExportRegenerated")
+              .Append("GestionExportUpdate").Append("GestionExportCancel").Append("GestionExportBlocking")
+              .Append("GestionExportDiagnosticSettlementDateUnavailable")
+              .Append("GestionExportSuccessStatus").Append("GestionExportRegenerateBusy").Append("GestionExportRegenerated")
              .Append("GestionExportRegenerateFailure").Append("GestionExportHistoryFailure")
              .ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
