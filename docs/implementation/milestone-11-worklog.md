@@ -112,3 +112,12 @@ Evidence:
 Disposition: **WP2 ACCEPTED**.
 
 The collaboration protocol was also hardened so a future executable handoff uses one authoritative top-level PR comment whose first line is exactly `CODEX_HANDOFF_READY: <id>`, with START_HEAD/BRANCH/PR/SCOPE on separate lines. Issue #4 remains the execution switch/status pointer rather than a competing full task copy.
+
+
+## 2026-09-20 — M11-WP4-INTEGRATION-OWNER-CANDIDATE-07
+
+- Authorization/gate state: Issue #4 was OPEN and dynamically pointed to PR #24 / branch `codex/m11-gestion-export-authorized`; this handoff started at exact WP3 head `3c9e110f7d6c5a93c773b2289f5b43f5c59fb14f`. The project owner explicitly approved execution. Merge, owner manual acceptance, M12 and M13 remain excluded.
+- Scope: end-to-end export integration hardening, M09 Hiboutik exclusion cross-check, authority/recovery regression, exact regeneration/retry closure, full Release regression, and exact self-contained `win-x64` owner-candidate preparation. No production business/spec redesign was introduced.
+- New focused evidence: `M11Wp4IntegrationTests` covers real SQLite + ClosedXML boundaries for Hiboutik exclusion after cancellation/date filtering, immutable regeneration with a later pending UPDATE, prepared-file retry/idempotency, and non-authoritative preview/write blocking.
+- Documentation reconciliation: current status and the owner checklist now distinguish automated candidate preparation from owner A–E acceptance. The checklist remains **NOT YET EXECUTED** and M11 remains not Passed.
+- Completion boundary: final source head, full Release test/build totals, exact-head CI, candidate EXE/ZIP paths/sizes/SHA-256, package entry counts and forbidden-data scan are recorded only in the matching durable `CODEX_DONE` after the final push.

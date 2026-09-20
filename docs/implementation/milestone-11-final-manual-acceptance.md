@@ -1,8 +1,16 @@
 # M11 — Gestion intermediate export — final manual acceptance
 
-**Status:** PREPARED / NOT YET EXECUTED  
+**Status:** OWNER ACCEPTANCE PENDING / NOT YET EXECUTED
 **Owner execution:** required only on the later exact accepted M11 candidate  
 **Environment:** Windows WPF + real Microsoft Excel where workbook behavior/type inspection matters
+
+## WP4 candidate-preparation evidence
+
+The automated integration-hardening and candidate-preparation package was executed under `M11-WP4-INTEGRATION-OWNER-CANDIDATE-07` on PR #24. The exact final source head, self-contained `win-x64` candidate paths, sizes, SHA-256 values, package scan and exact-head CI result are recorded in the matching durable `CODEX_DONE` comment. This document intentionally keeps the owner checklist separate from automated evidence and does not self-reference a commit hash.
+
+Automated WP4 evidence includes real SQLite migrations and export-ledger persistence, real ClosedXML workbook generation and validation, Hiboutik exclusion after cancellation/date filtering, immutable exact regeneration with a later pending update, prepared-file retry/idempotency, and non-authoritative preview/write blocking. Full Release regression, Release build, forbidden-data scan and the final candidate are required before owner execution.
+
+Owner scenarios A–E below remain **NOT YET EXECUTED**. No M11 Passed claim is made here; controller review, owner execution and separate merge approval remain outstanding.
 
 The goal is a short, high-value owner check. Automated evidence owns exhaustive schema/state/failure matrices.
 
@@ -75,7 +83,7 @@ PASS if:
 
 ## Final acceptance record
 
-Record:
+Record after the controller has approved the exact candidate and the project owner has executed the checklist:
 
 - exact tested source head;
 - EXE/ZIP hashes;
