@@ -162,6 +162,7 @@ public interface IExportOrderSourceReader
 public interface IExportLedgerStore
 {
     Task<IReadOnlyList<ExportEmissionRecord>> ListLatestSuccessfulEmissionsAsync(CancellationToken cancellationToken = default);
+    Task<ExportBatchRecord?> GetBatchAsync(Guid batchId, CancellationToken cancellationToken = default);
     Task PrepareBatchAsync(ExportBatchRecord batch, CancellationToken cancellationToken = default);
     Task MarkBatchSucceededAsync(Guid batchId, DateTimeOffset completedAtUtc, CancellationToken cancellationToken = default);
 }

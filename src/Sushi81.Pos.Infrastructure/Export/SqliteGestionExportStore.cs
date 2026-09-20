@@ -96,6 +96,49 @@ public sealed class SqliteGestionExportStore(
         return result;
     }
 
+    public async Task<ExportBatchRecord?> GetBatchAsync(Guid batchId, CancellationToken cancellationToken = default)
+    {
+        if (batchId == Guid.Empty) throw new ArgumentException("A batch identity is required.", nameof(batchId));
+
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT schema_version,generated_at_utc,app_version,filter_start_date,filter_end_date,
+                   order_count,order_line_count,tax_breakdown_count,status,payload_json,payload_hash,completed_at_utc
+            FROM export_batches
+            WHERE batch_id=$batch;
+            """;
+        command.Parameters.AddWithValue("$batch", batchId.ToString());
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+            return null;
+
+        var payloadJson = reader.GetString(9);
+        var payloadHash = reader.GetString(10);
+        if (!string.Equals(ExportPayloadSerializer.ComputeSha256(payloadJson), payloadHash, StringComparison.Ordinal))
+            throw new InvalidDataException("The persisted export batch payload hash does not match its payload.");
+
+        var payload = ExportPayloadSerializer.DeserializeBatch(payloadJson);
+        ValidateBatchPayload(payload, batchId);
+        if (!string.Equals(reader.GetString(0), payload.Meta.SchemaVersion, StringComparison.Ordinal)
+            || !string.Equals(reader.GetString(2), payload.Meta.AppVersion, StringComparison.Ordinal)
+            || payload.Meta.OrderCount != reader.GetInt32(5)
+            || payload.Meta.OrderLineCount != reader.GetInt32(6)
+            || payload.Meta.TaxBreakdownCount != reader.GetInt32(7))
+            throw new InvalidDataException("The persisted export batch metadata does not match its immutable payload.");
+
+        return new ExportBatchRecord(
+            payload,
+            reader.GetString(8) switch
+            {
+                "PREPARED" => ExportBatchStatus.Prepared,
+                "SUCCESS" => ExportBatchStatus.Success,
+                _ => throw new InvalidDataException("The database contains an invalid export batch status.")
+            },
+            payloadHash,
+            reader.IsDBNull(11) ? null : ParseDateTime(reader.GetString(11)));
+    }
+
     public async Task PrepareBatchAsync(ExportBatchRecord batch, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(batch);
