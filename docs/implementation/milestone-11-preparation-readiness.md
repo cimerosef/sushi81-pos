@@ -4,6 +4,7 @@
 **Date:** 2026-09-20  
 **Preparation baseline:** `main` = `299df8b44a1959497ad46f861e44db32913b4d11`  
 **Preparation branch:** `prep/m11-gestion-export`  
+**Preparation PR:** #23 — draft / documentation-only  
 **Codex execution:** NOT AUTHORIZED by this document
 
 ## 1. Verified entry state
