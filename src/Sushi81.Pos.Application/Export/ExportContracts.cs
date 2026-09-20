@@ -167,6 +167,12 @@ public interface IExportLedgerStore
     Task MarkBatchSucceededAsync(Guid batchId, DateTimeOffset completedAtUtc, CancellationToken cancellationToken = default);
 }
 
+/// <summary>Read-only batch history used by the Desktop operator surface.</summary>
+public interface IExportBatchHistoryReader
+{
+    Task<IReadOnlyList<ExportBatchRecord>> ListSuccessfulBatchesAsync(CancellationToken cancellationToken = default);
+}
+
 public static class ExportPayloadSerializer
 {
     private static readonly JsonSerializerOptions JsonOptions = new()

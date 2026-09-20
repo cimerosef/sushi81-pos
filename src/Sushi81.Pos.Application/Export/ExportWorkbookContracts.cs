@@ -41,6 +41,11 @@ public sealed class GestionExportWorkbookService(
     private readonly IBusinessClock clock = clock ?? throw new ArgumentNullException(nameof(clock));
     private readonly IWriteAuthorityGuard authorityGuard = authorityGuard ?? throw new ArgumentNullException(nameof(authorityGuard));
 
+    public Task<ExportSelectionResult> SelectAsync(
+        ExportSelectionOptions options,
+        CancellationToken cancellationToken = default) =>
+        exportService.SelectAsync(options, cancellationToken);
+
     public async Task<ExportWorkbookResult?> GenerateAsync(
         ExportSelectionOptions options,
         string appVersion,

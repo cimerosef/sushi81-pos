@@ -17,7 +17,7 @@ public sealed class SqliteGestionExportStore(
     SqliteConnectionFactory connectionFactory,
     SqliteOrderStore orderStore,
     ITransactionRunner transactionRunner,
-    IIdGenerator idGenerator) : IExportOrderSourceReader, IExportLedgerStore
+    IIdGenerator idGenerator) : IExportOrderSourceReader, IExportLedgerStore, IExportBatchHistoryReader
 {
     private readonly SqliteConnectionFactory connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     private readonly SqliteOrderStore orderStore = orderStore ?? throw new ArgumentNullException(nameof(orderStore));
@@ -137,6 +137,31 @@ public sealed class SqliteGestionExportStore(
             },
             payloadHash,
             reader.IsDBNull(11) ? null : ParseDateTime(reader.GetString(11)));
+    }
+
+    public async Task<IReadOnlyList<ExportBatchRecord>> ListSuccessfulBatchesAsync(CancellationToken cancellationToken = default)
+    {
+        var batchIds = new List<Guid>();
+        await using (var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken))
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT batch_id FROM export_batches WHERE status='SUCCESS' ORDER BY generated_at_utc DESC, batch_id DESC;";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+                batchIds.Add(ParseGuid(reader.GetString(0)));
+        }
+
+        var result = new List<ExportBatchRecord>(batchIds.Count);
+        foreach (var batchId in batchIds)
+        {
+            var batch = await GetBatchAsync(batchId, cancellationToken)
+                ?? throw new InvalidDataException("The export history contains a missing successful batch.");
+            if (batch.Status != ExportBatchStatus.Success)
+                throw new InvalidDataException("The export history contains a batch with an invalid status.");
+            result.Add(batch);
+        }
+
+        return result;
     }
 
     public async Task PrepareBatchAsync(ExportBatchRecord batch, CancellationToken cancellationToken = default)

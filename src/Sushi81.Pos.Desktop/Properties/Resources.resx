@@ -407,4 +407,44 @@ Changements effectifs : {2}</value></data>
   <data name="Product" xml:space="preserve"><value>Produit</value></data>
   <data name="OptionGroup" xml:space="preserve"><value>Groupe d’options</value></data>
   <data name="Option" xml:space="preserve"><value>Option</value></data>
+  <data name="GestionExport" xml:space="preserve"><value>Gestion export</value></data>
+  <data name="GestionExportSection" xml:space="preserve"><value>Export intermédiaire vers Gestion</value></data>
+  <data name="GestionExportStartDate" xml:space="preserve"><value>Début</value></data>
+  <data name="GestionExportEndDate" xml:space="preserve"><value>Fin</value></data>
+  <data name="GestionExportGeneratedAt" xml:space="preserve"><value>Généré le</value></data>
+  <data name="GestionExportInclusiveHint" xml:space="preserve"><value>Les dates de réalisation sont inclusives. Sans filtre, toutes les actions applicables sont proposées.</value></data>
+  <data name="GestionExportPreview" xml:space="preserve"><value>Aperçu / actualiser</value></data>
+  <data name="GestionExportRefresh" xml:space="preserve"><value>Actualiser l’historique</value></data>
+  <data name="GestionExportExport" xml:space="preserve"><value>Générer le fichier Excel</value></data>
+  <data name="GestionExportHistory" xml:space="preserve"><value>Lots réussis</value></data>
+  <data name="GestionExportRegenerate" xml:space="preserve"><value>Régénérer le lot sélectionné</value></data>
+  <data name="GestionExportDestination" xml:space="preserve"><value>Périmètre / filtre</value></data>
+  <data name="GestionExportStatus" xml:space="preserve"><value>Statut</value></data>
+  <data name="GestionExportAuthority" xml:space="preserve"><value>Poste autoritaire : la génération d’un nouvel export est disponible. L’aperçu et l’historique restent en lecture seule.</value></data>
+  <data name="GestionExportReadOnly" xml:space="preserve"><value>Poste en lecture seule : le nouvel export est indisponible ; la régénération d’un lot réussi reste sans mutation métier.</value></data>
+  <data name="GestionExportBusy" xml:space="preserve"><value>Génération et validation du classeur en cours…</value></data>
+  <data name="GestionExportRetry" xml:space="preserve"><value>Réessayer</value></data>
+  <data name="GestionExportNoPending" xml:space="preserve"><value>Aucune action d’export en attente pour ce périmètre.</value></data>
+  <data name="GestionExportSucceeded" xml:space="preserve"><value>Export réussi : {0}.</value></data>
+  <data name="GestionExportFailure" xml:space="preserve"><value>L’export n’a pas pu être terminé.</value></data>
+  <data name="GestionExportCancelled" xml:space="preserve"><value>Export annulé.</value></data>
+  <data name="GestionExportInvalidRange" xml:space="preserve"><value>La date de début ne peut pas être postérieure à la date de fin.</value></data>
+  <data name="GestionExportDestinationRequired" xml:space="preserve"><value>Choisissez une destination d’export.</value></data>
+  <data name="GestionExportPreviewBusy" xml:space="preserve"><value>Chargement de l’aperçu…</value></data>
+  <data name="GestionExportPreviewReady" xml:space="preserve"><value>Aperçu prêt : {0} action(s).</value></data>
+  <data name="GestionExportPreviewBlocked" xml:space="preserve"><value>L’aperçu contient des diagnostics bloquants.</value></data>
+  <data name="GestionExportSelectionSummary" xml:space="preserve"><value>{0} action(s) : {1} CREATE, {2} UPDATE, {3} CANCEL.</value></data>
+  <data name="GestionExportAllDates" xml:space="preserve"><value>Toutes les dates applicables</value></data>
+  <data name="GestionExportFromDate" xml:space="preserve"><value>À partir du {0}, inclus</value></data>
+  <data name="GestionExportToDate" xml:space="preserve"><value>Jusqu’au {0}, inclus</value></data>
+  <data name="GestionExportDateRange" xml:space="preserve"><value>Du {0} au {1}, dates incluses</value></data>
+  <data name="GestionExportCreate" xml:space="preserve"><value>CREATE</value></data>
+  <data name="GestionExportUpdate" xml:space="preserve"><value>UPDATE</value></data>
+  <data name="GestionExportCancel" xml:space="preserve"><value>CANCEL</value></data>
+  <data name="GestionExportBlocking" xml:space="preserve"><value>Bloquant</value></data>
+  <data name="GestionExportSuccessStatus" xml:space="preserve"><value>SUCCESS</value></data>
+  <data name="GestionExportRegenerateBusy" xml:space="preserve"><value>Régénération du lot réussi…</value></data>
+  <data name="GestionExportRegenerated" xml:space="preserve"><value>Lot régénéré : {0}.</value></data>
+  <data name="GestionExportRegenerateFailure" xml:space="preserve"><value>Le lot sélectionné n’a pas pu être régénéré.</value></data>
+  <data name="GestionExportHistoryFailure" xml:space="preserve"><value>L’historique des exports n’a pas pu être chargé.</value></data>
 </root>

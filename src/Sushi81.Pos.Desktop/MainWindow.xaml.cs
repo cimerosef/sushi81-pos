@@ -117,7 +117,7 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (loaded || DataContext is not ShellViewModel viewModel || viewModel.Admin is null && viewModel.Entry is null) return;
+        if (loaded || DataContext is not ShellViewModel viewModel || viewModel.Admin is null && viewModel.Entry is null && viewModel.GestionExportWorkflow is null) return;
         loaded = true;
         performanceTraceProbe = PerformanceTrace.StartDispatcherGapProbe(Dispatcher);
         PerformanceTrace.Log("window.loaded");
@@ -131,12 +131,18 @@ public partial class MainWindow : Window
                 PerformanceTrace.Log("entry.refresh.end");
             }
             if (viewModel.Lifecycle is { } lifecycle) { PerformanceTrace.Log("lifecycle.refresh.start"); await lifecycle.RefreshAsync(); PerformanceTrace.Log("lifecycle.refresh.end"); PerformanceTrace.Log("lifecycle.dashboard.start"); await lifecycle.RefreshDashboardAsync(); PerformanceTrace.Log("lifecycle.dashboard.end"); }
-            if (viewModel.PrinterSetup is { } printerSetup)
-            {
+             if (viewModel.PrinterSetup is { } printerSetup)
+             {
                 PerformanceTrace.Log("printer.refresh.start");
                 await printerSetup.RefreshAsync();
-                PerformanceTrace.Log("printer.refresh.end");
-            }
+                 PerformanceTrace.Log("printer.refresh.end");
+             }
+             if (viewModel.GestionExportWorkflow is { } gestionExportWorkflow)
+             {
+                 PerformanceTrace.Log("m11.export-history.start");
+                 await gestionExportWorkflow.RefreshHistoryAsync();
+                 PerformanceTrace.Log("m11.export-history.end");
+             }
         }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
         ApplyCatalogueHeaders();
@@ -367,12 +373,13 @@ public partial class MainWindow : Window
         if (sender is not TabControl || mainTabs.SelectedItem is not TabItem selected) return;
         var key = mainTabs.Items.IndexOf(selected) switch
         {
-            0 => "catalogue",
-            1 => "settings",
-            2 => "commandes",
-            3 => "caisse",
-            _ => "settings"
-        };
+             0 => "catalogue",
+             1 => "gestion-export",
+             2 => "settings",
+             3 => "commandes",
+             4 => "caisse",
+             _ => "settings"
+         };
         PerformanceTrace.Log($"tab.selected.{key}");
     }
 
@@ -424,6 +431,42 @@ public partial class MainWindow : Window
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
+    }
+
+    private async void OnPreviewGestionExport(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { GestionExportWorkflow: { CanPreview: true } workflow } viewModel) return;
+        await workflow.PreviewAsync();
+        if (!string.IsNullOrWhiteSpace(workflow.FailureMessage))
+            MessageBox.Show(this, workflow.FailureMessage, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private async void OnRefreshGestionExportHistory(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { GestionExportWorkflow: { } workflow })
+            await workflow.RefreshHistoryAsync();
+    }
+
+    private async void OnExportGestionExport(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { GestionExportWorkflow: { CanExport: true } workflow } viewModel) return;
+        var suggested = $"Sushi81_POS_Export_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+        var target = fileDialogs.ShowSave(this, suggested, LocalizedText(this, "CatalogueFileFilter", "Excel workbook (*.xlsx)|*.xlsx"));
+        if (string.IsNullOrWhiteSpace(target)) return;
+        var result = await workflow.ExportAsync(target);
+        if (result is null && !string.IsNullOrWhiteSpace(workflow.FailureMessage))
+            MessageBox.Show(this, workflow.FailureMessage, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private async void OnRegenerateGestionExport(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { GestionExportWorkflow: { CanRegenerate: true, SelectedHistory: { } selected } workflow } viewModel) return;
+        var suggested = $"Sushi81_POS_Export_{selected.GeneratedAt.ToLocalTime():yyyyMMdd_HHmmss}_{selected.BatchId:D}.xlsx";
+        var target = fileDialogs.ShowSave(this, suggested, LocalizedText(this, "CatalogueFileFilter", "Excel workbook (*.xlsx)|*.xlsx"));
+        if (string.IsNullOrWhiteSpace(target)) return;
+        var result = await workflow.RegenerateAsync(target);
+        if (result is null && !string.IsNullOrWhiteSpace(workflow.FailureMessage))
+            MessageBox.Show(this, workflow.FailureMessage, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private async void OnImportCatalogue(object sender, RoutedEventArgs e)

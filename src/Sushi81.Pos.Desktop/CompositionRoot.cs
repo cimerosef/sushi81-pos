@@ -25,6 +25,8 @@ using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.GitHubTransport;
 using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Infrastructure.Printing;
+using Sushi81.Pos.Application.Export;
+using Sushi81.Pos.Infrastructure.Export;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -60,8 +62,9 @@ public static partial class CompositionRoot
         IOrderPrintApplicationService? printService = null;
         PrinterSetupViewModel? printerSetup = null;
         HiboutikImportOrchestrator? hiboutikImportOrchestrator = null;
-        CatalogueWorkbookService? catalogueWorkbookService = null;
-        CatalogueImportService? catalogueImportService = null;
+         CatalogueWorkbookService? catalogueWorkbookService = null;
+         CatalogueImportService? catalogueImportService = null;
+         GestionExportWorkflowViewModel? gestionExportWorkflow = null;
 
         try
         {
@@ -124,8 +127,22 @@ public static partial class CompositionRoot
                 authorityGuard,
                 durableChangeNotifier);
             settingsService = new BusinessSettingsService(settingsStore, authorityGuard, durableChangeNotifier);
-            var orderStore = new SqliteOrderStore(connectionFactory, transactionRunner, null, idGenerator, clock);
-            var orderCatalogueQueries = new OrderEntryCatalogueService(catalogueStore);
+             var orderStore = new SqliteOrderStore(connectionFactory, transactionRunner, null, idGenerator, clock);
+             var gestionExportStore = new SqliteGestionExportStore(connectionFactory, orderStore, transactionRunner, idGenerator);
+             var gestionExportService = new GestionExportService(gestionExportStore, gestionExportStore, clock, authorityGuard, durableChangeNotifier, idGenerator);
+             var gestionExportWorkbookService = new GestionExportWorkbookService(
+                 gestionExportService,
+                 gestionExportStore,
+                 new ClosedXmlGestionExportWorkbookGateway(),
+                 clock,
+                 authorityGuard);
+             gestionExportWorkflow = new GestionExportWorkflowViewModel(
+                 gestionExportWorkbookService,
+                 gestionExportStore,
+                 authorityGuard,
+                 typeof(CompositionRoot).Assembly.GetName().Version?.ToString() ?? "1.0.0",
+                 presentationRefreshBlocked: () => false);
+             var orderCatalogueQueries = new OrderEntryCatalogueService(catalogueStore);
             hiboutikImportOrchestrator = new HiboutikImportOrchestrator(orderCatalogueQueries, settingsStore);
             orderLifecycleService = new OrderLifecycleService(orderStore, idGenerator, clock, authorityGuard, durableChangeNotifier, orderCatalogueQueries, settingsStore);
             var printDispatcher = new WindowsOrderPrintDispatcher(
@@ -220,8 +237,9 @@ public static partial class CompositionRoot
             printService,
             printerSetup,
             hiboutikImportOrchestrator,
-            catalogueWorkbookService,
-            catalogueImportService);
+             catalogueWorkbookService,
+             catalogueImportService,
+             gestionExportWorkflow);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,
