@@ -47,3 +47,27 @@ Created documentation-only preparation line:
 - authorization record remains NOT AUTHORIZED.
 
 The implementation split is frozen as WP1–WP4 in `milestone-11-gestion-export.md`. The first WP1 execution handoff is prepared only as a non-executable template pending separate explicit project-owner implementation authorization.
+
+
+## 2026-09-20 — M11-PREPARATION-CONTRACT-HARDENING-03
+
+The preparation review additionally made the frozen workbook mapping executable without adding new business workflow:
+
+- legitimate zero-total Closed order SettlementDate = business-local ClosedAt date;
+- positive-total SettlementDate remains effective-payment-date derived;
+- CANCEL payload is anchored to the last successfully emitted positive snapshot so un-emitted later edits cannot leak downstream;
+- CANCEL optional date filtering uses that last-emitted fulfilment date;
+- UnitBaseTTC / OptionAdjustmentTTC / LineTTC / VATRate and TaxBreakdown mappings are explicitly frozen.
+
+The WP1 contract now recommends a derived-correction export ledger: compare the current canonical positive snapshot with the last successful positive emission instead of creating a second order-lifecycle subsystem.
+
+### Preparation CI observation
+
+PR #23 exact-head GitHub Actions attempts on the documentation-only preparation branch failed before any workflow step started:
+
+- job reported `steps: null`;
+- no job log blob was produced;
+- repeated reruns showed the same pre-step failure;
+- the immediately preceding merged-main CI #788 on `299df8b...` was green.
+
+This is recorded as a CI-runner/startup infrastructure observation, not as source/test failure evidence. Issue #4 remains CLOSED and no Codex execution is authorized.
