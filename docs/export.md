@@ -127,7 +127,7 @@ V1 columns are:
 
 Customer/operational fields are included because the intermediate contract is intended to remain useful even if the downstream management workflow evolves. They do not imply a CRM role for the POS.
 
-`SettlementDate` is the business date on which cumulative effective-dated signed CB + Espèce payment adjustments reach the committed authoritative order total. It is derived from persisted payment effective-business-date facts, not merely `ClosedAt` and not the later technical `recorded_at` timestamp. A zero-net CB/Espèce reclassification does not by itself move the settlement date. If a Closed order's settlement date cannot be derived consistently, export fails closed rather than inventing one.
+`SettlementDate` is the business date on which cumulative effective-dated signed CB + Espèce payment adjustments reach the committed authoritative order total. It is derived from persisted payment effective-business-date facts, not merely `ClosedAt` and not the later technical `recorded_at` timestamp. A zero-net CB/Espèce reclassification does not by itself move the settlement date. For a legitimate zero-total Closed order, SettlementDate is the business-local date of `ClosedAt`. For a positive-total Closed order, if the effective-date settlement cannot be derived consistently, export fails closed rather than inventing one.
 
 The V1 column set is fixed by this versioned contract. The operator selects the order scope, not a per-run subset of fields.
 
@@ -151,6 +151,15 @@ V1 columns are:
 
 `OptionsSummary` is a readable historical snapshot of the selected structured options. Financial fields remain authoritative for calculation/import purposes.
 
+V1 line-field mapping is fixed:
+
+- `UnitBaseTTC` = saved product base TTC per unit;
+- `OptionAdjustmentTTC` = signed whole-line sum of saved option/custom adjustment TTC (`per-unit adjustment × Quantity`);
+- `LineTTC` = persisted calculated line TTC snapshot;
+- `VATRate` = saved product VAT rate for the line.
+
+A line may contain option adjustments with different VAT treatment; the authoritative mixed VAT allocation remains the order-level `TaxBreakdown` sheet.
+
 A `CANCEL` action does not require positive sales-line rows: the downstream importer cancels the previously imported order by stable `OrderId`.
 
 ### 5.4 `TaxBreakdown`
@@ -167,6 +176,12 @@ Columns are:
 - `TTC`.
 
 A `CANCEL` action does not require tax rows because downstream cancellation is keyed by the already imported `OrderId`.
+
+For CREATE/UPDATE, mapping from persisted tax snapshot is fixed:
+
+- `TTC` = persisted taxable TTC bucket;
+- `VATAmount` = persisted included VAT amount;
+- `TaxableHT` = `TTC - VATAmount`.
 
 ### 5.5 Cell/data representation
 
@@ -248,6 +263,10 @@ If an already-exported order is later cancelled, the POS records or derives a pe
 The next applicable export package carries `Action = CANCEL`. CANCEL does not require the current cancelled order to satisfy Closed/settled positive-sale eligibility.
 
 If an UPDATE became pending after the previous successful export but was never itself successfully emitted, the later cancellation supersedes that pending UPDATE. The POS emits CANCEL directly rather than forcing an unneeded UPDATE followed by CANCEL.
+
+The CANCEL Orders row reverses the last state actually emitted downstream: `Action=CANCEL`, `OrderStatus=CANCELLED`, stable `OrderId`, and the remaining Orders business fields reproduce the last successfully emitted CREATE/UPDATE snapshot. No later un-emitted modification may leak into the CANCEL payload. CANCEL has no positive OrderLines/TaxBreakdown rows.
+
+For optional date filtering, UPDATE uses the current replacement snapshot fulfilment/business date; CANCEL uses the last successfully emitted positive snapshot fulfilment/business date being reversed.
 
 The downstream importer must reverse/remove/mark cancelled the previously imported sale for that same `OrderId` rather than create another positive record.
 
