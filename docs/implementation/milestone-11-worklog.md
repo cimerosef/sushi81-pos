@@ -71,3 +71,23 @@ PR #23 exact-head GitHub Actions attempts on the documentation-only preparation 
 - the immediately preceding merged-main CI #788 on `299df8b...` was green.
 
 This is recorded as a CI-runner/startup infrastructure observation, not as source/test failure evidence. Issue #4 remains CLOSED and no Codex execution is authorized.
+
+
+## 2026-09-20 — M11-IMPLEMENTATION-AUTHORIZATION-04
+
+The project owner explicitly approved:
+
+`批准 M11 implementation`
+
+Controller transition:
+
+- durable M11 implementation authorization: GRANTED;
+- dedicated branch created from exact finalized preparation head `a8df4a6c671de7e0050a539e156e15caa9c791f8`;
+- implementation branch: `codex/m11-gestion-export-authorized`;
+- dedicated implementation PR/mailbox: #24 — `M11: Gestion intermediate export`;
+- WP1 is the first package eligible for an executable handoff;
+- WP2/WP3/WP4 remain non-executable;
+- merge remains unauthorized;
+- M12/M13 remain unauthorized.
+
+Issue #4 is opened only after PR #24 and Issue #4 carry the same exact WP1 `CODEX_HANDOFF_READY` identifier and starting head.
