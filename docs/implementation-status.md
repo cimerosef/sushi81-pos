@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Last updated:** 2026-09-20  
-**Current state:** M01 through M10 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current merged `main` is M10 merge commit `299df8b44a1959497ad46f861e44db32913b4d11`. M11 Gestion intermediate export preparation/readiness is complete on draft PR #23 / branch `prep/m11-gestion-export`; the material export clarification is owner-approved, but M11 production implementation remains NOT AUTHORIZED. Issue #4 is CLOSED with no active Codex handoff. M12/M13 remain unauthorized.
+**Current state:** M01 through M10 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current merged `main` is M10 merge commit `299df8b44a1959497ad46f861e44db32913b4d11`. M11 Gestion intermediate export preparation/readiness is complete and implementation is owner-AUTHORIZED on dedicated branch `codex/m11-gestion-export-authorized` / PR #24. Execution remains fail-closed until Issue #4 is OPEN with an exact matching active CODEX_HANDOFF_READY. M12/M13 remain unauthorized. M12/M13 remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -36,7 +36,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M09 — Hiboutik paste fallback | Passed | PR #17 merged at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; owner Windows/WPF acceptance Passed. |
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | PR #19 merged at `861cfba1dfacbb3289395c0370f6d42765b6c223`; controller/owner acceptance complete. |
 | M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
-| M11 — Gestion intermediate export | Preparation | Readiness/spec/code-seam audit complete; owner-approved M11 clarification recorded; draft preparation PR #23 open; implementation NOT AUTHORIZED. |
+| M11 — Gestion intermediate export | Authorized | Owner authorized M11 implementation on 2026-09-20. Dedicated implementation branch `codex/m11-gestion-export-authorized` / PR #24 created. Actual execution is limited to the exact active Issue #4 handoff. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
 
@@ -65,10 +65,16 @@ Historical M10 failures/repairs remain in the M10 worklog and PR #22 and are not
 Preparation line:
 
 - branch: `prep/m11-gestion-export`;
-- draft PR: #23 — `M11 preparation: Gestion intermediate export readiness and contracts`;
-- production code changes: none;
-- schema changes: none yet;
-- executable `CODEX_HANDOFF_READY`: none.
+- draft PR #23 — documentation/readiness history, superseded for execution by PR #24;
+- finalized preparation head: `a8df4a6c671de7e0050a539e156e15caa9c791f8`.
+
+Implementation line:
+
+- branch: `codex/m11-gestion-export-authorized`;
+- PR #24 — `M11: Gestion intermediate export`;
+- owner implementation authorization: granted 2026-09-20;
+- authorization record: `implementation/milestone-11-authorization.md` — AUTHORIZED;
+- first executable package may be WP1 only after the live Issue #4 / PR #24 handoff pointers match.
 
 Primary acceptance ownership:
 
@@ -121,16 +127,16 @@ No material M11 business/spec decision remains open.
 
 Issue #4 remains the sole Codex execution gate.
 
-Current state:
+Current authorized control line:
 
-- Issue #4: CLOSED;
-- active Codex handoff: none;
-- M11 implementation authorization: NOT GRANTED;
-- PR #23 is preparation/docs only and is not an executable mailbox;
-- no production M11 code/test/schema work may start yet;
+- dedicated implementation branch: `codex/m11-gestion-export-authorized`;
+- dedicated implementation PR/mailbox: #24;
+- M11 implementation authorization: GRANTED;
+- the first package is WP1 only;
+- Issue #4 must be OPEN and contain the same active handoff identifier/start head as PR #24 before Codex executes;
 - M12/M13 remain unauthorized.
 
-A separate explicit project-owner M11 implementation authorization is required before the controller may create the dedicated implementation branch/PR/mailbox and publish the first executable WP1 handoff. Only after branch/PR/handoff/Issue #4 pointers match may the gate be reopened.
+The live Issue #4 body is the sole execution switch. Closing Issue #4 immediately revokes execution permission without changing the durable owner authorization.
 
 ## 6. Evidence preservation
 
