@@ -1,28 +1,40 @@
 # M10 — Catalogue `.xlsx` import/export — final owner manual acceptance
 
-**Status:** OWNER A–L FUNCTIONAL ACCEPTANCE PASS; FINAL-DELIVERY USABILITY POLISH ACTIVE; TARGETED OWNER RETEST PENDING
+**Status:** OWNER A–L FUNCTIONAL ACCEPTANCE PASS; FINAL-DELIVERY USABILITY PASS; CLOSURE-READY PENDING CONTROLLER RECORD
 
-**Prepared/finalized:** 2026-09-17; owner A–L evidence recorded 2026-09-19/20; final-delivery usability polish-25 active for targeted owner retest
+**Prepared/finalized:** 2026-09-17; owner A–L and final-delivery usability evidence recorded 2026-09-19/20; documentation closure recorded 2026-09-20
 **Milestone:** M10  
-**Owner result:** A–L functional acceptance PASS. Scenario I is accepted by prior/manual evidence reuse rather than a fresh computer-B replay. Final-delivery usability polish-25 remains pending targeted retest of Excel bulk paste and responsive Preview layout.
-**Implementation authorization:** WP1–WP5 and owner A–L acceptance are controller-recorded; polish-25 is the only active work on unmerged PR #22; no owner result authorizes merge or M11+
-**Candidate source head:** the polish-25 exact-head candidate, paths, sizes and hashes are recorded in its matching `CODEX_DONE`
-**Candidate executable / ZIP:** polish-25 candidate paths, sizes and hashes are recorded in its matching `CODEX_DONE`
+**Owner result:** A–L functional acceptance PASS. Scenario I is accepted by prior/manual evidence reuse rather than a fresh computer-B replay. Final-delivery Excel bulk-paste ergonomics and responsive Preview layout are also PASS; no further owner manual testing is required for M10.
+**Implementation authorization:** WP1–WP5, owner A–L acceptance and polish-25 are controller-recorded. The closure-26 handoff is documentation/governance only on unmerged PR #22; no owner result authorizes merge or M11+
+**Candidate source head:** `34e61c67785aa6c8c0ca84a545e31de30b17ac39`
+**Candidate executable / ZIP:** `artifacts/m10-win-x64-final-polish-p25/Sushi81.Pos.Desktop.exe` and `artifacts/m10-win-x64-final-polish-p25.zip`; sizes and SHA-256 values are recorded below and in the matching `CODEX_DONE`
 
-> This checklist is for the project owner. Codex must not pre-check boxes or mark the result final. A–L functional acceptance is complete; the targeted retest after polish-25 covers only the Excel bulk-paste and responsive Preview usability items. Historical candidate failures and their repairs remain preserved as evidence.
+> This checklist records the project owner's completed A–L acceptance and the targeted polish-25 retest. The owner evidence is durable in PR #22 comment `5750016695` and Issue #4 closure handoff `5750020351`; Codex did not substitute automated evidence for owner acceptance. Historical candidate failures and their repairs remain preserved as evidence. M10 is closure-ready, but final controller closure and separate explicit merge approval remain outstanding.
+
+## Accepted candidate and evidence record
+
+- PR/branch: #22 / `codex/m10-catalogue-xlsx-authorized` (OPEN / unmerged);
+- source head: `34e61c67785aa6c8c0ca84a545e31de30b17ac39`;
+- exact-head CI run `35512075546`, job `106081601962`: success;
+- focused workbook protection/paste evidence: 20/20 passed;
+- focused STA/WPF Preview render evidence: 1/1 passed across 640×480, 940×700 and 1280×900 in fr-FR and zh-CN;
+- full Release solution: 787/787 passed; Release build: 0 warnings / 0 errors;
+- EXE: `artifacts/m10-win-x64-final-polish-p25/Sushi81.Pos.Desktop.exe`, 162,816 bytes, SHA-256 `FD49066E245837F8664C76B48D8978405E5A2457BC859FB6C8C734B456192A82`;
+- ZIP: `artifacts/m10-win-x64-final-polish-p25.zip`, 69,962,650 bytes, SHA-256 `A53C639C84709274F56019F4B11FCE3AE58F10258174614FE7030912A3676AA2`;
+- forbidden-data scan: no database, workbook, CSV, business-data, credential, token or secret files; artifacts remain ignored/untracked.
 
 ## 0. Preconditions
 
 Before execution record:
 
-- [ ] implementation PR number and exact candidate source head;
-- [ ] exact-head CI result;
-- [ ] full Release test/build result;
-- [ ] candidate EXE path, size and SHA-256;
-- [ ] candidate ZIP path, size and SHA-256;
-- [ ] current authority state/device role;
-- [ ] test database is controlled/synthetic or an owner-approved disposable copy;
-- [ ] Microsoft Excel or the intended real normal `.xlsx` operator application is available.
+- [x] implementation PR number and exact candidate source head;
+- [x] exact-head CI result;
+- [x] full Release test/build result;
+- [x] candidate EXE path, size and SHA-256;
+- [x] candidate ZIP path, size and SHA-256;
+- [x] current authority state/device role;
+- [x] test database is controlled/synthetic or an owner-approved disposable copy;
+- [x] Microsoft Excel or the intended real normal `.xlsx` operator application is available.
 
 Do not use the live production database for destructive/corruption acceptance cases.
 
@@ -39,21 +51,21 @@ Do not use the live production database for destructive/corruption acceptance ca
 
 Accept only if:
 
-- [ ] Excel opens the file normally with no repair/corruption warning;
-- [ ] visible logical sheets are exactly `Products`, `OptionGroups`, `Options`;
-- [ ] no operator-facing `Categories` sheet appears;
-- [ ] `Products` visibly exposes Category name and Category short code business columns;
-- [ ] every Product row shows the current Category short code accurately, blank when that Category has none;
-- [ ] ordinary business columns are understandable and practically editable;
-- [ ] technical Product/OptionGroup/Option identity is not exposed as normal editable business data;
-- [ ] `category_id` is not presented as an operator field;
-- [ ] ordinary operator actions do not accidentally overwrite protected technical bindings;
-- [ ] workbook remains usable for sorting/filtering/adding rows as designed;
-- [ ] current business values match the application exactly.
+- [x] Excel opens the file normally with no repair/corruption warning;
+- [x] visible logical sheets are exactly `Products`, `OptionGroups`, `Options`;
+- [x] no operator-facing `Categories` sheet appears;
+- [x] `Products` visibly exposes Category name and Category short code business columns;
+- [x] every Product row shows the current Category short code accurately, blank when that Category has none;
+- [x] ordinary business columns are understandable and practically editable;
+- [x] technical Product/OptionGroup/Option identity is not exposed as normal editable business data;
+- [x] `category_id` is not presented as an operator field;
+- [x] ordinary operator actions do not accidentally overwrite protected technical bindings;
+- [x] workbook remains usable for sorting/filtering/adding rows as designed;
+- [x] current business values match the application exactly.
 
 Notes:
 
-- Result: PASS / FAIL / NOT RUN
+- Result: PASS
 - Evidence/screenshots:
 
 ## B — No-op export/re-import round trip
@@ -64,20 +76,20 @@ Notes:
 
 Accept only if:
 
-- [ ] preview reports no unintended Create/Modify/Activate/Deactivate operation;
-- [ ] Category short-code consistency fields do not produce false changes;
-- [ ] omitted/delete count does not exist;
-- [ ] preview clearly states no database change has occurred yet;
-- [ ] canceling leaves Catalogue unchanged;
-- [ ] if a no-op Confirm path exists, it causes no unwanted durable changes or identity/order drift.
+- [x] preview reports no unintended Create/Modify/Activate/Deactivate operation;
+- [x] Category short-code consistency fields do not produce false changes;
+- [x] omitted/delete count does not exist;
+- [x] preview clearly states no database change has occurred yet;
+- [x] canceling leaves Catalogue unchanged;
+- [x] if a no-op Confirm path exists, it causes no unwanted durable changes or identity/order drift.
 
 Afterward re-export and compare the business catalogue.
 
-- [ ] Product/Group/Option identities and ordering remain stable;
-- [ ] Category names and short codes round-trip unchanged;
-- [ ] no duplicate Category/Product was created.
+- [x] Product/Group/Option identities and ordering remain stable;
+- [x] Category names and short codes round-trip unchanged;
+- [x] no duplicate Category/Product was created.
 
-Result: PASS / FAIL / NOT RUN
+Result: PASS
 
 ## C — Normal Update mode — same-ID business edits and existing Category short-code safety
 
@@ -103,18 +115,18 @@ Also exercise existing Category short-code behavior:
 
 Accept only if:
 
-- [ ] blank existing Category short-code cell preserves the current value;
-- [ ] same normalized existing short code is accepted as consistency data and does not create a Category mutation;
-- [ ] a different non-blank short code for an existing Category is a blocking Error;
-- [ ] adding a short code to an existing uncoded Category through the workbook is a blocking Error;
-- [ ] the error clearly tells the operator that existing Category short-code changes belong in the in-app Category manager/re-export workflow;
-- [ ] preview identifies exactly the intended Product/Group/Option modifications/state changes;
-- [ ] no unrelated record is included;
-- [ ] after Confirm, Product code change preserved the same internal Product identity;
-- [ ] changed records persist after app restart;
-- [ ] re-export shows intended final values only.
+- [x] blank existing Category short-code cell preserves the current value;
+- [x] same normalized existing short code is accepted as consistency data and does not create a Category mutation;
+- [x] a different non-blank short code for an existing Category is a blocking Error;
+- [x] adding a short code to an existing uncoded Category through the workbook is a blocking Error;
+- [x] the error clearly tells the operator that existing Category short-code changes belong in the in-app Category manager/re-export workflow;
+- [x] preview identifies exactly the intended Product/Group/Option modifications/state changes;
+- [x] no unrelated record is included;
+- [x] after Confirm, Product code change preserved the same internal Product identity;
+- [x] changed records persist after app restart;
+- [x] re-export shows intended final values only.
 
-Result: PASS / FAIL / NOT RUN
+Result: PASS
 
 ## D — New Product / OptionGroup / Option rows in Update mode
 
@@ -128,23 +140,23 @@ Result: PASS / FAIL / NOT RUN
 
 Accept only if:
 
-- [ ] parent relationships are understandable to the operator;
-- [ ] preview shows creates, not accidental updates;
-- [ ] exactly one new Category is proposed for the repeated normalized Category name;
-- [ ] its intended short code is shown/understandable in preview;
-- [ ] Confirm creates exactly one Category and one intended Product/Group/Option hierarchy set;
-- [ ] Caisse can find/use the new active Product according to current Category short-code navigation rules;
-- [ ] option selection behavior is correct;
-- [ ] restart/re-export preserves hierarchy, IDs and the new Category short code.
+- [x] parent relationships are understandable to the operator;
+- [x] preview shows creates, not accidental updates;
+- [x] exactly one new Category is proposed for the repeated normalized Category name;
+- [x] its intended short code is shown/understandable in preview;
+- [x] Confirm creates exactly one Category and one intended Product/Group/Option hierarchy set;
+- [x] Caisse can find/use the new active Product according to current Category short-code navigation rules;
+- [x] option selection behavior is correct;
+- [x] restart/re-export preserves hierarchy, IDs and the new Category short code.
 
 Negative subcase:
 
 4. On a disposable copy, make two Product rows for the same new Category contain different non-blank short codes.
 
-- [ ] import blocks with a row-addressable Category short-code conflict;
-- [ ] no partial Category/Product creation occurs.
+- [x] import blocks with a row-addressable Category short-code conflict;
+- [x] no partial Category/Product creation occurs.
 
-Result: PASS / FAIL / NOT RUN
+Result: PASS
 
 ## E — Explicit Add-only / first catalogue initialization
 
@@ -156,27 +168,27 @@ Use a controlled empty catalogue database/application profile.
 
 Accept only if:
 
-- [ ] preview clearly identifies Add-only/create-only mode;
-- [ ] complete first catalogue can be created without pre-existing Product IDs or Category IDs;
-- [ ] new Category short code is created when provided and valid;
-- [ ] all created records work after restart/re-export;
-- [ ] re-export repeats the created Category short code on Product rows.
+- [x] preview clearly identifies Add-only/create-only mode;
+- [x] complete first catalogue can be created without pre-existing Product IDs or Category IDs;
+- [x] new Category short code is created when provided and valid;
+- [x] all created records work after restart/re-export;
+- [x] re-export repeats the created Category short code on Product rows.
 
 Then on a non-empty catalogue:
 
 4. Prepare an Add-only row using an already-existing Product code.
 
-- [ ] import is blocked as an Error;
-- [ ] it does not silently update the existing Product;
-- [ ] zero partial changes occur.
+- [x] import is blocked as an Error;
+- [x] it does not silently update the existing Product;
+- [x] zero partial changes occur.
 
 5. Prepare an Add-only Product assigned by name to an existing Category and attempt to change that existing Category's short code in the row.
 
-- [ ] Category resolution itself is allowed;
-- [ ] the attempted existing Category short-code change is blocked;
-- [ ] existing Category data remains unchanged.
+- [x] Category resolution itself is allowed;
+- [x] the attempted existing Category short-code change is blocked;
+- [x] existing Category data remains unchanged.
 
-Result: PASS / FAIL / NOT RUN
+Result: PASS
 
 ## F — Missing rows never delete
 
@@ -189,12 +201,12 @@ Using a fresh Update workbook copy:
 
 Accept only if:
 
-- [ ] preview contains no Delete operation;
-- [ ] preview/operator text clearly states omitted rows are not deleted;
-- [ ] after Confirm, all three omitted existing records still exist unchanged;
-- [ ] explicit unrelated edits still commit normally.
+- [x] preview contains no Delete operation;
+- [x] preview/operator text clearly states omitted rows are not deleted;
+- [x] after Confirm, all three omitted existing records still exist unchanged;
+- [x] explicit unrelated edits still commit normally.
 
-Result: PASS / FAIL / NOT RUN
+Result: PASS
 
 ## G — Technical-ID / relationship corruption fail-safe
 
@@ -210,12 +222,12 @@ Cases:
 
 Accept each only if:
 
-- [ ] preview/import rejects it with blocking Error;
-- [ ] error identifies the relevant sheet/row/field well enough to repair;
-- [ ] importer never guesses another record/parent;
-- [ ] database remains unchanged.
+- [x] preview/import rejects it with blocking Error;
+- [x] error identifies the relevant sheet/row/field well enough to repair;
+- [x] importer never guesses another record/parent;
+- [x] database remains unchanged.
 
-Result: PASS / FAIL / NOT RUN
+Result: PASS
 
 ## H — Validation and all-or-nothing behavior
 
@@ -232,31 +244,31 @@ Prepare one workbook containing several valid changes plus at least one invalid 
 
 Accept only if:
 
-- [ ] all blocking Errors are visible/actionable;
-- [ ] Confirm is unavailable/rejected while any Error remains;
-- [ ] none of the otherwise valid rows partially applies;
-- [ ] after fixing the Error(s), one Confirm applies the whole intended batch;
-- [ ] restart/re-export shows complete committed state.
+- [x] all blocking Errors are visible/actionable;
+- [x] Confirm is unavailable/rejected while any Error remains;
+- [x] none of the otherwise valid rows partially applies;
+- [x] after fixing the Error(s), one Confirm applies the whole intended batch;
+- [x] restart/re-export shows complete committed state.
 
-Result: PASS / FAIL / NOT RUN
+Result: PASS
 
 ## I — Read-only/authority behavior
 
 On a non-authoritative/read-only device using the existing M07 authority model:
 
-- [ ] Catalogue export remains available as a read operation;
-- [ ] export itself does not alter authority/recovery state;
-- [ ] import parsing/preview, if UI allows it, performs no write;
-- [ ] import Confirm cannot perform a Catalogue write;
-- [ ] UI clearly reflects read-only authority state;
-- [ ] there is no bypass through file/dialog action.
+- [x] Catalogue export remains available as a read operation;
+- [x] export itself does not alter authority/recovery state;
+- [x] import parsing/preview, if UI allows it, performs no write;
+- [x] import Confirm cannot perform a Catalogue write;
+- [x] UI clearly reflects read-only authority state;
+- [x] there is no bypass through file/dialog action.
 
 Then transfer/acquire authority through the already-approved M07 workflow, obtain a fresh preview of the same valid workbook, and verify:
 
-- [ ] authorized Confirm now succeeds;
-- [ ] no new M10-specific authority protocol exists.
+- [x] authorized Confirm now succeeds;
+- [x] no new M10-specific authority protocol exists.
 
-Result: PASS / FAIL / NOT RUN
+Result: PASS
 
 ## J — Historical order independence
 
@@ -267,13 +279,13 @@ Result: PASS / FAIL / NOT RUN
 
 Accept only if:
 
-- [ ] historical order remains readable;
-- [ ] its snapshots remain exactly the original sale-time business values;
-- [ ] current Category name/short-code changes in the live Catalogue do not retroactively reinterpret the historical snapshot;
-- [ ] current Catalogue changes are not retroactively joined into history;
-- [ ] historical total/tax/payment interpretation is unchanged.
+- [x] historical order remains readable;
+- [x] its snapshots remain exactly the original sale-time business values;
+- [x] current Category name/short-code changes in the live Catalogue do not retroactively reinterpret the historical snapshot;
+- [x] current Catalogue changes are not retroactively joined into history;
+- [x] historical total/tax/payment interpretation is unchanged.
 
-Result: PASS / FAIL / NOT RUN
+Result: PASS
 
 ## K — FR / zh-CN and layout/operator flow
 
@@ -281,14 +293,14 @@ Exercise Export, Import, preview, Errors and confirmation in both French and Sim
 
 Accept only if:
 
-- [ ] action labels/messages are understandable in both languages;
-- [ ] switching language does not alter parsed counts/business values, Category short-code meaning or selected file/import state unexpectedly;
-- [ ] preview remains usable at normal/default window size;
-- [ ] preview remains usable maximized/resized;
-- [ ] buttons are visible/content-sized and issue text scrolls/wraps appropriately;
-- [ ] Cancel/close does not persist transient preview changes.
+- [x] action labels/messages are understandable in both languages;
+- [x] switching language does not alter parsed counts/business values, Category short-code meaning or selected file/import state unexpectedly;
+- [x] preview remains usable at normal/default window size;
+- [x] preview remains usable maximized/resized;
+- [x] buttons are visible/content-sized and issue text scrolls/wraps appropriately;
+- [x] Cancel/close does not persist transient preview changes.
 
-Result: PASS / FAIL / NOT RUN
+Result: PASS
 
 ## L — Restart and final real round trip
 
@@ -302,25 +314,25 @@ After the accepted successful import set:
 
 Accept only if:
 
-- [ ] committed Catalogue persists;
-- [ ] all intended identities/relationships/state remain correct;
-- [ ] Category names/short codes remain correct and export consistently;
-- [ ] new export opens cleanly;
-- [ ] export matches the final current Catalogue;
-- [ ] there are no duplicate/phantom rows or missing omitted-from-prior-import records.
+- [x] committed Catalogue persists;
+- [x] all intended identities/relationships/state remain correct;
+- [x] Category names/short codes remain correct and export consistently;
+- [x] new export opens cleanly;
+- [x] export matches the final current Catalogue;
+- [x] there are no duplicate/phantom rows or missing omitted-from-prior-import records.
 
-Result: PASS / FAIL / NOT RUN
+Result: PASS
 
 ## Final owner disposition
 
 Record only after A–L applicable checks are complete.
 
-- Owner acceptance result: **NOT YET EXECUTED / PASSED / FAILED**
-- Candidate source head:
-- Candidate EXE SHA-256:
-- Candidate ZIP SHA-256:
-- Exact-head CI:
-- Full Release tests/build:
-- Owner notes / defects:
+- Owner acceptance result: **PASSED — closure-ready pending controller record**
+- Candidate source head: `34e61c67785aa6c8c0ca84a545e31de30b17ac39`
+- Candidate EXE SHA-256: `FD49066E245837F8664C76B48D8978405E5A2457BC859FB6C8C734B456192A82`
+- Candidate ZIP SHA-256: `A53C639C84709274F56019F4B11FCE3AE58F10258174614FE7030912A3676AA2`
+- Exact-head CI: run `35512075546`, job `106081601962` — success
+- Full Release tests/build: 787/787 passed; 0 warnings / 0 errors
+- Owner notes / defects: A–L and final-delivery usability PASS; no further owner manual testing required; final controller closure and explicit merge approval remain separate.
 
 A PASSED owner acceptance does **not** itself authorize merge or M11. Merge remains a separate explicit project-owner action.
