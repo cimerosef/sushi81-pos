@@ -31,9 +31,21 @@ The V1 workbook remains the fixed four-sheet contract from `export.md`; per-run 
 
 `Orders.SettlementDate` is the business date on which cumulative effective-dated signed payment adjustments reach the committed authoritative order total. It is not merely `ClosedAt` and not `recorded_at`.
 
-A Closed order for which this date cannot be derived consistently must fail closed rather than receive an invented value.
+For a legitimate zero-total Closed order, SettlementDate is the business-local date of ClosedAt because no payment event exists. A positive-total Closed order for which the effective-date settlement cannot be derived consistently must fail closed rather than receive an invented value.
 
-**Evidence:** workbook contract/cell-type tests plus payment-effective-date settlement tests, including later technical recording and zero-net payment-bucket reclassification.
+**Evidence:** workbook contract/cell-type tests plus payment-effective-date settlement tests, including later technical recording, zero-net payment-bucket reclassification and zero-total Closed order handling.
+
+The frozen line/tax mapping is:
+
+- UnitBaseTTC = saved per-unit product base TTC;
+- OptionAdjustmentTTC = signed whole-line sum of saved per-unit adjustments × quantity;
+- LineTTC = persisted calculated line TTC;
+- VATRate = saved product VAT rate;
+- TaxableHT = persisted bucket TTC minus persisted included VAT;
+- VATAmount = persisted included VAT;
+- TaxBreakdown TTC = persisted taxable TTC bucket.
+
+**Evidence:** historical-snapshot mapping tests including mixed product/option VAT.
 
 ## AC-EXP-009 clarification — UPDATE waits for Closed current state
 
