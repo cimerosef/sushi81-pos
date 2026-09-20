@@ -91,3 +91,24 @@ Controller transition:
 - M12/M13 remain unauthorized.
 
 Issue #4 is opened only after PR #24 and Issue #4 carry the same exact WP1 `CODEX_HANDOFF_READY` identifier and starting head.
+
+
+## 2026-09-20 — M11-WP2-CONTROLLER-ACCEPTANCE-05
+
+WP2 implementation head:
+
+`a9774e2a6795adafee75b18f061289e47811caf5`
+
+Controller review verified the ClosedXML four-sheet contract, native Excel values, staged validation/finalization ordering, unrelated-target protection, retry after ledger commit failure, and exact successful-batch regeneration from immutable payload.
+
+Evidence:
+
+- WP2 focused tests: 4/4 passed;
+- full Release solution: 805 passed / 0 failed / 0 skipped;
+- Release build: 0 warnings / 0 errors;
+- exact-head CI #804 / run `35530438990`: SUCCESS;
+- controller acceptance: PR #24 comment `5752144083`.
+
+Disposition: **WP2 ACCEPTED**.
+
+The collaboration protocol was also hardened so a future executable handoff uses one authoritative top-level PR comment whose first line is exactly `CODEX_HANDOFF_READY: <id>`, with START_HEAD/BRANCH/PR/SCOPE on separate lines. Issue #4 remains the execution switch/status pointer rather than a competing full task copy.
