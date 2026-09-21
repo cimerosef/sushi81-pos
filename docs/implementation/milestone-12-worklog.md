@@ -1,8 +1,8 @@
 # M12 — Annual archive and historical access — worklog
 
-**Status:** Active implementation evidence ledger  
-**Milestone:** M12  
-**Implementation PR:** #25  
+**Status:** Active implementation evidence ledger
+**Milestone:** M12
+**Implementation PR:** #25
 **Branch:** `codex/m12-annual-archive-authorized`
 
 ## 2026-09-21 — Controller preparation / current-state reconciliation
