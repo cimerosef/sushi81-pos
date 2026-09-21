@@ -1,8 +1,8 @@
 # Storage strategy
 
-**Status:** Approved — Phase 3 baseline, amended through 2026-09-21  
-**Last updated:** 2026-09-21  
-**Product:** Sushi81 POS  
+**Status:** Approved — Phase 3 baseline, amended through 2026-09-21
+**Last updated:** 2026-09-21
+**Product:** Sushi81 POS
 **Purpose:** Define how live data, local recovery snapshots, GitHub handoff snapshots, disaster-recovery checkpoints and annual archives are stored and transferred safely across paired Windows devices without silent divergence.
 
 **Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` supersedes generic competitive handoff acquisition and automatic authority release on every normal application exit. `docs/decisions/github-handoff-transport.md` supersedes OneDrive desktop publication/synchronization as the normal handoff transport and acknowledgement path. `docs/decisions/m12-local-archive-and-user-selected-export.md` moves canonical annual archives to application-managed local storage and removes OneDrive from annual-archive publication/access while preserving OneDrive Disaster Recovery.
