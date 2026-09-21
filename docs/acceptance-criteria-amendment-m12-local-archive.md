@@ -1,7 +1,7 @@
 # Acceptance criteria amendment — M12 local annual archive and user-selected export
 
-**Status:** Approved — V1 specification amendment  
-**Decision date:** 2026-09-21  
+**Status:** Approved — V1 specification amendment
+**Decision date:** 2026-09-21
 **Controls:** `docs/decisions/m12-local-archive-and-user-selected-export.md`
 
 This amendment supersedes only the OneDrive-specific annual-archive location/publication portions of the baseline acceptance criteria. Other M12 acceptance semantics remain unchanged.
