@@ -1,9 +1,9 @@
 # V1 Specification freeze
 
-**Status:** Approved — Phase 5 baseline, amended 2026-09-17  
-**Freeze date:** 2026-08-27  
-**Latest approved amendment:** 2026-09-20  
-**Product:** Sushi81 POS  
+**Status:** Approved — Phase 5 baseline, amended 2026-09-17
+**Freeze date:** 2026-08-27
+**Latest approved amendment:** 2026-09-20
+**Product:** Sushi81 POS
 **Purpose:** Record completion of the V1 design/specification phase and establish the authoritative implementation baseline for the Codex implementation phase.
 
 ## 1. Freeze declaration
