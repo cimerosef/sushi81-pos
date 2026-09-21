@@ -409,7 +409,15 @@ public sealed class ClosedXmlGestionExportWorkbookGateway : IExportWorkbookGatew
 
     private static void RequireDateTime(IXLCell cell, DateTime expected, string sheet, int row, string field)
     {
-        if (cell.DataType != XLDataType.DateTime || cell.GetValue<DateTime>() != expected)
+        // Native Excel dates are OLE Automation serial values.  The native
+        // representation intentionally has millisecond precision, so a
+        // production DateTime with sub-millisecond ticks cannot round-trip by
+        // exact CLR tick equality.  Normalize the expected value through the
+        // same representable native contract instead of applying an arbitrary
+        // tolerance.  DateOnly values remain exact, and materially different
+        // dates/times still fail validation.
+        var expectedNative = DateTime.FromOADate(expected.ToOADate());
+        if (cell.DataType != XLDataType.DateTime || cell.GetValue<DateTime>() != expectedNative)
             throw new InvalidDataException($"{sheet}!{field}{row} must be the expected native datetime.");
     }
 

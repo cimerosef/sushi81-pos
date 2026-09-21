@@ -51,6 +51,59 @@ public sealed class M11Wp2WorkbookGatewayTests
     }
 
     [TestMethod]
+    public async Task HighPrecisionNativeDateTimesRoundTripAtExcelPrecision()
+    {
+        var baseline = SamplePayload();
+        var expectedGeneratedAt = baseline.Meta.GeneratedAt.AddTicks(4567);
+        var expectedCreatedAt = baseline.Orders[0].CreatedAt.AddTicks(9876);
+        var expectedFulfilmentTime = baseline.Orders[0].FulfilmentTime!.Value.Add(TimeSpan.FromTicks(3210));
+        var payload = baseline with
+        {
+            Meta = baseline.Meta with { GeneratedAt = expectedGeneratedAt },
+            Orders =
+            [
+                baseline.Orders[0] with
+                {
+                    CreatedAt = expectedCreatedAt,
+                    FulfilmentTime = expectedFulfilmentTime
+                },
+                baseline.Orders[1]
+            ]
+        };
+        var gateway = new ClosedXmlGestionExportWorkbookGateway();
+        await using var stream = new MemoryStream();
+
+        await gateway.WriteAsync(payload, stream);
+        stream.Position = 0;
+        DateTime actualGeneratedAt;
+        DateTime actualCreatedAt;
+        TimeSpan actualFulfilmentTime;
+        using (var workbook = new XLWorkbook(stream))
+        {
+            actualGeneratedAt = workbook.Worksheet("Meta").Cell(4, 2).GetValue<DateTime>();
+            actualCreatedAt = workbook.Worksheet("Orders").Cell(2, 4).GetValue<DateTime>();
+            actualFulfilmentTime = workbook.Worksheet("Orders").Cell(2, 6).GetValue<TimeSpan>();
+        }
+
+        // This is the pre-fix production failure: native Excel/ClosedXML
+        // cannot preserve the payload's sub-millisecond CLR ticks.
+        Assert.AreNotEqual(expectedGeneratedAt, actualGeneratedAt);
+        Assert.AreNotEqual(expectedCreatedAt, actualCreatedAt);
+        // ClosedXML preserves native TimeSpan values at this precision; the
+        // lossy round-trip is specific to native DateTime/OLE serial values.
+        Assert.AreEqual(expectedFulfilmentTime.ToTimeSpan(), actualFulfilmentTime);
+        Assert.AreEqual(DateTime.FromOADate(expectedGeneratedAt.UtcDateTime.ToOADate()), actualGeneratedAt);
+        Assert.AreEqual(DateTime.FromOADate(expectedCreatedAt.UtcDateTime.ToOADate()), actualCreatedAt);
+
+        stream.Position = 0;
+        await gateway.ValidateAsync(stream, payload);
+
+        await using var meaningfullyDifferent = Mutate(stream, workbook =>
+            workbook.Worksheet("Orders").Cell(2, 4).Value = actualCreatedAt.AddSeconds(1));
+        await Assert.ThrowsAsync<InvalidDataException>(() => gateway.ValidateAsync(meaningfullyDifferent, payload));
+    }
+
+    [TestMethod]
     public async Task ValidationRejectsWrongHeaderActionAndNativeType()
     {
         var payload = SamplePayload();
