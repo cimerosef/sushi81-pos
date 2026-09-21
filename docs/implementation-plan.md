@@ -54,7 +54,7 @@ Detailed task definition: `implementation/milestone-01-foundation.md`.
 
 M02 ran before broad business implementation.
 
-The original generic/competitive OneDrive acquisition model was deterministically tested and found unable to provide the required ordinary N-device single-writer guarantee without an external exclusive grant. The approved amendment changed normal transfer to source-directed transfer to exactly one target and selected a dedicated private GitHub Release Asset transport with strict server receipt/grant semantics. OneDrive remains recovery/archive storage.
+The original generic/competitive OneDrive acquisition model was deterministically tested and found unable to provide the required ordinary N-device single-writer guarantee without an external exclusive grant. The approved amendment changed normal transfer to source-directed transfer to exactly one target and selected a dedicated private GitHub Release Asset transport with strict server receipt/grant semantics. OneDrive remains the Disaster Recovery storage boundary; the later M12 amendment moved annual archives to local application-managed storage.
 
 Primary acceptance preparation: amended `AC-STO-002` through `AC-STO-005`, `AC-STO-007` through `AC-STO-010`.
 
