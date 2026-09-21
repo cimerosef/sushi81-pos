@@ -18,7 +18,7 @@ The Phase 1–5 document set completed a repo-wide consistency review covering:
 - catalogue management and `.xlsx` batch semantics;
 - architecture;
 - logical data model;
-- local storage, OneDrive handoff, recovery and annual archive behavior;
+- local storage, normal handoff, recovery and annual archive behavior;
 - Hiboutik paste-order fallback;
 - kitchen/customer printing and reprinting;
 - export to the downstream `Gestion SUSHI 81` workflow;
@@ -128,7 +128,7 @@ Historical Phase 5 details remain available in repository history; later amendme
 
 ## 7. Post-freeze amendment — target-directed authority handoff (2026-08-28)
 
-M02 feasibility proved generic OneDrive claim/election could not safely provide ordinary N-device single-writer acquisition. The owner approved target-directed source-to-one-target handoff with strict GitHub Release Asset receipt/grant semantics, while OneDrive remains recovery/archive storage.
+M02 feasibility proved generic OneDrive claim/election could not safely provide ordinary N-device single-writer acquisition. The owner approved target-directed source-to-one-target handoff with strict GitHub Release Asset receipt/grant semantics. OneDrive remained approved for recovery/archive at that point; the later 2026-09-21 M12 amendment moved annual archives to local application-managed storage while preserving OneDrive Disaster Recovery.
 
 The controlling decisions are `docs/decisions/target-directed-authority-handoff.md` and `docs/decisions/github-handoff-transport.md`. Architecture/storage/acceptance were aligned before later milestones proceeded.
 
