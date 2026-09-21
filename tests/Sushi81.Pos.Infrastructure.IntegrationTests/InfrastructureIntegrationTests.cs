@@ -917,6 +917,7 @@ internal sealed class TestAppPaths : IAppPaths, IDisposable
         LogsDirectory = Path.Combine(RootDirectory, "Logs");
         ConfigDirectory = Path.Combine(RootDirectory, "Config");
         TempDirectory = Path.Combine(RootDirectory, "Temp");
+        ArchiveDirectory = Path.Combine(RootDirectory, "Archive");
         LiveDatabasePath = Path.Combine(DataDirectory, "live.db");
     }
 
@@ -927,11 +928,12 @@ internal sealed class TestAppPaths : IAppPaths, IDisposable
     public string LogsDirectory { get; }
     public string ConfigDirectory { get; }
     public string TempDirectory { get; }
+    public string ArchiveDirectory { get; }
     public string LiveDatabasePath { get; }
 
     public void EnsureInitialized()
     {
-        foreach (var path in new[] { RootDirectory, DataDirectory, RecoveryDirectory, CacheDirectory, LogsDirectory, ConfigDirectory, TempDirectory })
+        foreach (var path in new[] { RootDirectory, DataDirectory, RecoveryDirectory, CacheDirectory, LogsDirectory, ConfigDirectory, TempDirectory, ArchiveDirectory })
         {
             Directory.CreateDirectory(path);
         }
