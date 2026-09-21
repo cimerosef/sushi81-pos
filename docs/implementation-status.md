@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Last updated:** 2026-09-21
-**Current state:** M01 through M11 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current authoritative `main` is M11 merge commit `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. M12 Annual archive and historical access is owner-AUTHORIZED on `codex/m12-annual-archive-authorized` / Draft PR #25. WP1 is the first executable package; the later WP2 publication-to-live-removal path is blocked pending explicit resolution of the documented OneDrive remote-publication acknowledgement limitation. M13 remains unauthorized.
+**Current state:** M01 through M11 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current authoritative `main` is M11 merge commit `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. M12 Annual archive and historical access is owner-AUTHORIZED on `codex/m12-annual-archive-authorized` / Draft PR #25. The owner-approved 2026-09-21 amendment makes canonical annual archives permanent application-managed local databases and makes archive export an explicit operator-selected copy action. WP1 remains the first package. M13 remains unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -37,7 +37,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | PR #19 merged at `861cfba1dfacbb3289395c0370f6d42765b6c223`; controller/owner acceptance complete. |
 | M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
 | M11 — Gestion intermediate export | Passed | PR #24 CLOSED/MERGED at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831, 0 failed, 0 skipped and Release build 0 warnings/errors. |
-| M12 — Annual archive/historical access | Authorized | Owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25. WP1 ready/executable under Issue #4; WP2 remote-publication/live-removal path requires explicit acknowledgement resolution before implementation. |
+| M12 — Annual archive/historical access | Authorized | Owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25. Local-archive/user-selected-export amendment Approved 2026-09-21; WP1 is the first package. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
 
 ## 3. Current merged baseline
@@ -144,14 +144,15 @@ M12 control line:
 Implementation-readiness result:
 
 - current SQLite order aggregate and historical snapshot tables are reusable;
-- `IWriteAuthorityGuard`, application Temp/Cache paths, configured OneDrive root, read-only SQLite connection factory and M08 snapshot-based print model are reusable seams;
+- `IWriteAuthorityGuard`, application Temp path, read-only SQLite connection factory and M08 snapshot-based print model are reusable seams; M12 adds a permanent local Archive application-data path;
 - normal `SearchLiveAsync` remains live-only and must not be widened implicitly;
 - M11 immutable successful export emissions survive order-row deletion physically, but pending/un-emitted corrections are derived from the live order and must be durably preserved before removal as required by the implementation plan;
 - no production archive implementation currently exists;
-- WP1 can be implemented without OneDrive publication or live deletion and is READY;
-- accepted M02 evidence proves there is no documented local-only per-artifact OneDrive remote-upload acknowledgement for a newly-created regular file. Because `AC-STO-013` requires confirmed publication/synchronization before live removal, the affected WP2 delete gate is **Blocked — architecture decision required** until a conforming acknowledgement approach is explicitly approved. This finding does not amend the frozen archive contract.
+- owner-approved decision `decisions/m12-local-archive-and-user-selected-export.md` removes OneDrive from annual archive publication/access;
+- WP1 can be implemented without final local canonical promotion or live deletion and is READY;
+- WP2 is no longer blocked by OneDrive acknowledgement: it must use staged validation -> durable local canonical promotion -> reopen-validation -> exact live removal, while preserving pending export payloads first.
 
-Issue #4 remains the sole Codex execution switch/status pointer. Codex may execute only the single exact `CODEX_HANDOFF_READY` in PR #25 while Issue #4 is OPEN. Closing Issue #4 revokes execution without changing durable M12 authorization. One WP1 DONE does not authorize WP2.
+Issue #4 remains the sole Codex execution switch/status pointer. The previous WP1 READY was revoked while this Approved amendment was aligned. A new unique exact-head WP1 READY must be published before Codex resumes. One WP1 DONE does not authorize WP2.
 
 ## 6. Evidence preservation
 
