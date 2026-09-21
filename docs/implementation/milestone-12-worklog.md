@@ -84,3 +84,32 @@ Focused evidence added and passing:
 The previously retained WP1 policy/time, eligibility, authority, path, metadata, and builder-failure/retry tests remain passing. Focused M12 result: 19 passed, 0 failed, 0 skipped (9 application policy tests, 9 annual-archive integration tests, 1 archive-path test). Full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 850 passed, 0 failed, 0 skipped. Full Release build: 0 warnings, 0 errors. `git diff --check`: clean. Test implementation head: `66a592c`.
 
 Final closure delivery remains bounded to WP1 evidence/governance. No WP2 behavior, canonical archive promotion, live deletion, scheduler, archive UI/search/export/reprint, or M13 work is included or authorized by this handoff. Issue #4 gate was OPEN during execution; PR #25 remains the active Draft/open implementation PR and is not merged.
+
+## 2026-09-21 — WP2 local publication/export-preservation/live-removal package 04
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP2-LOCAL-PUBLISH-EXPORT-PRESERVATION-LIVE-REMOVAL-04`, PR #25 comment `5767278524`;
+- handoff start head: `c0c16ac7e11a52f87d3a939a9d024f866c361a7e`;
+- controller prerequisite: WP1 accepted by PR #25 comment `5767263231`;
+- implementation/evidence commit: `2c68d4a` (`feat: finalize local annual archive removal`);
+- Issue #4 was OPEN and PR #25 remained the active Draft/open implementation PR during execution.
+
+Implemented only the authorized M12 WP2 boundary:
+
+- migration 9 adds the durable `annual_archive_completions` ledger and upgrade/failure-rollback coverage;
+- pending M11 CREATE/UPDATE/CANCEL actions are preserved as immutable PREPARED payloads using the exact action/payload/predecessor tuple, with retry reuse and stale-prepared separation;
+- validated WP1 staging is copied through an incoming file, flushed, reopened/validated, atomically promoted without overwrite, and validated again before live removal;
+- the exact validated order identity set is deleted in one SQLite transaction with the completion marker, automatic business-revision advancement, and post-commit durable recovery notification;
+- repeated completion is idempotent, a missing canonical file is not silently recreated, corrupt canonical data fails closed, and copy/transaction failures leave live data retryable;
+- expanded archive validation compares the full historical fact rows relevant to the target orders, not only identifiers and child counts.
+
+Evidence recorded before final delivery:
+
+- focused M12 WP2 real-SQLite/filesystem suite: 6 passed, 0 failed, 0 skipped;
+- existing M12 WP1 staging/validation regression: 9 passed, 0 failed, 0 skipped;
+- full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 856 passed, 0 failed, 0 skipped;
+- full Release solution build: 0 warnings, 0 errors;
+- `git diff --check`: clean before commit.
+
+The package remains bounded to local annual archive publication, pending Gestion payload preservation, exact live removal and recovery notification. No scheduler, archive UI/search, user-selected archive export, historical reprint, OneDrive publication, M13 work or PR merge is included or authorized by this handoff. Exact-head CI and the durable matching `CODEX_DONE` remain the final delivery steps.
