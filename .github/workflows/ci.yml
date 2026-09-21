@@ -52,7 +52,7 @@ jobs:
 
       - name: Restore
         shell: pwsh
-        run: dotnet restore Sushi81.Pos.sln
+        run: dotnet restore Sushi81.Pos.sln -r win-x64
 
       - name: Build Release
         shell: pwsh
