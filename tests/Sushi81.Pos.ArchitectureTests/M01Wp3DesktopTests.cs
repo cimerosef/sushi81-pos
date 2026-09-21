@@ -4,6 +4,7 @@ using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
 using Sushi81.Pos.Application.Export;
@@ -21,6 +22,9 @@ namespace Sushi81.Pos.ArchitectureTests;
 [DoNotParallelize]
 public sealed class M01Wp3DesktopTests
 {
+    private static readonly string[] FrenchDatePickerWatermarks = ["Sélectionner une date", "Sélectionner une date"];
+    private static readonly string[] ChineseDatePickerWatermarks = ["选择日期", "选择日期"];
+
     [TestMethod]
     public async Task DefaultPreviewIsReadOnlyAndUsesAllApplicableDates()
     {
@@ -415,6 +419,7 @@ public sealed class M01Wp3DesktopTests
     {
         RunOnSta(() =>
         {
+            var businessCulture = CultureInfo.CurrentCulture;
             using var fixture = CreateFixture(WriteAuthorityState.Authoritative);
             using var shell = new ShellViewModel(
                 new InMemorySelectedCultureStore(),
@@ -435,13 +440,18 @@ public sealed class M01Wp3DesktopTests
                     .ToArray();
                 Assert.HasCount(2, datePickers);
                 Assert.IsTrue(datePickers.All(picker => string.Equals(picker.Language.IetfLanguageTag, "fr-FR", StringComparison.OrdinalIgnoreCase)));
+                CollectionAssert.AreEqual(FrenchDatePickerWatermarks, datePickers.Select(ReadRenderedDatePickerWatermark).ToArray());
                 Assert.AreEqual("Gestion export", shell.Localized["GestionExport"]);
+                Assert.AreEqual(businessCulture.Name, CultureInfo.CurrentCulture.Name, "UI localization must not change business serialization culture.");
 
                 var languageSelector = VisualDescendants<ComboBox>(window).Single(combo => combo.SelectedValuePath == "CultureName");
                 languageSelector.SelectedValue = "zh-CN";
                 window.Dispatcher.Invoke(() => { });
                 window.UpdateLayout();
                 Assert.IsTrue(datePickers.All(picker => string.Equals(picker.Language.IetfLanguageTag, "zh-CN", StringComparison.OrdinalIgnoreCase)));
+                var chineseWatermarks = datePickers.Select(ReadRenderedDatePickerWatermark).ToArray();
+                CollectionAssert.AreEqual(ChineseDatePickerWatermarks, chineseWatermarks);
+                Assert.IsFalse(chineseWatermarks.Any(text => text.Contains("Sélectionner", StringComparison.Ordinal)), "The rendered zh-CN watermark must not remain French.");
                 Assert.AreEqual("销售数据导出", shell.Localized["GestionExport"]);
                 Assert.AreEqual("销售数据导出", shell.Localized["GestionExportSection"]);
 
@@ -449,6 +459,7 @@ public sealed class M01Wp3DesktopTests
                 window.Dispatcher.Invoke(() => { });
                 window.UpdateLayout();
                 Assert.IsTrue(datePickers.All(picker => string.Equals(picker.Language.IetfLanguageTag, "fr-FR", StringComparison.OrdinalIgnoreCase)));
+                CollectionAssert.AreEqual(FrenchDatePickerWatermarks, datePickers.Select(ReadRenderedDatePickerWatermark).ToArray());
             }
             finally
             {
@@ -551,6 +562,26 @@ public sealed class M01Wp3DesktopTests
         catch (InvalidOperationException) { yield break; }
         for (var index = 0; index < children; index++)
             foreach (var descendant in VisualDescendants<T>(VisualTreeHelper.GetChild(root, index))) yield return descendant;
+    }
+
+    private static string ReadRenderedDatePickerWatermark(DatePicker datePicker)
+    {
+        datePicker.ApplyTemplate();
+        var textBox = datePicker.Template.FindName("PART_TextBox", datePicker) as DatePickerTextBox;
+        Assert.IsNotNull(textBox, "DatePicker must expose its real DatePickerTextBox template part.");
+        textBox!.ApplyTemplate();
+
+        var watermark = textBox.Template.FindName("PART_Watermark", textBox);
+        Assert.IsNotNull(watermark, "The real DatePickerTextBox template must expose its watermark visual.");
+        var rendered = watermark switch
+        {
+            ContentControl content => content.Content?.ToString(),
+            ContentPresenter presenter => presenter.Content?.ToString(),
+            TextBlock text => text.Text,
+            _ => null
+        };
+        Assert.IsFalse(string.IsNullOrWhiteSpace(rendered), "The visible DatePicker watermark must be populated in the rendered template part.");
+        return rendered!;
     }
 
     private sealed record Fixture(WriteAuthorityGuard Guard, FakeStore Store, GestionExportWorkflowViewModel Workflow) : IDisposable

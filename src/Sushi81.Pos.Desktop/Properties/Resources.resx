@@ -411,6 +411,7 @@ Changements effectifs : {2}</value></data>
   <data name="GestionExportSection" xml:space="preserve"><value>Export intermédiaire vers Gestion</value></data>
   <data name="GestionExportStartDate" xml:space="preserve"><value>Début</value></data>
   <data name="GestionExportEndDate" xml:space="preserve"><value>Fin</value></data>
+  <data name="GestionExportDatePickerWatermark" xml:space="preserve"><value>Sélectionner une date</value></data>
   <data name="GestionExportGeneratedAt" xml:space="preserve"><value>Généré le</value></data>
   <data name="GestionExportInclusiveHint" xml:space="preserve"><value>Les dates de réalisation sont inclusives. Sans filtre, toutes les actions applicables sont proposées.</value></data>
   <data name="GestionExportPreview" xml:space="preserve"><value>Aperçu / actualiser</value></data>

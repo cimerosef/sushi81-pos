@@ -36,7 +36,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M09 — Hiboutik paste fallback | Passed | PR #17 merged at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; owner Windows/WPF acceptance Passed. |
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | PR #19 merged at `861cfba1dfacbb3289395c0370f6d42765b6c223`; controller/owner acceptance complete. |
 | M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
-| M11 — Gestion intermediate export | Partial | WP1–WP4 controller-accepted. The previous owner candidate `M11-WP4-owner-candidate-win-x64-dc8091f` failed owner scenario A; the authorized export/zh-CN localization repair is awaiting a new candidate artifact and owner retest. Owner A–E manual acceptance remains not yet executed. |
+| M11 — Gestion intermediate export | Partial | WP1–WP4 controller-accepted. The previous owner candidate `M11-WP4-owner-candidate-win-x64-dc8091f` failed owner scenario A; Repair 09 export/PREPARED/naming portions were accepted, while the narrow DatePicker watermark repair is now delivered as a new candidate pending owner retest. Owner A–E manual acceptance remains not yet executed. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
 
@@ -78,6 +78,8 @@ Implementation line:
 - WP2: ACCEPTED at `a9774e2a6795adafee75b18f061289e47811caf5`, controller comment `5752144083`;
 - WP3: ACCEPTED at `3c9e110f7d6c5a93c773b2289f5b43f5c59fb14f`; controller acceptance is recorded in PR #24.
 - WP4: the prior controller-accepted owner candidate was delivered through GitHub Actions run `35584565162`, artifact `M11-WP4-owner-candidate-win-x64-dc8091f` / ID `10631573948`, built from source head `dc8091fccb31923bacc16cbff7b49ada771f55fb`; owner scenario A failed and B–E were not continued. The authorized repair handoff is producing a new candidate; owner manual acceptance remains not yet executed.
+- Repair 09 controller finding: export finalization, PREPARED retry visibility and visible `销售数据导出` naming were accepted, but the DatePicker watermark remained insufficiently proven because only `DatePicker.Language` was asserted; the old candidate is not approved for retest.
+- The current narrow repair synchronizes WPF `CurrentUICulture`, preserves `DatePicker.Language` calendar/date behavior, and updates the actual rendered `DatePickerTextBox` watermark visual for in-session fr-FR/zh-CN switching without changing `CurrentCulture` or export/business semantics. The newest owner candidate remains **NOT YET RETESTED**; its exact head, CI and artifact evidence are recorded in the matching durable `CODEX_DONE`.
 
 Primary acceptance ownership:
 
@@ -138,7 +140,7 @@ Current authorized control line:
 - WP1: ACCEPTED;
 - WP2: ACCEPTED;
 - WP3: ACCEPTED at `3c9e110f7d6c5a93c773b2289f5b43f5c59fb14f`;
-- WP4: execution complete under `M11-WP4-INTEGRATION-OWNER-CANDIDATE-07`; controller review and owner manual acceptance remain pending;
+- WP4: integration hardening and Repair 09 were controller-accepted in part; the narrow DatePicker watermark repair is complete locally and the newest owner candidate is awaiting controller/owner retest;
 - Issue #4 must be OPEN before Codex executes;
 - M12/M13 remain unauthorized.
 

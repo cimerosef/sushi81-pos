@@ -411,6 +411,7 @@
   <data name="GestionExportSection" xml:space="preserve"><value>销售数据导出</value></data>
   <data name="GestionExportStartDate" xml:space="preserve"><value>开始</value></data>
   <data name="GestionExportEndDate" xml:space="preserve"><value>结束</value></data>
+  <data name="GestionExportDatePickerWatermark" xml:space="preserve"><value>选择日期</value></data>
   <data name="GestionExportGeneratedAt" xml:space="preserve"><value>生成时间</value></data>
   <data name="GestionExportInclusiveHint" xml:space="preserve"><value>履约日期范围包含首尾日期。不筛选时，将显示所有适用的待处理操作。</value></data>
   <data name="GestionExportPreview" xml:space="preserve"><value>预览 / 刷新</value></data>

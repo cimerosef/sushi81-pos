@@ -123,6 +123,16 @@ The collaboration protocol was also hardened so a future executable handoff uses
 - Completion boundary: final source head, full Release test/build totals, exact-head CI, candidate EXE/ZIP paths/sizes/SHA-256, package entry counts and forbidden-data scan are recorded only in the matching durable `CODEX_DONE` after the final push.
 
 
+## 2026-09-21 — M11-OWNER-A-REPAIR-DATEPICKER-WATERMARK-10
+
+- Authorization/gate state: Issue #4 was OPEN and dynamically pointed to PR #24 / branch `codex/m11-gestion-export-authorized`; this narrow repair started at exact Repair 09 head `5da453affdbde8477ffabdbd5c1339eac592d21c`. No merge, M12/M13 work, business-data rewrite, schema change, export-semantic change, or payment/Close change is authorized.
+- Controller disposition carried forward: Repair 09 export finalization, PREPARED retry visibility and canonical `销售数据导出` naming were accepted; only the owner-visible WPF DatePicker watermark implementation/evidence remained `CHANGES_REQUIRED`. The prior candidate remains ineligible for owner retest.
+- Narrow implementation: the UI thread `CurrentUICulture` now follows the selected app language; the two M11 DatePickers retain their culture-specific `Language` for calendar/date presentation; and each existing WPF `DatePickerTextBox` updates its real `PART_Watermark` template visual after an in-session language switch. `CurrentCulture` remains untouched so business display/serialization behavior is not implicitly changed.
+- Strengthened STA evidence: the real MainWindow M11 DatePickers are empty, their rendered template watermark is asserted as `Sélectionner une date` in fr-FR, `选择日期` in zh-CN, and French again after switching back; the test also asserts the Chinese visible feature name and unchanged `CurrentCulture`.
+- Local verification: focused DatePicker watermark test 1/1; full Architecture/Desktop/localization suite 192/192; full Infrastructure Integration suite 303/303; full Release solution 830/830 passed, 0 failed, 0 skipped; Release build 0 warnings / 0 errors; restore and `git diff --check` clean.
+- Delivery boundary: the newest self-contained owner candidate, exact final head, exact-head CI and artifact hashes are recorded only after the final push. The candidate remains **NOT YET RETESTED** by the owner; scenarios A–E are not executed and M11 remains not Passed.
+
+
 ## 2026-09-21 — M11-WP4-ARTIFACT-DELIVERY-08
 
 - Authorization/gate state: Issue #4 was OPEN and dynamically pointed to PR #24 / branch `codex/m11-gestion-export-authorized`; this delivery-only handoff started from accepted WP4 source head `dc8091fccb31923bacc16cbff7b49ada771f55fb`. No application, test, business-rule or schema source was changed.

@@ -4,15 +4,15 @@
 **Owner execution:** required only on the later exact accepted M11 candidate  
 **Environment:** Windows WPF + real Microsoft Excel where workbook behavior/type inspection matters
 
-## WP4 candidate-preparation evidence
+## Historical WP4 candidate-preparation evidence
 
-The automated integration-hardening and candidate-preparation package was executed under `M11-WP4-INTEGRATION-OWNER-CANDIDATE-07` on PR #24. The accepted application source head is `dc8091fccb31923bacc16cbff7b49ada771f55fb`. The candidate is now durably downloadable from the GitHub Actions artifact recorded below; this document keeps the owner checklist separate from automated evidence and does not claim owner acceptance.
+The automated integration-hardening and candidate-preparation package was executed under `M11-WP4-INTEGRATION-OWNER-CANDIDATE-07` on PR #24. The historical owner candidate was built from `dc8091fccb31923bacc16cbff7b49ada771f55fb`; it is retained below for failure traceability and is not approved for another owner retest.
 
 ## Owner A repair state — candidate not yet retested
 
-The prior candidate failed owner scenario A and requires repair before any owner acceptance can continue. The observed failure was a localized `导出未能完成。` after a preview containing eight CREATE actions; the durable PREPARED batch remained available for retry. The repair narrows optional empty-string workbook validation to the existing blank-cell representation, refreshes pending batches after a failed finalization, applies the selected `fr-FR`/`zh-CN` culture to the M11 WPF date pickers in-session, and uses `销售数据导出` for the visible Chinese feature name.
+The prior candidate failed owner scenario A and requires repair before any owner acceptance can continue. The observed failure was a localized `导出未能完成。` after a preview containing eight CREATE actions; the durable PREPARED batch remained available for retry. Repair 09 fixed the optional empty-string workbook validation, PREPARED retry visibility, and visible Chinese feature name, but controller review found that its DatePicker evidence only asserted `Language` and did not prove the actual watermark. The current narrow repair synchronizes the WPF UI culture, reapplies the selected DatePicker language and updates the real `DatePickerTextBox` watermark template part in-session for `fr-FR`/`zh-CN` without changing `CurrentCulture`, export semantics, or stored data.
 
-This repaired candidate has **not yet been retested by the project owner**. Owner scenarios A–E remain **NOT YET EXECUTED**, and M11 remains not Passed. The new self-contained candidate artifact and its exact source head are recorded only after the authorized repair head is pushed and the branch-scoped GitHub Actions artifact job succeeds.
+The newest repaired candidate has **not yet been retested by the project owner**. Owner scenarios A–E remain **NOT YET EXECUTED**, and M11 remains not Passed. The new self-contained candidate artifact and its exact source head are recorded only after the authorized repair head is pushed and the branch-scoped GitHub Actions artifact job succeeds.
 
 Automated WP4 evidence includes real SQLite migrations and export-ledger persistence, real ClosedXML workbook generation and validation, Hiboutik exclusion after cancellation/date filtering, immutable exact regeneration with a later pending update, prepared-file retry/idempotency, and non-authoritative preview/write blocking. Full Release regression, Release build, forbidden-data scan and the final candidate are required before owner execution.
 
@@ -22,7 +22,7 @@ The goal is a short, high-value owner check. Automated evidence owns exhaustive 
 
 ## Durable owner candidate delivery
 
-The delivery-only workflow extension is in `.github/workflows/ci.yml`, job `m11-owner-candidate-artifact`. It checks out and verifies the accepted source head above, then publishes the normal self-contained `win-x64` directory (`PublishSingleFile=false`) and uploads its ZIP. The successful artifact-producing run is [GitHub Actions run #814](https://github.com/cimerosef/sushi81-pos/actions/runs/35584565162).
+The delivery-only workflow extension is in `.github/workflows/ci.yml`, job `m11-owner-candidate-artifact`. It checks out and verifies the exact PR head, then publishes the normal self-contained `win-x64` directory (`PublishSingleFile=false`) and uploads its ZIP. The artifact below is the historical Repair 09 candidate and is not approved for owner retest; the newest candidate details are recorded in the matching durable `CODEX_DONE` after the DatePicker repair push and exact-head CI success.
 
 - **Artifact name:** `M11-WP4-owner-candidate-win-x64-dc8091f`
 - **Artifact ID:** `10631573948`
@@ -41,7 +41,7 @@ Owner download procedure:
 2. At the bottom of the run summary, under **Artifacts**, download `M11-WP4-owner-candidate-win-x64-dc8091f`.
 3. Extract the ZIP to a new review directory and verify the executable hash before launching it for scenarios A–E.
 
-The candidate is for owner review only. Scenarios A–E remain **NOT YET EXECUTED** and M11 remains not Passed.
+The historical candidate is for traceability only and must not be used for owner retest. Scenarios A–E remain **NOT YET EXECUTED** and M11 remains not Passed.
 
 ## A — Mixed selection and CREATE workbook
 

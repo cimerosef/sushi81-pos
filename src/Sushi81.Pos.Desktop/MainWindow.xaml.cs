@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Markup;
 using System.Windows.Media;
@@ -356,9 +357,32 @@ public partial class MainWindow : Window
     private void ApplySelectedCultureToGestionExportDatePickers(ShellViewModel viewModel)
     {
         var culture = CultureInfo.GetCultureInfo(viewModel.SelectedLanguageCultureName);
+        CultureInfo.CurrentUICulture = culture;
         var language = XmlLanguage.GetLanguage(culture.IetfLanguageTag);
-        gestionExportStartDatePicker.Language = language;
-        gestionExportEndDatePicker.Language = language;
+        foreach (var datePicker in new[] { gestionExportStartDatePicker, gestionExportEndDatePicker })
+        {
+            datePicker.Language = language;
+            datePicker.ApplyTemplate();
+            if (datePicker.Template.FindName("PART_TextBox", datePicker) is DatePickerTextBox textBox)
+            {
+                textBox.ApplyTemplate();
+                var watermark = LocalizedText(this, "GestionExportDatePickerWatermark", "Select a date");
+                switch (textBox.Template.FindName("PART_Watermark", textBox))
+                {
+                    case ContentControl content:
+                        content.Content = watermark;
+                        break;
+                    case ContentPresenter presenter:
+                        presenter.Content = watermark;
+                        break;
+                    case TextBlock text:
+                        text.Text = watermark;
+                        break;
+                    default:
+                        throw new InvalidOperationException("The WPF DatePicker template did not expose its watermark visual.");
+                }
+            }
+        }
     }
 
     private void OnCommandesGridSizeChanged(object sender, SizeChangedEventArgs e)

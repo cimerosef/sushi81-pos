@@ -411,7 +411,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("CatalogueImportConcurrentWriteConflict")
             .Append("Severity").Append("Worksheet").Append("Row").Append("Field").Append("Message")
              .Append("Entity").Append("Actions").Append("Product").Append("OptionGroup").Append("Option")
-             .Append("GestionExport").Append("GestionExportSection").Append("GestionExportStartDate").Append("GestionExportEndDate").Append("GestionExportGeneratedAt")
+             .Append("GestionExport").Append("GestionExportSection").Append("GestionExportStartDate").Append("GestionExportEndDate").Append("GestionExportDatePickerWatermark").Append("GestionExportGeneratedAt")
              .Append("GestionExportInclusiveHint").Append("GestionExportPreview").Append("GestionExportRefresh")
              .Append("GestionExportExport").Append("GestionExportHistory").Append("GestionExportRegenerate")
               .Append("GestionExportDestination").Append("GestionExportScope").Append("GestionExportStatus").Append("GestionExportAuthority")
