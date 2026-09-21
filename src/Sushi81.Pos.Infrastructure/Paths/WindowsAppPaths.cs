@@ -16,6 +16,7 @@ public sealed class WindowsAppPaths : IAppPaths
         LogsDirectory = Path.Combine(RootDirectory, "Logs");
         ConfigDirectory = Path.Combine(RootDirectory, "Config");
         TempDirectory = Path.Combine(RootDirectory, "Temp");
+        ArchiveDirectory = Path.Combine(RootDirectory, "Archive");
         LiveDatabasePath = Path.Combine(DataDirectory, "live.db");
     }
 
@@ -33,6 +34,8 @@ public sealed class WindowsAppPaths : IAppPaths
 
     public string TempDirectory { get; }
 
+    public string ArchiveDirectory { get; }
+
     public string LiveDatabasePath { get; }
 
     public void EnsureInitialized()
@@ -44,5 +47,6 @@ public sealed class WindowsAppPaths : IAppPaths
         Directory.CreateDirectory(LogsDirectory);
         Directory.CreateDirectory(ConfigDirectory);
         Directory.CreateDirectory(TempDirectory);
+        Directory.CreateDirectory(ArchiveDirectory);
     }
 }

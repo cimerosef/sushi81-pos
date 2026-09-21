@@ -16,6 +16,8 @@ public interface IAppPaths
 
     string TempDirectory { get; }
 
+    string ArchiveDirectory => Path.Combine(RootDirectory, "Archive");
+
     string LiveDatabasePath { get; }
 
     void EnsureInitialized();
