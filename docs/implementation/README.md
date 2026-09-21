@@ -24,11 +24,13 @@ Key recent baselines:
 
 Historical contracts/worklogs/manual-acceptance records remain authoritative in their existing files and PRs. Do not rewrite historical evidence merely to match later project state.
 
-## M11 current closure state
+## Current M11/M12 state
 
-M11 Gestion intermediate export implementation and owner A–E acceptance are complete on PR #24. The accepted runtime candidate is source head `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; M11 is **Closure-ready**, pending final controller closure and separate explicit project-owner merge approval. PR #24 remains Draft/Open/unmerged. M12/M13 remain unauthorized. Detailed current evidence is maintained in `implementation-status.md` and `milestone-11-final-manual-acceptance.md`; historical preparation records below are not rewritten.
+M11 Gestion intermediate export is Passed/merged through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831 passed, 0 failed, 0 skipped and Release build 0 warnings / 0 errors.
 
-## M10 preparation — Catalogue `.xlsx` import/export
+M12 Annual archive and historical access is owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25. Current control files are `milestone-12-preparation-readiness.md`, `milestone-12-annual-archive-historical-access.md` and `milestone-12-authorization.md`. WP1 is the first executable package. The readiness review records the accepted M02 OneDrive per-artifact remote-acknowledgement limitation; the later WP2 live-removal path must not proceed until that affected architecture choice is explicitly resolved. M13 remains unauthorized.
+
+## Historical M10 preparation — Catalogue `.xlsx` import/export
 
 M10 preparation is complete and is **READY FOR PROJECT-OWNER IMPLEMENTATION AUTHORIZATION**, but implementation remains **NOT AUTHORIZED**.
 
@@ -44,7 +46,7 @@ Prepared control package:
 
 The project owner approved the Category short-code workbook semantics on 2026-09-17. That specification decision closes the last material M10 readiness gap but **does not authorize implementation**.
 
-Current execution state:
+Historical execution state at that preparation point:
 
 - Issue #4: CLOSED;
 - executable M10 `CODEX_HANDOFF_READY`: none;
@@ -53,6 +55,14 @@ Current execution state:
 - M11/M12/M13: unauthorized.
 
 A separate explicit project-owner statement such as **“批准 M10 implementation”** is still required before the controller may mark M10 Authorized. Only after that may the dedicated implementation branch/PR/mailbox be established, one complete handoff be published, Issue #4 be updated to that unique pointer, and the gate be opened.
+
+## M12 current package
+
+- `milestone-12-preparation-readiness.md` — code/spec readiness review and remote-publication blocker record;
+- `milestone-12-annual-archive-historical-access.md` — work-package contract and WP1 scope;
+- `milestone-12-authorization.md` — durable owner authorization;
+- Draft PR #25 — active durable mailbox;
+- Issue #4 — sole execution switch/status pointer.
 
 ## Governance reminder
 
