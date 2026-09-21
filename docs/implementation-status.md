@@ -1,7 +1,7 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-21  
+**Last updated:** 2026-09-21
 **Current state:** M01 through M10 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current merged `main` is M10 merge commit `299df8b44a1959497ad46f861e44db32913b4d11`. M11 Gestion intermediate export is owner-AUTHORIZED on `codex/m11-gestion-export-authorized` / PR #24. WP1–WP4 are controller-accepted; a durable owner candidate is available as GitHub Actions artifact `M11-WP4-owner-candidate-win-x64-dc8091f` from run `35584565162`. Owner manual acceptance A–E remains not yet executed, so M11 is not Passed. M12/M13 remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
