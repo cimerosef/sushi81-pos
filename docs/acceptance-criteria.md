@@ -5,7 +5,7 @@
 **Product:** Sushi81 POS  
 **Purpose:** Convert the approved V1 product, business, lifecycle, catalogue, data, storage, architecture, paste-import, printing and export specifications into verifiable implementation acceptance criteria.
 
-**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below. `docs/decisions/github-handoff-transport.md` makes a dedicated private GitHub Release Asset API the normal handoff transport and server acknowledgement path; OneDrive remains separately approved for recovery/archive only. `docs/decisions/filtered-catalogue-bulk-activation.md` adds AC-CAT-013 for filtered current-catalogue bulk activation/deactivation. `docs/acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` adds AC-HIB-010 and clarifies the ordinary POS summary boundary.
+**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below. `docs/decisions/github-handoff-transport.md` makes a dedicated private GitHub Release Asset API the normal handoff transport and server acknowledgement path. `docs/decisions/m12-local-archive-and-user-selected-export.md` moves annual archives to local application-managed storage and removes OneDrive from annual archive completion/access while preserving OneDrive Disaster Recovery. `docs/decisions/filtered-catalogue-bulk-activation.md` adds AC-CAT-013 for filtered current-catalogue bulk activation/deactivation. `docs/acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` adds AC-HIB-010 and clarifies the ordinary POS summary boundary.
 
 ## 1. Acceptance principle
 
@@ -38,7 +38,7 @@ Pure visual details remain implementation choices unless a criterion explicitly 
 
 **Given** the authoritative device temporarily has no Internet/OneDrive connectivity,  
 **when** the operator performs normal local order/catalogue/payment/printing work,  
-**then** those core functions remain available against the authoritative local database; only operations that intrinsically require GitHub handoff or OneDrive recovery/archive publication may be unavailable.
+**then** those core functions remain available against the authoritative local database; only operations that intrinsically require GitHub handoff or OneDrive Disaster Recovery publication may be unavailable.
 
 **Evidence:** controlled offline integration/manual test.
 
