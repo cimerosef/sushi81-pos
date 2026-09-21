@@ -130,6 +130,8 @@ M11 completed implementation package:
 
 Current M12 implementation package:
 
+- `decisions/m12-local-archive-and-user-selected-export.md` — Approved M12 archive storage/export decision;
+- `acceptance-criteria-amendment-m12-local-archive.md` — matching Approved acceptance amendment;
 - `implementation/milestone-12-preparation-readiness.md` — current readiness review and OneDrive acknowledgement finding;
 - `implementation/milestone-12-annual-archive-historical-access.md` — M12 implementation contract;
 - `implementation/milestone-12-authorization.md` — AUTHORIZED;
