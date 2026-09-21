@@ -27,6 +27,7 @@ using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Infrastructure.Printing;
 using Sushi81.Pos.Application.Export;
 using Sushi81.Pos.Infrastructure.Export;
+using Sushi81.Pos.Infrastructure.Archive;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -65,6 +66,7 @@ public static partial class CompositionRoot
          CatalogueWorkbookService? catalogueWorkbookService = null;
          CatalogueImportService? catalogueImportService = null;
          GestionExportWorkflowViewModel? gestionExportWorkflow = null;
+        AnnualArchiveStartupCoordinator? annualArchiveStartupCoordinator = null;
 
         try
         {
@@ -129,6 +131,19 @@ public static partial class CompositionRoot
             settingsService = new BusinessSettingsService(settingsStore, authorityGuard, durableChangeNotifier);
              var orderStore = new SqliteOrderStore(connectionFactory, transactionRunner, null, idGenerator, clock);
              var gestionExportStore = new SqliteGestionExportStore(connectionFactory, orderStore, transactionRunner, idGenerator);
+             var annualArchiveFinalizationService = new SqliteAnnualArchiveFinalizationService(
+                 paths,
+                 clock,
+                 authorityGuard,
+                 connectionFactory,
+                 transactionRunner,
+                 gestionExportStore,
+                 idGenerator,
+                 durableChangeNotifier);
+             annualArchiveStartupCoordinator = new AnnualArchiveStartupCoordinator(
+                 authorityGuard,
+                 annualArchiveFinalizationService.FinalizeNextArchiveAsync,
+                 logger);
              var gestionExportService = new GestionExportService(gestionExportStore, gestionExportStore, clock, authorityGuard, durableChangeNotifier, idGenerator);
              var gestionExportWorkbookService = new GestionExportWorkbookService(
                  gestionExportService,
@@ -207,10 +222,12 @@ public static partial class CompositionRoot
                     connectionTester,
                     connectionSetup,
                     disasterRecovery,
-                    recoveryCandidates);
-                await m07Runtime.RefreshAuthorityStateAsync();
-            }
-            LogFoundationStartupSucceeded(logger);
+                 recoveryCandidates);
+                 await m07Runtime.RefreshAuthorityStateAsync();
+             }
+             if (annualArchiveStartupCoordinator is not null)
+                 await annualArchiveStartupCoordinator.RunAsync();
+             LogFoundationStartupSucceeded(logger);
             startupSucceeded = true;
         }
         catch (Exception exception)

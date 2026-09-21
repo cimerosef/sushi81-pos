@@ -146,3 +146,23 @@ Validation evidence:
 This closure remains bounded to WP2 evidence/governance. No WP3 scheduler/authority/retry work, archive UI/search/export/reprint, M13 work or PR merge is included or authorized. Exact-head CI and the durable matching `CODEX_DONE` remain the final delivery steps.
 
 Exact-head CI for the pushed evidence commit `c2ae720f8a0c0aaa7c1989e7973b16898a4e9251`: Continuous integration run #853 / workflow run `35660059392` — SUCCESS. The subsequent documentation-only delivery commit retains the same tested implementation and requires its own exact-head CI before `CODEX_DONE`.
+
+## 2026-09-22 — WP3 startup scheduler/authority/retry package 06
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP3-STARTUP-SCHEDULER-AUTHORITY-RETRY-06`, PR #25 comment `5768769806`;
+- handoff start head: `9d102a1b84a617da777360e5725d0a69d8e8cde6`;
+- controller prerequisite: WP2 accepted by PR #25 comment `5768761886`;
+- Issue #4 was OPEN and PR #25 remained the active Draft/open implementation PR during execution.
+
+Implemented only the authorized M12 WP3 boundary:
+
+- added `AnnualArchiveStartupCoordinator` with the explicit outcomes `NoTargetYet`, `SkippedNotAuthoritative`, `CompletedNow`, `AlreadyCompleted` and `FailedRetryable`;
+- wired one non-interactive startup invocation after migrations, authority resolution, and the optional M07 runtime authority refresh, but before the successful-startup log;
+- delegated target-year policy, WP2 idempotency, local canonical publication, exact removal, preservation and the existing durable recovery notification to `SqliteAnnualArchiveFinalizationService` without duplicating those rules;
+- non-authoritative, transitioning and recovery-required startup states skip without invoking the finalizer; operational failures are logged without customer/order payloads and remain retryable on a later safe authoritative startup; cancellation is not swallowed and there is no same-startup retry, watcher, background loop or second notifier;
+- added real-SQLite/filesystem evidence for January no-target behavior, February and delayed previous-year selection with current-year preservation, authority skips, two-startup idempotency, retryable copy failure, canonical reuse after transaction rollback, preservation de-duplication, and exactly one post-commit notifier;
+- added architecture evidence for startup ordering and the absence of OneDrive, watcher-delay and duplicate-notification policy in the coordinator.
+
+No archive discovery/search UI, user-selected archive export, archived reprint, OneDrive publication, M13 work or PR merge is included or authorized by this handoff. Final delivery requires the pushed exact head, exact-head CI and the durable matching `CODEX_DONE`.
