@@ -728,15 +728,19 @@ The same rule applies whether the hidden source discriminator is ordinary POS or
 
 ### AC-STO-013 — Archive publication safety
 
-Eligible records are removed from `live.db` only after a complete archive database is staged, validated, published to OneDrive Archive and publication/synchronization succeeds. Any failure leaves the records live and retryable.
+As amended by `acceptance-criteria-amendment-m12-local-archive.md`, eligible records are removed from `live.db` only after a complete target-year archive is staged locally, validated, durably promoted to the application-managed local annual-archive area, reopened and validated there as the completed canonical archive. Any failure leaves the records live and retryable.
 
-**Evidence:** archive failure-injection test.
+OneDrive publication/synchronization is not part of annual archive completion.
+
+**Evidence:** real-SQLite archive staging/promotion/reopen/live-removal failure-injection tests.
 
 ### AC-STO-014 — Permanent read-only annual archives
 
-Annual archives remain independent read-only SQLite historical databases, survive application reinstall, are retained permanently unless deliberately managed outside normal POS workflow, and remain queryable/reprintable through explicit archive selection.
+As amended by `acceptance-criteria-amendment-m12-local-archive.md`, annual archives remain independent read-only SQLite historical databases in application-managed local business-data storage, survive ordinary application update/reinstall, are retained permanently by normal POS workflow, and remain queryable/reprintable through explicit archive selection.
 
-**Evidence:** reinstall/archive access test.
+The operator can explicitly export/copy a completed validated archive to a destination they choose. Export never moves/deletes the canonical local archive and export failure does not mutate the canonical archive or `live.db`.
+
+**Evidence:** reinstall/local-archive access test plus user-selected archive export/failure test.
 
 ## 10. Architecture, deployment and data integrity
 
