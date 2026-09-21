@@ -144,3 +144,5 @@ Validation evidence:
 - `git diff --check`: clean.
 
 This closure remains bounded to WP2 evidence/governance. No WP3 scheduler/authority/retry work, archive UI/search/export/reprint, M13 work or PR merge is included or authorized. Exact-head CI and the durable matching `CODEX_DONE` remain the final delivery steps.
+
+Exact-head CI for the pushed evidence commit `c2ae720f8a0c0aaa7c1989e7973b16898a4e9251`: Continuous integration run #853 / workflow run `35660059392` — SUCCESS. The subsequent documentation-only delivery commit retains the same tested implementation and requires its own exact-head CI before `CODEX_DONE`.
