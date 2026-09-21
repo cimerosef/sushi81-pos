@@ -106,40 +106,56 @@ public sealed class SqliteAnnualArchiveStagingService(
     private readonly SqliteConnectionFactory connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     private readonly Func<string, Exception?>? failureInjector = failureInjector;
 
-    public async Task<AnnualArchiveStagingResult?> StageNextArchiveAsync(CancellationToken cancellationToken = default)
+    public Task<AnnualArchiveStagingResult?> StageNextArchiveAsync(CancellationToken cancellationToken = default) =>
+        StageNextArchiveCoreAsync(requireAuthority: true, cancellationToken);
+
+    internal Task<AnnualArchiveStagingResult?> StageNextArchiveWithoutAuthorityAsync(CancellationToken cancellationToken = default) =>
+        StageNextArchiveCoreAsync(requireAuthority: false, cancellationToken);
+
+    private async Task<AnnualArchiveStagingResult?> StageNextArchiveCoreAsync(bool requireAuthority, CancellationToken cancellationToken)
     {
         var targetYear = AnnualArchivePolicy.GetTargetArchiveYear(clock.BusinessDate);
         if (targetYear is null)
             return null;
 
-        await using var writeScope = await authorityGuard.EnterWriteScopeAsync(cancellationToken);
-        paths.EnsureInitialized();
-
-        var eligibilityReader = new SqliteAnnualArchiveEligibilityReader(connectionFactory, clock);
-        var eligible = await eligibilityReader.ReadEligibleAsync(targetYear.Value, cancellationToken);
-        var orderIds = eligible.Select(item => item.OrderId).OrderBy(id => id.ToString("D"), StringComparer.Ordinal).ToArray();
-        var stageDirectory = Path.Combine(paths.TempDirectory, "annual-archive", $"{targetYear.Value:D4}-{Guid.NewGuid():N}");
-        var stagedDatabasePath = Path.Combine(stageDirectory, $"sushi81-archive-{targetYear.Value:D4}.db");
-        Directory.CreateDirectory(stageDirectory);
-
+        IAsyncDisposable? writeScope = null;
         try
         {
-            Inject("builder");
-            await BuildAsync(stagedDatabasePath, targetYear.Value, orderIds, cancellationToken);
-            Inject("validation");
-            await new SqliteAnnualArchiveValidator(clock).ValidateAsync(
-                stagedDatabasePath,
-                connectionFactory.LiveDatabasePath,
-                targetYear.Value,
-                orderIds,
-                cancellationToken);
+            if (requireAuthority)
+                writeScope = await authorityGuard.EnterWriteScopeAsync(cancellationToken);
+            paths.EnsureInitialized();
 
-            return new(targetYear.Value, stagedDatabasePath, clock.UtcNow, orderIds);
+            var eligibilityReader = new SqliteAnnualArchiveEligibilityReader(connectionFactory, clock);
+            var eligible = await eligibilityReader.ReadEligibleAsync(targetYear.Value, cancellationToken);
+            var orderIds = eligible.Select(item => item.OrderId).OrderBy(id => id.ToString("D"), StringComparer.Ordinal).ToArray();
+            var stageDirectory = Path.Combine(paths.TempDirectory, "annual-archive", $"{targetYear.Value:D4}-{Guid.NewGuid():N}");
+            var stagedDatabasePath = Path.Combine(stageDirectory, $"sushi81-archive-{targetYear.Value:D4}.db");
+            Directory.CreateDirectory(stageDirectory);
+
+            try
+            {
+                Inject("builder");
+                await BuildAsync(stagedDatabasePath, targetYear.Value, orderIds, cancellationToken);
+                Inject("validation");
+                await new SqliteAnnualArchiveValidator(clock).ValidateAsync(
+                    stagedDatabasePath,
+                    connectionFactory.LiveDatabasePath,
+                    targetYear.Value,
+                    orderIds,
+                    cancellationToken);
+
+                return new(targetYear.Value, stagedDatabasePath, clock.UtcNow, orderIds);
+            }
+            catch
+            {
+                TryDeleteDirectory(stageDirectory);
+                throw;
+            }
         }
-        catch
+        finally
         {
-            TryDeleteDirectory(stageDirectory);
-            throw;
+            if (writeScope is not null)
+                await writeScope.DisposeAsync();
         }
     }
 
@@ -378,8 +394,10 @@ public sealed class SqliteAnnualArchiveValidator(IBusinessClock clock)
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
         ArgumentNullException.ThrowIfNull(expectedOrderIds);
 
-        await using var source = await SqliteAnnualArchiveValidationConnection.OpenAsync(sourcePath, cancellationToken);
-        await using var archive = await SqliteAnnualArchiveValidationConnection.OpenAsync(archivePath, cancellationToken);
+        try
+        {
+            await using var source = await SqliteAnnualArchiveValidationConnection.OpenAsync(sourcePath, cancellationToken);
+            await using var archive = await SqliteAnnualArchiveValidationConnection.OpenAsync(archivePath, cancellationToken);
 
         if (!string.Equals(await ScalarStringAsync(archive, "PRAGMA integrity_check;", cancellationToken), "ok", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The staged annual archive failed PRAGMA integrity_check.");
@@ -435,6 +453,55 @@ public sealed class SqliteAnnualArchiveValidator(IBusinessClock clock)
                     throw new InvalidDataException($"The staged annual archive has a {specification.Item1} child-count mismatch.");
             }
         }
+
+        var sourceFacts = await ReadHistoricalFactsAsync(source, expectedIds, cancellationToken);
+        var archiveFacts = await ReadHistoricalFactsAsync(archive, expectedIds, cancellationToken);
+            if (!sourceFacts.SequenceEqual(archiveFacts, StringComparer.Ordinal))
+                throw new InvalidDataException("The staged annual archive historical facts do not match the live source.");
+        }
+        catch (SqliteException exception)
+        {
+            throw new InvalidDataException($"The annual archive validation database is corrupt or unreadable: '{archivePath}'.", exception);
+        }
+    }
+
+    public async Task ValidateStandaloneAsync(
+        string archivePath,
+        int targetYear,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(archivePath);
+        try
+        {
+            await using var archive = await SqliteAnnualArchiveValidationConnection.OpenAsync(archivePath, cancellationToken);
+            if (!string.Equals(await ScalarStringAsync(archive, "PRAGMA integrity_check;", cancellationToken), "ok", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("The canonical annual archive failed PRAGMA integrity_check.");
+        await EnsureForeignKeysAreValidAsync(archive, cancellationToken);
+        await EnsureRequiredTablesAsync(archive, cancellationToken);
+        var metadata = await ReadMetadataAsync(archive, cancellationToken);
+        RequireMetadata(metadata, "archive_format_version", "M12-WP1-1");
+        RequireMetadata(metadata, "archive_schema_version", "1");
+        RequireMetadata(metadata, "archive_year", targetYear.ToString(CultureInfo.InvariantCulture));
+        if (!metadata.TryGetValue("expected_order_count", out var expectedValue)
+            || !int.TryParse(expectedValue, CultureInfo.InvariantCulture, out var expectedCount)
+            || expectedCount != await ScalarLongAsync(archive, "SELECT COUNT(*) FROM orders;", cancellationToken))
+            throw new InvalidDataException("The canonical annual archive has an invalid order count metadata value.");
+
+        await using var command = archive.CreateCommand();
+        command.CommandText = "SELECT status,closed_at_utc,cancelled_at_utc FROM orders ORDER BY order_id;";
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var status = ParseStatus(reader.GetString(0));
+                if (status == OrderStatus.Open
+                    || AnnualArchivePolicy.GetEligibleArchiveYear(status, ReadNullableDateTime(reader, 1), ReadNullableDateTime(reader, 2), clock.BusinessTimeZone) != targetYear)
+                    throw new InvalidDataException("The canonical annual archive contains an order outside its target year.");
+            }
+        }
+        catch (SqliteException exception)
+        {
+            throw new InvalidDataException($"The canonical annual archive is corrupt or unreadable: '{archivePath}'.", exception);
+        }
     }
 
     private static async Task EnsureRequiredTablesAsync(SqliteConnection connection, CancellationToken cancellationToken)
@@ -481,6 +548,50 @@ public sealed class SqliteAnnualArchiveValidator(IBusinessClock clock)
         return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
     }
 
+    private static async Task<long> ScalarLongAsync(SqliteConnection connection, string sql, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<IReadOnlyList<string>> ReadHistoricalFactsAsync(
+        SqliteConnection connection,
+        IReadOnlyList<string> expectedIds,
+        CancellationToken cancellationToken)
+    {
+        var rows = new List<string>();
+        var ids = expectedIds.ToArray();
+        var queries = new[]
+        {
+            ("orders", "SELECT order_id,source_type,status,created_at_utc,updated_at_utc,closed_at_utc,cancelled_at_utc,fulfilment_mode,planned_fulfilment_date,planned_fulfilment_time,advance_order_marker,telephone,delivery_address,comment,total_ttc_cents,manual_total_override_active,pickup_discount_applied,pickup_discount_rate,delivery_fee_ttc_cents,order_reference,card_payment_ttc_cents,cash_payment_ttc_cents,source_total_ttc_cents FROM orders WHERE order_id IN ({0}) ORDER BY order_id;"),
+            ("order_items", "SELECT order_item_id,order_id,line_position,source_product_id,product_code_snapshot,product_name_snapshot,category_name_snapshot,product_base_price_ttc_cents,product_vat_rate,product_discount_eligible_snapshot,quantity,extended_base_ttc_cents,calculated_line_total_ttc_cents FROM order_items WHERE order_id IN ({0}) ORDER BY order_id,line_position,order_item_id;"),
+            ("order_item_adjustments", "SELECT a.order_item_adjustment_id,a.order_item_id,i.order_id,a.display_order,a.adjustment_kind,a.source_option_id,a.group_name_snapshot,a.label_snapshot,a.adjustment_ttc_per_unit_cents,a.vat_rate FROM order_item_adjustments a JOIN order_items i ON i.order_item_id=a.order_item_id WHERE i.order_id IN ({0}) ORDER BY i.order_id,a.order_item_id,a.display_order,a.order_item_adjustment_id;"),
+            ("order_tax_breakdown", "SELECT order_tax_breakdown_id,order_id,vat_rate,taxable_ttc_cents,included_vat_ttc_cents FROM order_tax_breakdown WHERE order_id IN ({0}) ORDER BY order_id,vat_rate,order_tax_breakdown_id;"),
+            ("payment_adjustments", "SELECT payment_adjustment_id,order_id,bucket,delta_cents,effective_business_date,effective_at,recorded_at FROM payment_adjustments WHERE order_id IN ({0}) ORDER BY order_id,effective_business_date,recorded_at,payment_adjustment_id;")
+        };
+
+        foreach (var (table, template) in queries)
+        {
+            var placeholders = ids.Length == 0
+                ? "NULL"
+                : string.Join(',', ids.Select((_, index) => "$id" + index.ToString(CultureInfo.InvariantCulture)));
+            await using var command = connection.CreateCommand();
+            command.CommandText = string.Format(CultureInfo.InvariantCulture, template, placeholders);
+            for (var index = 0; index < ids.Length; index++)
+                command.Parameters.AddWithValue("$id" + index.ToString(CultureInfo.InvariantCulture), ids[index]);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var values = Enumerable.Range(0, reader.FieldCount)
+                    .Select(index => reader.IsDBNull(index) ? "<NULL>" : Convert.ToString(reader.GetValue(index), CultureInfo.InvariantCulture) ?? string.Empty);
+                rows.Add(table + "|" + string.Join("|", values));
+            }
+        }
+
+        return rows;
+    }
+
     private static async Task<string> ScalarStringAsync(SqliteConnection connection, string sql, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
@@ -519,6 +630,16 @@ internal static class SqliteAnnualArchiveValidationConnection
             command.CommandText = "PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;";
             await command.ExecuteNonQueryAsync(cancellationToken);
             return connection;
+        }
+        catch (SqliteException exception)
+        {
+            await connection.DisposeAsync();
+            throw new InvalidDataException($"The annual archive '{path}' is not a readable SQLite database.", exception);
+        }
+        catch (InvalidOperationException exception)
+        {
+            await connection.DisposeAsync();
+            throw new InvalidDataException($"The annual archive '{path}' is not a readable SQLite database.", exception);
         }
         catch
         {

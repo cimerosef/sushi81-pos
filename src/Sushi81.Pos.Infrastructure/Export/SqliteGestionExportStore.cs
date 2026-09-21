@@ -244,6 +244,69 @@ public sealed class SqliteGestionExportStore(
         }, cancellationToken);
     }
 
+    /// <summary>
+    /// Persists only the current pending actions that are not already represented by an
+    /// exact, valid PREPARED batch. This is used by annual archive finalization before
+    /// the corresponding live order rows are removed.
+    /// </summary>
+    public async Task<ExportBatchRecord?> PrepareMissingActionsAsync(
+        IReadOnlyList<ExportOrderPayload> actions,
+        string appVersion,
+        DateTimeOffset generatedAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actions);
+        ArgumentException.ThrowIfNullOrWhiteSpace(appVersion);
+        if (actions.Count == 0) return null;
+
+        var latest = (await ListLatestSuccessfulEmissionsAsync(cancellationToken))
+            .ToDictionary(emission => emission.OrderId);
+        var missing = new List<ExportOrderPayload>();
+        foreach (var action in actions
+                     .OrderBy(item => item.OrderId.ToString("D"), StringComparer.Ordinal)
+                     .ThenBy(item => item.Action))
+        {
+            latest.TryGetValue(action.OrderId, out var previous);
+            var expectedPreviousHash = action.Action == ExportAction.Create ? null : previous?.PositiveSnapshotHash;
+            if (action.Action is ExportAction.Update or ExportAction.Cancel && string.IsNullOrWhiteSpace(expectedPreviousHash))
+                throw new InvalidDataException("A pending archive export action lacks its successful positive predecessor.");
+
+            var existingBatchId = await FindExactPreparedBatchAsync(
+                action,
+                expectedPreviousHash,
+                cancellationToken);
+            if (existingBatchId is not null)
+            {
+                _ = await GetBatchAsync(existingBatchId.Value, cancellationToken)
+                    ?? throw new InvalidDataException("The exact PREPARED export preservation batch is missing.");
+                continue;
+            }
+
+            missing.Add(action);
+        }
+
+        if (missing.Count == 0) return null;
+        var batchId = idGenerator.NewId();
+        var payload = new ExportBatchPayload(
+            new ExportBatchMeta(
+                "1.0",
+                batchId,
+                generatedAtUtc,
+                appVersion,
+                null,
+                null,
+                missing.Count,
+                missing.Sum(order => order.Lines.Count),
+                missing.Sum(order => order.TaxBreakdown.Count)),
+            missing);
+        var batch = new ExportBatchRecord(
+            payload,
+            ExportBatchStatus.Prepared,
+            ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializeBatch(payload)));
+        await PrepareBatchAsync(batch, cancellationToken);
+        return batch;
+    }
+
     public async Task MarkBatchSucceededAsync(
         Guid batchId,
         DateTimeOffset completedAtUtc,
@@ -364,6 +427,41 @@ public sealed class SqliteGestionExportStore(
                     ("$emitted", Format(emission.EmittedAtUtc)));
             }
         }, cancellationToken);
+    }
+
+    private async Task<Guid?> FindExactPreparedBatchAsync(
+        ExportOrderPayload action,
+        string? expectedPreviousHash,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(connectionFactory.LiveDatabasePath, cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = expectedPreviousHash is null
+            ? """
+              SELECT b.batch_id
+              FROM export_batches b
+              JOIN export_batch_orders o ON o.batch_id=b.batch_id
+              WHERE b.status='PREPARED' AND o.order_id=$order AND o.action=$action
+                AND o.action_payload_hash=$payloadHash AND o.expected_previous_positive_hash IS NULL
+              ORDER BY b.generated_at_utc,b.batch_id
+              LIMIT 1;
+              """
+            : """
+              SELECT b.batch_id
+              FROM export_batches b
+              JOIN export_batch_orders o ON o.batch_id=b.batch_id
+              WHERE b.status='PREPARED' AND o.order_id=$order AND o.action=$action
+                AND o.action_payload_hash=$payloadHash AND o.expected_previous_positive_hash=$expectedPreviousHash
+              ORDER BY b.generated_at_utc,b.batch_id
+              LIMIT 1;
+              """;
+        command.Parameters.AddWithValue("$order", action.OrderId.ToString());
+        command.Parameters.AddWithValue("$action", ActionName(action.Action));
+        command.Parameters.AddWithValue("$payloadHash", ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializeAction(action)));
+        if (expectedPreviousHash is not null)
+            command.Parameters.AddWithValue("$expectedPreviousHash", expectedPreviousHash);
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        return value is null or DBNull ? null : ParseGuid(Convert.ToString(value, CultureInfo.InvariantCulture)!);
     }
 
     private async Task<IReadOnlyList<PaymentAdjustment>> ReadPaymentAdjustmentsAsync(Guid orderId, CancellationToken cancellationToken)
