@@ -158,7 +158,7 @@ Primary acceptance ownership: `AC-EXP-001` through `AC-EXP-011`, final export po
 
 ### M12 — Annual archive and historical access
 
-Implement February/late-start previous-calendar-year archiving, end-year eligibility, staged validation/publication, failure-safe live removal, explicit archive selection/search, read-only hydration and historical reprinting.
+Implement February/late-start previous-calendar-year archiving, end-year eligibility, staged validation and durable local canonical publication, failure-safe live removal, permanent local archive access, explicit archive selection/search, user-selected archive export and historical reprinting.
 
 Before removing an order from `live.db`, preserve every not-yet-emitted or pending export action as a durable immutable technical payload, or use an equivalent implementation that demonstrably preserves the frozen export contract. Archiving must never make a valid export/correction silently disappear.
 
@@ -210,6 +210,6 @@ M12 — Annual archive and historical access — is owner-authorized on branch `
 
 The first executable package is WP1 only: archive-year/eligibility contracts and independent local staged archive SQLite construction/validation. WP1 performs no OneDrive publication and no live-row deletion.
 
-The M12 readiness review records a known technical blocker for the later WP2 delete gate: accepted M02 evidence proved no documented local-only per-artifact OneDrive remote-upload acknowledgement for newly-created regular files, while `AC-STO-013` requires confirmed archive publication/synchronization before live removal. The affected path must not treat local file existence as cloud success or introduce a new remote/authentication workflow without explicit approval.
+The owner-approved 2026-09-21 M12 amendment moves canonical annual archives to application-managed local storage and removes OneDrive from annual archive publication/access. WP2 therefore uses a local staged -> durable canonical promotion/reopen-validation -> live-removal boundary; no OneDrive remote acknowledgement is required. Explicit archive export is a separate operator-selected copy action and must not move/delete the canonical archive.
 
 M13 remains unauthorized.
