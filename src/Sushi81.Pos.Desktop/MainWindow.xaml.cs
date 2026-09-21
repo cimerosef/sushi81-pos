@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Markup;
 using System.Windows.Media;
 using Microsoft.Win32;
 using Sushi81.Pos.Application.Foundation.Configuration;
@@ -35,6 +36,7 @@ public partial class MainWindow : Window
         DataContext = viewModel;
         this.fileDialogs = fileDialogs ?? new NativeCatalogueWorkbookFileDialogs();
         if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
+        ApplySelectedCultureToGestionExportDatePickers(viewModel);
         ApplyCatalogueHeaders();
         closeCoordinator = new MainWindowCloseCoordinator(
             () => viewModel.AuthorityState == WriteAuthorityState.Authoritative
@@ -163,7 +165,12 @@ public partial class MainWindow : Window
             ApplyCatalogueHeaders();
             return;
         }
-        try { await viewModel.ChangeLanguageAsync(language); ApplyCatalogueHeaders(); }
+        try
+        {
+            await viewModel.ChangeLanguageAsync(language);
+            ApplySelectedCultureToGestionExportDatePickers(viewModel);
+            ApplyCatalogueHeaders();
+        }
         catch { MessageBox.Show(this, viewModel.LanguageSaveFailure, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
@@ -344,6 +351,14 @@ public partial class MainWindow : Window
             commandesGrid.Columns[7].Header = LocalizedText(this, "Comment", "Comment");
             commandesGrid.Columns[8].Header = LocalizedText(this, "DeliveryAddress", "Address");
         }
+    }
+
+    private void ApplySelectedCultureToGestionExportDatePickers(ShellViewModel viewModel)
+    {
+        var culture = CultureInfo.GetCultureInfo(viewModel.SelectedLanguageCultureName);
+        var language = XmlLanguage.GetLanguage(culture.IetfLanguageTag);
+        gestionExportStartDatePicker.Language = language;
+        gestionExportEndDatePicker.Language = language;
     }
 
     private void OnCommandesGridSizeChanged(object sender, SizeChangedEventArgs e)

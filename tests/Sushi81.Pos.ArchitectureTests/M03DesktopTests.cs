@@ -885,7 +885,8 @@ public sealed class M03DesktopTests
 
         var codeBehind = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml.cs"));
         StringAssert.Contains(codeBehind, "catalogueGrid.Columns[index].Header = values[index]");
-        StringAssert.Contains(codeBehind, "await viewModel.ChangeLanguageAsync(language); ApplyCatalogueHeaders();");
+        StringAssert.Contains(codeBehind, "await viewModel.ChangeLanguageAsync(language);");
+        StringAssert.Contains(codeBehind, "ApplyCatalogueHeaders();");
     }
 
     [TestMethod]

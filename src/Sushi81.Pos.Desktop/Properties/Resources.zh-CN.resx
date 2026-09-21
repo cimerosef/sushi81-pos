@@ -407,8 +407,8 @@
   <data name="Product" xml:space="preserve"><value>产品</value></data>
   <data name="OptionGroup" xml:space="preserve"><value>选项组</value></data>
   <data name="Option" xml:space="preserve"><value>选项</value></data>
-  <data name="GestionExport" xml:space="preserve"><value>Gestion 导出</value></data>
-  <data name="GestionExportSection" xml:space="preserve"><value>Gestion 中间导出</value></data>
+  <data name="GestionExport" xml:space="preserve"><value>销售数据导出</value></data>
+  <data name="GestionExportSection" xml:space="preserve"><value>销售数据导出</value></data>
   <data name="GestionExportStartDate" xml:space="preserve"><value>开始</value></data>
   <data name="GestionExportEndDate" xml:space="preserve"><value>结束</value></data>
   <data name="GestionExportGeneratedAt" xml:space="preserve"><value>生成时间</value></data>
@@ -435,7 +435,7 @@
   <data name="GestionExportBlockedAtExport" xml:space="preserve"><value>导出被阻止：{0}</value></data>
   <data name="GestionExportDiagnosticSettlementDateUnavailable" xml:space="preserve"><value>无法根据已记录的付款确定结算日期。</value></data>
   <data name="GestionExportSucceeded" xml:space="preserve"><value>导出成功：{0}。</value></data>
-  <data name="GestionExportFailure" xml:space="preserve"><value>导出未能完成。</value></data>
+  <data name="GestionExportFailure" xml:space="preserve"><value>导出未能完成；已准备的批次仍显示在“待完成批次”中，可再次重试。</value></data>
   <data name="GestionExportCancelled" xml:space="preserve"><value>导出已取消。</value></data>
   <data name="GestionExportInvalidRange" xml:space="preserve"><value>开始日期不能晚于结束日期。</value></data>
   <data name="GestionExportDestinationRequired" xml:space="preserve"><value>请选择导出目标位置。</value></data>

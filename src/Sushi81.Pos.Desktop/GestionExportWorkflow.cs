@@ -280,7 +280,18 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         }
         catch (Exception exception)
         {
-            FailureMessage = Read("GestionExportFailure", "The export could not be completed.");
+            try
+            {
+                // Preparation is durable before workbook generation/finalization. Refresh the
+                // pending list so a failed finalization immediately exposes the same BatchId
+                // for a safe retry instead of leaving the operator with stale UI state.
+                await RefreshHistoryCoreAsync(CancellationToken.None);
+            }
+            catch
+            {
+                // Keep the operator-facing failure safe even if the refresh itself is unavailable.
+            }
+            FailureMessage = Read("GestionExportFailure", "The export could not be completed; any prepared batch remains available under pending batches for retry.");
             StatusMessage = FailureMessage;
             _ = exception;
             return null;

@@ -188,6 +188,61 @@ public sealed class M11Wp4IntegrationTests
     }
 
     [TestMethod]
+    public async Task RealSqliteEmptyOptionalTextSurvivesWorkbookValidationAndPreparedRetryWithoutDuplicateEmission()
+    {
+        using var paths = new TestPaths();
+        var clock = new FixedClock();
+        var factory = await InitializeProductionAsync(paths, clock);
+        var transactionRunner = new SqliteTransactionRunner(factory);
+        var orderStore = new SqliteOrderStore(factory, transactionRunner, idGenerator: new DeterministicIds(), clock: clock);
+        var orderId = Guid.Parse("43100000-0000-0000-0000-000000000001");
+        var order = ClosedOrder(orderId, OrderSourceType.Pos, new DateOnly(2026, 9, 18)) with
+        {
+            Telephone = string.Empty,
+            DeliveryAddress = string.Empty,
+            Comment = string.Empty,
+        };
+        await orderStore.SaveLifecycleAsync(order, [Payment(orderId, 1000, new DateOnly(2026, 9, 18))]);
+
+        var store = new SqliteGestionExportStore(factory, orderStore, transactionRunner, new DeterministicIds());
+        using var guard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+        var gateway = new ClosedXmlGestionExportWorkbookGateway();
+        var exportService = new GestionExportService(store, store, clock, guard, new NoOpDurableChangeNotifier(), new DeterministicIds());
+        var workbookService = new GestionExportWorkbookService(exportService, store, gateway, clock, guard);
+        var root = Path.Combine(Path.GetTempPath(), "Sushi81.Pos.M11.WP4", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var prepared = (await exportService.PrepareBatchAsync(new ExportSelectionOptions(), "m11-wp4-empty-optional-text-test")).Batch!;
+            var payloadOrder = prepared.Payload.Orders.Single();
+            Assert.AreEqual(string.Empty, payloadOrder.Telephone);
+            Assert.AreEqual(string.Empty, payloadOrder.Address);
+            Assert.AreEqual(string.Empty, payloadOrder.Comment);
+
+            var finalPath = Path.Combine(root, "empty-optional-text-retry.xlsx");
+            await using (var output = new FileStream(finalPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await gateway.WriteAsync(prepared.Payload, output);
+                await output.FlushAsync();
+            }
+            await using (var existing = new FileStream(finalPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                await gateway.ValidateAsync(existing, prepared.Payload);
+
+            var retried = await workbookService.FinalizePreparedBatchAsync(prepared.Payload.Meta.BatchId, finalPath);
+            Assert.AreEqual(prepared.Payload.Meta.BatchId, retried.BatchId);
+            Assert.AreEqual(ExportBatchStatus.Success, (await store.GetBatchAsync(prepared.Payload.Meta.BatchId))!.Status);
+            Assert.IsEmpty(await store.ListPreparedBatchesAsync());
+            Assert.HasCount(1, await store.ListLatestSuccessfulEmissionsAsync());
+            await Assert.ThrowsAsync<InvalidOperationException>(async () => await workbookService.FinalizePreparedBatchAsync(prepared.Payload.Meta.BatchId, finalPath));
+            Assert.HasCount(1, await store.ListLatestSuccessfulEmissionsAsync());
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task ReadOnlyAuthorityCanPreviewButCannotCreateRealExportLedgerOrWorkbook()
     {
         using var paths = new TestPaths();

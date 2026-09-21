@@ -386,7 +386,7 @@ public sealed class ClosedXmlGestionExportWorkbookGateway : IExportWorkbookGatew
 
     private static void RequireOptionalText(IXLCell cell, string? expected, string sheet, int row, string field)
     {
-        if (expected is null) RequireBlank(cell, sheet, row, field);
+        if (string.IsNullOrEmpty(expected)) RequireBlank(cell, sheet, row, field);
         else RequireTextValue(cell, expected, sheet, row, field);
     }
 

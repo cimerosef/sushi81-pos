@@ -411,6 +411,53 @@ public sealed class M01Wp3DesktopTests
     }
 
     [TestMethod]
+    public void GestionExportDatePickersFollowFrenchAndChineseUiCultureInSession()
+    {
+        RunOnSta(() =>
+        {
+            using var fixture = CreateFixture(WriteAuthorityState.Authoritative);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                startupSucceeded: true,
+                authorityGuard: fixture.Guard,
+                gestionExportWorkflow: fixture.Workflow);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+
+            try
+            {
+                window.Show();
+                window.UpdateLayout();
+                var gestion = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["GestionExport"]);
+                gestion.IsSelected = true;
+                window.UpdateLayout();
+                var datePickers = VisualDescendants<DatePicker>(window)
+                    .Where(picker => picker.GetBindingExpression(DatePicker.SelectedDateProperty)?.ParentBinding.Path.Path is "StartDate" or "EndDate")
+                    .ToArray();
+                Assert.HasCount(2, datePickers);
+                Assert.IsTrue(datePickers.All(picker => string.Equals(picker.Language.IetfLanguageTag, "fr-FR", StringComparison.OrdinalIgnoreCase)));
+                Assert.AreEqual("Gestion export", shell.Localized["GestionExport"]);
+
+                var languageSelector = VisualDescendants<ComboBox>(window).Single(combo => combo.SelectedValuePath == "CultureName");
+                languageSelector.SelectedValue = "zh-CN";
+                window.Dispatcher.Invoke(() => { });
+                window.UpdateLayout();
+                Assert.IsTrue(datePickers.All(picker => string.Equals(picker.Language.IetfLanguageTag, "zh-CN", StringComparison.OrdinalIgnoreCase)));
+                Assert.AreEqual("销售数据导出", shell.Localized["GestionExport"]);
+                Assert.AreEqual("销售数据导出", shell.Localized["GestionExportSection"]);
+
+                languageSelector.SelectedValue = "fr-FR";
+                window.Dispatcher.Invoke(() => { });
+                window.UpdateLayout();
+                Assert.IsTrue(datePickers.All(picker => string.Equals(picker.Language.IetfLanguageTag, "fr-FR", StringComparison.OrdinalIgnoreCase)));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [TestMethod]
     public void NonAuthoritativeStateBlocksNewExportButKeepsHistorySurfaceReadable()
     {
         using var fixture = CreateFixture(WriteAuthorityState.NonAuthoritativeReadOnly);

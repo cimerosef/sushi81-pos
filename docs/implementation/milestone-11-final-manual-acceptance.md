@@ -8,6 +8,12 @@
 
 The automated integration-hardening and candidate-preparation package was executed under `M11-WP4-INTEGRATION-OWNER-CANDIDATE-07` on PR #24. The accepted application source head is `dc8091fccb31923bacc16cbff7b49ada771f55fb`. The candidate is now durably downloadable from the GitHub Actions artifact recorded below; this document keeps the owner checklist separate from automated evidence and does not claim owner acceptance.
 
+## Owner A repair state — candidate not yet retested
+
+The prior candidate failed owner scenario A and requires repair before any owner acceptance can continue. The observed failure was a localized `导出未能完成。` after a preview containing eight CREATE actions; the durable PREPARED batch remained available for retry. The repair narrows optional empty-string workbook validation to the existing blank-cell representation, refreshes pending batches after a failed finalization, applies the selected `fr-FR`/`zh-CN` culture to the M11 WPF date pickers in-session, and uses `销售数据导出` for the visible Chinese feature name.
+
+This repaired candidate has **not yet been retested by the project owner**. Owner scenarios A–E remain **NOT YET EXECUTED**, and M11 remains not Passed. The new self-contained candidate artifact and its exact source head are recorded only after the authorized repair head is pushed and the branch-scoped GitHub Actions artifact job succeeds.
+
 Automated WP4 evidence includes real SQLite migrations and export-ledger persistence, real ClosedXML workbook generation and validation, Hiboutik exclusion after cancellation/date filtering, immutable exact regeneration with a later pending update, prepared-file retry/idempotency, and non-authoritative preview/write blocking. Full Release regression, Release build, forbidden-data scan and the final candidate are required before owner execution.
 
 Owner scenarios A–E below remain **NOT YET EXECUTED**. No M11 Passed claim is made here; controller review, owner execution and separate merge approval remain outstanding.
