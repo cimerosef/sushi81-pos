@@ -4,7 +4,7 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M10 are Passed/merged. M11 Gestion export readiness is complete and implementation is owner-authorized on PR #24; execution remains limited to the exact live Issue #4 handoff.**
+**Phase 6 implementation active: M01–M11 are Passed/merged. M12 Annual archive and historical access is owner-authorized on branch `codex/m12-annual-archive-authorized` / Draft PR #25; execution is package-gated by the exact live Issue #4 handoff. M13 remains unauthorized.**
 
 M08 — Printing and reprinting — Passed project-owner Windows/WPF/physical-print acceptance and was merged through PR #14 to `main` at merge commit `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. Accepted production candidate: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; final pass-record head: `5f8c92c29116e17a3365ecd8801f7e13f107269c`; final exact-head CI #675 succeeded.
 
@@ -14,7 +14,9 @@ The independent post-M09 Hiboutik daily payment dashboard enhancement is Passed 
 
 M10 — Catalogue `.xlsx` import/export — Passed and merged through PR #22 at `299df8b44a1959497ad46f861e44db32913b4d11`. Controller final closure is comment `5750090951`; accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`.
 
-M11 — Gestion intermediate export — is owner-**Authorized** on branch `codex/m11-gestion-export-authorized` / PR #24. The readiness audit and approved export clarification are complete. Execution is still package-gated: Codex may act only on the exact matching live Issue #4 / PR #24 handoff.
+M11 — Gestion intermediate export — is **Passed / merged** through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate: `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; final documentation head: `4eddf0a93c5a141326d76c6e67a9a9c5840e5068`; controller closure: PR #24 comment `5762784303`; merge completion: comment `5762846107`; post-merge CI #821 / run `35617254203` succeeded with 831/831 passed, 0 failed, 0 skipped and Release build 0 warnings / 0 errors.
+
+M12 — Annual archive and historical access — is owner-**Authorized** on `codex/m12-annual-archive-authorized` / Draft PR #25. The first executable package is WP1 only. The readiness review records a known M02 OneDrive remote-publication acknowledgement boundary that blocks the later WP2 live-removal path until explicitly resolved; WP1 performs no OneDrive publication or live deletion.
 
 The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`; the living current control state is `implementation-status.md`.
 
@@ -79,7 +81,8 @@ Historical completed milestone records remain under `implementation/` and in the
 - M08 — Passed/merged through PR #14;
 - M09 — Passed/merged through PR #17;
 - post-M09 dashboard — Passed/merged through PR #19;
-- M10 — Passed/merged through PR #22.
+- M10 — Passed/merged through PR #22;
+- M11 — Passed/merged through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`.
 
 Current M09 control package:
 
@@ -111,7 +114,7 @@ M10 completed implementation package:
 - `implementation/milestone-10-worklog.md` — implementation/evidence ledger;
 - `implementation/milestone-10-authorization.md` — AUTHORIZED; the current executable scope is controlled by Issue #4.
 
-Current M11 preparation package:
+M11 completed implementation package:
 
 - `decisions/m11-export-lifecycle-and-settlement-clarifications.md` — Approved owner decision;
 - `acceptance-criteria-amendment-m11-gestion-export.md` — Approved acceptance clarification;
@@ -122,7 +125,16 @@ Current M11 preparation package:
 - `implementation/milestone-11-worklog.md` — preparation/evidence ledger;
 - `implementation/milestone-11-authorization.md` — AUTHORIZED; executable scope is controlled by Issue #4;
 - draft preparation PR #23 / `prep/m11-gestion-export` — historical preparation line;
-- implementation PR #24 / `codex/m11-gestion-export-authorized` — active implementation mailbox.
+- implementation PR #24 / `codex/m11-gestion-export-authorized` — historical implementation mailbox, CLOSED/MERGED.
+
+Current M12 implementation package:
+
+- `implementation/milestone-12-preparation-readiness.md` — current readiness review and OneDrive acknowledgement finding;
+- `implementation/milestone-12-annual-archive-historical-access.md` — M12 implementation contract;
+- `implementation/milestone-12-authorization.md` — AUTHORIZED;
+- Draft PR #25 / `codex/m12-annual-archive-authorized` — active durable mailbox;
+- Issue #4 — sole execution switch/status pointer;
+- M13 — unauthorized.
 
 ## Decision records
 
