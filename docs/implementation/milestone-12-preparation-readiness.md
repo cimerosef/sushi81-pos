@@ -1,8 +1,8 @@
 # M12 — Annual archive and historical access — preparation/readiness
 
-**Status:** OWNER-AUTHORIZED / WP1 READY; OneDrive remote-publication gate requires resolution before live removal  
-**Milestone:** M12  
-**Reviewed baseline:** `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`  
+**Status:** OWNER-AUTHORIZED / WP1 READY; OneDrive remote-publication gate requires resolution before live removal
+**Milestone:** M12
+**Reviewed baseline:** `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`
 **Review date:** 2026-09-21
 
 ## 1. Authority and scope
