@@ -39,7 +39,7 @@ The V1 Specification remains frozen-and-amended. The formal freeze record is `v1
 - `data-model.md` — Approved — Phase 3 baseline, subject to later approved decision amendments where explicitly stated.
 - `storage-strategy.md` — Approved — Phase 3 baseline, including later approved GitHub handoff, M07 self-join/DR decisions and the M12 local-archive amendment.
 
-A separate `sync-and-backup.md` is not part of V1 because live storage, local recovery, GitHub target-directed normal handoff, OneDrive disaster-recovery/archive behavior and annual archive behavior are already authoritative in the applicable baseline/decision documents.
+A separate `sync-and-backup.md` is not part of V1 because live storage, local recovery, GitHub target-directed normal handoff, OneDrive Disaster Recovery behavior and local annual archive behavior are already authoritative in the applicable baseline/decision documents.
 
 ### Phase 4 — Input, printing and export specifications
 
