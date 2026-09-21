@@ -1,9 +1,9 @@
 # M12 — Annual archive and historical access — authorization
 
-**Status:** AUTHORIZED  
-**Owner authorization basis:** project-owner M12 transition instruction after successful M11 merge, verified against merged GitHub state on 2026-09-21  
-**Authorized implementation branch:** `codex/m12-annual-archive-authorized`  
-**Active mailbox:** M12 Draft implementation PR  
+**Status:** AUTHORIZED
+**Owner authorization basis:** project-owner M12 transition instruction after successful M11 merge, verified against merged GitHub state on 2026-09-21
+**Authorized implementation branch:** `codex/m12-annual-archive-authorized`
+**Active mailbox:** M12 Draft implementation PR
 **M13:** NOT AUTHORIZED
 
 ## Authorization
