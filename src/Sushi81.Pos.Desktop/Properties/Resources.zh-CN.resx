@@ -407,4 +407,54 @@
   <data name="Product" xml:space="preserve"><value>产品</value></data>
   <data name="OptionGroup" xml:space="preserve"><value>选项组</value></data>
   <data name="Option" xml:space="preserve"><value>选项</value></data>
+  <data name="GestionExport" xml:space="preserve"><value>销售数据导出</value></data>
+  <data name="GestionExportSection" xml:space="preserve"><value>销售数据导出</value></data>
+  <data name="GestionExportStartDate" xml:space="preserve"><value>开始</value></data>
+  <data name="GestionExportEndDate" xml:space="preserve"><value>结束</value></data>
+  <data name="GestionExportDatePickerWatermark" xml:space="preserve"><value>选择日期</value></data>
+  <data name="GestionExportGeneratedAt" xml:space="preserve"><value>生成时间</value></data>
+  <data name="GestionExportInclusiveHint" xml:space="preserve"><value>履约日期范围包含首尾日期。不筛选时，将显示所有适用的待处理操作。</value></data>
+  <data name="GestionExportPreview" xml:space="preserve"><value>预览 / 刷新</value></data>
+  <data name="GestionExportRefresh" xml:space="preserve"><value>刷新历史</value></data>
+  <data name="GestionExportExport" xml:space="preserve"><value>生成 Excel 文件</value></data>
+  <data name="GestionExportHistory" xml:space="preserve"><value>成功批次</value></data>
+  <data name="GestionExportRegenerate" xml:space="preserve"><value>重新生成所选批次</value></data>
+  <data name="GestionExportDestination" xml:space="preserve"><value>范围 / 筛选</value></data>
+  <data name="GestionExportScope" xml:space="preserve"><value>范围 / 日期筛选</value></data>
+  <data name="GestionExportStatus" xml:space="preserve"><value>状态</value></data>
+  <data name="GestionExportAuthority" xml:space="preserve"><value>权威设备：可以生成新的导出。预览和历史记录仍为只读。</value></data>
+  <data name="GestionExportReadOnly" xml:space="preserve"><value>只读设备：无法生成新的导出；重新生成成功批次不会修改业务数据。</value></data>
+  <data name="GestionExportBusy" xml:space="preserve"><value>正在生成并验证工作簿…</value></data>
+  <data name="GestionExportRetry" xml:space="preserve"><value>重试</value></data>
+  <data name="GestionExportPending" xml:space="preserve"><value>待完成批次</value></data>
+  <data name="GestionExportRetryPrepared" xml:space="preserve"><value>重试待完成批次</value></data>
+  <data name="GestionExportPreparedStatus" xml:space="preserve"><value>PREPARED</value></data>
+  <data name="GestionExportPreparedRetryBusy" xml:space="preserve"><value>正在重试待完成批次…</value></data>
+  <data name="GestionExportPreparedRetrySucceeded" xml:space="preserve"><value>待完成批次已完成：{0}。</value></data>
+  <data name="GestionExportPreparedRetryFailure" xml:space="preserve"><value>待完成批次无法完成；仍可再次重试。</value></data>
+  <data name="GestionExportNoPending" xml:space="preserve"><value>此范围没有待处理的导出操作。</value></data>
+  <data name="GestionExportBlockedAtExport" xml:space="preserve"><value>导出被阻止：{0}</value></data>
+  <data name="GestionExportDiagnosticSettlementDateUnavailable" xml:space="preserve"><value>无法根据已记录的付款确定结算日期。</value></data>
+  <data name="GestionExportSucceeded" xml:space="preserve"><value>导出成功：{0}。</value></data>
+  <data name="GestionExportFailure" xml:space="preserve"><value>导出未能完成；已准备的批次仍显示在“待完成批次”中，可再次重试。</value></data>
+  <data name="GestionExportCancelled" xml:space="preserve"><value>导出已取消。</value></data>
+  <data name="GestionExportInvalidRange" xml:space="preserve"><value>开始日期不能晚于结束日期。</value></data>
+  <data name="GestionExportDestinationRequired" xml:space="preserve"><value>请选择导出目标位置。</value></data>
+  <data name="GestionExportPreviewBusy" xml:space="preserve"><value>正在加载导出预览…</value></data>
+  <data name="GestionExportPreviewReady" xml:space="preserve"><value>预览就绪：{0} 个操作。</value></data>
+  <data name="GestionExportPreviewBlocked" xml:space="preserve"><value>预览包含阻塞性诊断。</value></data>
+  <data name="GestionExportSelectionSummary" xml:space="preserve"><value>{0} 个操作：CREATE {1}，UPDATE {2}，CANCEL {3}。</value></data>
+  <data name="GestionExportAllDates" xml:space="preserve"><value>所有适用日期</value></data>
+  <data name="GestionExportFromDate" xml:space="preserve"><value>从 {0} 起（含）</value></data>
+  <data name="GestionExportToDate" xml:space="preserve"><value>截至 {0}（含）</value></data>
+  <data name="GestionExportDateRange" xml:space="preserve"><value>{0} 至 {1}（含首尾）</value></data>
+  <data name="GestionExportCreate" xml:space="preserve"><value>CREATE</value></data>
+  <data name="GestionExportUpdate" xml:space="preserve"><value>UPDATE</value></data>
+  <data name="GestionExportCancel" xml:space="preserve"><value>CANCEL</value></data>
+  <data name="GestionExportBlocking" xml:space="preserve"><value>阻塞</value></data>
+  <data name="GestionExportSuccessStatus" xml:space="preserve"><value>SUCCESS</value></data>
+  <data name="GestionExportRegenerateBusy" xml:space="preserve"><value>正在重新生成所选成功批次…</value></data>
+  <data name="GestionExportRegenerated" xml:space="preserve"><value>批次已重新生成：{0}。</value></data>
+  <data name="GestionExportRegenerateFailure" xml:space="preserve"><value>所选批次无法重新生成。</value></data>
+  <data name="GestionExportHistoryFailure" xml:space="preserve"><value>无法加载导出历史。</value></data>
 </root>

@@ -67,7 +67,7 @@ public sealed class M04OrderIntegrationTests
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM products WHERE product_id='" + product + "' AND code='V2-P1';"));
 
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, snapshots).InitializeAsync();
-        Assert.AreEqual(7L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(8L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM categories WHERE category_id='" + category.Id + "' AND name='Plats v2';"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM products WHERE product_id='" + product + "' AND code='V2-P1';"));
         Assert.IsTrue(snapshots.Changes.Any(change => change.Sequence == 2));
@@ -86,7 +86,7 @@ public sealed class M04OrderIntegrationTests
         var product = (await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, "P1", "Plat", category.Id, Money.FromCents(1250), 10m, true, true, false, []))).Value!;
         var snapshot = new SqliteLocalRecoverySnapshotService(paths, factory, clock);
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, snapshot).InitializeAsync();
-        Assert.AreEqual(7L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(8L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM categories WHERE category_id='" + category.Id + "';"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM products WHERE product_id='" + product + "';"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM business_settings;"));
@@ -298,7 +298,7 @@ public sealed class M04OrderIntegrationTests
 
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, new SqliteLocalRecoverySnapshotService(paths, factory, clock)).InitializeAsync();
 
-        Assert.AreEqual(7L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(8L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.AreEqual(1L, await ScalarAsync(factory, $"SELECT COUNT(*) FROM categories WHERE category_id='{category.Id}' AND short_code IS NULL AND normalized_short_code IS NULL;"));
         Assert.AreEqual(1L, await ScalarAsync(factory, $"SELECT COUNT(*) FROM products WHERE product_id='{productId}' AND category_id='{category.Id}';"));
         Assert.AreEqual(1L, await ScalarAsync(factory, $"SELECT COUNT(*) FROM orders WHERE order_id='{order.CommittedOrder!.Id}';"));

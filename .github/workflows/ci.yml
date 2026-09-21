@@ -24,3 +24,95 @@ jobs:
         run: dotnet build Sushi81.Pos.sln -c Release --no-restore
       - name: Test
         run: dotnet test Sushi81.Pos.sln -c Release --no-build
+
+  m11-owner-candidate-artifact:
+    if: github.event_name == 'pull_request' && github.head_ref == 'codex/m11-gestion-export-authorized'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout the exact pull-request source head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Record the exact candidate source head
+        id: source
+        shell: pwsh
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          $short = $actual.Substring(0, 7)
+          "Source head: $actual" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "head=$actual" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "short=$short" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore Sushi81.Pos.sln -r win-x64
+
+      - name: Build Release
+        shell: pwsh
+        run: dotnet build Sushi81.Pos.sln -c Release --no-restore
+
+      - name: Publish self-contained win-x64 owner candidate
+        shell: pwsh
+        run: >-
+          dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=false -o artifacts/m11-wp4-owner-candidate-win-x64
+          --no-restore
+
+      - name: Scan and package the candidate
+        shell: pwsh
+        run: |
+          $publishDir = Join-Path $env:GITHUB_WORKSPACE 'artifacts/m11-wp4-owner-candidate-win-x64'
+          $sourceShort = '${{ steps.source.outputs.short }}'
+          $zipName = "M11-WP4-owner-candidate-win-x64-$sourceShort.zip"
+          $zipPath = Join-Path $env:GITHUB_WORKSPACE "artifacts/$zipName"
+          $forbidden = '(?i)(^|[\\/])(live\.db|.*recovery.*(\.db|\.json|\.zip)|.*(Gestion|Catalogue).*(\.xlsx|\.xlsm)|.*\.csv|.*\.log|.*(secret|token).*)$'
+          $bad = Get-ChildItem -LiteralPath $publishDir -Recurse -File | Where-Object { $_.FullName -match $forbidden }
+          if ($bad) {
+            $bad | Select-Object -ExpandProperty FullName
+            throw 'Forbidden business-data, recovery, log, or credential-like file found in candidate.'
+          }
+          if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
+          Compress-Archive -Path (Join-Path $publishDir '*') -DestinationPath $zipPath -CompressionLevel Optimal
+          $exePath = Join-Path $publishDir 'Sushi81.Pos.Desktop.exe'
+          if (-not (Test-Path -LiteralPath $exePath)) { throw 'Published executable is missing.' }
+          $exeHash = (Get-FileHash -LiteralPath $exePath -Algorithm SHA256).Hash
+          $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
+          $zipSize = (Get-Item -LiteralPath $zipPath).Length
+          @(
+            '# M11 WP4 owner candidate',
+            '',
+            "Source head: ${{ steps.source.outputs.head }}",
+            "EXE: Sushi81.Pos.Desktop.exe; SHA-256: $exeHash",
+            "ZIP: $zipName; bytes: $zipSize; SHA-256: $zipHash",
+            'Safety scan: passed; no live.db, recovery, business workbook, CSV, log, secret, or token-like file names.'
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Upload durable owner candidate ZIP
+        id: upload-candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: M11-WP4-owner-candidate-win-x64-${{ steps.source.outputs.short }}
+          path: artifacts/M11-WP4-owner-candidate-win-x64-${{ steps.source.outputs.short }}.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Record artifact identity and owner instructions
+        shell: pwsh
+        run: |
+          @(
+            '',
+            "Workflow run: $env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID",
+            "Run ID: $env:GITHUB_RUN_ID",
+            "Artifact name: M11-WP4-owner-candidate-win-x64-${{ steps.source.outputs.short }}",
+            "Artifact ID: ${{ steps.upload-candidate.outputs.artifact-id }}",
+            'Retention: 90 days',
+            'Owner download: open this workflow run on GitHub, scroll to Artifacts, and download the named ZIP.'
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

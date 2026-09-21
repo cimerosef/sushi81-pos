@@ -77,6 +77,61 @@
           </WrapPanel>
         </Grid>
       </TabItem>
+      <TabItem Header="{Binding DataContext.Localized[GestionExport], RelativeSource={RelativeSource AncestorType=Window}}" DataContext="{Binding DataContext.GestionExportWorkflow, RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.IsGestionExportAvailable, RelativeSource={RelativeSource AncestorType=Window}}" Visibility="{Binding DataContext.IsGestionExportAvailable, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="12">
+            <TextBlock Text="{Binding DataContext.Localized[GestionExportSection], RelativeSource={RelativeSource AncestorType=Window}}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10" />
+            <WrapPanel Margin="0,0,0,6">
+              <TextBlock Text="{Binding DataContext.Localized[GestionExportStartDate], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,6,0" />
+              <DatePicker x:Name="gestionExportStartDatePicker" SelectedDate="{Binding StartDate, Mode=TwoWay}" Width="145" Margin="0,0,12,0" />
+              <TextBlock Text="{Binding DataContext.Localized[GestionExportEndDate], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Center" Margin="0,0,6,0" />
+              <DatePicker x:Name="gestionExportEndDatePicker" SelectedDate="{Binding EndDate, Mode=TwoWay}" Width="145" Margin="0,0,12,0" />
+              <Button Content="{Binding DataContext.Localized[GestionExportPreview], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanPreview}" Padding="12,4" Margin="0,0,8,0" Click="OnPreviewGestionExport" />
+              <Button Content="{Binding DataContext.Localized[GestionExportExport], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanExport}" Padding="12,4" Click="OnExportGestionExport" />
+            </WrapPanel>
+            <TextBlock Text="{Binding InclusiveDateText}" TextWrapping="Wrap" Opacity="0.8" Margin="0,0,0,2" />
+            <TextBlock Text="{Binding DataContext.Localized[GestionExportInclusiveHint], RelativeSource={RelativeSource AncestorType=Window}}" TextWrapping="Wrap" Opacity="0.8" Margin="0,0,0,10" />
+            <TextBlock Text="{Binding ValidationMessage}" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,0,0,4" />
+            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Margin="0,0,0,4" />
+            <TextBlock Text="{Binding FailureMessage}" Foreground="Firebrick" TextWrapping="Wrap" Margin="0,0,0,8" />
+            <TextBlock Text="{Binding SelectionSummary}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,6" />
+            <ItemsControl ItemsSource="{Binding ActionSummary}" Margin="0,0,0,6">
+              <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate><DataTemplate><Border BorderBrush="#FFD6D6D6" BorderThickness="1" Padding="7,3" Margin="0,0,6,5"><TextBlock><Run Text="{Binding Label}" /><Run Text=": " /><Run Text="{Binding Count}" /></TextBlock></Border></DataTemplate></ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ItemsControl ItemsSource="{Binding Diagnostics}" Margin="0,0,0,8">
+              <ItemsControl.ItemTemplate><DataTemplate><TextBlock TextWrapping="Wrap" Foreground="Firebrick"><Run Text="{Binding Severity}" /><Run Text=": " /><Run Text="{Binding Message}" /><Run Text=" (" /><Run Text="{Binding Code}" /><Run Text=")" /></TextBlock></DataTemplate></ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Separator Margin="0,4,0,8" />
+            <TextBlock Text="{Binding DataContext.Localized[GestionExportHistory], RelativeSource={RelativeSource AncestorType=Window}}" FontWeight="SemiBold" Margin="0,0,0,5" />
+            <DataGrid ItemsSource="{Binding History}" SelectedItem="{Binding SelectedHistory, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MinHeight="150" MaxHeight="280" ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0,0,0,8">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="BatchId" Binding="{Binding BatchId}" Width="2*" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportGeneratedAt], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding GeneratedAtText}" Width="1.4*" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportScope], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding FilterText}" Width="2*" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[Actions], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding OrderCount}" Width="90" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportStatus], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding StatusText}" Width="100" />
+              </DataGrid.Columns>
+            </DataGrid>
+            <WrapPanel>
+              <Button Content="{Binding DataContext.Localized[GestionExportRefresh], RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,4" Margin="0,0,8,0" Click="OnRefreshGestionExportHistory" />
+              <Button Content="{Binding DataContext.Localized[GestionExportRegenerate], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanRegenerate}" Padding="12,4" Click="OnRegenerateGestionExport" />
+            </WrapPanel>
+            <TextBlock Text="{Binding DataContext.Localized[GestionExportPending], RelativeSource={RelativeSource AncestorType=Window}}" FontWeight="SemiBold" Margin="0,12,0,5" />
+            <DataGrid ItemsSource="{Binding PendingBatches}" SelectedItem="{Binding SelectedPreparedBatch, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" MinHeight="90" MaxHeight="220" ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0,0,0,8">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="BatchId" Binding="{Binding BatchId}" Width="2*" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportGeneratedAt], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding PreparedAtText}" Width="1.4*" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportScope], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding FilterText}" Width="2*" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[Actions], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding OrderCount}" Width="90" />
+                <DataGridTextColumn Header="{Binding DataContext.Localized[GestionExportStatus], RelativeSource={RelativeSource AncestorType=Window}}" Binding="{Binding StatusText}" Width="100" />
+              </DataGrid.Columns>
+            </DataGrid>
+            <Button Content="{Binding DataContext.Localized[GestionExportRetryPrepared], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding CanRetryPrepared}" Padding="12,4" HorizontalAlignment="Left" Click="OnRetryPreparedGestionExport" />
+            <TextBlock Text="{Binding AuthorityStatusText}" Margin="0,8,0,0" Foreground="DarkOrange" TextWrapping="Wrap" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
       <TabItem Header="{Binding DataContext.Localized[Settings], RelativeSource={RelativeSource AncestorType=Window}}">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="18" MaxWidth="520">

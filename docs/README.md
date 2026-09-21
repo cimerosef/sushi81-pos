@@ -4,7 +4,7 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M09 Passed/merged; the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement is Passed/merged; M10 WP1–WP5 are controller-accepted, owner Scenarios A/B passed, and Scenario C's narrow existing-Category short-code guidance remediation is active.**
+**Phase 6 implementation active: M01–M10 are Passed/merged. M11 Gestion export readiness is complete and implementation is owner-authorized on PR #24; execution remains limited to the exact live Issue #4 handoff.**
 
 M08 — Printing and reprinting — Passed project-owner Windows/WPF/physical-print acceptance and was merged through PR #14 to `main` at merge commit `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. Accepted production candidate: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; final pass-record head: `5f8c92c29116e17a3365ecd8801f7e13f107269c`; final exact-head CI #675 succeeded.
 
@@ -12,7 +12,9 @@ M09 implementation, automated evidence and owner Windows/WPF manual acceptance a
 
 The independent post-M09 Hiboutik daily payment dashboard enhancement is Passed and merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`. It adds exactly two passive read-only values to the existing top Caisse dashboard and does not alter ordinary POS-originated summaries. Automated evidence and owner Windows/WPF A–F acceptance are recorded in PR #19 comments `5705723428` and `5715414940`; final controller closure was accepted on head `d55e36a244327c55b81f6fb1040c0ef46dbe154a` before merge.
 
-M10 — Catalogue `.xlsx` import/export — is on PR #22 (`codex/m10-catalogue-xlsx-authorized`). WP1–WP5 are controller-accepted; owner Scenarios A/B passed, while Scenario C correctly blocked an existing-Category short-code change but failed the frozen actionable preview-message requirement. The narrow diagnostic remediation is active; Scenario C must be owner-retested on its next candidate, D–L remain not run, PR #22 remains unmerged, and M10 is not marked Passed. Live Issue #4 controls later execution; M11+ remain unauthorized.
+M10 — Catalogue `.xlsx` import/export — Passed and merged through PR #22 at `299df8b44a1959497ad46f861e44db32913b4d11`. Controller final closure is comment `5750090951`; accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`.
+
+M11 — Gestion intermediate export — is owner-**Authorized** on branch `codex/m11-gestion-export-authorized` / PR #24. The readiness audit and approved export clarification are complete. Execution is still package-gated: Codex may act only on the exact matching live Issue #4 / PR #24 handoff.
 
 The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`; the living current control state is `implementation-status.md`.
 
@@ -41,7 +43,7 @@ A separate `sync-and-backup.md` is not part of V1 because live storage, local re
 
 - `paste-order-import.md` — Approved — Phase 4 baseline, amended 2026-09-14 for M09 product-block/operator-resolution/source-reference semantics.
 - `printing.md` — Approved — Phase 4 baseline.
-- `export.md` — Approved — Phase 4 baseline.
+- `export.md` — Approved — Phase 4 baseline, amended 2026-09-20 for M11 lifecycle/SettlementDate/correction clarification.
 
 M08 owner-selected visual/identity detail is frozen in `decisions/m08-print-layout-and-receipt-identity.md` and the matching implementation-contract addendum.
 
@@ -53,6 +55,7 @@ M08 owner-selected visual/identity detail is frozen in `decisions/m08-print-layo
 - `acceptance-criteria-amendment-m09-hiboutik-paste-fallback.md` — Approved 2026-09-14 M09 acceptance amendment.
 - `acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` — Approved post-M09 dashboard amendment.
 - `acceptance-criteria-amendment-m10-category-short-code-workbook.md` — Approved 2026-09-17 clarification of AC-CAT-008 through AC-CAT-011 for Category short-code workbook behavior.
+- `acceptance-criteria-amendment-m11-gestion-export.md` — Approved 2026-09-20 M11 export clarification.
 - `v1-specification-freeze.md` — Approved — Phase 5 baseline, amended through approved post-freeze decisions.
 
 ### Phase 6 — Implementation planning and controlled execution
@@ -75,7 +78,8 @@ Historical completed milestone records remain under `implementation/` and in the
 - M07 — Passed/merged through PR #13;
 - M08 — Passed/merged through PR #14;
 - M09 — Passed/merged through PR #17;
-- post-M09 dashboard — Passed/merged through PR #19.
+- post-M09 dashboard — Passed/merged through PR #19;
+- M10 — Passed/merged through PR #22.
 
 Current M09 control package:
 
@@ -97,7 +101,7 @@ Post-M09 dashboard control package:
 - `implementation/post-m09-hiboutik-daily-payment-dashboard-manual-acceptance.md`;
 - `implementation/post-m09-hiboutik-daily-payment-dashboard-worklog.md`.
 
-Current M10 implementation package:
+M10 completed implementation package:
 
 - `decisions/m10-category-short-code-workbook-semantics.md` — Approved owner decision;
 - `acceptance-criteria-amendment-m10-category-short-code-workbook.md` — Approved acceptance clarification;
@@ -106,6 +110,19 @@ Current M10 implementation package:
 - `implementation/milestone-10-final-manual-acceptance.md` — CANDIDATE PREPARED / OWNER NOT YET EXECUTED;
 - `implementation/milestone-10-worklog.md` — implementation/evidence ledger;
 - `implementation/milestone-10-authorization.md` — AUTHORIZED; the current executable scope is controlled by Issue #4.
+
+Current M11 preparation package:
+
+- `decisions/m11-export-lifecycle-and-settlement-clarifications.md` — Approved owner decision;
+- `acceptance-criteria-amendment-m11-gestion-export.md` — Approved acceptance clarification;
+- amended `export.md`;
+- `implementation/milestone-11-preparation-readiness.md` — PASS / ready for separate authorization;
+- `implementation/milestone-11-gestion-export.md` — prepared implementation contract;
+- `implementation/milestone-11-final-manual-acceptance.md` — prepared owner checklist;
+- `implementation/milestone-11-worklog.md` — preparation/evidence ledger;
+- `implementation/milestone-11-authorization.md` — AUTHORIZED; executable scope is controlled by Issue #4;
+- draft preparation PR #23 / `prep/m11-gestion-export` — historical preparation line;
+- implementation PR #24 / `codex/m11-gestion-export-authorized` — active implementation mailbox.
 
 ## Decision records
 
@@ -119,7 +136,8 @@ Relevant later decisions include:
 - M07 self-join/DR/recovery-ordering decisions;
 - `decisions/m08-print-layout-and-receipt-identity.md`;
 - `decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`;
-- `decisions/m10-category-short-code-workbook-semantics.md`.
+- `decisions/m10-category-short-code-workbook-semantics.md`;
+- `decisions/m11-export-lifecycle-and-settlement-clarifications.md`.
 
 Where a later Approved decision explicitly supersedes a narrow older clause, the later decision controls until the next complete consolidation pass. A genuine unresolved contradiction still requires implementation to stop rather than guess.
 

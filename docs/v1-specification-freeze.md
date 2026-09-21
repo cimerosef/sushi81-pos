@@ -186,7 +186,29 @@ The amended V1 Catalogue workbook semantics are:
 
 This amendment closes the last material M10 workbook-specification gap. It does **not** authorize M10 implementation by itself.
 
-## 12. Authority and conflict rule for implementation
+## 12. Post-freeze amendment — M11 Gestion export clarifications (2026-09-20)
+
+During M11 readiness, the audit found material ambiguity around the exported SettlementDate and post-export correction precedence. The project owner approved the controlling semantics on 2026-09-20.
+
+Records:
+
+- `docs/decisions/m11-export-lifecycle-and-settlement-clarifications.md`;
+- `docs/acceptance-criteria-amendment-m11-gestion-export.md`;
+- aligned `docs/export.md`.
+
+The amendment freezes:
+
+- Closed as the positive-sale lifecycle export gate; Open never emits CREATE/UPDATE;
+- no new independent operator-configurable payment gate in export; the existing exact-payment Close invariant remains;
+- SettlementDate from effective payment business date, not merely Close/recording date;
+- UPDATE waits until the current committed order is Closed;
+- CANCEL supersedes a pending UPDATE that has never been successfully emitted;
+- CANCEL for a previously exported order does not require current Closed/settled state;
+- the versioned workbook fields remain fixed rather than selected ad hoc per run.
+
+This amendment does not authorize M11 implementation by itself.
+
+## 13. Authority and conflict rule for implementation
 
 Codex and other implementation agents must use the frozen-and-amended GitHub specification rather than prior chat memory or legacy VBA behavior.
 
@@ -203,7 +225,7 @@ Pure implementation details preserving approved semantics may be selected autono
 
 **reliability > simplicity > maintainability > operational clarity > novelty.**
 
-## 13. Change-control rule after freeze
+## 14. Change-control rule after freeze
 
 The V1 Specification is a baseline, not an immutable historical artifact.
 
@@ -211,19 +233,19 @@ A future necessary change is allowed, but any change that alters frozen product/
 
 Approved post-freeze amendments above demonstrate this process.
 
-## 14. Current exit condition
+## 15. Current exit condition
 
 **Phase 5 remains complete.**
 
 Phase 6 implementation is active.
 
-Current state as of 2026-09-18:
+Current state as of 2026-09-20:
 
-- M01 through M09: Passed / merged;
-- post-M09 Hiboutik daily payment dashboard: Passed / merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`;
-- M10 Catalogue `.xlsx`: WP1–WP4 controller-accepted; WP5 final hardening evidence and exact owner-candidate regeneration are complete on PR #22 pending controller review;
-- M10 implementation: **AUTHORIZED / CONTROLLER REVIEW PENDING**; owner Windows/Excel acceptance remains unexecuted and M10 is not Passed;
-- Issue #4: the live issue body is the only authority for any later Codex execution; historical handoff identifiers are preserved in their PR records and are not rewritten here;
-- M11, M12, M13: unauthorized.
+- M01 through M10: Passed / merged;
+- M10 merge/current main: `299df8b44a1959497ad46f861e44db32913b4d11`;
+- M10 controller final closure: PR #22 comment `5750090951`;
+- M11 Gestion export: preparation/readiness completed; approved M11 clarification recorded; project owner authorized implementation on 2026-09-20; dedicated implementation line is `codex/m11-gestion-export-authorized` / PR #24 and execution remains controlled by Issue #4;
+- Issue #4 remains the live execution switch; only an OPEN gate with a matching PR #24 CODEX_HANDOFF_READY permits Codex execution;
+- M12 and M13: unauthorized.
 
-The project owner explicitly authorized M10 implementation. Codex remains limited to the exact active Issue #4 handoff; this state does not authorize owner manual acceptance, merge or M11.
+Preparation/specification approval does not authorize M11 production implementation, merge, M12 or M13.

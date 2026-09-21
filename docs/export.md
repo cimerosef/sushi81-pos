@@ -1,7 +1,7 @@
 # Export to Gestion SUSHI 81
 
-**Status:** Approved — Phase 4 baseline  
-**Last updated:** 2026-08-27  
+**Status:** Approved — Phase 4 baseline, amended for M11  
+**Last updated:** 2026-09-20  
 **Product:** Sushi81 POS  
 **Purpose:** Define the reliable export of eligible Sushi81 POS orders and sales detail into a controlled intermediate file for the downstream `Gestion SUSHI 81` workflow.
 
@@ -27,26 +27,26 @@ The following rules are approved:
 4. Hiboutik paste-created orders are excluded automatically because the underlying sale already exists in Hiboutik.
 5. Excel processing uses the approved ClosedXML architecture; Excel COM automation is not required.
 
-## 3. Export eligibility — approved Phase 4 rule
+## 3. Export eligibility — approved Phase 4 rule, clarified for M11
 
-An order is eligible for the normal positive-sale export only when all of the following are true:
+For ordinary positive-sale export, lifecycle status `Closed` is the export-readiness gate.
 
-- ordinary POS-originated source;
-- not `Cancelled`;
-- fully settled under the approved payment rules;
-- lifecycle status `Closed`.
+An order is eligible for initial positive-sale export only when all of the following are true:
 
-Therefore:
+- source is explicitly ordinary POS;
+- lifecycle status is `Closed`;
+- status is not `Cancelled`;
+- no successful CREATE for that order already exists.
 
-- `Open` + unpaid: excluded;
-- `Open` + partially paid: excluded;
-- `Closed` + fully settled: eligible;
-- `Cancelled`: excluded from initial positive-sale export;
-- Hiboutik paste-created: always excluded.
+An `Open` order is never emitted as CREATE or UPDATE, whether unpaid, partially paid or otherwise.
+
+M11 does not add a second independently configurable/operator-visible payment eligibility gate. This does not weaken the approved lifecycle: normal Close remains possible only when CB + Espèce equals the authoritative order total exactly, so a normal Closed order is already reconciled by the lifecycle invariant.
+
+Hiboutik paste-created orders are always excluded.
 
 Eligibility is derived from persisted data, not from UI appearance or operator memory.
 
-This rule is frozen in `docs/decisions/export-eligibility.md`.
+The original Phase 4 decision remains in `docs/decisions/export-eligibility.md`; the later controlling clarification is `docs/decisions/m11-export-lifecycle-and-settlement-clarifications.md`.
 
 ## 4. Default export scope and optional date filter — approved Phase 4 rule
 
@@ -58,7 +58,7 @@ With no date filter selected, the normal export action considers **all eligible 
 
 In practical terms, the default action is:
 
-**export all eligible settled orders still waiting for export.**
+**export all eligible Closed orders still waiting for export.**
 
 ### 4.2 Optional date range
 
@@ -127,6 +127,10 @@ V1 columns are:
 
 Customer/operational fields are included because the intermediate contract is intended to remain useful even if the downstream management workflow evolves. They do not imply a CRM role for the POS.
 
+`SettlementDate` is the business date on which cumulative effective-dated signed CB + Espèce payment adjustments reach the committed authoritative order total. It is derived from persisted payment effective-business-date facts, not merely `ClosedAt` and not the later technical `recorded_at` timestamp. A zero-net CB/Espèce reclassification does not by itself move the settlement date. For a legitimate zero-total Closed order, SettlementDate is the business-local date of `ClosedAt`. For a positive-total Closed order, if the effective-date settlement cannot be derived consistently, export fails closed rather than inventing one.
+
+The V1 column set is fixed by this versioned contract. The operator selects the order scope, not a per-run subset of fields.
+
 ### 5.3 `OrderLines`
 
 For `CREATE` and `UPDATE`, the file contains the full latest committed line snapshot for the order rather than only a delta.
@@ -147,6 +151,15 @@ V1 columns are:
 
 `OptionsSummary` is a readable historical snapshot of the selected structured options. Financial fields remain authoritative for calculation/import purposes.
 
+V1 line-field mapping is fixed:
+
+- `UnitBaseTTC` = saved product base TTC per unit;
+- `OptionAdjustmentTTC` = signed whole-line sum of saved option/custom adjustment TTC (`per-unit adjustment × Quantity`);
+- `LineTTC` = persisted calculated line TTC snapshot;
+- `VATRate` = saved product VAT rate for the line.
+
+A line may contain option adjustments with different VAT treatment; the authoritative mixed VAT allocation remains the order-level `TaxBreakdown` sheet.
+
 A `CANCEL` action does not require positive sales-line rows: the downstream importer cancels the previously imported order by stable `OrderId`.
 
 ### 5.4 `TaxBreakdown`
@@ -163,6 +176,12 @@ Columns are:
 - `TTC`.
 
 A `CANCEL` action does not require tax rows because downstream cancellation is keyed by the already imported `OrderId`.
+
+For CREATE/UPDATE, mapping from persisted tax snapshot is fixed:
+
+- `TTC` = persisted taxable TTC bucket;
+- `VATAmount` = persisted included VAT amount;
+- `TaxableHT` = `TTC - VATAmount`.
 
 ### 5.5 Cell/data representation
 
@@ -231,17 +250,23 @@ If an order is modified before it has ever been successfully exported, the later
 
 ### 9.2 Modification after successful export
 
-If an already-exported order is later modified, the POS records a pending correction for the same stable `OrderId`.
+If an already-exported order is later modified, the POS records or derives a pending correction for the same stable `OrderId`.
 
-The next applicable export package carries `Action = UPDATE`.
+If the current committed order is `Open`, that UPDATE remains pending and is not exportable. Once the current committed order is again `Closed`, the next applicable export package carries `Action = UPDATE`.
 
 `UPDATE` is a **full replacement snapshot**, not a line-by-line delta. The downstream importer must replace/update the previously imported state for that same `OrderId` rather than create a second sale.
 
 ### 9.3 Cancellation after successful export
 
-If an already-exported order is later cancelled, the POS records a pending correction for the same stable `OrderId`.
+If an already-exported order is later cancelled, the POS records or derives a pending correction for the same stable `OrderId`.
 
-The next applicable export package carries `Action = CANCEL`.
+The next applicable export package carries `Action = CANCEL`. CANCEL does not require the current cancelled order to satisfy Closed/settled positive-sale eligibility.
+
+If an UPDATE became pending after the previous successful export but was never itself successfully emitted, the later cancellation supersedes that pending UPDATE. The POS emits CANCEL directly rather than forcing an unneeded UPDATE followed by CANCEL.
+
+The CANCEL Orders row reverses the last state actually emitted downstream: `Action=CANCEL`, `OrderStatus=CANCELLED`, stable `OrderId`, and the remaining Orders business fields reproduce the last successfully emitted CREATE/UPDATE snapshot. No later un-emitted modification may leak into the CANCEL payload. CANCEL has no positive OrderLines/TaxBreakdown rows.
+
+For optional date filtering, UPDATE uses the current replacement snapshot fulfilment/business date; CANCEL uses the last successfully emitted positive snapshot fulfilment/business date being reversed.
 
 The downstream importer must reverse/remove/mark cancelled the previously imported sale for that same `OrderId` rather than create another positive record.
 
@@ -297,7 +322,7 @@ The exact short `BatchId` rendering is technical, provided the file name remains
 Tests must cover at least:
 
 - eligible `Closed` ordinary POS order exported as `CREATE`;
-- unpaid and partially paid `Open` orders excluded;
+- every `Open` order excluded from CREATE/UPDATE regardless of payment appearance;
 - Cancelled order excluded from initial positive-sale export;
 - Hiboutik paste-created order excluded;
 - default export with no date restriction includes all eligible not-yet-emitted orders;
@@ -310,8 +335,10 @@ Tests must cover at least:
 - repeated ordinary export does not duplicate an already-emitted unchanged `CREATE`;
 - exact regeneration of a previous successful batch reproduces the same payload;
 - pre-export modification exports only latest state as `CREATE`;
-- post-export modification produces full replacement `UPDATE` for the same `OrderId`;
-- post-export cancellation produces `CANCEL` for the same `OrderId`;
+- post-export modification produces full replacement `UPDATE` for the same `OrderId` only when the current committed order is Closed;
+- pending UPDATE remains un-emitted while the current order is Open;
+- post-export cancellation produces `CANCEL` for the same `OrderId` and supersedes an un-emitted pending UPDATE;
+- SettlementDate follows effective payment business date rather than Close/recording date;
 - repeated correction handling remains idempotent downstream.
 
 A sanitized fixture importer/test workbook may later be built for automated compatibility testing, but the POS export contract does not depend on access to the production `Gestion SUSHI 81.xlsm` workbook.
@@ -320,19 +347,22 @@ A sanitized fixture importer/test workbook may later be built for automated comp
 
 The Phase 4 export design is frozen:
 
-- initial export eligibility = fully settled `Closed`, non-cancelled ordinary POS orders only;
+- initial positive-sale export eligibility = explicit ordinary POS source + current `Closed` + non-Cancelled + no prior successful CREATE; normal Close itself retains the approved exact-payment reconciliation invariant;
 - default export = all eligible not-yet-emitted orders;
 - optional inclusive date-range filter remains available;
 - no mandatory J-2 cutoff;
 - POS generates a controlled intermediate `.xlsx` file rather than writing directly into Gestion;
 - stable order IDs provide downstream identity;
 - `UPDATE` and `CANCEL` represent post-export corrections;
-- `UPDATE` contains a full replacement snapshot;
+- `UPDATE` contains a full replacement snapshot and waits while the current order is Open;
+- `CANCEL` supersedes an un-emitted pending UPDATE;
+- `SettlementDate` is derived from effective payment business date;
+- workbook fields are fixed by the versioned contract rather than selected per run;
 - intermediate schema is versioned and independent from the current Gestion workbook layout;
 - successful batches can be regenerated exactly without inventing a new business export action.
 
 ## 14. Approval
 
-**Approved — Phase 4 baseline.**
+**Approved — Phase 4 baseline, amended by the approved M11 clarification dated 2026-09-20.**
 
-All material V1 export business rules and the POS-side intermediate-file contract are frozen. Downstream import into `Gestion SUSHI 81` may evolve independently as long as it respects the versioned export contract.
+All material V1 export business rules and the POS-side intermediate-file contract are frozen/amended. Downstream import into `Gestion SUSHI 81` may evolve independently as long as it respects the versioned export contract.

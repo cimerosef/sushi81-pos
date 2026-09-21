@@ -24,6 +24,10 @@ Key recent baselines:
 
 Historical contracts/worklogs/manual-acceptance records remain authoritative in their existing files and PRs. Do not rewrite historical evidence merely to match later project state.
 
+## M11 current closure state
+
+M11 Gestion intermediate export implementation and owner A–E acceptance are complete on PR #24. The accepted runtime candidate is source head `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; M11 is **Closure-ready**, pending final controller closure and separate explicit project-owner merge approval. PR #24 remains Draft/Open/unmerged. M12/M13 remain unauthorized. Detailed current evidence is maintained in `implementation-status.md` and `milestone-11-final-manual-acceptance.md`; historical preparation records below are not rewritten.
+
 ## M10 preparation — Catalogue `.xlsx` import/export
 
 M10 preparation is complete and is **READY FOR PROJECT-OWNER IMPLEMENTATION AUTHORIZATION**, but implementation remains **NOT AUTHORIZED**.
