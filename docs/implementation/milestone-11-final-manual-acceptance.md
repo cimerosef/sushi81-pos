@@ -14,6 +14,14 @@ The prior candidate failed owner scenario A and requires repair before any owner
 
 The newest repaired candidate has **not yet been retested by the project owner**. Owner scenarios A–E remain **NOT YET EXECUTED**, and M11 remains not Passed. The new self-contained candidate artifact and its exact source head are recorded only after the authorized repair head is pushed and the branch-scoped GitHub Actions artifact job succeeds.
 
+## Current owner-A repair — real workbook round-trip
+
+Owner A's second retest reproduced a remaining finalization failure on the preserved PREPARED BatchId after the DatePicker and optional-text repairs were accepted. The authorized Repair 11 started from exact head `1732d8b790ad3c45c034c6f6249de3c3140f6ab6` and is limited to the ClosedXML workbook validation boundary.
+
+The production regression uses non-zero sub-millisecond CLR ticks in `Meta.GeneratedAt` and `Orders.CreatedAt`. Native Excel/OLE serial dates represent these values at millisecond precision, so exact CLR tick equality rejected a workbook whose native date values were contract-correct. The repair validates DateTime values through `DateTime.FromOADate(expected.ToOADate())`, the exact native representation, while preserving the fixed Schema 1.0 columns and stored SQLite/business payload meaning. A materially different one-second value still fails validation. The same regression audits native TimeSpan and fixed two-decimal money/VAT values; those paths remain exact.
+
+Implementation commit: `64c08f8`. Local evidence: focused workbook gateway **3/3 passed**; full Release solution **831/831 passed**, 0 failed, 0 skipped; Release build 0 warnings / 0 errors; `git diff --check` clean. The new candidate is not yet retested by the owner, A–E remains pending, and M11 is not Passed. Exact final head, CI and artifact hashes are recorded in the matching durable `CODEX_DONE` after push.
+
 Automated WP4 evidence includes real SQLite migrations and export-ledger persistence, real ClosedXML workbook generation and validation, Hiboutik exclusion after cancellation/date filtering, immutable exact regeneration with a later pending update, prepared-file retry/idempotency, and non-authoritative preview/write blocking. Full Release regression, Release build, forbidden-data scan and the final candidate are required before owner execution.
 
 Owner scenarios A–E below remain **NOT YET EXECUTED**. No M11 Passed claim is made here; controller review, owner execution and separate merge approval remain outstanding.
