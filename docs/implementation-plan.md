@@ -196,23 +196,20 @@ A passing build without required tests and acceptance evidence is not milestone 
 
 Phase 6 planning remains Approved.
 
-Current merged baseline as of 2026-09-17:
+Current merged baseline as of 2026-09-21:
 
-- M01: Passed / merged through PR #1;
-- M02: amended revalidation Passed / merged;
-- M03: Passed / merged through PR #5;
-- M04: Passed / merged through PR #6;
-- M05: Passed / merged through PR #10;
-- M06: Passed / merged through PR #11;
-- M07: Passed / merged through PR #13;
-- M08: Passed / merged through PR #14;
-- M09: Passed / merged through PR #17;
-- post-M09 Hiboutik daily dashboard enhancement: Passed / merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`.
+- M01 through M10: Passed / merged under their recorded PRs;
+- M11 — Gestion intermediate export: Passed / merged through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`;
+- M11 accepted runtime candidate: `77ccecf9d947462e96e74b8aa1d99ced30e3788e`;
+- M11 final documentation head: `4eddf0a93c5a141326d76c6e67a9a9c5840e5068`;
+- M11 controller closure: PR #24 comment `5762784303`;
+- M11 merge completion: PR #24 comment `5762846107`;
+- post-merge CI #821 / run `35617254203`: success, 831/831 passed, 0 failed, 0 skipped, Release build 0 warnings / 0 errors.
 
-M10 is the next planned milestone and its specification/readiness preparation is complete on draft PR #20. The project owner approved the M10 Category short-code workbook semantics on 2026-09-17. `implementation/milestone-10-preparation-readiness.md` concludes **READY FOR PROJECT-OWNER IMPLEMENTATION AUTHORIZATION**.
+M12 — Annual archive and historical access — is owner-authorized on branch `codex/m12-annual-archive-authorized` / Draft PR #25. Its control package begins with `implementation/milestone-12-preparation-readiness.md`, `implementation/milestone-12-annual-archive-historical-access.md` and `implementation/milestone-12-authorization.md`. Execution remains one-package-at-a-time through Issue #4.
 
-M10 remains **NOT AUTHORIZED**. `implementation/milestone-10-authorization.md` remains NOT AUTHORIZED; ClosedXML has not been added to production; no production M10 implementation or executable M10 handoff exists. GitHub Issue #4 remains CLOSED.
+The first executable package is WP1 only: archive-year/eligibility contracts and independent local staged archive SQLite construction/validation. WP1 performs no OneDrive publication and no live-row deletion.
 
-A separate explicit project-owner statement **“批准 M10 implementation”** is required before authorization setup. Even after that statement, Codex may execute only after a dedicated implementation branch/PR/mailbox exists, exactly one complete executable handoff is published, Issue #4 points to that handoff and the gate is OPEN.
+The M12 readiness review records a known technical blocker for the later WP2 delete gate: accepted M02 evidence proved no documented local-only per-artifact OneDrive remote-upload acknowledgement for newly-created regular files, while `AC-STO-013` requires confirmed archive publication/synchronization before live removal. The affected path must not treat local file existence as cloud success or introduce a new remote/authentication workflow without explicit approval.
 
-M11, M12 and M13 remain unauthorized. Completion of preparation, a specification decision, `CODEX_DONE`, controller acceptance or manual acceptance never automatically authorizes the next work package, merge or milestone.
+M13 remains unauthorized.
