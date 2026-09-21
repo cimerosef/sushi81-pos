@@ -1,8 +1,8 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-20  
-**Current state:** M01 through M10 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current merged `main` is M10 merge commit `299df8b44a1959497ad46f861e44db32913b4d11`. M11 Gestion intermediate export is owner-AUTHORIZED on `codex/m11-gestion-export-authorized` / PR #24. WP1, WP2 and WP3 are controller-accepted; WP4 integration hardening and exact owner-candidate preparation are complete pending controller review and owner manual acceptance. M11 is not Passed. M12/M13 remain unauthorized.
+**Last updated:** 2026-09-21  
+**Current state:** M01 through M10 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current merged `main` is M10 merge commit `299df8b44a1959497ad46f861e44db32913b4d11`. M11 Gestion intermediate export is owner-AUTHORIZED on `codex/m11-gestion-export-authorized` / PR #24. WP1–WP4 are controller-accepted; a durable owner candidate is available as GitHub Actions artifact `M11-WP4-owner-candidate-win-x64-dc8091f` from run `35584565162`. Owner manual acceptance A–E remains not yet executed, so M11 is not Passed. M12/M13 remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -36,7 +36,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M09 — Hiboutik paste fallback | Passed | PR #17 merged at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; owner Windows/WPF acceptance Passed. |
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | PR #19 merged at `861cfba1dfacbb3289395c0370f6d42765b6c223`; controller/owner acceptance complete. |
 | M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
-| M11 — Gestion intermediate export | Partial | WP1–WP3 controller-accepted. WP4 integration hardening, Release regression and exact owner-candidate preparation are complete under `M11-WP4-INTEGRATION-OWNER-CANDIDATE-07`; controller review and owner manual acceptance remain pending. |
+| M11 — Gestion intermediate export | Partial | WP1–WP4 controller-accepted. The exact accepted source candidate is durably downloadable as GitHub Actions artifact `M11-WP4-owner-candidate-win-x64-dc8091f` (run `35584565162`, artifact `10631573948`); owner A–E manual acceptance remains not yet executed. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
 
@@ -77,7 +77,7 @@ Implementation line:
 - WP1: ACCEPTED at `678bf476c259f628582c7ae5e66c7ed641f32952`;
 - WP2: ACCEPTED at `a9774e2a6795adafee75b18f061289e47811caf5`, controller comment `5752144083`;
 - WP3: ACCEPTED at `3c9e110f7d6c5a93c773b2289f5b43f5c59fb14f`; controller acceptance is recorded in PR #24.
-- WP4: automated integration hardening and exact owner-candidate preparation complete under `M11-WP4-INTEGRATION-OWNER-CANDIDATE-07`; final source head, candidate hashes and exact-head CI are recorded in the matching durable `CODEX_DONE`. Controller review and owner manual acceptance remain pending.
+- WP4: controller-accepted under `M11-WP4-INTEGRATION-OWNER-CANDIDATE-07`; delivery repair is complete through GitHub Actions run `35584565162`, artifact `M11-WP4-owner-candidate-win-x64-dc8091f` / ID `10631573948`, built from accepted source head `dc8091fccb31923bacc16cbff7b49ada771f55fb`. Owner manual acceptance remains not yet executed.
 
 Primary acceptance ownership:
 

@@ -6,13 +6,36 @@
 
 ## WP4 candidate-preparation evidence
 
-The automated integration-hardening and candidate-preparation package was executed under `M11-WP4-INTEGRATION-OWNER-CANDIDATE-07` on PR #24. The exact final source head, self-contained `win-x64` candidate paths, sizes, SHA-256 values, package scan and exact-head CI result are recorded in the matching durable `CODEX_DONE` comment. This document intentionally keeps the owner checklist separate from automated evidence and does not self-reference a commit hash.
+The automated integration-hardening and candidate-preparation package was executed under `M11-WP4-INTEGRATION-OWNER-CANDIDATE-07` on PR #24. The accepted application source head is `dc8091fccb31923bacc16cbff7b49ada771f55fb`. The candidate is now durably downloadable from the GitHub Actions artifact recorded below; this document keeps the owner checklist separate from automated evidence and does not claim owner acceptance.
 
 Automated WP4 evidence includes real SQLite migrations and export-ledger persistence, real ClosedXML workbook generation and validation, Hiboutik exclusion after cancellation/date filtering, immutable exact regeneration with a later pending update, prepared-file retry/idempotency, and non-authoritative preview/write blocking. Full Release regression, Release build, forbidden-data scan and the final candidate are required before owner execution.
 
 Owner scenarios A–E below remain **NOT YET EXECUTED**. No M11 Passed claim is made here; controller review, owner execution and separate merge approval remain outstanding.
 
 The goal is a short, high-value owner check. Automated evidence owns exhaustive schema/state/failure matrices.
+
+## Durable owner candidate delivery
+
+The delivery-only workflow extension is in `.github/workflows/ci.yml`, job `m11-owner-candidate-artifact`. It checks out and verifies the accepted source head above, then publishes the normal self-contained `win-x64` directory (`PublishSingleFile=false`) and uploads its ZIP. The successful artifact-producing run is [GitHub Actions run #814](https://github.com/cimerosef/sushi81-pos/actions/runs/35584565162).
+
+- **Artifact name:** `M11-WP4-owner-candidate-win-x64-dc8091f`
+- **Artifact ID:** `10631573948`
+- **GitHub-reported artifact size:** `66.6 MB`
+- **Uploaded ZIP bytes:** `70,111,153`
+- **Retention:** 90 days from the run
+- **Artifact digest:** `sha256:a67e44c31aab629dc9b542d1b29a61c7a606f2a5721e0985a6a65bd64333e677`
+- **Published executable:** `Sushi81.Pos.Desktop.exe`; SHA-256 `94854C2F292E658466A10DFA1EE538FE28B1D5511DD6FC94D2D618ECA7E45A8C`
+- **Uploaded ZIP SHA-256:** `C611EE17835F3617B80FD7E8DD7B209C22AA530AD4C19014B376AA2EF7BB4E67`
+
+The executable and ZIP hashes above are the GitHub Actions reproduction from the exact accepted application source. They differ from the earlier local WP4 hashes because runner publish/ZIP output is not byte-identical; no byte-identity claim is made. The package safety scan passed with no `live.db`, recovery snapshot, real settings, credentials/tokens/secrets, logs, generated Gestion/Catalogue workbooks, CSV/business data or owner production files.
+
+Owner download procedure:
+
+1. Open the run linked above while signed in to GitHub.
+2. At the bottom of the run summary, under **Artifacts**, download `M11-WP4-owner-candidate-win-x64-dc8091f`.
+3. Extract the ZIP to a new review directory and verify the executable hash before launching it for scenarios A–E.
+
+The candidate is for owner review only. Scenarios A–E remain **NOT YET EXECUTED** and M11 remains not Passed.
 
 ## A — Mixed selection and CREATE workbook
 
