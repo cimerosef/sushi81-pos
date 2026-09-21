@@ -1,10 +1,10 @@
 # V1 implementation plan
 
-**Status:** Approved — Phase 6 baseline, amended 2026-08-31  
-**Approval date:** 2026-08-27  
-**Latest plan amendment:** 2026-08-31  
-**Current-state reconciliation:** 2026-09-21  
-**Product:** Sushi81 POS  
+**Status:** Approved — Phase 6 baseline, amended 2026-08-31
+**Approval date:** 2026-08-27
+**Latest plan amendment:** 2026-08-31
+**Current-state reconciliation:** 2026-09-21
+**Product:** Sushi81 POS
 **Purpose:** Define the controlled implementation sequence for the frozen-and-amended V1 Specification.
 
 ## 1. Authority and scope
