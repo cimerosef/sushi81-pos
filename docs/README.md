@@ -132,6 +132,7 @@ Current M12 implementation package:
 - `implementation/milestone-12-preparation-readiness.md` — current readiness review and OneDrive acknowledgement finding;
 - `implementation/milestone-12-annual-archive-historical-access.md` — M12 implementation contract;
 - `implementation/milestone-12-authorization.md` — AUTHORIZED;
+- `implementation/milestone-12-worklog.md` — active package/evidence ledger;
 - Draft PR #25 / `codex/m12-annual-archive-authorized` — active durable mailbox;
 - Issue #4 — sole execution switch/status pointer;
 - M13 — unauthorized.
