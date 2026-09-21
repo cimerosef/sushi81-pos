@@ -31,3 +31,35 @@ Readiness review and implementation contract were created on PR #25. The review 
 | WP3 — scheduler/authority/retry | Not started | No executable handoff. |
 | WP4 — explicit archive selection/hydration/search | Not started | No executable handoff. |
 | WP5 — archived reprint/hardening/owner candidate | Not started | No executable handoff. |
+
+
+## 2026-09-21 — Owner amendment — local archive + user-selected export
+
+Owner evidence: PR #25 comment `5765067664`.
+
+Approved change:
+
+- canonical annual archive databases are permanent application-managed local business data under the Sushi81 POS local application-data root;
+- OneDrive is removed from annual archive publication, acknowledgement, retention, discovery and ordinary historical access;
+- automatic February/late-start archiving remains non-interactive;
+- completed archive export is a separate explicit copy action and the operator chooses its destination;
+- export never moves/deletes the canonical local archive and failure cannot mutate canonical archive/live data;
+- normal handoff does not automatically transfer annual archive files.
+
+Control action:
+
+- Issue #4 was CLOSED before reconciliation;
+- former READY `M12-WP1-ARCHIVE-CORE-STAGING-01` / PR #25 comment `5764191282` was revoked before further execution;
+- Approved decision and acceptance amendment were added and baseline/living docs aligned;
+- the former OneDrive remote-publication acknowledgement blocker no longer applies to M12 annual archive completion;
+- a new unique WP1 READY is required from the reconciled exact head.
+
+Updated package plan:
+
+| Package | State | Evidence |
+|---|---|---|
+| WP1 — archive core/eligibility/staging | READY after reconciliation | Local staging only; no canonical promotion/live deletion/export UI. |
+| WP2 — export preservation/local canonical publication/live removal | Not started | Stage/validate -> durable local canonical promotion/reopen validation -> exact removal; preserve pending export payloads first. |
+| WP3 — scheduler/authority/retry | Not started | Automatic February/late-start remains non-interactive. |
+| WP4 — explicit local archive selection/search + user-selected export | Not started | Local Archive discovery/read-only access; explicit export copy destination selected by operator. |
+| WP5 — archived reprint/hardening/owner candidate | Not started | No change to M08 snapshot/reprint semantics. |
