@@ -13,18 +13,20 @@ This contract does not amend Approved product behavior. `docs/storage-strategy.m
 
 ## 2. Non-negotiable invariants
 
-1. Never remove an eligible order from `live.db` before a complete archive has been staged, validated, published to the approved OneDrive Archive location and the required publication/synchronization success has been confirmed.
-2. Any archive creation/validation/publication failure leaves eligible live orders intact and safely retryable.
+1. Never remove an eligible order from `live.db` before a complete archive has been staged, validated, durably promoted to the application-managed local Archive area, reopened and validated there as the canonical completed archive.
+2. Any archive creation/validation/local-promotion/reopen-validation failure leaves eligible live orders intact and safely retryable.
 3. Open orders never archive because of age.
 4. Closed and Cancelled archive-year assignment uses their end timestamps in the business timezone.
 5. `POS` and `HIBOUTIK_PASTE` use identical archive-year semantics.
 6. Normal live search remains live-only; historical access is explicit by archive year.
-7. Archive databases are ordinary-use read-only historical SQLite files and are never part of normal handoff lineage.
+7. Archive databases are permanent application-managed local ordinary-use read-only historical SQLite files and are never part of normal handoff lineage.
 8. Archive historical interpretation/reprint uses persisted snapshots, never current Catalogue/current VAT substitution.
 9. Archive read/reprint never mutates the archive database.
 10. Archive execution is authoritative-only; read-only archive access must not promote or weaken authority.
 11. Before live removal, preserve every valid pending/not-yet-emitted Gestion CREATE/UPDATE/CANCEL action as a durable immutable technical payload or an equivalent demonstrably safe representation.
-12. M13 is out of scope and unauthorized.
+12. Explicit archive export is a separate copy action whose destination is selected by the operator; it never moves/deletes the canonical local archive.
+13. OneDrive is not part of annual archive publication/access after the 2026-09-21 amendment.
+14. M13 is out of scope and unauthorized.
 
 ## 3. WP1 — archive core contract, eligibility and staging
 
@@ -40,13 +42,13 @@ WP1 must:
   - `OPEN` -> never eligible;
   - both source types treated identically;
 - require `IWriteAuthorityGuard` for the archive-staging execution path;
-- construct one **independent staged SQLite historical database** under an application-managed temporary/staging location, never directly inside the final OneDrive Archive location;
+- construct one **independent staged SQLite historical database** under an application-managed temporary/staging location, never directly over the canonical local Archive file;
 - store only the historical order aggregate needed for lossless archive access: order rows plus item, item-adjustment, payment-adjustment and tax-breakdown snapshot rows;
 - preserve all current persisted order snapshot columns required to reconstruct the existing `OrderSnapshot`, including reference, source type/source total, status/end timestamps, fulfilment/customer text, authoritative totals, payment totals and pricing flags;
 - include small archive-format metadata sufficient to validate at least format/schema version, archive year, build timestamp and expected order count;
 - validate the staged archive with read-only reopen, `PRAGMA integrity_check`, `PRAGMA foreign_key_check`, required-schema checks, target-year/order-count/order-ID checks and child-row ownership/count checks;
 - make staging retry-safe: an interrupted/failed attempt must not mutate `live.db` and must not make an incomplete staged file look completed;
-- expose enough application/infrastructure seams for later WP2 publication and WP4 read-only hydration without coupling archive code to current Catalogue repositories.
+- expose enough application/infrastructure seams for later WP2 local canonical promotion and WP4 read-only local archive access without coupling archive code to current Catalogue repositories.
 
 ### Preferred technical shape
 
@@ -81,8 +83,8 @@ Run the complete existing test suite and Release build after the package; requir
 
 WP1 must **not**:
 
-- publish/copy/promote an archive into OneDrive `Archive`;
-- claim OneDrive remote synchronization success;
+- publish/promote an archive into the final local canonical `Archive\` area;
+- export/copy an archive to an operator-selected destination;
 - delete or update eligible order aggregates in `live.db`;
 - create or consume Gestion export actions as an archive side effect;
 - add an M12 live-database migration unless a concrete WP1 need is demonstrated and reviewed;
@@ -92,9 +94,10 @@ WP1 must **not**:
 - implement archived printing/reprinting;
 - alter M07 authority/handoff/DR semantics;
 - add Microsoft Graph/OAuth or another remote service;
+- use OneDrive for annual archive storage/publication;
 - start M13;
 - merge the PR.
 
 ## 5. Later package boundary
 
-The remote OneDrive publication acknowledgement finding in `milestone-12-preparation-readiness.md` must be resolved before WP2 may enable live removal. A `CODEX_DONE` for WP1 does not authorize WP2.
+WP2 is now governed by the Approved local-archive amendment: preserve pending export actions, durably promote/reopen-validate the canonical local archive, then perform exact live removal and post-archive recovery. The prior OneDrive acknowledgement blocker is removed. A `CODEX_DONE` for WP1 still does not authorize WP2.
