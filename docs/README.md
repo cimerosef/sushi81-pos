@@ -16,7 +16,7 @@ M10 — Catalogue `.xlsx` import/export — Passed and merged through PR #22 at 
 
 M11 — Gestion intermediate export — is **Passed / merged** through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate: `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; final documentation head: `4eddf0a93c5a141326d76c6e67a9a9c5840e5068`; controller closure: PR #24 comment `5762784303`; merge completion: comment `5762846107`; post-merge CI #821 / run `35617254203` succeeded with 831/831 passed, 0 failed, 0 skipped and Release build 0 warnings / 0 errors.
 
-M12 — Annual archive and historical access — is owner-**Authorized** on `codex/m12-annual-archive-authorized` / Draft PR #25. The first executable package is WP1 only. The readiness review records a known M02 OneDrive remote-publication acknowledgement boundary that blocks the later WP2 live-removal path until explicitly resolved; WP1 performs no OneDrive publication or live deletion.
+M12 — Annual archive and historical access — is owner-**Authorized** on `codex/m12-annual-archive-authorized` / Draft PR #25. The owner-approved 2026-09-21 amendment makes annual archives permanent application-managed **local** SQLite databases, removes OneDrive from annual archive publication/access, and adds an explicit archive-export action whose destination is chosen by the operator. WP1 remains the first implementation package.
 
 The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`; the living current control state is `implementation-status.md`.
 
@@ -37,7 +37,7 @@ The V1 Specification remains frozen-and-amended. The formal freeze record is `v1
 
 - `architecture.md` — Approved — Phase 3 baseline, including later approved handoff amendments.
 - `data-model.md` — Approved — Phase 3 baseline, subject to later approved decision amendments where explicitly stated.
-- `storage-strategy.md` — Approved — Phase 3 baseline, including later approved GitHub handoff and M07 self-join/DR decisions.
+- `storage-strategy.md` — Approved — Phase 3 baseline, including later approved GitHub handoff, M07 self-join/DR decisions and the M12 local-archive amendment.
 
 A separate `sync-and-backup.md` is not part of V1 because live storage, local recovery, GitHub target-directed normal handoff, OneDrive disaster-recovery/archive behavior and annual archive behavior are already authoritative in the applicable baseline/decision documents.
 
@@ -58,6 +58,7 @@ M08 owner-selected visual/identity detail is frozen in `decisions/m08-print-layo
 - `acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` — Approved post-M09 dashboard amendment.
 - `acceptance-criteria-amendment-m10-category-short-code-workbook.md` — Approved 2026-09-17 clarification of AC-CAT-008 through AC-CAT-011 for Category short-code workbook behavior.
 - `acceptance-criteria-amendment-m11-gestion-export.md` — Approved 2026-09-20 M11 export clarification.
+- `acceptance-criteria-amendment-m12-local-archive.md` — Approved 2026-09-21 M12 local archive/user-selected export amendment.
 - `v1-specification-freeze.md` — Approved — Phase 5 baseline, amended through approved post-freeze decisions.
 
 ### Phase 6 — Implementation planning and controlled execution
@@ -150,7 +151,8 @@ Relevant later decisions include:
 - `decisions/m08-print-layout-and-receipt-identity.md`;
 - `decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`;
 - `decisions/m10-category-short-code-workbook-semantics.md`;
-- `decisions/m11-export-lifecycle-and-settlement-clarifications.md`.
+- `decisions/m11-export-lifecycle-and-settlement-clarifications.md`;
+- `decisions/m12-local-archive-and-user-selected-export.md`.
 
 Where a later Approved decision explicitly supersedes a narrow older clause, the later decision controls until the next complete consolidation pass. A genuine unresolved contradiction still requires implementation to stop rather than guess.
 
