@@ -61,6 +61,7 @@ A separate explicit project-owner statement such as **“批准 M10 implementati
 - `milestone-12-preparation-readiness.md` — code/spec readiness review and remote-publication blocker record;
 - `milestone-12-annual-archive-historical-access.md` — work-package contract and WP1 scope;
 - `milestone-12-authorization.md` — durable owner authorization;
+- `milestone-12-worklog.md` — active package/evidence ledger;
 - Draft PR #25 — active durable mailbox;
 - Issue #4 — sole execution switch/status pointer.
 
