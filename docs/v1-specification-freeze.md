@@ -239,13 +239,15 @@ Approved post-freeze amendments above demonstrate this process.
 
 Phase 6 implementation is active.
 
-Current state as of 2026-09-20:
+Current state as of 2026-09-21:
 
-- M01 through M10: Passed / merged;
-- M10 merge/current main: `299df8b44a1959497ad46f861e44db32913b4d11`;
-- M10 controller final closure: PR #22 comment `5750090951`;
-- M11 Gestion export: preparation/readiness completed; approved M11 clarification recorded; project owner authorized implementation on 2026-09-20; dedicated implementation line is `codex/m11-gestion-export-authorized` / PR #24 and execution remains controlled by Issue #4;
-- Issue #4 remains the live execution switch; only an OPEN gate with a matching PR #24 CODEX_HANDOFF_READY permits Codex execution;
-- M12 and M13: unauthorized.
+- M01 through M11: Passed / merged;
+- current authoritative `main`: M11 merge commit `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`;
+- M11 accepted runtime candidate: `77ccecf9d947462e96e74b8aa1d99ced30e3788e`;
+- M11 controller closure: PR #24 comment `5762784303`; merge completion: comment `5762846107`;
+- M11 post-merge CI #821 / run `35617254203`: SUCCESS, 831/831 passed, 0 failed, 0 skipped, Release build 0 warnings / 0 errors;
+- M12 Annual archive and historical access: owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25, with execution restricted to the exact package named by OPEN Issue #4;
+- M12 readiness records the already-proven M02 limitation that local OneDrive filesystem state cannot provide a documented per-artifact remote-upload acknowledgement for a newly-created regular file. This does not amend the frozen archive contract; the affected WP2 live-removal path must remain blocked until a conforming acknowledgement approach is explicitly approved;
+- M13 remains unauthorized.
 
-Preparation/specification approval does not authorize M11 production implementation, merge, M12 or M13.
+Issue #4 remains the sole live execution switch. Preparation, a `CODEX_DONE`, controller acceptance or M12 package completion does not authorize the next package, merge or M13.
