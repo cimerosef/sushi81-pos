@@ -1,11 +1,11 @@
 # Storage strategy
 
-**Status:** Approved — Phase 3 baseline, amended 2026-08-28  
-**Last updated:** 2026-08-28  
+**Status:** Approved — Phase 3 baseline, amended through 2026-09-21  
+**Last updated:** 2026-09-21  
 **Product:** Sushi81 POS  
 **Purpose:** Define how live data, local recovery snapshots, GitHub handoff snapshots, disaster-recovery checkpoints and annual archives are stored and transferred safely across paired Windows devices without silent divergence.
 
-**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` supersedes generic competitive handoff acquisition and automatic authority release on every normal application exit. `docs/decisions/github-handoff-transport.md` supersedes OneDrive desktop publication/synchronization as the normal handoff transport and acknowledgement path; OneDrive remains separately approved for recovery/archive and historical diagnostics.
+**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` supersedes generic competitive handoff acquisition and automatic authority release on every normal application exit. `docs/decisions/github-handoff-transport.md` supersedes OneDrive desktop publication/synchronization as the normal handoff transport and acknowledgement path. `docs/decisions/m12-local-archive-and-user-selected-export.md` moves canonical annual archives to application-managed local storage and removes OneDrive from annual-archive publication/access while preserving OneDrive Disaster Recovery.
 
 ## 1. Core storage principle
 
@@ -13,7 +13,7 @@ Each paired Sushi81 POS computer uses its own **local working SQLite database**.
 
 The live database is never directly opened from a OneDrive-synchronized folder and is never intentionally written by more than one device at the same time.
 
-GitHub Release Assets in the configured dedicated private handoff repository are used for controlled transfer of validated complete snapshots and target-bound grants. They are not a distributed lock or live database engine. OneDrive is used only for separately approved recovery/archive artifacts and historical diagnostics.
+GitHub Release Assets in the configured dedicated private handoff repository are used for controlled transfer of validated complete snapshots and target-bound grants. They are not a distributed lock or live database engine. OneDrive is used only for separately approved Disaster Recovery artifacts and historical diagnostics. Annual archives are local application-managed business data.
 
 The architecture supports an arbitrary number of paired devices. The initial deployment may use two computers, but no protocol or data structure may assume exactly two.
 
@@ -36,6 +36,7 @@ Local business/technical data uses:
     Data\
         live.db
     Recovery\
+    Archive\
     Cache\
     Logs\
     Config\
@@ -46,12 +47,13 @@ Semantics:
 
 - `Data\live.db` — active local working database;
 - `Recovery\` — rolling validated local recovery snapshots;
-- `Cache\` — disposable local caches, including hydrated read-only archives;
+- `Archive\` — permanent application-managed local annual archive databases; not disposable cache content;
+- `Cache\` — disposable local caches only;
 - `Logs\` — technical diagnostics;
 - `Config\` — local configuration/device identity and durable local authority/transfer state;
 - `Temp\` — safe staging for snapshot/archive/export-related file operations where needed.
 
-The operator is not offered an ordinary setting to relocate the live database or local Recovery directory.
+The operator is not offered an ordinary setting to relocate the live database, local Recovery directory or canonical local Archive directory. A separate explicit archive-export action may copy a completed validated archive to an operator-selected destination.
 
 Application binaries/install files remain separate. Update/reinstall must not treat business data, device identity or durable local authority/transfer state as disposable program content.
 
@@ -178,7 +180,6 @@ The application creates/manages:
 <Selected OneDrive root>\
     Handoff\
     DisasterRecovery\
-    Archive\
     System\
 ```
 
@@ -186,8 +187,9 @@ Semantics:
 
 - `Handoff\` — immutable target-directed formal handoff versions/markers;
 - `DisasterRecovery\` — recovery-only checkpoints;
-- `Archive\` — permanent annual archive databases;
 - `System\` — small lineage/device/coordination metadata, including the paired-device set required to validate target identities.
+
+Annual archives are deliberately not stored beneath this OneDrive root after the M12 local-archive amendment.
 
 The selected root is never the live database location.
 
@@ -415,9 +417,9 @@ A non-authoritative device that cannot validate a handoff specifically targeted 
 
 ## 15. Annual archive
 
-Annual archives are separate historical SQLite files stored in OneDrive `Archive`, independent from installed binaries and active local `live.db`.
+Annual archives are separate historical SQLite files stored in the application-managed local `Archive\` area, independent from installed binaries and active local `live.db`.
 
-They are read-only historical databases and not part of normal live handoff lineage.
+They are read-only historical databases in ordinary POS use and are not part of normal live handoff lineage.
 
 ### 15.1 Schedule and strict calendar-year boundary
 
@@ -431,6 +433,8 @@ If the POS is not run on February 1, the archive occurs on the first later start
 
 Only the authoritative device may create an annual archive.
 
+The automatic February/late-start flow is non-interactive: it does not ask the operator to choose a destination path.
+
 ### 15.2 Archive-year rules
 
 Archive year is the natural year in which the business order ends:
@@ -443,41 +447,61 @@ This rule applies equally to ordinary `POS` and hidden-source `HIBOUTIK_PASTE` o
 
 Example: an order created December 2026 and Closed January 10, 2027 belongs to archive year 2027, stays live through the February 2027 archive and becomes eligible when archive year 2027 is processed in February 2028.
 
-### 15.3 Publication safety
+### 15.3 Local publication safety
 
 Archive creation is failure-safe:
 
 1. identify target-year eligible records;
-2. build archive in safe local staging;
-3. validate archive/expected records;
-4. publish to OneDrive `Archive`;
-5. confirm successful publication/synchronization;
+2. build the archive in safe local staging under application-managed temporary storage;
+3. validate archive schema, SQLite integrity and expected records;
+4. durably promote the completed archive into the application-managed local `Archive\` area;
+5. reopen and validate the promoted canonical archive file;
 6. only then remove those records from `live.db`;
 7. create a new local recovery point; later formal handoff contains the post-archive live state.
 
-If creation, validation or publication fails, records remain live and archiving is retried later.
+If creation, validation, promotion or post-promotion validation fails, records remain live and archiving is retried later.
 
-### 15.4 Archive independence and retention
+OneDrive publication/synchronization is not part of annual archive completion.
 
-Completed annual archives:
+Before any eligible order leaves `live.db`, the M12 implementation must also preserve every valid not-yet-emitted/pending Gestion export action as the durable immutable technical payload required by the approved implementation plan.
 
-- survive application uninstall/reinstall;
-- are outside install/local-live-data directories as their authoritative copy;
-- are shared through OneDrive;
+### 15.4 Local archive independence and retention
+
+Completed canonical annual archives:
+
+- live under application-managed local business-data storage, conceptually `%LOCALAPPDATA%\Sushi81 POS\Archive\`;
+- survive ordinary application update/reinstall because the installer must preserve application business data;
+- are not automatically synchronized/shared between paired devices;
 - are immutable/read-only in normal POS use;
-- remain queryable/reprintable;
-- may be hydrated transparently to a local read-only cache;
-- are retained permanently unless the operator deliberately manages/removes them outside normal application workflow.
+- remain queryable/reprintable through explicit archive-year selection;
+- are retained permanently by normal POS workflow with no rolling deletion;
+- remain outside normal handoff lineage.
 
 Conceptually:
 
 ```text
-<Selected OneDrive root>\Archive\
+%LOCALAPPDATA%\Sushi81 POS\Archive\
     sushi81-archive-2026.db
     sushi81-archive-2027.db
 ```
 
 Exact filenames may be refined technically.
+
+A normal authority handoff transfers the active live lineage/snapshot only; it does not copy local annual archive files to the target device.
+
+### 15.5 Explicit user-selected archive export
+
+The operator may explicitly export/copy a completed validated annual archive.
+
+Rules:
+
+- the operator chooses the destination path/location;
+- export copies the archive and never moves/deletes the canonical local archive;
+- export is separate from automatic February/late-start archiving;
+- export failure must leave the canonical local archive and `live.db` unchanged;
+- an existing destination must not be silently destroyed by a failed export/finalization attempt.
+
+The chosen destination may be a local disk, removable drive, network/shared folder or other filesystem location selected by the operator. Sushi81 POS does not require OneDrive for this action.
 
 ## 16. Rolling retention
 
@@ -486,7 +510,7 @@ V1 uses:
 - Local Recovery: latest **5** validated snapshots;
 - GitHub Handoff: latest **3** complete validated target-directed snapshot+grant units;
 - OneDrive Disaster Recovery: latest **5** validated checkpoints;
-- Annual Archive: permanent/no rolling deletion.
+- Annual Archive: permanent local canonical files/no rolling deletion.
 
 Cleanup happens after, never before, a newer replacement is safely generated/validated and, where required, synchronized.
 
@@ -512,14 +536,15 @@ Implementation must preserve all of the following:
 14. Local Recovery/Handoff/Disaster Recovery each retain five valid rolling versions.
 15. Annual archive targets only the previous complete natural year when triggered on/after February 1.
 16. Closed and Cancelled orders use their end timestamp year; Open orders remain live.
-17. Archive records leave `live.db` only after validated successful OneDrive archive publication.
-18. Annual archives remain independent permanent historical files.
-19. GitHub Release Asset server acknowledgement is required for normal handoff; OneDrive synchronization is not part of that authority gate and is not a distributed lock or competitive acquisition primitive.
+17. Archive records leave `live.db` only after validated durable publication of the canonical local archive file and required pending-export preservation.
+18. Annual archives remain independent permanent local historical files; ordinary handoff does not copy them between devices.
+19. Explicit archive export uses an operator-selected destination and never moves/deletes the canonical local archive.
+20. GitHub Release Asset server acknowledgement is required for normal handoff; OneDrive synchronization is not part of that authority gate and is not a distributed lock or competitive acquisition primitive.
 
 ## 18. Approval
 
-This document remains the **Approved — Phase 3 baseline**, amended on 2026-08-28 by `docs/decisions/target-directed-authority-handoff.md` after the M02 feasibility blocker and by `docs/decisions/github-handoff-transport.md` for normal handoff transport.
+This document remains the **Approved — Phase 3 baseline**, amended on 2026-08-28 by `docs/decisions/target-directed-authority-handoff.md` after the M02 feasibility blocker and by `docs/decisions/github-handoff-transport.md` for normal handoff transport, and on 2026-09-21 by `docs/decisions/m12-local-archive-and-user-selected-export.md` for annual archive storage/export.
 
-The storage architecture is local SQLite per paired device, N-device single-writer authority, **target-directed source-arbitrated normal handoff**, application-managed local recovery, change-triggered recovery-only cloud checkpoints, explicit generation-changing Disaster Recovery, non-authoritative read-only access, five-version rolling technical protection and independent February natural-year archives.
+The storage architecture is local SQLite per paired device, N-device single-writer authority, **target-directed source-arbitrated normal handoff**, application-managed local recovery, change-triggered recovery-only cloud checkpoints, explicit generation-changing Disaster Recovery, non-authoritative read-only access, five-version rolling technical protection and independent permanent **local** February natural-year archives with optional operator-selected export copies.
 
 Low-level filenames, coordination serialization and similar pure implementation details may be selected during implementation only if every invariant above remains true.
