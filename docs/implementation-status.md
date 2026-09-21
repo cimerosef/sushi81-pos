@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Last updated:** 2026-09-21
-**Current state:** M01 through M10 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current merged `main` is M10 merge commit `299df8b44a1959497ad46f861e44db32913b4d11`. M11 Gestion intermediate export is owner-AUTHORIZED on `codex/m11-gestion-export-authorized` / PR #24. WP1–WP4 are controller-accepted; the previous owner candidate `M11-WP4-owner-candidate-win-x64-dc8091f` failed owner scenario A and remains historical evidence. Repair 10 was accepted for owner retest, but owner A then reproduced a remaining real workbook/finalization failure on the preserved PREPARED batch. Repair 11 now normalizes native Excel/OLE `DateTime` validation at the exact representable precision and adds a production ClosedXML regression; its fresh candidate is not yet retested by the owner. Owner manual acceptance A–E remains not yet executed, so M11 is not Passed. M12/M13 remain unauthorized.
+**Current state:** M01 through M10 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current merged `main` is M10 merge commit `299df8b44a1959497ad46f861e44db32913b4d11`. M11 Gestion intermediate export is owner-AUTHORIZED on `codex/m11-gestion-export-authorized` / PR #24. WP1–WP4 and Repairs 09–11 are controller-accepted; owner A–E manual acceptance is complete and PASS on accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`. M11 is now **Closure-ready**: final controller closure and separate explicit project-owner merge approval remain outstanding. M12/M13 remain unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -36,7 +36,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M09 — Hiboutik paste fallback | Passed | PR #17 merged at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; owner Windows/WPF acceptance Passed. |
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | PR #19 merged at `861cfba1dfacbb3289395c0370f6d42765b6c223`; controller/owner acceptance complete. |
 | M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
-| M11 — Gestion intermediate export | Partial | WP1–WP4 controller-accepted. The previous owner candidate `M11-WP4-owner-candidate-win-x64-dc8091f` failed owner scenario A; Repair 10 was accepted for retest, then owner A reproduced a remaining PREPARED workbook/finalization failure. Repair 11 adds exact native Excel/OLE DateTime normalization plus high-precision ClosedXML regression evidence; its new candidate is pending controller/owner retest. Owner A–E manual acceptance remains not yet executed. |
+| M11 — Gestion intermediate export | Closure-ready | WP1–WP4 and Repairs 09–11 are controller-accepted. Owner A–E are PASS on accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; exact-head CI #819 / run `35610026160` is green and artifact `M11-WP4-owner-candidate-win-x64-77ccecf` / ID `10643522785` is retained. Final controller closure and separate explicit merge approval remain outstanding. |
 | M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
 
@@ -77,9 +77,9 @@ Implementation line:
 - WP1: ACCEPTED at `678bf476c259f628582c7ae5e66c7ed641f32952`;
 - WP2: ACCEPTED at `a9774e2a6795adafee75b18f061289e47811caf5`, controller comment `5752144083`;
 - WP3: ACCEPTED at `3c9e110f7d6c5a93c773b2289f5b43f5c59fb14f`; controller acceptance is recorded in PR #24.
-- WP4: the prior controller-accepted owner candidate was delivered through GitHub Actions run `35584565162`, artifact `M11-WP4-owner-candidate-win-x64-dc8091f` / ID `10631573948`, built from source head `dc8091fccb31923bacc16cbff7b49ada771f55fb`; owner scenario A failed and B–E were not continued. The authorized repair handoff is producing a new candidate; owner manual acceptance remains not yet executed.
+- WP4: the prior controller-accepted owner candidate was delivered through GitHub Actions run `35584565162`, artifact `M11-WP4-owner-candidate-win-x64-dc8091f` / ID `10631573948`, built from source head `dc8091fccb31923bacc16cbff7b49ada771f55fb`; owner scenario A failed and B–E were not continued. That failure remains historical evidence. Repairs 09–11 were subsequently accepted, and owner A–E are now PASS on the accepted candidate at `77ccecf9d947462e96e74b8aa1d99ced30e3788e`.
 - Repair 09 controller finding: export finalization, PREPARED retry visibility and visible `销售数据导出` naming were accepted, but the DatePicker watermark remained insufficiently proven because only `DatePicker.Language` was asserted; the old candidate is not approved for retest.
-- The current narrow repair synchronizes WPF `CurrentUICulture`, preserves `DatePicker.Language` calendar/date behavior, updates the actual rendered `DatePickerTextBox` watermark visual for in-session fr-FR/zh-CN switching without changing `CurrentCulture` or export/business semantics, and normalizes native Excel/OLE DateTime validation through its exact millisecond-representable round-trip. The newest owner candidate remains **NOT YET RETESTED**; its exact head, CI and artifact evidence are recorded in the matching durable `CODEX_DONE`.
+- The accepted repair chain preserves WPF `CurrentUICulture`/`DatePicker` behavior, normalizes native Excel/OLE DateTime validation through its exact millisecond-representable round-trip, and leaves export/business semantics unchanged. The accepted runtime candidate is `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; owner A–E PASS evidence is recorded in PR #24 comments `5762194270`, `5762229722`, `5762338169`, `5762376235` and `5762475899`.
 
 Primary acceptance ownership:
 
@@ -140,7 +140,7 @@ Current authorized control line:
 - WP1: ACCEPTED;
 - WP2: ACCEPTED;
 - WP3: ACCEPTED at `3c9e110f7d6c5a93c773b2289f5b43f5c59fb14f`;
-- WP4: integration hardening and Repair 09 were controller-accepted in part; Repair 10 was accepted for owner retest but owner A reproduced a remaining real workbook/finalization failure; Repair 11 is the active exact-round-trip repair and its newest owner candidate is awaiting controller/owner retest;
+- WP4 and Repairs 09–11: controller-accepted; owner A–E manual acceptance is PASS on accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; current active handoff is documentation/governance closure `M11-FINAL-ACCEPTANCE-DOCUMENTATION-CLOSURE-12` from START_HEAD `77ccecf9d947462e96e74b8aa1d99ced30e3788e`;
 - Issue #4 must be OPEN before Codex executes;
 - M12/M13 remain unauthorized.
 
