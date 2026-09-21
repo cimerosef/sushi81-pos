@@ -1,6 +1,6 @@
 # M12 — Annual archive and historical access — preparation/readiness
 
-**Status:** OWNER-AUTHORIZED / WP1 READY; OneDrive remote-publication gate requires resolution before live removal
+**Status:** OWNER-AUTHORIZED / local-archive amendment aligned / WP1 READY
 **Milestone:** M12
 **Reviewed baseline:** `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`
 **Review date:** 2026-09-21
@@ -28,11 +28,12 @@ Implementation must preserve the Approved specification without reinterpretation
 - delayed execution never includes January of the current year;
 - Closed uses the business-local year of `closed_at`; Cancelled uses the business-local year of `cancelled_at`; Open remains live regardless of age;
 - POS and `HIBOUTIK_PASTE` use the same archive-year rule;
-- an archive is an independent historical SQLite database under OneDrive `Archive`, outside the normal live-handoff lineage and read-only in ordinary POS use;
-- complete staging/validation/publication confirmation must precede any live removal;
+- an archive is an independent historical SQLite database in application-managed local `Archive\` storage, outside the normal live-handoff lineage and read-only in ordinary POS use;
+- complete staging/validation/durable local canonical promotion plus reopen-validation must precede any live removal;
 - any failure leaves eligible live data intact and retryable;
-- completed archives are permanent unless deliberately managed outside normal POS workflow;
-- normal live search does not automatically open archives; the operator explicitly selects an archive year;
+- completed canonical local archives are permanently retained by normal POS workflow;
+- normal live search does not automatically open archives; the operator explicitly selects a locally available archive year;
+- explicit archive export is a separate copy action and the operator chooses its destination;
 - archived viewing/reprint uses retained order/item/option/payment/tax snapshots, never current Catalogue/current VAT as a substitute;
 - archive reprint performs no archive write and must preserve M08 `RÉIMPRESSION`, `DUPLICATA` and `ANNULÉ` behavior;
 - non-authoritative/read-only devices may inspect/reprint available completed archives without weakening authority.
@@ -43,8 +44,8 @@ The merged code provides reusable foundations:
 
 - `IWriteAuthorityGuard` / `WriteAuthorityGuard` centralize authoritative write admission.
 - `IAppPaths` / `WindowsAppPaths` already expose application-managed `Temp` and `Cache` areas required for staging and read-only archive hydration.
-- `LocalConfiguration.OneDriveRoot` and M07 composition already establish the configured shared OneDrive root.
-- `SqliteConnectionFactory.OpenReadOnlyConnectionAsync(path)` is suitable for later read-only archive hydration/query.
+- `SqliteConnectionFactory.OpenReadOnlyConnectionAsync(path)` is suitable for later read-only local archive query.
+- `IAppPaths` / `WindowsAppPaths` need one additive application-managed `ArchiveDirectory` path under `%LOCALAPPDATA%\Sushi81 POS\Archive`; this is a technical M12 extension, not an operator-configurable canonical location.
 - `SqliteOrderStore` and migrations 3/5/7 persist the complete historical order aggregate: `orders`, `order_items`, `order_item_adjustments`, `order_tax_breakdown` and `payment_adjustments`.
 - Child order rows use cascade relationships, making one order aggregate a clear deletion unit once the archive safety gate is satisfied.
 - `OrderLifecycleService.SearchLiveAsync` is already a live-only seam; M12 must add a separate archive reader rather than silently widening normal live search.
@@ -54,17 +55,20 @@ The merged code provides reusable foundations:
 
 No production archive implementation exists yet.
 
-## 4. Material readiness finding — remote OneDrive publication acknowledgement
+## 4. Owner-approved local archive amendment
 
-M02 real Windows/OneDrive evidence proved that a newly-created regular file can already be visible remotely while Windows Cloud Files still reports `CF_PLACEHOLDER_STATE_NO_STATES`. The accepted M02 report therefore concluded that there is **no documented local-only per-artifact confirmation** that safely proves remote OneDrive upload completion for such a file.
+The project owner approved `docs/decisions/m12-local-archive-and-user-selected-export.md` on 2026-09-21.
 
-That limitation was solved for normal authority handoff by the Approved GitHub Release Asset transport amendment. The amendment explicitly did **not** redesign annual archive ownership, and the frozen archive contract still requires publication/synchronization success before eligible live rows may be removed.
+Consequences:
 
-Therefore:
+- the canonical annual archive is permanent application-managed **local** business data;
+- OneDrive is no longer part of annual archive publication, acknowledgement, retention, discovery or historical access;
+- the automatic February/late-start archive stays non-interactive;
+- explicit archive export is a separate copy action using an operator-selected destination;
+- the prior OneDrive per-artifact acknowledgement blocker is therefore no longer relevant to M12 annual archive completion;
+- WP2 may use a purely local failure-safe boundary: stage -> validate -> durable local canonical promotion -> reopen/validate -> preserve pending export payloads -> delete exact eligible live rows -> local recovery point.
 
-- WP1 is not blocked: local eligibility and construction/validation of an independent staged archive database require no remote acknowledgement and perform no live deletion.
-- WP2's **remote-publication-success -> live-removal** gate is blocked from implementation until a conforming acknowledgement approach is explicitly approved. Codex must not weaken `AC-STO-013`, treat local OneDrive file existence as cloud success, add Graph/OAuth, invent a manual confirmation workflow or delete live rows on an unproven sync state.
-- This readiness finding is not a specification amendment. It records the already-proven technical boundary so later implementation cannot silently cross it.
+This amendment does not alter M07 Disaster Recovery/normal GitHub handoff behavior.
 
 ## 5. Work-package plan
 
@@ -72,11 +76,9 @@ Therefore:
 
 Implement the pure/application archive-year policy, authoritative staging orchestration, real-`live.db` eligibility query and independent archive SQLite construction/validation. No OneDrive publication and no live deletion.
 
-### WP2 — export-preservation + confirmed publication + live-removal transaction boundary
+### WP2 — export-preservation + local canonical publication + live-removal transaction boundary
 
-Before any live removal, durably preserve every valid pending/un-emitted Gestion action. Stage/validate/publish the archive, prove the Approved publication-success condition, then remove exactly the archived order aggregates and trigger post-archive local recovery. Failure must leave live data intact and retryable.
-
-**Blocked only at the remote OneDrive acknowledgement choice described in section 4.** Preparation/tests that do not pre-decide that material choice may proceed later, but no deletion path may be enabled first.
+Before any live removal, durably preserve every valid pending/un-emitted Gestion action. Stage/validate the archive, durably promote it to the local canonical Archive area, reopen/validate it there, then remove exactly the archived order aggregates and trigger post-archive local recovery. Failure must leave live data intact and retryable.
 
 ### WP3 — February/late-start scheduler, authority integration and retry
 
@@ -84,7 +86,7 @@ Integrate exact February/late-start previous-year triggering into startup after 
 
 ### WP4 — archive discovery, read-only hydration, explicit selection/search
 
-Discover completed yearly archives from the configured OneDrive `Archive` area after reinstall, hydrate only to application `Cache`, open read-only, and expose explicit year selection/search without merging archives into normal live search.
+Discover completed yearly archives from the application-managed local `Archive\` area after ordinary reinstall/update preservation, open them read-only, and expose explicit year selection/search without merging archives into normal live search. Add explicit export/copy of a selected completed archive to an operator-chosen destination.
 
 ### WP5 — archived reprint, integration hardening and owner candidate
 
@@ -92,6 +94,6 @@ Feed archive snapshots through the existing M08 print model, retain stale/read-o
 
 ## 6. WP1 readiness decision
 
-WP1 is executable without a material product decision because it cannot publish, delete live data, alter export history, schedule startup work, add archive UI or change printing behavior.
+WP1 is executable under the now-aligned local-archive product contract because it only establishes eligibility and local staged archive construction/validation; it cannot publish the canonical archive, delete live data, alter export history, schedule startup work, add archive UI/export or change printing behavior.
 
 The first executable handoff must be WP1 only.
