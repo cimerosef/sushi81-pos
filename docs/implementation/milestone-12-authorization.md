@@ -21,6 +21,6 @@ Execution remains package-gated by `AGENTS.md`:
 
 The first executable package is WP1 only as defined in `milestone-12-annual-archive-historical-access.md`.
 
-The known OneDrive remote-publication acknowledgement finding does not revoke M12 authorization, but it blocks the affected WP2 live-removal path until explicitly resolved. Codex must not silently weaken `AC-STO-013`.
+The owner-approved 2026-09-21 local-archive amendment removes OneDrive from annual archive completion and therefore removes the former WP2 remote-publication acknowledgement blocker. WP2 must instead preserve `AC-STO-013` through staged validation, durable local canonical promotion, reopen-validation and only then exact live removal.
 
 M13 remains unauthorized.
