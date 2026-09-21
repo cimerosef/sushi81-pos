@@ -2,7 +2,7 @@
 
 **Status:** Approved — Phase 5 baseline, amended 2026-09-17
 **Freeze date:** 2026-08-27
-**Latest approved amendment:** 2026-09-20
+**Latest approved amendment:** 2026-09-21
 **Product:** Sushi81 POS
 **Purpose:** Record completion of the V1 design/specification phase and establish the authoritative implementation baseline for the Codex implementation phase.
 
@@ -87,7 +87,9 @@ Approved records under `docs/decisions/` materially constrain V1 and supplement/
 - `m08-print-layout-and-receipt-identity.md`;
 - `m09-hiboutik-paste-operator-workflow-and-source-reference.md`;
 - `post-m09-hiboutik-daily-payment-dashboard.md`;
-- `m10-category-short-code-workbook-semantics.md`.
+- `m10-category-short-code-workbook-semantics.md`;
+- `m11-export-lifecycle-and-settlement-clarifications.md`;
+- `m12-local-archive-and-user-selected-export.md`.
 
 Where a later Approved decision explicitly supersedes a narrow earlier clause, the later decision controls.
 
@@ -208,7 +210,30 @@ The amendment freezes:
 
 This amendment does not authorize M11 implementation by itself.
 
-## 13. Authority and conflict rule for implementation
+## 13. Post-freeze amendment — M12 local annual archive and user-selected export (2026-09-21)
+
+During M12 readiness, the owner chose to keep canonical annual archive databases in application-managed local storage rather than OneDrive.
+
+The controlling records are:
+
+- `docs/decisions/m12-local-archive-and-user-selected-export.md`;
+- `docs/acceptance-criteria-amendment-m12-local-archive.md`;
+- aligned `docs/storage-strategy.md`, `docs/architecture.md` and M12 implementation controls.
+
+The amendment freezes:
+
+- canonical annual archives under local application business-data storage;
+- no OneDrive annual archive publication/synchronization/discovery;
+- staged local build + validation + durable local canonical promotion/reopen validation before live removal;
+- permanent local retention in normal POS workflow;
+- automatic February/late-start archive remains non-interactive;
+- explicit archive export is a separate action whose destination is chosen by the operator;
+- export copies rather than moves the canonical archive and failure cannot mutate archive/live data;
+- normal handoff does not automatically transfer archive files.
+
+Archive-year rules, authority boundaries, historical snapshots/reprinting and M11 pending-export preservation remain unchanged.
+
+## 14. Authority and conflict rule for implementation
 
 Codex and other implementation agents must use the frozen-and-amended GitHub specification rather than prior chat memory or legacy VBA behavior.
 
@@ -225,7 +250,7 @@ Pure implementation details preserving approved semantics may be selected autono
 
 **reliability > simplicity > maintainability > operational clarity > novelty.**
 
-## 14. Change-control rule after freeze
+## 15. Change-control rule after freeze
 
 The V1 Specification is a baseline, not an immutable historical artifact.
 
@@ -233,7 +258,7 @@ A future necessary change is allowed, but any change that alters frozen product/
 
 Approved post-freeze amendments above demonstrate this process.
 
-## 15. Current exit condition
+## 16. Current exit condition
 
 **Phase 5 remains complete.**
 
@@ -246,8 +271,8 @@ Current state as of 2026-09-21:
 - M11 accepted runtime candidate: `77ccecf9d947462e96e74b8aa1d99ced30e3788e`;
 - M11 controller closure: PR #24 comment `5762784303`; merge completion: comment `5762846107`;
 - M11 post-merge CI #821 / run `35617254203`: SUCCESS, 831/831 passed, 0 failed, 0 skipped, Release build 0 warnings / 0 errors;
-- M12 Annual archive and historical access: owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25, with execution restricted to the exact package named by OPEN Issue #4;
-- M12 readiness records the already-proven M02 limitation that local OneDrive filesystem state cannot provide a documented per-artifact remote-upload acknowledgement for a newly-created regular file. This does not amend the frozen archive contract; the affected WP2 live-removal path must remain blocked until a conforming acknowledgement approach is explicitly approved;
+- M12 Annual archive and historical access: owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25; the 2026-09-21 local-archive amendment is Approved and removes OneDrive from annual archive publication/access;
+- M12 WP1 remains the first implementation package; later WP2 uses local canonical archive promotion/validation before live removal rather than OneDrive acknowledgement;
 - M13 remains unauthorized.
 
 Issue #4 remains the sole live execution switch. Preparation, a `CODEX_DONE`, controller acceptance or M12 package completion does not authorize the next package, merge or M13.
