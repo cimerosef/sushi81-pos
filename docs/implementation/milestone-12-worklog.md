@@ -166,3 +166,7 @@ Implemented only the authorized M12 WP3 boundary:
 - added architecture evidence for startup ordering and the absence of OneDrive, watcher-delay and duplicate-notification policy in the coordinator.
 
 No archive discovery/search UI, user-selected archive export, archived reprint, OneDrive publication, M13 work or PR merge is included or authorized by this handoff. Final delivery requires the pushed exact head, exact-head CI and the durable matching `CODEX_DONE`.
+
+Implementation validation before delivery: focused WP3 integration suite 7 passed, 0 failed, 0 skipped; focused WP3 architecture suite 2 passed, 0 failed, 0 skipped; full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 871 passed, 0 failed, 0 skipped; full Release solution build: 0 warnings, 0 errors; `git diff --check`: clean. Implementation commit: `a7e7ef81cc60ca6d36fe72d015da2a23566b2d2d`.
+
+Exact-head CI for implementation commit `a7e7ef81cc60ca6d36fe72d015da2a23566b2d2d`: Continuous integration run #855 / workflow run `35667860748` — SUCCESS. The final documentation-only delivery commit below requires its own exact-head CI before `CODEX_DONE`.
