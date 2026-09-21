@@ -1,7 +1,7 @@
 # M12 local annual archive and user-selected export
 
-**Status:** Approved — V1 specification amendment  
-**Decision date:** 2026-09-21  
+**Status:** Approved — V1 specification amendment
+**Decision date:** 2026-09-21
 **Owner evidence:** PR #25 comment `5765067664`
 
 ## Context
