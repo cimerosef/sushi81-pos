@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Data.Sqlite;
 using Sushi81.Pos.Application.Archive;
 using Sushi81.Pos.Application.Export;
@@ -49,6 +51,7 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
             []);
         await fixture.OrderStore.SaveAsync(ClosedOrder(hiboutikId, OrderSourceType.HiboutikPaste, "Hiboutik historical order"));
 
+        var successfulHistoryBefore = await ReadSuccessfulLedgerDumpAsync(fixture.Factory);
         var revisionBefore = await ScalarAsync(fixture.Factory, "SELECT value FROM foundation_metadata WHERE key='business_data_revision';");
         var result = await fixture.Service.FinalizeNextArchiveAsync();
 
@@ -62,6 +65,10 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
         Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_completions WHERE archive_year=2026;"));
         Assert.IsGreaterThan(revisionBefore, await ScalarAsync(fixture.Factory, "SELECT value FROM foundation_metadata WHERE key='business_data_revision';"));
         Assert.AreEqual(2, fixture.Notifier.Count);
+        Assert.AreEqual(successfulHistoryBefore, await ReadSuccessfulLedgerDumpAsync(fixture.Factory));
+        var independentArchiveHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(result.CanonicalArchivePath)));
+        Assert.AreEqual(independentArchiveHash, result.ArchiveSha256);
+        Assert.AreEqual(independentArchiveHash, await ScalarTextAsync(fixture.Factory, "SELECT archive_sha256 FROM annual_archive_completions WHERE archive_year=2026;"));
 
         var prepared = await fixture.ExportStore.ListPreparedBatchesAsync();
         Assert.HasCount(1, prepared);
@@ -78,6 +85,220 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
         Assert.AreEqual(3L, await ScalarAsync(archive, "SELECT COUNT(*) FROM payment_adjustments;"));
         Assert.AreEqual(0L, await ScalarAsync(archive, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='annual_archive_completions';"));
         Assert.AreEqual("M12-WP1-1", await ScalarTextAsync(archive, "SELECT value FROM archive_metadata WHERE key='archive_format_version';"));
+    }
+
+    [TestMethod]
+    public async Task UnchangedSuccessfulUpdateAndCancelCreateNoNewPreparedActions()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var updateId = Guid.Parse("52600000-0000-0000-0000-000000000001");
+        var cancelId = Guid.Parse("52600000-0000-0000-0000-000000000002");
+
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(updateId, OrderSourceType.Pos, "update before export"), [Payment(updateId)]);
+        var updateCreate = (await fixture.ExportService.PrepareBatchAsync(new ExportSelectionOptions(), "m12-wp2-test")).Batch!;
+        await fixture.ExportStore.MarkBatchSucceededAsync(updateCreate.Payload.Meta.BatchId, fixture.Clock.UtcNow);
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(updateId, OrderSourceType.Pos, "update after first export") with { UpdatedAt = fixture.Clock.UtcNow.AddMinutes(1) }, []);
+        var update = (await fixture.ExportService.PrepareBatchAsync(new ExportSelectionOptions(), "m12-wp2-test")).Batch!;
+        Assert.AreEqual(ExportAction.Update, update.Payload.Orders.Single().Action);
+        await fixture.ExportStore.MarkBatchSucceededAsync(update.Payload.Meta.BatchId, fixture.Clock.UtcNow.AddMinutes(1));
+
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(cancelId, OrderSourceType.Pos, "cancel before export"), [Payment(cancelId)]);
+        var cancelCreate = (await fixture.ExportService.PrepareBatchAsync(new ExportSelectionOptions(), "m12-wp2-test")).Batch!;
+        await fixture.ExportStore.MarkBatchSucceededAsync(cancelCreate.Payload.Meta.BatchId, fixture.Clock.UtcNow.AddMinutes(2));
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(cancelId, OrderSourceType.Pos, "cancel after first export") with
+        {
+            Status = OrderStatus.Cancelled,
+            CancelledAt = new DateTimeOffset(2026, 12, 31, 19, 0, 0, TimeSpan.Zero),
+            UpdatedAt = fixture.Clock.UtcNow.AddMinutes(3)
+        }, []);
+        var cancel = (await fixture.ExportService.PrepareBatchAsync(new ExportSelectionOptions(), "m12-wp2-test")).Batch!;
+        Assert.AreEqual(ExportAction.Cancel, cancel.Payload.Orders.Single().Action);
+        await fixture.ExportStore.MarkBatchSucceededAsync(cancel.Payload.Meta.BatchId, fixture.Clock.UtcNow.AddMinutes(3));
+
+        Assert.IsEmpty(await fixture.ExportStore.ListPreparedBatchesAsync());
+        var result = await fixture.Service.FinalizeNextArchiveAsync();
+
+        Assert.AreEqual(AnnualArchiveFinalizationOutcome.CompletedNow, result.Outcome);
+        Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_batches WHERE status='PREPARED';"));
+        Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders;"));
+    }
+
+    [TestMethod]
+    public async Task ExactPreparedIsReusedStalePreparedDoesNotSatisfyCurrentActionAndPreparedHistorySurvivesDeletion()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var exactId = Guid.Parse("52700000-0000-0000-0000-000000000001");
+        var staleId = Guid.Parse("52700000-0000-0000-0000-000000000002");
+
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(exactId, OrderSourceType.Pos, "exact before export"), [Payment(exactId)]);
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(staleId, OrderSourceType.Pos, "stale before export"), [Payment(staleId)]);
+        var initialCreate = (await fixture.ExportService.PrepareBatchAsync(new ExportSelectionOptions(), "m12-wp2-test")).Batch!;
+        await fixture.ExportStore.MarkBatchSucceededAsync(initialCreate.Payload.Meta.BatchId, fixture.Clock.UtcNow);
+        var exactSnapshot = ClosedOrder(exactId, OrderSourceType.Pos, "exact current") with { UpdatedAt = fixture.Clock.UtcNow.AddMinutes(1) };
+        await fixture.OrderStore.SaveLifecycleAsync(exactSnapshot, []);
+        var exactAction = (await fixture.ExportService.SelectAsync(new ExportSelectionOptions())).Actions.Single(action => action.OrderId == exactId);
+        var exactPrepared = await fixture.ExportStore.PrepareMissingActionsAsync([exactAction], "M12-WP2-ARCHIVE-PRESERVATION-1", fixture.Clock.UtcNow);
+        Assert.IsNotNull(exactPrepared);
+
+        var staleFirstSnapshot = ClosedOrder(staleId, OrderSourceType.Pos, "stale first change") with { UpdatedAt = fixture.Clock.UtcNow.AddMinutes(3) };
+        await fixture.OrderStore.SaveLifecycleAsync(staleFirstSnapshot, []);
+        var staleFirstAction = (await fixture.ExportService.SelectAsync(new ExportSelectionOptions())).Actions.Single(action => action.OrderId == staleId);
+        var stalePrepared = await fixture.ExportStore.PrepareMissingActionsAsync([staleFirstAction], "M12-WP2-ARCHIVE-PRESERVATION-1", fixture.Clock.UtcNow.AddMinutes(3));
+        Assert.IsNotNull(stalePrepared);
+        var staleFirstHash = ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializeAction(staleFirstAction));
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(staleId, OrderSourceType.Pos, "stale current change") with { UpdatedAt = fixture.Clock.UtcNow.AddMinutes(4) }, []);
+        var staleCurrentAction = (await fixture.ExportService.SelectAsync(new ExportSelectionOptions())).Actions.Single(action => action.OrderId == staleId);
+        var staleCurrentHash = ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializeAction(staleCurrentAction));
+        Assert.AreNotEqual(staleFirstHash, staleCurrentHash);
+
+        var result = await fixture.Service.FinalizeNextArchiveAsync();
+        Assert.AreEqual(AnnualArchiveFinalizationOutcome.CompletedNow, result.Outcome);
+        var prepared = await fixture.ExportStore.ListPreparedBatchesAsync();
+        Assert.HasCount(3, prepared);
+        Assert.AreEqual(1, prepared.Count(batch => batch.Payload.Orders.Any(order => order.OrderId == exactId)));
+        Assert.AreEqual(1, prepared.Count(batch => batch.Payload.Orders.Any(order => order.OrderId == staleId && ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializeAction(order)) == staleFirstHash)));
+        var currentBatch = prepared.Single(batch => batch.Payload.Orders.Any(order => order.OrderId == staleId && ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializeAction(order)) == staleCurrentHash));
+
+        var exactBatch = prepared.Single(batch => batch.Payload.Orders.Any(order => order.OrderId == exactId));
+        await fixture.ExportStore.MarkBatchSucceededAsync(exactBatch.Payload.Meta.BatchId, fixture.Clock.UtcNow.AddMinutes(5));
+        await fixture.ExportStore.MarkBatchSucceededAsync(currentBatch.Payload.Meta.BatchId, fixture.Clock.UtcNow.AddMinutes(6));
+        var staleBatch = prepared.Single(batch => batch.Payload.Orders.Any(order => order.OrderId == staleId && ExportPayloadSerializer.ComputeSha256(ExportPayloadSerializer.SerializeAction(order)) == staleFirstHash));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.ExportStore.MarkBatchSucceededAsync(staleBatch.Payload.Meta.BatchId, fixture.Clock.UtcNow.AddMinutes(7)));
+        Assert.AreEqual(3L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_batches WHERE status='SUCCESS';"));
+    }
+
+    [TestMethod]
+    public async Task ZeroOrderYearPublishesCanonicalAndCompletesExactlyOnce()
+    {
+        using var fixture = await Fixture.CreateAsync();
+
+        var first = await fixture.Service.FinalizeNextArchiveAsync();
+        var revisionAfterFirst = await ScalarAsync(fixture.Factory, "SELECT value FROM foundation_metadata WHERE key='business_data_revision';");
+        var independentHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(first.CanonicalArchivePath)));
+        var second = await fixture.Service.FinalizeNextArchiveAsync();
+
+        Assert.AreEqual(AnnualArchiveFinalizationOutcome.CompletedNow, first.Outcome);
+        Assert.AreEqual(0, first.ArchivedOrderCount);
+        Assert.IsTrue(File.Exists(first.CanonicalArchivePath));
+        Assert.AreEqual(independentHash, first.ArchiveSha256);
+        Assert.AreEqual(independentHash, await ScalarTextAsync(fixture.Factory, "SELECT archive_sha256 FROM annual_archive_completions WHERE archive_year=2026;"));
+        Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT archive_order_count FROM annual_archive_completions WHERE archive_year=2026;"));
+        Assert.IsEmpty(await fixture.ExportStore.ListPreparedBatchesAsync());
+        Assert.AreEqual(AnnualArchiveFinalizationOutcome.AlreadyCompleted, second.Outcome);
+        Assert.AreEqual(independentHash, second.ArchiveSha256);
+        Assert.AreEqual(revisionAfterFirst, await ScalarAsync(fixture.Factory, "SELECT value FROM foundation_metadata WHERE key='business_data_revision';"));
+        Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_completions WHERE archive_year=2026;"));
+    }
+
+    [TestMethod]
+    public async Task ExactRemovalPreservesOpenAndOtherYearAggregates()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var targetClosedId = Guid.Parse("52800000-0000-0000-0000-000000000001");
+        var targetCancelledId = Guid.Parse("52800000-0000-0000-0000-000000000002");
+        var openId = Guid.Parse("52800000-0000-0000-0000-000000000003");
+        var otherClosedId = Guid.Parse("52800000-0000-0000-0000-000000000004");
+        var otherCancelledId = Guid.Parse("52800000-0000-0000-0000-000000000005");
+
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(targetClosedId, OrderSourceType.Pos, "target closed"), [Payment(targetClosedId)]);
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(targetCancelledId, OrderSourceType.Pos, "target cancelled") with
+        {
+            Status = OrderStatus.Cancelled,
+            ClosedAt = null,
+            CancelledAt = new DateTimeOffset(2026, 12, 31, 19, 0, 0, TimeSpan.Zero)
+        }, [Payment(targetCancelledId)]);
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(openId, OrderSourceType.Pos, "still open") with { Status = OrderStatus.Open, ClosedAt = null }, []);
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(otherClosedId, OrderSourceType.Pos, "other year") with
+        {
+            ClosedAt = new DateTimeOffset(2025, 12, 31, 18, 0, 0, TimeSpan.Zero),
+            UpdatedAt = new DateTimeOffset(2025, 12, 31, 18, 0, 0, TimeSpan.Zero)
+        }, [Payment(otherClosedId)]);
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(otherCancelledId, OrderSourceType.Pos, "other year cancelled") with
+        {
+            Status = OrderStatus.Cancelled,
+            ClosedAt = null,
+            CancelledAt = new DateTimeOffset(2025, 12, 31, 19, 0, 0, TimeSpan.Zero),
+            UpdatedAt = new DateTimeOffset(2025, 12, 31, 19, 0, 0, TimeSpan.Zero)
+        }, [Payment(otherCancelledId)]);
+
+        var result = await fixture.Service.FinalizeNextArchiveAsync();
+
+        Assert.AreEqual(AnnualArchiveFinalizationOutcome.CompletedNow, result.Outcome);
+        Assert.AreEqual(2, result.ArchivedOrderCount);
+        Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders WHERE order_id IN ($id1,$id2);", targetClosedId, targetCancelledId));
+        Assert.AreEqual(3L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders;"));
+        Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders WHERE order_id=$id;", openId));
+        Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders WHERE order_id=$id;", otherClosedId));
+        Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders WHERE order_id=$id;", otherCancelledId));
+        Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM payment_adjustments WHERE order_id IN ($id1,$id2);", targetClosedId, targetCancelledId));
+        Assert.AreEqual(3L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM order_items;"));
+    }
+
+    [TestMethod]
+    public async Task PublicationFailureMatrixLeavesLiveStateAndRetryable()
+    {
+        var cases = new[]
+        {
+            ("flush", typeof(IOException)),
+            ("incoming-validation", typeof(InvalidDataException)),
+            ("rename", typeof(IOException)),
+            ("post-rename-validation", typeof(InvalidDataException))
+        };
+
+        foreach (var (stage, expectedType) in cases)
+        {
+            using var fixture = await Fixture.CreateAsync();
+            var id = Guid.Parse($"52900000-0000-0000-0000-{Array.IndexOf(cases, (stage, expectedType)) + 1:D12}");
+            await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(id, OrderSourceType.Pos, $"failure {stage}"), [Payment(id)]);
+            var failing = fixture.CreateService(currentStage => currentStage == stage ? Activator.CreateInstance(expectedType, $"injected {stage}") as Exception : null);
+
+            var exception = await CaptureExceptionAsync(() => failing.FinalizeNextArchiveAsync());
+            Assert.IsNotNull(exception);
+            Assert.AreEqual(expectedType, exception.GetType());
+            Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders;"));
+            Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_completions;"));
+            var retried = await fixture.Service.FinalizeNextArchiveAsync();
+            Assert.AreEqual(AnnualArchiveFinalizationOutcome.CompletedNow, retried.Outcome);
+            Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders;"));
+        }
+    }
+
+    [TestMethod]
+    public async Task ExistingCanonicalWithoutMarkerIsReusedOrFailsClosedOnMismatch()
+    {
+        using (var fixture = await Fixture.CreateAsync())
+        {
+            var id = Guid.Parse("52a00000-0000-0000-0000-000000000001");
+            await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(id, OrderSourceType.Pos, "valid existing canonical"), [Payment(id)]);
+            var staged = await fixture.StageAsync();
+            Directory.CreateDirectory(fixture.Paths.ArchiveDirectory);
+            var canonical = Path.Combine(fixture.Paths.ArchiveDirectory, "sushi81-archive-2026.db");
+            File.Copy(staged!.StagedDatabasePath, canonical);
+
+            var result = await fixture.Service.FinalizeNextArchiveAsync();
+
+            Assert.AreEqual(AnnualArchiveFinalizationOutcome.CompletedNow, result.Outcome);
+            Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_completions;"));
+            Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders;"));
+        }
+
+        using (var fixture = await Fixture.CreateAsync())
+        {
+            var id = Guid.Parse("52a00000-0000-0000-0000-000000000002");
+            await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(id, OrderSourceType.Pos, "mismatch canonical"), [Payment(id)]);
+            var staged = await fixture.StageAsync();
+            Directory.CreateDirectory(fixture.Paths.ArchiveDirectory);
+            var canonical = Path.Combine(fixture.Paths.ArchiveDirectory, "sushi81-archive-2026.db");
+            File.Copy(staged!.StagedDatabasePath, canonical);
+            var originalBytes = File.ReadAllBytes(canonical);
+            await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(id, OrderSourceType.Pos, "live changed after canonical") with { UpdatedAt = fixture.Clock.UtcNow.AddMinutes(1) }, []);
+
+            await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Service.FinalizeNextArchiveAsync());
+
+            CollectionAssert.AreEqual(originalBytes, File.ReadAllBytes(canonical));
+            Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders;"));
+            Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_completions;"));
+        }
     }
 
     [TestMethod]
@@ -254,6 +475,16 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
         return await ScalarAsync(connection, sql, id);
     }
 
+    private static async Task<long> ScalarAsync(SqliteConnectionFactory factory, string sql, Guid firstId, Guid secondId)
+    {
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(factory.LiveDatabasePath);
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.Parameters.AddWithValue("$id1", firstId.ToString());
+        command.Parameters.AddWithValue("$id2", secondId.ToString());
+        return Convert.ToInt64(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+    }
+
     private static async Task<long> ScalarAsync(SqliteConnection connection, string sql, Guid? id = null)
     {
         await using var command = connection.CreateCommand();
@@ -267,6 +498,56 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
         return Convert.ToString(await command.ExecuteScalarAsync(), CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<string?> ScalarTextAsync(SqliteConnectionFactory factory, string sql)
+    {
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(factory.LiveDatabasePath);
+        return await ScalarTextAsync(connection, sql);
+    }
+
+    private static async Task<string> ReadSuccessfulLedgerDumpAsync(SqliteConnectionFactory factory)
+    {
+        await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(factory.LiveDatabasePath);
+        var builder = new StringBuilder();
+        foreach (var (name, sql) in new[]
+        {
+            ("export_batches", "SELECT b.* FROM export_batches b WHERE b.status='SUCCESS' ORDER BY b.batch_id;"),
+            ("export_batch_orders", "SELECT o.* FROM export_batch_orders o JOIN export_batches b ON b.batch_id=o.batch_id WHERE b.status='SUCCESS' ORDER BY o.batch_id,o.order_id;"),
+            ("export_emissions", "SELECT e.* FROM export_emissions e JOIN export_batches b ON b.batch_id=e.batch_id WHERE b.status='SUCCESS' ORDER BY e.batch_id,e.emission_id;")
+        })
+        {
+            builder.Append(name).Append(':');
+            await using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                builder.Append('|');
+                for (var ordinal = 0; ordinal < reader.FieldCount; ordinal++)
+                {
+                    if (ordinal > 0) builder.Append(',');
+                    builder.Append(reader.IsDBNull(ordinal)
+                        ? "<NULL>"
+                        : Convert.ToString(reader.GetValue(ordinal), CultureInfo.InvariantCulture));
+                }
+            }
+            builder.AppendLine();
+        }
+        return builder.ToString();
+    }
+
+    private static async Task<Exception?> CaptureExceptionAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return exception;
+        }
     }
 
     private sealed class Fixture(TestPaths paths, TestClock clock, SqliteConnectionFactory factory, WriteAuthorityGuard guard, DeterministicIds ids, SqliteOrderStore orderStore, SqliteGestionExportStore exportStore, GestionExportService exportService, RecordingNotifier notifier, SqliteAnnualArchiveFinalizationService service) : IDisposable
@@ -300,6 +581,9 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
 
         public SqliteAnnualArchiveFinalizationService CreateService(Func<string, Exception?> injector) =>
             new(Paths, Clock, Guard, Factory, new SqliteTransactionRunner(Factory), ExportStore, Ids, Notifier, injector);
+
+        public async Task<AnnualArchiveStagingResult?> StageAsync() =>
+            await new SqliteAnnualArchiveStagingService(Paths, Clock, Guard, Factory).StageNextArchiveAsync();
 
         public void Dispose()
         {

@@ -113,3 +113,34 @@ Evidence recorded before final delivery:
 - `git diff --check`: clean before commit.
 
 The package remains bounded to local annual archive publication, pending Gestion payload preservation, exact live removal and recovery notification. No scheduler, archive UI/search, user-selected archive export, historical reprint, OneDrive publication, M13 work or PR merge is included or authorized by this handoff. Exact-head CI and the durable matching `CODEX_DONE` remain the final delivery steps.
+
+## 2026-09-21 — WP2 evidence/governance closure package 05
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP2-EVIDENCE-CLOSURE-05`, PR #25 comment `5767856589`;
+- handoff start head: `6529b3014c772f8877b9ea2233ba69fb13c2c89f`;
+- controller review: PR #25 comment `5767851546`;
+- Issue #4 was OPEN and PR #25 remained the active Draft/open implementation PR during execution;
+- production code changed: no; this closure package adds focused real-SQLite/filesystem integration evidence and this append-only ledger entry only.
+
+Focused evidence added and passing:
+
+1. unchanged already-successful UPDATE and CANCEL actions produce no new PREPARED preservation action;
+2. exact PREPARED reuse does not duplicate, while a stale differing PREPARED payload does not satisfy the current action and the current action is preserved once; the exact/current PREPARED batches remain usable through `MarkBatchSucceededAsync` after live order deletion;
+3. a zero-order year publishes a canonical archive, records count 0/year/hash, has no PREPARED action, and the second call is `AlreadyCompleted` without mutation;
+4. exact closed/cancelled removal deletes child rows while open orders and closed/cancelled orders from another year remain;
+5. `flush`, `incoming-validation`, `rename` and `post-rename-validation` publication failures leave live state and completion-marker state retryable;
+6. a valid canonical archive without a completion marker is reused, while a source-mismatching canonical archive fails closed without replacement or live deletion;
+7. an independently computed SHA-256 matches the finalization result and completion metadata;
+8. pre-existing successful M11 export history is content-equivalent before and after archive finalization.
+
+Validation evidence:
+
+- focused WP2 real-SQLite/filesystem suite: 12 passed, 0 failed, 0 skipped;
+- combined M12 WP1/WP2 regression filter: 22 passed, 0 failed, 0 skipped;
+- full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 862 passed, 0 failed, 0 skipped;
+- full Release solution build: 0 warnings, 0 errors;
+- `git diff --check`: clean.
+
+This closure remains bounded to WP2 evidence/governance. No WP3 scheduler/authority/retry work, archive UI/search/export/reprint, M13 work or PR merge is included or authorized. Exact-head CI and the durable matching `CODEX_DONE` remain the final delivery steps.
