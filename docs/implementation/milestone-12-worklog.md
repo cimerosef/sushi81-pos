@@ -63,3 +63,24 @@ Updated package plan:
 | WP3 — scheduler/authority/retry | Not started | Automatic February/late-start remains non-interactive. |
 | WP4 — explicit local archive selection/search + user-selected export | Not started | Local Archive discovery/read-only access; explicit export copy destination selected by operator. |
 | WP5 — archived reprint/hardening/owner candidate | Not started | No change to M08 snapshot/reprint semantics. |
+
+## 2026-09-21 — WP1 evidence/governance closure package 03
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP1-EVIDENCE-CLOSURE-03`, PR #25 comment `5766940595`;
+- handoff start head: `ef437f535c160224666269e50bb3060a858bf5b9`;
+- historical premature/intermediate completion record `CODEX_DONE: M12-WP1-LOCAL-ARCHIVE-CORE-STAGING-02`, PR #25 comment `5766817946`, was preserved and not reused or edited for this closure;
+- controller finding: PR #25 comment `5766933100` identified the focused evidence gap and required a new distinct closure record;
+- production code changed: no; WP1 production implementation remains the start-head implementation. This package adds only focused integration evidence and this append-only ledger entry.
+
+Focused evidence added and passing:
+
+1. `ValidatorRejectsTruncatedArchiveAndPreservesLiveData` rejects a truncated SQLite archive and verifies live orders plus the M11 export ledger remain unchanged.
+2. `ValidatorRejectsMissingRequiredSchemaAndCountMismatch` rejects a missing required table and an expected-order-count mismatch.
+3. `ValidatorRejectsChildMismatchAndArchiveRetainsEquivalentSnapshotFactsWithoutCatalogue` rejects missing child rows and reconstructs archive-only scalar, item, adjustment, payment, and tax facts without current Catalogue/VAT/settings reads.
+4. `RepeatedStagingIsIndependentAndM11LedgerStateRemainsByteEquivalent` proves two successful independent staging attempts, byte-equivalent `export_batches`/`export_batch_orders`/`export_emissions` state, service-level validation-failure cleanup, and retry success.
+
+The previously retained WP1 policy/time, eligibility, authority, path, metadata, and builder-failure/retry tests remain passing. Focused M12 result: 19 passed, 0 failed, 0 skipped (9 application policy tests, 9 annual-archive integration tests, 1 archive-path test). Full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 850 passed, 0 failed, 0 skipped. Full Release build: 0 warnings, 0 errors. `git diff --check`: clean. Test implementation head: `66a592c`.
+
+Final closure delivery remains bounded to WP1 evidence/governance. No WP2 behavior, canonical archive promotion, live deletion, scheduler, archive UI/search/export/reprint, or M13 work is included or authorized by this handoff. Issue #4 gate was OPEN during execution; PR #25 remains the active Draft/open implementation PR and is not merged.
