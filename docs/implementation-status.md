@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Last updated:** 2026-09-21
-**Current state:** M01 through M10 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current merged `main` is M10 merge commit `299df8b44a1959497ad46f861e44db32913b4d11`. M11 Gestion intermediate export is owner-AUTHORIZED on `codex/m11-gestion-export-authorized` / PR #24. WP1–WP4 and Repairs 09–11 are controller-accepted; owner A–E manual acceptance is complete and PASS on accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`. M11 is now **Closure-ready**: final controller closure and separate explicit project-owner merge approval remain outstanding. M12/M13 remain unauthorized.
+**Current state:** M01 through M11 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current authoritative `main` is M11 merge commit `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. M12 Annual archive and historical access is owner-AUTHORIZED on `codex/m12-annual-archive-authorized` / Draft PR #25. WP1 is the first executable package; the later WP2 publication-to-live-removal path is blocked pending explicit resolution of the documented OneDrive remote-publication acknowledgement limitation. M13 remains unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -36,31 +36,32 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | M09 — Hiboutik paste fallback | Passed | PR #17 merged at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`; owner Windows/WPF acceptance Passed. |
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | PR #19 merged at `861cfba1dfacbb3289395c0370f6d42765b6c223`; controller/owner acceptance complete. |
 | M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
-| M11 — Gestion intermediate export | Closure-ready | WP1–WP4 and Repairs 09–11 are controller-accepted. Owner A–E are PASS on accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; exact-head CI #819 / run `35610026160` is green and artifact `M11-WP4-owner-candidate-win-x64-77ccecf` / ID `10643522785` is retained. Final controller closure and separate explicit merge approval remain outstanding. |
-| M12 — Annual archive/historical access | Not started | Unauthorized; pending M11. |
+| M11 — Gestion intermediate export | Passed | PR #24 CLOSED/MERGED at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831, 0 failed, 0 skipped and Release build 0 warnings/errors. |
+| M12 — Annual archive/historical access | Authorized | Owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25. WP1 ready/executable under Issue #4; WP2 remote-publication/live-removal path requires explicit acknowledgement resolution before implementation. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
 
 ## 3. Current merged baseline
 
 Current authoritative `main`:
 
-`299df8b44a1959497ad46f861e44db32913b4d11`
+`1a94f3400e0aa9fe9f878bbe98a8285112206ba9`
 
-This is PR #22's M10 merge commit.
+This is PR #24's M11 merge commit.
 
-M10 closure facts:
+M11 closure facts:
 
-- PR #22: CLOSED / MERGED;
-- final documentation head before merge: `e4df426ac58243fbc29b2eb64b2d9adf7b7b9620`;
-- accepted runtime candidate: `34e61c67785aa6c8c0ca84a545e31de30b17ac39`;
-- owner A–L + final usability acceptance: PASS;
-- controller final closure: comment `5750090951`;
-- runtime exact-head CI run `35512075546`: success, 787/787, 0 warnings/errors;
-- documentation closure CI run `35513279968`: success, 787/787, 0 warnings/errors.
+- PR #24: CLOSED / MERGED;
+- accepted runtime candidate: `77ccecf9d947462e96e74b8aa1d99ced30e3788e`;
+- final documentation head before merge: `4eddf0a93c5a141326d76c6e67a9a9c5840e5068`;
+- controller final closure: PR #24 comment `5762784303`;
+- merge completion: PR #24 comment `5762846107`;
+- post-merge CI #821 / run `35617254203`: SUCCESS;
+- total tests: 831/831 passed, 0 failed, 0 skipped;
+- Release build: 0 warnings / 0 errors.
 
-Historical M10 failures/repairs remain in the M10 worklog and PR #22 and are not rewritten here.
+Historical M11 failures/repairs, owner A–E evidence and pre-merge closure records remain in the M11 worklog/manual-acceptance record and PR #24 and are not rewritten here.
 
-## 4. M11 preparation/readiness
+## 4. M11 historical implementation/acceptance record
 
 Preparation line:
 
@@ -128,23 +129,29 @@ Work-package plan:
 
 No material M11 business/spec decision remains open.
 
-## 5. Current execution gate
+## 5. Current M12 readiness and execution gate
 
-Issue #4 remains the sole Codex execution gate.
+M12 control line:
 
-Current authorized control line:
+- owner authorization: GRANTED;
+- dedicated implementation branch: `codex/m12-annual-archive-authorized`;
+- Draft implementation PR/mailbox: #25 — `M12: Annual archive and historical access`;
+- preparation/readiness: `implementation/milestone-12-preparation-readiness.md`;
+- implementation contract: `implementation/milestone-12-annual-archive-historical-access.md`;
+- authorization record: `implementation/milestone-12-authorization.md`;
+- M13: unauthorized.
 
-- dedicated implementation branch: `codex/m11-gestion-export-authorized`;
-- dedicated implementation PR/mailbox: #24;
-- M11 implementation authorization: GRANTED;
-- WP1: ACCEPTED;
-- WP2: ACCEPTED;
-- WP3: ACCEPTED at `3c9e110f7d6c5a93c773b2289f5b43f5c59fb14f`;
-- WP4 and Repairs 09–11: controller-accepted; owner A–E manual acceptance is PASS on accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; current active handoff is documentation/governance closure `M11-FINAL-ACCEPTANCE-DOCUMENTATION-CLOSURE-12` from START_HEAD `77ccecf9d947462e96e74b8aa1d99ced30e3788e`;
-- Issue #4 must be OPEN before Codex executes;
-- M12/M13 remain unauthorized.
+Implementation-readiness result:
 
-The live Issue #4 body is the sole execution switch. Closing Issue #4 immediately revokes execution permission without changing the durable owner authorization.
+- current SQLite order aggregate and historical snapshot tables are reusable;
+- `IWriteAuthorityGuard`, application Temp/Cache paths, configured OneDrive root, read-only SQLite connection factory and M08 snapshot-based print model are reusable seams;
+- normal `SearchLiveAsync` remains live-only and must not be widened implicitly;
+- M11 immutable successful export emissions survive order-row deletion physically, but pending/un-emitted corrections are derived from the live order and must be durably preserved before removal as required by the implementation plan;
+- no production archive implementation currently exists;
+- WP1 can be implemented without OneDrive publication or live deletion and is READY;
+- accepted M02 evidence proves there is no documented local-only per-artifact OneDrive remote-upload acknowledgement for a newly-created regular file. Because `AC-STO-013` requires confirmed publication/synchronization before live removal, the affected WP2 delete gate is **Blocked — architecture decision required** until a conforming acknowledgement approach is explicitly approved. This finding does not amend the frozen archive contract.
+
+Issue #4 remains the sole Codex execution switch/status pointer. Codex may execute only the single exact `CODEX_HANDOFF_READY` in PR #25 while Issue #4 is OPEN. Closing Issue #4 revokes execution without changing durable M12 authorization. One WP1 DONE does not authorize WP2.
 
 ## 6. Evidence preservation
 
