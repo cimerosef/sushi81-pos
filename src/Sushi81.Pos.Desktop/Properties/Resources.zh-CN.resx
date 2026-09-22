@@ -464,7 +464,7 @@
   <data name="ArchiveFromDate" xml:space="preserve"><value>开始日期（含）</value></data>
   <data name="ArchiveToDate" xml:space="preserve"><value>结束日期（含）</value></data>
   <data name="ArchiveCopy" xml:space="preserve"><value>复制归档</value></data>
-  <data name="ArchiveReadOnlyNotice" xml:space="preserve"><value>历史数据只读查看。数据来自持久化快照；此处不提供修改或打印。</value></data>
+  <data name="ArchiveReadOnlyNotice" xml:space="preserve"><value>历史数据只读查看，数据来自持久化快照；不可修改。选中已加载的订单后，可显式请求重印。</value></data>
   <data name="ArchiveStatusAll" xml:space="preserve"><value>所有状态</value></data>
   <data name="ArchiveNoArchives" xml:space="preserve"><value>没有可用的已验证年度归档。</value></data>
   <data name="ArchiveAvailable" xml:space="preserve"><value>可用年度归档：{0} 个。</value></data>

@@ -1,6 +1,6 @@
 # M12 — Annual archive and historical access — implementation contract
 
-**Status:** OWNER-AUTHORIZED; WP1 executable under Issue #4 gate
+**Status:** OWNER-AUTHORIZED; WP1–WP5 implementation complete/controller-review-ready; owner manual acceptance pending
 **Milestone:** M12
 **Implementation branch:** `codex/m12-annual-archive-authorized`
 **Start baseline:** `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`

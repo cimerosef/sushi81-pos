@@ -2,6 +2,7 @@ using System.IO;
 using System.Xml.Linq;
 using Sushi81.Pos.Application.Archive;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Desktop;
 using Sushi81.Pos.Domain;
 
@@ -11,7 +12,7 @@ namespace Sushi81.Pos.ArchitectureTests;
 public sealed class M12Wp4ArchiveAccessTests
 {
     [TestMethod]
-    public void ArchiveSurfaceIsSeparateReadOnlyAndHasNoLifecycleOrPrintActions()
+    public void ArchiveSurfaceIsReadOnlyAndOffersOnlyExplicitKitchenAndCustomerReprints()
     {
         var xaml = File.ReadAllText(LocateRepositoryFile("src", "Sushi81.Pos.Desktop", "MainWindow.xaml"));
         var start = xaml.IndexOf("Header=\"{Binding DataContext.Localized[ArchiveAccess]", StringComparison.Ordinal);
@@ -24,10 +25,13 @@ public sealed class M12Wp4ArchiveAccessTests
         StringAssert.Contains(archiveTab, "SelectedArchive");
         StringAssert.Contains(archiveTab, "IsReadOnly=\"True\"");
         StringAssert.Contains(archiveTab, "OnCopyArchive");
-        Assert.IsFalse(archiveTab.Contains("OnReprint", StringComparison.OrdinalIgnoreCase));
+        StringAssert.Contains(archiveTab, "OnReprintArchiveKitchen");
+        StringAssert.Contains(archiveTab, "OnReprintArchiveCustomer");
+        Assert.AreEqual(2, archiveTab.Split("OnReprintArchive", StringSplitOptions.None).Length - 1);
+        StringAssert.Contains(archiveTab, "ArchiveAccess.CanReprint");
         Assert.IsFalse(archiveTab.Contains("OnSave", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(archiveTab.Contains("OnCancel", StringComparison.OrdinalIgnoreCase));
-        Assert.IsFalse(archiveTab.Contains("Print", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(archiveTab.Contains("AutoPrint", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]
@@ -49,7 +53,7 @@ public sealed class M12Wp4ArchiveAccessTests
         var requiredKeys = new[]
         {
             "ArchiveAccess", "ArchiveYear", "ArchiveSearch", "ArchiveCopy", "ArchiveReadOnlyNotice",
-            "ArchiveStatusAll", "ArchiveNoArchives", "ArchiveAccessFailed", "ArchiveInvalidDateRange",
+            "OrderReprintKitchen", "OrderReprintCustomer", "ArchiveStatusAll", "ArchiveNoArchives", "ArchiveAccessFailed", "ArchiveInvalidDateRange",
             "ArchiveCopySucceeded", "ArchiveCopyFailed"
         };
         foreach (var resource in new[] { "Resources.resx", "Resources.zh-CN.resx" })
@@ -69,6 +73,51 @@ public sealed class M12Wp4ArchiveAccessTests
         var copyInvocation = copyHandler.IndexOf("CopySelectedAsync", StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, dialogResultCheck);
         Assert.IsGreaterThan(dialogResultCheck, copyInvocation);
+    }
+
+    [TestMethod]
+    public async Task ArchiveReprintRequiresExplicitHydratedSelectionAndUsesCapturedSnapshot()
+    {
+        var access = new ControlledArchiveAccess([Archive(2026)]);
+        var printer = new RecordingArchivedPrintService();
+        var viewModel = new AnnualArchiveAccessViewModel(access, printer);
+
+        Assert.IsFalse(viewModel.CanReprint);
+        await viewModel.ReprintSelectedAsync(PrintDocumentKind.Kitchen);
+        Assert.AreEqual(0, printer.Calls);
+
+        await viewModel.RefreshAsync();
+        viewModel.SelectedArchive = access.Archives[0];
+        var originalRow = Row(Guid.Parse("52700000-0000-0000-0000-000000000021"));
+        viewModel.Orders.Add(originalRow);
+        viewModel.SelectedRow = originalRow;
+        await WaitForAsync(() => viewModel.SelectedOrder?.Id == originalRow.Id);
+
+        var originalSnapshot = viewModel.SelectedOrder;
+        Assert.AreEqual(0, printer.Calls, "Selecting or hydrating an archive order must never auto-print.");
+        Assert.IsTrue(viewModel.CanReprint);
+        var print = viewModel.ReprintSelectedAsync(PrintDocumentKind.Customer);
+        Assert.AreEqual(1, printer.Calls);
+        Assert.AreSame(originalSnapshot, printer.LastSnapshot);
+        Assert.AreEqual(PrintDocumentKind.Customer, printer.LastKind);
+        Assert.IsFalse(viewModel.CanReprint, "A concurrent archive operation must disable duplicate print actions.");
+
+        var replacementRow = Row(Guid.Parse("52700000-0000-0000-0000-000000000022"));
+        viewModel.Orders.Add(replacementRow);
+        viewModel.SelectedRow = replacementRow;
+        await WaitForAsync(() => viewModel.SelectedOrder?.Id == replacementRow.Id);
+        printer.Completion.SetResult(PrintDocumentResult.Success(new(
+            PrintDocumentKind.Customer,
+            PrintIntent.ExplicitReprint,
+            originalSnapshot!.Id,
+            originalSnapshot.Reference,
+            "synthetic",
+            false,
+            false)));
+        await print;
+
+        Assert.AreEqual(replacementRow.Id, viewModel.SelectedOrder!.Id);
+        Assert.AreEqual(string.Empty, viewModel.PrintStatusMessage, "A late print result must not be presented as the outcome for the newly selected order.");
     }
 
     [TestMethod]
@@ -194,6 +243,22 @@ public sealed class M12Wp4ArchiveAccessTests
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         while (!condition()) await Task.Delay(1, timeout.Token);
+    }
+
+    private sealed class RecordingArchivedPrintService : IArchivedOrderPrintApplicationService
+    {
+        public int Calls { get; private set; }
+        public OrderSnapshot? LastSnapshot { get; private set; }
+        public PrintDocumentKind LastKind { get; private set; }
+        public TaskCompletionSource<PrintDocumentResult> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<PrintDocumentResult> ReprintAsync(OrderSnapshot archivedSnapshot, PrintDocumentKind kind, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            LastSnapshot = archivedSnapshot;
+            LastKind = kind;
+            return Completion.Task;
+        }
     }
 
     private sealed class ControlledArchiveAccess(

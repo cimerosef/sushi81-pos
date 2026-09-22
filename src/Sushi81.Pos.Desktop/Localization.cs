@@ -84,7 +84,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private readonly M07ConfigurationSetupService? _m07Setup;
     private AuthorityPhase? _authorityPhase;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, CatalogueWorkbookService? catalogueWorkbookService = null, CatalogueImportService? catalogueImportService = null, GestionExportWorkflowViewModel? gestionExportWorkflow = null, IAnnualArchiveAccess? archiveAccess = null)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, CatalogueWorkbookService? catalogueWorkbookService = null, CatalogueImportService? catalogueImportService = null, GestionExportWorkflowViewModel? gestionExportWorkflow = null, IAnnualArchiveAccess? archiveAccess = null, IArchivedOrderPrintApplicationService? archivedOrderPrintService = null)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
         _configuration = configuration ?? new LocalConfiguration();
@@ -119,7 +119,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         CatalogueWorkflow?.ApplyLocalization(Localized);
         GestionExportWorkflow = gestionExportWorkflow;
         GestionExportWorkflow?.ApplyLocalization(Localized);
-        ArchiveAccess = startupSucceeded && archiveAccess is not null ? new AnnualArchiveAccessViewModel(archiveAccess) : null;
+        ArchiveAccess = startupSucceeded && archiveAccess is not null ? new AnnualArchiveAccessViewModel(archiveAccess, archivedOrderPrintService) : null;
         ArchiveAccess?.ApplyLocalization(Localized);
         if (Admin is not null) Admin.SettingsSaved += OnSettingsSaved;
     }

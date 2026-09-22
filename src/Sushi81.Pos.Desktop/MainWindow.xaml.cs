@@ -471,6 +471,18 @@ public partial class MainWindow : Window
             await archiveAccess.LoadSelectedAsync();
     }
 
+    private async void OnReprintArchiveKitchen(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { ArchiveAccess: { CanReprint: true } archiveAccess })
+            await archiveAccess.ReprintSelectedAsync(PrintDocumentKind.Kitchen);
+    }
+
+    private async void OnReprintArchiveCustomer(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { ArchiveAccess: { CanReprint: true } archiveAccess })
+            await archiveAccess.ReprintSelectedAsync(PrintDocumentKind.Customer);
+    }
+
     private async void OnCopyArchive(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { ArchiveAccess: { SelectedArchive: { } archive, CanExport: true } archiveAccess } viewModel)

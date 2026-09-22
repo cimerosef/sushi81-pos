@@ -208,7 +208,7 @@ Current merged baseline as of 2026-09-21:
 
 M12 — Annual archive and historical access — is owner-authorized on branch `codex/m12-annual-archive-authorized` / Draft PR #25. Its control package begins with `implementation/milestone-12-preparation-readiness.md`, `implementation/milestone-12-annual-archive-historical-access.md` and `implementation/milestone-12-authorization.md`. Execution remains one-package-at-a-time through Issue #4.
 
-The first executable package is WP1 only: archive-year/eligibility contracts and independent local staged archive SQLite construction/validation. WP1 performs no OneDrive publication and no live-row deletion.
+WP1–WP5 have been implemented under their separately authorized handoffs and are controller-review-ready on the active implementation branch. Current automated evidence is 881/881 Release tests passed and a Release build with 0 warnings/errors; exact-head CI and exact-candidate Windows/WPF owner manual acceptance remain pending. M12 is not Passed/Closure-ready until owner evidence and controller closure are recorded. No OneDrive archive publication is used, and M13 remains unauthorized.
 
 The owner-approved 2026-09-21 M12 amendment moves canonical annual archives to application-managed local storage and removes OneDrive from annual archive publication/access. WP2 therefore uses a local staged -> durable canonical promotion/reopen-validation -> live-removal boundary; no OneDrive remote acknowledgement is required. Explicit archive export is a separate operator-selected copy action and must not move/delete the canonical archive.
 

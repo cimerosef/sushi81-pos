@@ -28,7 +28,7 @@ Historical contracts/worklogs/manual-acceptance records remain authoritative in 
 
 M11 Gestion intermediate export is Passed/merged through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831 passed, 0 failed, 0 skipped and Release build 0 warnings / 0 errors.
 
-M12 Annual archive and historical access is owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25. Current control files are `milestone-12-preparation-readiness.md`, `milestone-12-annual-archive-historical-access.md` and `milestone-12-authorization.md`. The owner-approved 2026-09-21 amendment makes canonical annual archives permanent local application-managed databases, removes OneDrive from annual archive publication/access, and adds explicit operator-selected archive export. WP1 remains the first package. M13 remains unauthorized.
+M12 Annual archive and historical access is owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25. WP1–WP5 implementation is complete and controller-review-ready; the Release suite is 881/881 passed and Release build has 0 warnings/errors. Exact-head CI and owner Windows/WPF manual acceptance remain pending, so M12 is not Passed/Closure-ready. The owner-approved 2026-09-21 amendment makes canonical annual archives permanent local application-managed databases, removes OneDrive from annual archive publication/access, and adds explicit operator-selected archive export. The concise owner checklist is `milestone-12-final-manual-acceptance.md`. M13 remains unauthorized.
 
 ## Historical M10 preparation — Catalogue `.xlsx` import/export
 

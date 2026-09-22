@@ -3,18 +3,24 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Data.Sqlite;
 using Sushi81.Pos.Application.Archive;
+using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Export;
+using Sushi81.Pos.Application.Foundation;
 using Sushi81.Pos.Application.Foundation.Authority;
+using Sushi81.Pos.Application.Foundation.Configuration;
 using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Recovery;
 using Sushi81.Pos.Application.Foundation.Time;
+using Sushi81.Pos.Application.Printing;
+using Sushi81.Pos.Application.Settings;
 using Sushi81.Pos.Domain;
 using Sushi81.Pos.Infrastructure.Archive;
 using Sushi81.Pos.Infrastructure.Authority;
 using Sushi81.Pos.Infrastructure.Export;
 using Sushi81.Pos.Infrastructure.Migrations;
 using Sushi81.Pos.Infrastructure.Order;
+using Sushi81.Pos.Infrastructure.Printing;
 using Sushi81.Pos.Infrastructure.Sqlite;
 
 namespace Sushi81.Pos.Infrastructure.IntegrationTests;
@@ -391,7 +397,7 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
     }
 
     [TestMethod]
-    public async Task Wp4AccessDiscoversValidatedArchiveSearchesSnapshotsAndCopiesSafely()
+    public async Task Wp5ArchivedReprintsUsePersistedSaleFactsAndPreserveBusinessAndArchiveState()
     {
         using var fixture = await Fixture.CreateAsync();
         var id = Guid.Parse("52b00000-0000-0000-0000-000000000001");
@@ -529,6 +535,84 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
         Assert.AreEqual(original.Items.Single().ProductName, loaded.Items.Single().ProductName);
         CollectionAssert.AreEquivalent(original.Items.Single().Adjustments.ToArray(), loaded.Items.Single().Adjustments.ToArray());
         CollectionAssert.AreEquivalent(original.TaxBreakdown.ToArray(), loaded.TaxBreakdown.ToArray());
+
+        // Simulate a later Catalogue/VAT edit after the archive was finalized. Reprinting
+        // must remain entirely driven by the already-hydrated archive snapshot.
+        var catalogueMutationCategoryId = Guid.Parse("52b00000-0000-0000-0000-000000000030");
+        await using (var liveConnection = await fixture.Factory.OpenLiveConnectionAsync())
+        await using (var mutateCatalogue = liveConnection.CreateCommand())
+        {
+            mutateCatalogue.CommandText = """
+                INSERT INTO categories(category_id,name,normalized_name,created_at_utc,updated_at_utc)
+                VALUES ($categoryId,'Catalogue après archive','catalogue-apres-archive','2028-02-01T00:00:00Z','2028-02-01T00:00:00Z');
+                INSERT INTO products(product_id,code,normalized_code,name,category_id,price_ttc_cents,vat_rate,is_active,discount_eligible,options_enabled,created_at_utc,updated_at_utc)
+                VALUES ($productId,'P-M12','p-m12','LIVE CATALOGUE MUTATION',$categoryId,999999,'20',1,0,0,'2028-02-01T00:00:00Z','2028-02-01T00:00:00Z');
+                """;
+            mutateCatalogue.Parameters.AddWithValue("$categoryId", catalogueMutationCategoryId.ToString());
+            mutateCatalogue.Parameters.AddWithValue("$productId", loaded.Items.Single().SourceProductId!.Value.ToString());
+            await mutateCatalogue.ExecuteNonQueryAsync();
+        }
+
+        var loadedCancelled = await access.GetOrderAsync(2026, cancelledId);
+        var loadedPos = await access.GetOrderAsync(2027, nextYearId);
+        Assert.IsNotNull(loadedCancelled);
+        Assert.IsNotNull(loadedPos);
+        var submitter = new RecordingPrintSubmitter();
+        var printDispatcher = new WindowsOrderPrintDispatcher(
+            new FixedBusinessSettingsStore(BusinessSettings.Defaults(fixture.Clock.UtcNow)),
+            new FixedLocalConfigurationService(new LocalConfiguration(
+                KitchenPrinterQueueId: "kitchen-test-queue",
+                KitchenPrinterQueueName: "Kitchen test queue",
+                CustomerPrinterQueueId: "customer-test-queue",
+                CustomerPrinterQueueName: "Customer test queue")),
+            submitter,
+            fixture.Clock);
+        var archivedPrintService = new ArchivedOrderPrintApplicationService(printDispatcher);
+
+        var hiboutikKitchen = await archivedPrintService.ReprintAsync(loaded, PrintDocumentKind.Kitchen);
+        var hiboutikCustomer = await archivedPrintService.ReprintAsync(loaded, PrintDocumentKind.Customer);
+        var posKitchen = await archivedPrintService.ReprintAsync(loadedPos!, PrintDocumentKind.Kitchen);
+        var cancelledKitchen = await archivedPrintService.ReprintAsync(loadedCancelled!, PrintDocumentKind.Kitchen);
+        var cancelledCustomer = await archivedPrintService.ReprintAsync(loadedCancelled!, PrintDocumentKind.Customer);
+        Assert.IsTrue(hiboutikKitchen.Succeeded);
+        Assert.IsTrue(hiboutikCustomer.Succeeded);
+        Assert.IsTrue(posKitchen.Succeeded);
+        Assert.IsTrue(cancelledKitchen.Succeeded);
+        Assert.IsTrue(cancelledCustomer.Succeeded);
+        Assert.AreEqual(PrintIntent.ExplicitReprint, hiboutikKitchen.Document!.Intent);
+        Assert.IsTrue(hiboutikKitchen.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Item && block.SecondaryText == originalItem.ProductName));
+        Assert.IsTrue(hiboutikKitchen.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Option && block.Text == "Extra sauce"));
+        Assert.IsTrue(hiboutikKitchen.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Option && block.Text == "Piquante"));
+        Assert.IsTrue(hiboutikKitchen.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Total && block.SecondaryText == "11.50 EUR"));
+        Assert.IsTrue(hiboutikCustomer.Document!.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Tax && block.Text == "TVA 10%"));
+        Assert.IsTrue(hiboutikCustomer.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Tax && block.Text == string.Format(CultureInfo.CurrentCulture, "TVA {0:0.#}%", 5.5m)));
+        Assert.IsFalse(hiboutikCustomer.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Tax && block.Text.Contains("20%", StringComparison.Ordinal)));
+        var printedArchivedItem = hiboutikCustomer.Document.Content.Blocks.Single(block => block.Kind == PrintReceiptBlockKind.Item);
+        Assert.IsNotNull(printedArchivedItem.Item);
+        Assert.AreEqual("10.00", printedArchivedItem.Item.UnitPriceText);
+        Assert.IsTrue(hiboutikCustomer.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Payment && block.Text == "CB" && block.SecondaryText == "10.00 EUR"));
+        Assert.IsTrue(hiboutikCustomer.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Payment && block.Text == "Espèce" && block.SecondaryText == "1.50 EUR"));
+        Assert.IsFalse(hiboutikCustomer.Document.Content.ToDiagnosticText().Contains("LIVE CATALOGUE MUTATION", StringComparison.Ordinal));
+        Assert.IsTrue(posKitchen.Document!.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "RÉIMPRESSION"));
+        Assert.IsFalse(posKitchen.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "DUPLICATA"));
+        Assert.IsTrue(cancelledKitchen.Document!.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "ANNULÉ"));
+        Assert.IsTrue(cancelledKitchen.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "RÉIMPRESSION"));
+        Assert.IsFalse(cancelledKitchen.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "DUPLICATA"));
+        Assert.IsTrue(cancelledCustomer.Document!.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "ANNULÉ"));
+        Assert.IsTrue(cancelledCustomer.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "DUPLICATA"));
+        Assert.IsFalse(cancelledCustomer.Document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "RÉIMPRESSION"));
+        Assert.AreEqual("kitchen-test-queue", submitter.Submissions[0].QueueId);
+        Assert.AreEqual("customer-test-queue", submitter.Submissions[1].QueueId);
+        Assert.HasCount(5, submitter.Submissions);
+
+        submitter.NextStatus = PrintOutcomeStatus.QueueUnavailable;
+        Assert.AreEqual(PrintOutcomeStatus.QueueUnavailable, (await archivedPrintService.ReprintAsync(loaded, PrintDocumentKind.Kitchen)).Status);
+        submitter.NextStatus = PrintOutcomeStatus.SubmissionFailed;
+        Assert.AreEqual(PrintOutcomeStatus.SubmissionFailed, (await archivedPrintService.ReprintAsync(loaded, PrintDocumentKind.Customer)).Status);
+        submitter.NextStatus = PrintOutcomeStatus.AmbiguousSubmission;
+        Assert.AreEqual(PrintOutcomeStatus.AmbiguousSubmission, (await archivedPrintService.ReprintAsync(loaded, PrintDocumentKind.Kitchen)).Status);
+        submitter.CancelNextSubmission = true;
+        Assert.AreEqual(PrintOutcomeStatus.SubmissionFailed, (await archivedPrintService.ReprintAsync(loaded, PrintDocumentKind.Customer)).Status);
 
         var exported = Path.Combine(fixture.Paths.TempDirectory, "selected-archive.db");
         File.WriteAllBytes(exported, [0x6f, 0x6c, 0x64]);
@@ -710,6 +794,40 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
             builder.AppendLine();
         }
         return builder.ToString();
+    }
+
+    private sealed class FixedBusinessSettingsStore(BusinessSettings settings) : IBusinessSettingsStore
+    {
+        public Task<BusinessSettings> GetAsync(CancellationToken cancellationToken = default) => Task.FromResult(settings);
+        public Task<OperationResult> UpdateAsync(BusinessSettings value, CancellationToken cancellationToken = default) =>
+            Task.FromException<OperationResult>(new NotSupportedException("The print integration fake is read-only."));
+    }
+
+    private sealed class FixedLocalConfigurationService(LocalConfiguration configuration) : ILocalConfigurationService
+    {
+        public Task<LocalConfiguration> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(configuration);
+        public Task SaveAsync(LocalConfiguration value, CancellationToken cancellationToken = default) =>
+            Task.FromException(new NotSupportedException("The print integration fake is read-only."));
+        public Task<LocalConfiguration> UpdateAsync(Func<LocalConfiguration, LocalConfiguration> update, CancellationToken cancellationToken = default) =>
+            Task.FromException<LocalConfiguration>(new NotSupportedException("The print integration fake is read-only."));
+    }
+
+    private sealed class RecordingPrintSubmitter : IPrintDocumentSubmitter
+    {
+        public List<(OrderPrintDocument Document, string? QueueId, string? QueueName)> Submissions { get; } = [];
+        public PrintOutcomeStatus NextStatus { get; set; } = PrintOutcomeStatus.Succeeded;
+        public bool CancelNextSubmission { get; set; }
+
+        public Task<PrintOutcomeStatus> SubmitAsync(OrderPrintDocument document, string? configuredQueueId, string? configuredQueueName, CancellationToken cancellationToken = default)
+        {
+            Submissions.Add((document, configuredQueueId, configuredQueueName));
+            if (CancelNextSubmission)
+            {
+                CancelNextSubmission = false;
+                throw new OperationCanceledException("Synthetic print cancellation.");
+            }
+            return Task.FromResult(NextStatus);
+        }
     }
 
     private static async Task<Exception?> CaptureExceptionAsync(Func<Task> action)

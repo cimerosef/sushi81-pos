@@ -464,7 +464,7 @@ Changements effectifs : {2}</value></data>
   <data name="ArchiveFromDate" xml:space="preserve"><value>Date de début (incluse)</value></data>
   <data name="ArchiveToDate" xml:space="preserve"><value>Date de fin (incluse)</value></data>
   <data name="ArchiveCopy" xml:space="preserve"><value>Copier l’archive</value></data>
-  <data name="ArchiveReadOnlyNotice" xml:space="preserve"><value>Consultation historique en lecture seule. Les données proviennent des instantanés persistés ; aucune modification ni impression n’est disponible ici.</value></data>
+  <data name="ArchiveReadOnlyNotice" xml:space="preserve"><value>Consultation historique en lecture seule. Les données proviennent des instantanés persistés ; aucune modification n’est possible. Une réimpression explicite est disponible pour la commande sélectionnée.</value></data>
   <data name="ArchiveStatusAll" xml:space="preserve"><value>Tous les statuts</value></data>
   <data name="ArchiveNoArchives" xml:space="preserve"><value>Aucune archive annuelle validée n’est disponible.</value></data>
   <data name="ArchiveAvailable" xml:space="preserve"><value>{0} archive(s) annuelle(s) disponible(s).</value></data>

@@ -235,3 +235,33 @@ Validation evidence for this implementation commit:
 - `git diff --check`: clean before the append-only closure entry.
 
 Exact-head GitHub CI for implementation commit `39e0c6aa7a4581a7395119195dea1b09a09c3f3d` completed SUCCESS in workflow run #858 (`35778494747`). The worklog-only delivery commit will be the final head and requires its own exact-head CI; that status will be recorded in the matching durable `CODEX_DONE`. Issue #4 was OPEN at execution; no merge or WP5/M13 work was performed. No unresolved implementation blocker is known.
+
+## 2026-09-22 — WP5 archived reprint/hardening/owner-candidate package 09
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP5-ARCHIVED-REPRINT-HARDENING-OWNER-CANDIDATE-09`, published on the active M12 implementation PR;
+- handoff start head: `1c306254b236c8b2c45f695deab4e5f2f5def3fa`;
+- Issue #4 was OPEN and pointed to this exact active handoff; WP1–WP4 were controller-accepted before execution;
+- implementation remains limited to WP5; no M13, installer work, or merge was performed.
+
+Implemented:
+
+- added an Application archived-print seam that accepts an already hydrated `OrderSnapshot` and delegates directly to the existing M08 `IOrderPrintOutcomeDispatcher` with `ExplicitReprint`; it has no live order store, Catalogue, archive mutation service, or write-authority dependency;
+- reused the existing M08 document factory and Windows queue dispatcher for kitchen/customer archive reprints;
+- added explicit, localized archive-detail reprint controls, enabled only for the currently hydrated selected archive order and while no archive operation is active;
+- captured the selected archive year/order/snapshot and selection generation for each request; a late print outcome is not attached to a subsequently selected order;
+- kept the existing `RÉIMPRESSION`, `DUPLICATA` and `ANNULÉ` semantics and added safe localized success/failure/ambiguous feedback;
+- added archive-snapshot integration evidence after mutating the current Catalogue product name/price/VAT, covering HIBOUTIK_PASTE and POS, payments, taxes, item options, totals, cancellation marks, queue routing, unavailable/failed/ambiguous print results, and a cancelled submission;
+- added the concise owner checklist at `milestone-12-final-manual-acceptance.md`. It remains unchecked; Codex did not perform or claim owner acceptance.
+
+Validation before final delivery commit:
+
+- WP5 archived-print + M08 application test suite: 12 passed, 0 failed, 0 skipped;
+- WP5 archive WPF architecture/ViewModel suite: 8 passed, 0 failed, 0 skipped; combined M12 architecture regression: 10 passed, 0 failed, 0 skipped;
+- WP5 real-SQLite/filesystem integration (including cancellation): 1 passed, 0 failed, 0 skipped; combined M12 infrastructure regression: 30 passed, 0 failed, 0 skipped;
+- full Release test suite on final WP5 source: 881 passed, 0 failed, 0 skipped;
+- Release solution build: 0 warnings, 0 errors;
+- `git diff --check`: clean.
+
+The self-contained owner candidate was published successfully with `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o "$env:TEMP\Sushi81POS-M12-WP5-09-owner-candidate" --no-restore`; output is in `%TEMP%\Sushi81POS-M12-WP5-09-owner-candidate` (421 files including `Sushi81.Pos.Desktop.exe`, no database, recovery, log, workbook, CSV or credential-like files detected). Exact-head GitHub CI and final source SHA are pending and must be recorded by the matching durable `CODEX_DONE`. The truthful M12 state is WP1–WP5 implemented/controller-review-ready, owner Windows/WPF manual acceptance pending, M13 unauthorized, and PR still Draft/Open.

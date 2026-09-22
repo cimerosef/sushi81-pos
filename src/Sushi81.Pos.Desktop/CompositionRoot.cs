@@ -62,6 +62,7 @@ public static partial class CompositionRoot
         JsonAuthorityStateStore? authorityStateStore = null;
         AuthorityPhase? authorityPhase = null;
         IOrderPrintApplicationService? printService = null;
+        IArchivedOrderPrintApplicationService? archivedOrderPrintService = null;
         PrinterSetupViewModel? printerSetup = null;
         HiboutikImportOrchestrator? hiboutikImportOrchestrator = null;
          CatalogueWorkbookService? catalogueWorkbookService = null;
@@ -170,6 +171,7 @@ public static partial class CompositionRoot
                 new WindowsPrintDocumentSubmitter(),
                 clock);
             printService = new OrderPrintApplicationService(orderStore, printDispatcher);
+            archivedOrderPrintService = new ArchivedOrderPrintApplicationService(printDispatcher);
             printerSetup = new PrinterSetupViewModel(configuration, configurationService, new WindowsPrintQueueCatalog());
             orderEntryService = new OrderEntryService(
                 orderCatalogueQueries, settingsStore, orderStore, printDispatcher, idGenerator, clock, authorityGuard, durableChangeNotifier);
@@ -261,7 +263,8 @@ public static partial class CompositionRoot
              catalogueWorkbookService,
              catalogueImportService,
              gestionExportWorkflow,
-             annualArchiveAccess);
+             annualArchiveAccess,
+             archivedOrderPrintService);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,

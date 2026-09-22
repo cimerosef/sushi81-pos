@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using Sushi81.Pos.Application.Archive;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Domain;
 
 namespace Sushi81.Pos.Desktop;
@@ -15,9 +16,12 @@ public sealed record ArchiveStatusOption(OrderStatus? Value, string Label);
 /// mutation or printing commands; export is an explicit copy of the selected
 /// validated canonical archive.
 /// </summary>
-public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : INotifyPropertyChanged
+public sealed class AnnualArchiveAccessViewModel(
+    IAnnualArchiveAccess access,
+    IArchivedOrderPrintApplicationService? printService = null) : INotifyPropertyChanged
 {
     private readonly IAnnualArchiveAccess access = access ?? throw new ArgumentNullException(nameof(access));
+    private readonly IArchivedOrderPrintApplicationService? printService = printService;
     private AnnualArchiveDescriptor? selectedArchive;
     private OrderBrowserRow? selectedRow;
     private OrderSnapshot? selectedOrder;
@@ -36,6 +40,7 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
     private CancellationTokenSource? searchCancellation;
     private CancellationTokenSource? detailCancellation;
     private int activeOperations;
+    private long selectionGeneration;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -50,6 +55,7 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
         {
             if (ReferenceEquals(selectedArchive, value)) return;
             selectedArchive = value;
+            SelectionChanged();
             CancelSearch();
             CancelDetail();
             selectedRow = null;
@@ -60,6 +66,7 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
             if (value is not null) _ = RefreshOrdersGuardedAsync();
             OnPropertyChanged();
             OnPropertyChanged(nameof(CanExport));
+            OnPropertyChanged(nameof(CanReprint));
         }
     }
 
@@ -70,10 +77,12 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
         {
             if (ReferenceEquals(selectedRow, value)) return;
             selectedRow = value;
+            SelectionChanged();
             selectedOrder = null;
             CancelDetail();
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedOrder));
+            OnPropertyChanged(nameof(CanReprint));
             if (value is not null && selectedArchive is not null)
                 _ = LoadSelectedAsync(selectedArchive.ArchiveYear, value.Id);
         }
@@ -86,6 +95,7 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
         {
             selectedOrder = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(CanReprint));
         }
     }
 
@@ -128,10 +138,19 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
     public bool IsBusy
     {
         get => isBusy;
-        private set { if (isBusy != value) { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanExport)); } }
+        private set { if (isBusy != value) { isBusy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanExport)); OnPropertyChanged(nameof(CanReprint)); } }
     }
 
     public bool CanExport => SelectedArchive is not null && !IsBusy;
+
+    public bool CanReprint => printService is not null
+        && SelectedArchive is not null
+        && SelectedRow is not null
+        && SelectedOrder is not null
+        && SelectedRow.Id == SelectedOrder.Id
+        && !IsBusy;
+
+    public string PrintStatusMessage { get; private set; } = string.Empty;
 
     public void ApplyLocalization(IReadOnlyDictionary<string, string> values)
     {
@@ -143,6 +162,45 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
         StatusOptions.Add(new(OrderStatus.Cancelled, Text("OrderStatusCancelled", "Cancelled")));
         SelectedStatus = StatusOptions.FirstOrDefault(option => option.Value == previous) ?? StatusOptions[0];
         OnPropertyChanged(nameof(CanExport));
+        OnPropertyChanged(nameof(CanReprint));
+    }
+
+    public async Task ReprintSelectedAsync(PrintDocumentKind kind, CancellationToken cancellationToken = default)
+    {
+        if (!CanReprint || printService is null || SelectedArchive is not { } archive
+            || SelectedRow is not { } row || SelectedOrder is not { } snapshot)
+            return;
+
+        var archiveYear = archive.ArchiveYear;
+        var orderId = snapshot.Id;
+        var generation = selectionGeneration;
+        BeginOperation();
+        SetPrintStatus(string.Empty);
+        try
+        {
+            var result = await printService.ReprintAsync(snapshot, kind, cancellationToken);
+            if (IsCurrentPrintSelection(generation, archiveYear, orderId))
+            {
+                var message = result.Succeeded
+                    ? Text("OrderPrintSuccess", "The requested document was accepted by the printer.")
+                    : M03Presentation.Message(
+                        new ValidationIssue(
+                            kind == PrintDocumentKind.Kitchen ? "kitchen-print" : "customer-print",
+                            result.OperatorMessage,
+                            result.Status == PrintOutcomeStatus.AmbiguousSubmission ? ValidationCodes.PrintAmbiguous : ValidationCodes.Generic),
+                        localized);
+                SetPrintStatus(message);
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception)
+        {
+            if (IsCurrentPrintSelection(generation, archiveYear, orderId))
+                SetPrintStatus(M03Presentation.Message(
+                    new ValidationIssue(kind == PrintDocumentKind.Kitchen ? "kitchen-print" : "customer-print", string.Empty),
+                    localized));
+        }
+        finally { EndOperation(); }
     }
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
@@ -335,6 +393,23 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
     private bool IsCurrentDetail(CancellationTokenSource operation, long generation, int archiveYear, Guid orderId) =>
         IsCurrent(detailCancellation, operation, detailGeneration, generation) &&
         selectedArchive?.ArchiveYear == archiveYear && selectedRow?.Id == orderId;
+
+    private bool IsCurrentPrintSelection(long generation, int archiveYear, Guid orderId) =>
+        selectionGeneration == generation && selectedArchive?.ArchiveYear == archiveYear
+        && selectedRow?.Id == orderId && selectedOrder?.Id == orderId;
+
+    private void SelectionChanged()
+    {
+        selectionGeneration++;
+        SetPrintStatus(string.Empty);
+    }
+
+    private void SetPrintStatus(string value)
+    {
+        if (PrintStatusMessage == value) return;
+        PrintStatusMessage = value;
+        OnPropertyChanged(nameof(PrintStatusMessage));
+    }
 
     private static bool IsCurrent(CancellationTokenSource? current, CancellationTokenSource operation, long currentGeneration, long generation) =>
         ReferenceEquals(current, operation) && currentGeneration == generation && !operation.IsCancellationRequested;

@@ -1,8 +1,8 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-21
-**Current state:** M01 through M11 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current authoritative `main` is M11 merge commit `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. M12 Annual archive and historical access is owner-AUTHORIZED on `codex/m12-annual-archive-authorized` / Draft PR #25. The owner-approved 2026-09-21 amendment makes canonical annual archives permanent application-managed local databases and makes archive export an explicit operator-selected copy action. WP1 remains the first package. M13 remains unauthorized.
+**Last updated:** 2026-09-22
+**Current state:** M01 through M11 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current authoritative `main` is M11 merge commit `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. M12 Annual archive and historical access is owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25. WP1–WP5 implementation is complete and controller-review-ready; owner Windows/WPF manual acceptance remains pending on the exact candidate, so M12 is not Passed or Closure-ready. Canonical archives are permanent application-managed local databases and export is an explicit operator-selected copy action. M13 remains unauthorized.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -37,7 +37,7 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | PR #19 merged at `861cfba1dfacbb3289395c0370f6d42765b6c223`; controller/owner acceptance complete. |
 | M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
 | M11 — Gestion intermediate export | Passed | PR #24 CLOSED/MERGED at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831, 0 failed, 0 skipped and Release build 0 warnings/errors. |
-| M12 — Annual archive/historical access | Authorized | Owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25. Local-archive/user-selected-export amendment Approved 2026-09-21; WP1 is the first package. |
+| M12 — Annual archive/historical access | Partial | WP1–WP5 implementation/controller review ready on Draft PR #25; Release suite 881/881 passed and Release build has 0 warnings/errors. Exact-head CI and owner Windows/WPF manual acceptance remain pending. Do not mark Passed/Closure-ready until owner evidence and controller closure are recorded. |
 | M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
 
 ## 3. Current merged baseline

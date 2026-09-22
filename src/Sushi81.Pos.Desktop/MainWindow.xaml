@@ -374,7 +374,7 @@
             <StackPanel Margin="4,0,0,0">
               <TextBlock Text="{Binding DataContext.Localized[ArchiveReadOnlyNotice], RelativeSource={RelativeSource AncestorType=Window}}" Foreground="DarkSlateBlue" TextWrapping="Wrap" Margin="0,0,0,6" />
               <Grid DataContext="{Binding SelectedOrder}">
-                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="145" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                 <TextBlock Grid.Row="0" Text="{Binding DataContext.Localized[OrderReference], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Reference}" FontWeight="SemiBold" />
                 <TextBlock Grid.Row="1" Text="{Binding DataContext.Localized[OrderStatus], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Status}" />
@@ -382,6 +382,11 @@
                 <TextBlock Grid.Row="3" Text="{Binding DataContext.Localized[Telephone], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Telephone}" />
                 <TextBlock Grid.Row="4" Text="{Binding DataContext.Localized[Comment], RelativeSource={RelativeSource AncestorType=Window}}" /><TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Comment}" TextWrapping="Wrap" />
                 <TextBlock Grid.Row="5" Text="{Binding DataContext.Localized[OrderLines], RelativeSource={RelativeSource AncestorType=Window}}" VerticalAlignment="Top" /><ItemsControl Grid.Row="5" Grid.Column="1" ItemsSource="{Binding Items}"><ItemsControl.ItemTemplate><DataTemplate><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding ProductName}" FontWeight="SemiBold" TextWrapping="Wrap" /><TextBlock Text="  ×" /><TextBlock Text="{Binding Quantity}" /></StackPanel></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                <WrapPanel Grid.Row="6" Grid.Column="1" Margin="0,6,0,0">
+                  <Button Content="{Binding DataContext.Localized[OrderReprintKitchen], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.ArchiveAccess.CanReprint, RelativeSource={RelativeSource AncestorType=Window}}" Click="OnReprintArchiveKitchen" Padding="10,4" Margin="0,0,6,4" />
+                  <Button Content="{Binding DataContext.Localized[OrderReprintCustomer], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.ArchiveAccess.CanReprint, RelativeSource={RelativeSource AncestorType=Window}}" Click="OnReprintArchiveCustomer" Padding="10,4" Margin="0,0,6,4" />
+                  <TextBlock Text="{Binding DataContext.ArchiveAccess.PrintStatusMessage, RelativeSource={RelativeSource AncestorType=Window}}" Margin="4,6,0,0" TextWrapping="Wrap" />
+                </WrapPanel>
               </Grid>
             </StackPanel>
           </ScrollViewer>

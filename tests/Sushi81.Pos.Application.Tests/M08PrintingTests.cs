@@ -1,4 +1,5 @@
 using Sushi81.Pos.Application.Foundation.Time;
+using Sushi81.Pos.Application.Archive;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Application.Printing;
@@ -221,6 +222,21 @@ public sealed class M08PrintingTests
         Assert.AreSame(latest, dispatcher.LastOrder);
         Assert.AreEqual(PrintIntent.ExplicitReprint, dispatcher.LastIntent);
         Assert.AreEqual(PrintDocumentKind.Customer, dispatcher.LastKind);
+    }
+
+    [TestMethod]
+    public async Task ArchivedReprintServiceUsesTheSuppliedHydratedSnapshotWithoutReloadingLiveState()
+    {
+        var archived = CreateOrder(BusinessDate, OrderStatus.Closed) with { Comment = "Archived-only historical snapshot" };
+        var dispatcher = new RecordingOutcomeDispatcher();
+        var service = new ArchivedOrderPrintApplicationService(dispatcher);
+
+        var result = await service.ReprintAsync(archived, PrintDocumentKind.Kitchen);
+
+        Assert.IsTrue(result.Succeeded);
+        Assert.AreSame(archived, dispatcher.LastOrder);
+        Assert.AreEqual(PrintIntent.ExplicitReprint, dispatcher.LastIntent);
+        Assert.AreEqual(PrintDocumentKind.Kitchen, dispatcher.LastKind);
     }
 
     [TestMethod]
