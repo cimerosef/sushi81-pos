@@ -74,12 +74,19 @@ public sealed class SqliteAnnualArchiveAccess(
         await using var connection = await SqliteConnectionFactory.OpenReadOnlyConnectionAsync(path, cancellationToken);
 
         var query = criteria.Query?.Trim() ?? string.Empty;
+        var telephoneTerms = TelephoneSearchNormalization.QueryTerms(query);
+        var telephoneTerm0 = telephoneTerms.ElementAtOrDefault(0) ?? string.Empty;
+        var telephoneTerm1 = telephoneTerms.ElementAtOrDefault(1) ?? string.Empty;
         await using var command = connection.CreateCommand();
         var predicates = new List<string>();
         if (query.Length > 0)
         {
-            predicates.Add("(COALESCE(o.order_reference,'') LIKE $query ESCAPE '\\' OR COALESCE(o.comment,'') LIKE $query ESCAPE '\\' OR COALESCE(o.telephone,'') LIKE $query ESCAPE '\\' OR EXISTS (SELECT 1 FROM order_items si WHERE si.order_id=o.order_id AND (si.product_code_snapshot LIKE $query ESCAPE '\\' OR si.product_name_snapshot LIKE $query ESCAPE '\\' OR si.category_name_snapshot LIKE $query ESCAPE '\\')))" );
+            predicates.Add("(COALESCE(o.order_reference,'') LIKE $query ESCAPE '\\' OR COALESCE(o.comment,'') LIKE $query ESCAPE '\\' OR ($telephoneTerm0 <> '' AND (replace(replace(replace(replace(replace(replace(COALESCE(o.telephone,''),' ',''),'-',''),'.',''),'(',''),')',''),'+','') LIKE $telephonePattern0 ESCAPE '\\' OR ($telephoneTerm1 <> '' AND replace(replace(replace(replace(replace(replace(COALESCE(o.telephone,''),' ',''),'-',''),'.',''),'(',''),')',''),'+','') LIKE $telephonePattern1 ESCAPE '\\'))) OR EXISTS (SELECT 1 FROM order_items si WHERE si.order_id=o.order_id AND (si.product_code_snapshot LIKE $query ESCAPE '\\' OR si.product_name_snapshot LIKE $query ESCAPE '\\' OR si.category_name_snapshot LIKE $query ESCAPE '\\')))" );
             command.Parameters.AddWithValue("$query", $"%{EscapeLikePattern(query)}%");
+            command.Parameters.AddWithValue("$telephoneTerm0", telephoneTerm0);
+            command.Parameters.AddWithValue("$telephoneTerm1", telephoneTerm1);
+            command.Parameters.AddWithValue("$telephonePattern0", $"%{EscapeLikePattern(telephoneTerm0)}%");
+            command.Parameters.AddWithValue("$telephonePattern1", $"%{EscapeLikePattern(telephoneTerm1)}%");
         }
 
         if (criteria.Status is { } status)
@@ -262,6 +269,7 @@ public sealed class SqliteAnnualArchiveAccess(
 
             try
             {
+                Inject("replace-after-backup");
                 File.Move(tempPath, destinationFullPath);
             }
             catch

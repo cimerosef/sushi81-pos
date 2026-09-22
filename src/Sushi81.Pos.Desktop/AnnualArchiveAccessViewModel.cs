@@ -29,6 +29,13 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
     private string errorMessage = string.Empty;
     private bool isBusy;
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>(StringComparer.Ordinal);
+    private long discoveryGeneration;
+    private long searchGeneration;
+    private long detailGeneration;
+    private CancellationTokenSource? discoveryCancellation;
+    private CancellationTokenSource? searchCancellation;
+    private CancellationTokenSource? detailCancellation;
+    private int activeOperations;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -43,8 +50,14 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
         {
             if (ReferenceEquals(selectedArchive, value)) return;
             selectedArchive = value;
-            SelectedRow = null;
-            _ = RefreshOrdersGuardedAsync();
+            CancelSearch();
+            CancelDetail();
+            selectedRow = null;
+            selectedOrder = null;
+            Orders.Clear();
+            OnPropertyChanged(nameof(SelectedRow));
+            OnPropertyChanged(nameof(SelectedOrder));
+            if (value is not null) _ = RefreshOrdersGuardedAsync();
             OnPropertyChanged();
             OnPropertyChanged(nameof(CanExport));
         }
@@ -58,6 +71,7 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
             if (ReferenceEquals(selectedRow, value)) return;
             selectedRow = value;
             selectedOrder = null;
+            CancelDetail();
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedOrder));
             if (value is not null && selectedArchive is not null)
@@ -133,53 +147,123 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
-        IsBusy = true;
-        ErrorMessage = string.Empty;
+        var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var previous = discoveryCancellation;
+        discoveryCancellation = operation;
+        var generation = ++discoveryGeneration;
+        previous?.Cancel();
+        BeginOperation();
         try
         {
-            var archives = await access.DiscoverAsync(cancellationToken);
+            ErrorMessage = string.Empty;
+            var archives = await access.DiscoverAsync(operation.Token);
+            if (!IsCurrent(discoveryCancellation, operation, discoveryGeneration, generation)) return;
+
             AvailableArchives.Clear();
             foreach (var archive in archives) AvailableArchives.Add(archive);
-            if (selectedArchive is null || !archives.Any(item => item.ArchiveYear == selectedArchive.ArchiveYear))
-                SelectedArchive = archives.Count == 0 ? null : archives[0];
+
+            var selectedYear = selectedArchive?.ArchiveYear;
+            var preservedSelection = selectedYear is null
+                ? null
+                : archives.FirstOrDefault(item => item.ArchiveYear == selectedYear.Value);
+            if (preservedSelection is null)
+            {
+                if (selectedArchive is not null) SelectedArchive = null;
+                else
+                {
+                    CancelSearch();
+                    CancelDetail();
+                    Orders.Clear();
+                    SelectedRow = null;
+                    SelectedOrder = null;
+                }
+            }
+            else if (!ReferenceEquals(selectedArchive, preservedSelection))
+                SelectedArchive = preservedSelection;
             else
-                await RefreshOrdersGuardedAsync(cancellationToken);
+                await RefreshOrdersAsync(operation.Token);
+
+            if (!IsCurrent(discoveryCancellation, operation, discoveryGeneration, generation)) return;
             StatusMessage = archives.Count == 0
                 ? Text("ArchiveNoArchives", "No validated annual archives are available.")
                 : string.Format(CultureInfo.CurrentCulture, Text("ArchiveAvailable", "{0} annual archive(s) available."), archives.Count);
         }
+        catch (OperationCanceledException) when (operation.IsCancellationRequested && !cancellationToken.IsCancellationRequested) { }
         catch (OperationCanceledException) { throw; }
         catch (Exception)
         {
+            if (!IsCurrent(discoveryCancellation, operation, discoveryGeneration, generation)) return;
             AvailableArchives.Clear();
             Orders.Clear();
             SelectedArchive = null;
+            SelectedRow = null;
+            SelectedOrder = null;
             ErrorMessage = Text("ArchiveAccessFailed", "Historical archive access failed.");
         }
-        finally { IsBusy = false; }
+        finally
+        {
+            if (ReferenceEquals(discoveryCancellation, operation)) discoveryCancellation = null;
+            operation.Dispose();
+            EndOperation();
+        }
     }
 
     public async Task RefreshOrdersAsync(CancellationToken cancellationToken = default)
     {
-        if (SelectedArchive is null)
+        var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var previous = searchCancellation;
+        searchCancellation = operation;
+        var generation = ++searchGeneration;
+        previous?.Cancel();
+        BeginOperation();
+        var archiveYear = selectedArchive?.ArchiveYear;
+        try
         {
+            if (SelectedArchive is null)
+            {
+                if (IsCurrent(searchCancellation, operation, searchGeneration, generation))
+                {
+                    Orders.Clear();
+                    SelectedRow = null;
+                    SelectedOrder = null;
+                }
+                return;
+            }
+
+            if (!TryReadDate(FromDateText, out var from) || !TryReadDate(ToDateText, out var to) || from is not null && to is not null && from > to)
+            {
+                if (IsCurrentSearch(operation, generation, archiveYear))
+                    ErrorMessage = Text("ArchiveInvalidDateRange", "The historical date range is invalid.");
+                return;
+            }
+
+            ErrorMessage = string.Empty;
+            var criteria = new AnnualArchiveSearchCriteria(SearchText, SelectedStatus?.Value, from, to);
+            var rows = await access.SearchAsync(archiveYear!.Value, criteria, operation.Token);
+            if (!IsCurrentSearch(operation, generation, archiveYear)) return;
             Orders.Clear();
-            SelectedOrder = null;
-            return;
+            foreach (var row in rows) Orders.Add(row);
+            if (SelectedRow is not null && !rows.Any(row => row.Id == SelectedRow.Id))
+                SelectedRow = null;
         }
-
-        if (!TryReadDate(FromDateText, out var from) || !TryReadDate(ToDateText, out var to) || from is not null && to is not null && from > to)
+        catch (OperationCanceledException) when (operation.IsCancellationRequested && !cancellationToken.IsCancellationRequested) { }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception)
         {
-            ErrorMessage = Text("ArchiveInvalidDateRange", "The historical date range is invalid.");
-            return;
+            if (IsCurrentSearch(operation, generation, archiveYear))
+            {
+                Orders.Clear();
+                SelectedRow = null;
+                SelectedOrder = null;
+                ErrorMessage = Text("ArchiveAccessFailed", "Historical archive access failed.");
+            }
         }
-
-        ErrorMessage = string.Empty;
-        var rows = await access.SearchAsync(SelectedArchive.ArchiveYear, new AnnualArchiveSearchCriteria(SearchText, SelectedStatus?.Value, from, to), cancellationToken);
-        Orders.Clear();
-        foreach (var row in rows) Orders.Add(row);
-        if (SelectedRow is not null && !rows.Any(row => row.Id == SelectedRow.Id))
-            SelectedRow = null;
+        finally
+        {
+            if (ReferenceEquals(searchCancellation, operation)) searchCancellation = null;
+            operation.Dispose();
+            EndOperation();
+        }
     }
 
     public async Task LoadSelectedAsync(CancellationToken cancellationToken = default)
@@ -191,7 +275,7 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
     public async Task<AnnualArchiveCopyResult?> CopySelectedAsync(string? destinationPath, CancellationToken cancellationToken = default)
     {
         if (SelectedArchive is null || string.IsNullOrWhiteSpace(destinationPath)) return null;
-        IsBusy = true;
+        BeginOperation();
         ErrorMessage = string.Empty;
         try
         {
@@ -205,23 +289,82 @@ public sealed class AnnualArchiveAccessViewModel(IAnnualArchiveAccess access) : 
             ErrorMessage = Text("ArchiveCopyFailed", "The selected archive could not be copied.");
             return null;
         }
-        finally { IsBusy = false; }
+        finally { EndOperation(); }
     }
 
     private async Task RefreshOrdersGuardedAsync(CancellationToken cancellationToken = default)
     {
-        IsBusy = true;
-        try { await RefreshOrdersAsync(cancellationToken); }
-        catch (OperationCanceledException) { throw; }
-        catch (Exception) { Orders.Clear(); ErrorMessage = Text("ArchiveAccessFailed", "Historical archive access failed."); }
-        finally { IsBusy = false; }
+        await RefreshOrdersAsync(cancellationToken);
     }
 
     private async Task LoadSelectedAsync(int archiveYear, Guid orderId, CancellationToken cancellationToken = default)
     {
-        try { SelectedOrder = await access.GetOrderAsync(archiveYear, orderId, cancellationToken); }
+        var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var previous = detailCancellation;
+        detailCancellation = operation;
+        var generation = ++detailGeneration;
+        previous?.Cancel();
+        BeginOperation();
+        try
+        {
+            var order = await access.GetOrderAsync(archiveYear, orderId, operation.Token);
+            if (IsCurrentDetail(operation, generation, archiveYear, orderId)) SelectedOrder = order;
+        }
+        catch (OperationCanceledException) when (operation.IsCancellationRequested && !cancellationToken.IsCancellationRequested) { }
         catch (OperationCanceledException) { throw; }
-        catch (Exception) { SelectedOrder = null; ErrorMessage = Text("ArchiveAccessFailed", "Historical archive access failed."); }
+        catch (Exception)
+        {
+            if (IsCurrentDetail(operation, generation, archiveYear, orderId))
+            {
+                SelectedOrder = null;
+                ErrorMessage = Text("ArchiveAccessFailed", "Historical archive access failed.");
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(detailCancellation, operation)) detailCancellation = null;
+            operation.Dispose();
+            EndOperation();
+        }
+    }
+
+    private bool IsCurrentSearch(CancellationTokenSource operation, long generation, int? archiveYear) =>
+        IsCurrent(searchCancellation, operation, searchGeneration, generation) &&
+        archiveYear is not null && selectedArchive?.ArchiveYear == archiveYear;
+
+    private bool IsCurrentDetail(CancellationTokenSource operation, long generation, int archiveYear, Guid orderId) =>
+        IsCurrent(detailCancellation, operation, detailGeneration, generation) &&
+        selectedArchive?.ArchiveYear == archiveYear && selectedRow?.Id == orderId;
+
+    private static bool IsCurrent(CancellationTokenSource? current, CancellationTokenSource operation, long currentGeneration, long generation) =>
+        ReferenceEquals(current, operation) && currentGeneration == generation && !operation.IsCancellationRequested;
+
+    private void CancelSearch()
+    {
+        searchGeneration++;
+        var previous = searchCancellation;
+        searchCancellation = null;
+        previous?.Cancel();
+    }
+
+    private void CancelDetail()
+    {
+        detailGeneration++;
+        var previous = detailCancellation;
+        detailCancellation = null;
+        previous?.Cancel();
+    }
+
+    private void BeginOperation()
+    {
+        activeOperations++;
+        if (activeOperations == 1) IsBusy = true;
+    }
+
+    private void EndOperation()
+    {
+        activeOperations--;
+        if (activeOperations == 0) IsBusy = false;
     }
 
     private static bool TryReadDate(string value, out DateOnly? date)

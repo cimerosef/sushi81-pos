@@ -22,6 +22,8 @@ namespace Sushi81.Pos.Infrastructure.IntegrationTests;
 [TestClass]
 public sealed class M12Wp2AnnualArchiveIntegrationTests
 {
+    private static readonly string[] Wp4CopyFailureStages = ["copy", "flush", "verify", "replace", "replace-after-backup"];
+
     [TestMethod]
     public async Task FinalizationPublishesArchivePreservesCreateUpdateCancelAndRemovesOnlyExactTargets()
     {
@@ -393,45 +395,172 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
     {
         using var fixture = await Fixture.CreateAsync();
         var id = Guid.Parse("52b00000-0000-0000-0000-000000000001");
-        var original = ClosedOrder(id, OrderSourceType.HiboutikPaste, "historical M12 search");
-        await fixture.OrderStore.SaveLifecycleAsync(original, [Payment(id)]);
+        const string phone = "+33 6 12 34 56 78";
+        var sourceOrder = ClosedOrder(id, OrderSourceType.HiboutikPaste, "historical M12 search");
+        var originalItem = sourceOrder.Items.Single() with
+        {
+            CalculatedLineTotalTtc = Money.FromCents(1150),
+            Adjustments =
+            [
+                new OrderLineAdjustmentSnapshot(Guid.Parse("52b00000-0000-0000-0000-000000000004"), 0, OrderAdjustmentKind.CustomAdjustment, null, "Extras", "Extra sauce", Money.FromCents(100), 5.5m),
+                new OrderLineAdjustmentSnapshot(Guid.Parse("52b00000-0000-0000-0000-000000000010"), 1, OrderAdjustmentKind.PredefinedOption, Guid.Parse("52b00000-0000-0000-0000-000000000011"), "Sauce", "Piquante", Money.FromCents(50), 5.5m)
+            ]
+        };
+        var original = sourceOrder with
+        {
+            Telephone = phone,
+            TotalTtc = Money.FromCents(1150),
+            Items = [originalItem],
+            TaxBreakdown =
+            [
+                new(10m, Money.FromCents(1000), Money.FromCents(91), Guid.Parse("52b00000-0000-0000-0000-000000000005")),
+                new(5.5m, Money.FromCents(150), Money.FromCents(8), Guid.Parse("52b00000-0000-0000-0000-000000000006"))
+            ],
+            CardPaymentTtc = Money.FromCents(1000),
+            CashPaymentTtc = Money.FromCents(150),
+            SourceTotalTtc = Money.FromCents(1200)
+        };
+        var cashPayment = new PaymentAdjustment(
+            Guid.Parse("52b00000-0000-0000-0000-000000000007"), id, PaymentBucket.Cash, Money.FromCents(150),
+            new DateTimeOffset(2026, 12, 31, 18, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 12, 31, 18, 2, 0, TimeSpan.Zero));
+        await fixture.OrderStore.SaveLifecycleAsync(original, [Payment(id), cashPayment]);
+
+        var cancelledId = Guid.Parse("52b00000-0000-0000-0000-000000000008");
+        var cancelled = ClosedOrder(cancelledId, OrderSourceType.Pos, "cancelled historical") with
+        {
+            Status = OrderStatus.Cancelled,
+            ClosedAt = null,
+            CancelledAt = new DateTimeOffset(2026, 12, 31, 19, 0, 0, TimeSpan.Zero)
+        };
+        await fixture.OrderStore.SaveLifecycleAsync(cancelled, []);
+
+        var openId = Guid.Parse("52b00000-0000-0000-0000-000000000009");
+        var open = ClosedOrder(openId, OrderSourceType.Pos, "open-not-archived") with { Status = OrderStatus.Open, ClosedAt = null, CancelledAt = null };
+        await fixture.OrderStore.SaveAsync(open);
         var finalized = await fixture.Service.FinalizeNextArchiveAsync();
-        var canonicalBytes = File.ReadAllBytes(finalized.CanonicalArchivePath);
+        var canonicalBytes2026 = File.ReadAllBytes(finalized.CanonicalArchivePath);
+
+        fixture.Clock.BusinessDateValue = new DateOnly(2028, 2, 1);
+        var nextYearId = Guid.Parse("52b00000-0000-0000-0000-000000000002");
+        var nextYearOrder = ClosedOrder(nextYearId, OrderSourceType.Pos, "second-year-only") with
+        {
+            CreatedAt = new DateTimeOffset(2027, 12, 1, 8, 0, 0, TimeSpan.Zero),
+            UpdatedAt = new DateTimeOffset(2027, 12, 31, 18, 0, 0, TimeSpan.Zero),
+            ClosedAt = new DateTimeOffset(2027, 12, 31, 18, 0, 0, TimeSpan.Zero),
+            PlannedFulfilmentDate = new DateOnly(2027, 12, 31)
+        };
+        await fixture.OrderStore.SaveLifecycleAsync(nextYearOrder, [Payment(nextYearId)]);
+        var finalized2027 = await fixture.Service.FinalizeNextArchiveAsync();
+        var canonicalBytes2027 = File.ReadAllBytes(finalized2027.CanonicalArchivePath);
+
+        var liveOnlyId = Guid.Parse("52b00000-0000-0000-0000-000000000003");
+        var liveOnlyOrder = ClosedOrder(liveOnlyId, OrderSourceType.Pos, "live-only") with
+        {
+            Telephone = phone,
+            CreatedAt = new DateTimeOffset(2028, 1, 1, 8, 0, 0, TimeSpan.Zero),
+            UpdatedAt = new DateTimeOffset(2028, 1, 1, 8, 0, 0, TimeSpan.Zero),
+            ClosedAt = new DateTimeOffset(2028, 1, 1, 8, 0, 0, TimeSpan.Zero),
+            PlannedFulfilmentDate = new DateOnly(2028, 1, 2)
+        };
+        await fixture.OrderStore.SaveLifecycleAsync(liveOnlyOrder, [Payment(liveOnlyId)]);
 
         File.WriteAllText(Path.Combine(fixture.Paths.ArchiveDirectory, "not-an-archive.db"), "ignored");
-        File.WriteAllBytes(Path.Combine(fixture.Paths.ArchiveDirectory, "sushi81-archive-2025.db"), [0x53, 0x51, 0x4c]);
+        File.WriteAllBytes(Path.Combine(fixture.Paths.ArchiveDirectory, "sushi81-archive-2025.db"), canonicalBytes2026);
+        File.WriteAllBytes(Path.Combine(fixture.Paths.ArchiveDirectory, "sushi81-archive-2024.db"), [0x53, 0x51, 0x4c]);
+
+        await using (var liveConnection = await fixture.Factory.OpenLiveConnectionAsync())
+        await using (var missingFileCompletion = liveConnection.CreateCommand())
+        {
+            missingFileCompletion.CommandText = "INSERT INTO annual_archive_completions(archive_year,archive_format_version,archive_schema_version,archive_file_name,archive_order_count,archive_sha256,completed_at_utc) VALUES (2023,'test-format','test-schema','sushi81-archive-2023.db',0,$sha,'2028-02-01T00:00:00.0000000+00:00');";
+            missingFileCompletion.Parameters.AddWithValue("$sha", new string('0', 64));
+            await missingFileCompletion.ExecuteNonQueryAsync();
+        }
+
         var access = new SqliteAnnualArchiveAccess(fixture.Paths, fixture.Clock);
+        var revisionBeforeReads = await ScalarTextAsync(fixture.Factory, "SELECT value FROM foundation_metadata WHERE key='business_data_revision';");
+        var orderCountBeforeReads = await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders;");
+        var completionCountBeforeReads = await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_completions;");
+        var exportBatchCountBeforeReads = await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_batches;");
+        var exportOrderCountBeforeReads = await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_batch_orders;");
+        var exportEmissionCountBeforeReads = await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_emissions;");
+        var successfulExportsBeforeReads = await ReadSuccessfulLedgerDumpAsync(fixture.Factory);
+        var archiveBytesBeforeReads = Directory.GetFiles(fixture.Paths.ArchiveDirectory)
+            .ToDictionary(path => Path.GetFileName(path)!, path => File.ReadAllBytes(path), StringComparer.OrdinalIgnoreCase);
+        var recoveryBytesBeforeReads = Directory.GetFiles(fixture.Paths.RecoveryDirectory, "*", SearchOption.AllDirectories)
+            .ToDictionary(path => Path.GetRelativePath(fixture.Paths.RecoveryDirectory, path), path => File.ReadAllBytes(path), StringComparer.OrdinalIgnoreCase);
+        using var nonAuthoritativeReadState = new WriteAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly);
+        Assert.AreEqual(WriteAuthorityState.NonAuthoritativeReadOnly, nonAuthoritativeReadState.State);
 
         var available = await access.DiscoverAsync();
-        Assert.HasCount(1, available);
-        Assert.AreEqual(2026, available.Single().ArchiveYear);
-        Assert.AreEqual(1, available.Single().OrderCount);
+        Assert.HasCount(2, available);
+        Assert.AreEqual(2027, available[0].ArchiveYear);
+        Assert.AreEqual(2026, available[1].ArchiveYear);
+        Assert.IsFalse(available.Any(item => item.ArchiveYear is 2025 or 2024 or 2023));
+        Assert.AreEqual(2, available.Single(item => item.ArchiveYear == 2026).OrderCount);
+        Assert.AreEqual(1, available.Single(item => item.ArchiveYear == 2027).OrderCount);
 
         var rows = await access.SearchAsync(2026, new AnnualArchiveSearchCriteria("historical M12"));
         Assert.HasCount(1, rows);
         Assert.AreEqual(id, rows.Single().Id);
         Assert.AreEqual(OrderSourceType.HiboutikPaste, rows.Single().SourceType);
         Assert.AreEqual(original.TotalTtc, rows.Single().TotalTtc);
+        Assert.IsEmpty(await access.SearchAsync(2026, new AnnualArchiveSearchCriteria("second-year-only")));
+        Assert.AreEqual(nextYearId, (await access.SearchAsync(2027, new AnnualArchiveSearchCriteria("second-year-only"))).Single().Id);
+        Assert.IsEmpty(await access.SearchAsync(2026, new AnnualArchiveSearchCriteria("live-only")));
+        Assert.IsEmpty(await access.SearchAsync(2026, new AnnualArchiveSearchCriteria("open-not-archived")));
+        Assert.AreEqual(id, (await access.SearchAsync(2026, new AnnualArchiveSearchCriteria(rows.Single().Reference))).Single().Id);
+        Assert.AreEqual(OrderSourceType.Pos, (await access.SearchAsync(2027, new AnnualArchiveSearchCriteria("second-year-only"))).Single().SourceType);
+        Assert.AreEqual(id, (await access.SearchAsync(2026, new AnnualArchiveSearchCriteria(Status: OrderStatus.Closed))).Single().Id);
+        Assert.AreEqual(cancelledId, (await access.SearchAsync(2026, new AnnualArchiveSearchCriteria(Status: OrderStatus.Cancelled))).Single().Id);
+        Assert.IsEmpty(await access.SearchAsync(2026, new AnnualArchiveSearchCriteria(FromDate: new DateOnly(2027, 1, 1))));
+
+        var nationalPhoneQuery = "06.12.34.56.78";
+        Assert.AreEqual(id, (await access.SearchAsync(2026, new AnnualArchiveSearchCriteria(nationalPhoneQuery))).Single().Id);
+        Assert.AreEqual(liveOnlyId, (await fixture.OrderStore.SearchAsync(nationalPhoneQuery)).Single(row => row.Id == liveOnlyId).Id);
 
         var loaded = await access.GetOrderAsync(2026, id);
         Assert.IsNotNull(loaded);
         Assert.AreEqual(original.Comment, loaded!.Comment);
+        Assert.AreEqual(original.Telephone, loaded.Telephone);
+        Assert.AreEqual(rows.Single().Reference, loaded.Reference);
+        Assert.AreEqual(original.TotalTtc, loaded.TotalTtc);
+        Assert.AreEqual(original.CardPaymentTtc, loaded.CardPaymentTtc);
+        Assert.AreEqual(original.CashPaymentTtc, loaded.CashPaymentTtc);
         Assert.AreEqual(original.Items.Single().ProductName, loaded.Items.Single().ProductName);
-        Assert.AreEqual(original.TaxBreakdown.Single().IncludedVatTtc, loaded.TaxBreakdown.Single().IncludedVatTtc);
+        CollectionAssert.AreEquivalent(original.Items.Single().Adjustments.ToArray(), loaded.Items.Single().Adjustments.ToArray());
+        CollectionAssert.AreEquivalent(original.TaxBreakdown.ToArray(), loaded.TaxBreakdown.ToArray());
 
         var exported = Path.Combine(fixture.Paths.TempDirectory, "selected-archive.db");
         File.WriteAllBytes(exported, [0x6f, 0x6c, 0x64]);
         var copied = await access.CopyAsync(2026, exported);
-        CollectionAssert.AreEqual(canonicalBytes, File.ReadAllBytes(exported));
-        CollectionAssert.AreEqual(canonicalBytes, File.ReadAllBytes(finalized.CanonicalArchivePath));
-        Assert.AreEqual(canonicalBytes.LongLength, copied.Length);
-        Assert.AreEqual(Convert.ToHexString(SHA256.HashData(canonicalBytes)), copied.Sha256);
+        CollectionAssert.AreEqual(canonicalBytes2026, File.ReadAllBytes(exported));
+        CollectionAssert.AreEqual(canonicalBytes2026, File.ReadAllBytes(finalized.CanonicalArchivePath));
+        CollectionAssert.AreEqual(canonicalBytes2027, File.ReadAllBytes(finalized2027.CanonicalArchivePath));
+        Assert.AreEqual(canonicalBytes2026.LongLength, copied.Length);
+        Assert.AreEqual(Convert.ToHexString(SHA256.HashData(canonicalBytes2026)), copied.Sha256);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => access.CopyAsync(2026, finalized.CanonicalArchivePath));
 
-        var failure = new SqliteAnnualArchiveAccess(fixture.Paths, fixture.Clock, stage => stage == "copy" ? new IOException("synthetic copy failure") : null);
-        var preserved = File.ReadAllBytes(exported);
-        await Assert.ThrowsAsync<IOException>(() => failure.CopyAsync(2026, exported));
-        CollectionAssert.AreEqual(preserved, File.ReadAllBytes(exported));
-        CollectionAssert.AreEqual(canonicalBytes, File.ReadAllBytes(finalized.CanonicalArchivePath));
+        foreach (var failureStage in Wp4CopyFailureStages)
+        {
+            var preserved = new byte[] { 0x6f, 0x6c, 0x64, (byte)failureStage.Length };
+            File.WriteAllBytes(exported, preserved);
+            var failure = new SqliteAnnualArchiveAccess(fixture.Paths, fixture.Clock, stage => stage == failureStage ? new IOException($"synthetic {stage} failure") : null);
+            await Assert.ThrowsAsync<IOException>(() => failure.CopyAsync(2026, exported));
+            CollectionAssert.AreEqual(preserved, File.ReadAllBytes(exported), $"Failure stage '{failureStage}' changed the prior destination.");
+            CollectionAssert.AreEqual(canonicalBytes2026, File.ReadAllBytes(finalized.CanonicalArchivePath));
+        }
+
+        Assert.AreEqual(revisionBeforeReads, await ScalarTextAsync(fixture.Factory, "SELECT value FROM foundation_metadata WHERE key='business_data_revision';"));
+        Assert.AreEqual(orderCountBeforeReads, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders;"));
+        Assert.AreEqual(completionCountBeforeReads, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_completions;"));
+        Assert.AreEqual(exportBatchCountBeforeReads, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_batches;"));
+        Assert.AreEqual(exportOrderCountBeforeReads, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_batch_orders;"));
+        Assert.AreEqual(exportEmissionCountBeforeReads, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_emissions;"));
+        Assert.AreEqual(successfulExportsBeforeReads, await ReadSuccessfulLedgerDumpAsync(fixture.Factory));
+        foreach (var (fileName, bytes) in archiveBytesBeforeReads)
+            CollectionAssert.AreEqual(bytes, File.ReadAllBytes(Path.Combine(fixture.Paths.ArchiveDirectory, fileName)), $"Read/copy flow modified canonical or ignored archive candidate '{fileName}'.");
+        foreach (var (relativePath, bytes) in recoveryBytesBeforeReads)
+            CollectionAssert.AreEqual(bytes, File.ReadAllBytes(Path.Combine(fixture.Paths.RecoveryDirectory, relativePath)), $"Read/copy flow modified local recovery file '{relativePath}'.");
     }
 
     [TestMethod]
