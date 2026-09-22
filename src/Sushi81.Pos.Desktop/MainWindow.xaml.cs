@@ -120,7 +120,7 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (loaded || DataContext is not ShellViewModel viewModel || viewModel.Admin is null && viewModel.Entry is null && viewModel.GestionExportWorkflow is null) return;
+        if (loaded || DataContext is not ShellViewModel viewModel || viewModel.Admin is null && viewModel.Entry is null && viewModel.GestionExportWorkflow is null && viewModel.ArchiveAccess is null) return;
         loaded = true;
         performanceTraceProbe = PerformanceTrace.StartDispatcherGapProbe(Dispatcher);
         PerformanceTrace.Log("window.loaded");
@@ -145,6 +145,12 @@ public partial class MainWindow : Window
                  PerformanceTrace.Log("m11.export-history.start");
                  await gestionExportWorkflow.RefreshHistoryAsync();
                  PerformanceTrace.Log("m11.export-history.end");
+             }
+             if (viewModel.ArchiveAccess is { } archiveAccess)
+             {
+                 PerformanceTrace.Log("m12.archive-access.start");
+                 await archiveAccess.RefreshAsync();
+                 PerformanceTrace.Log("m12.archive-access.end");
              }
         }
         catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
@@ -417,6 +423,7 @@ public partial class MainWindow : Window
              2 => "settings",
              3 => "commandes",
              4 => "caisse",
+             5 => "archive",
              _ => "settings"
          };
         PerformanceTrace.Log($"tab.selected.{key}");
@@ -444,6 +451,44 @@ public partial class MainWindow : Window
     private async void OnRefreshCatalogue(object sender, RoutedEventArgs e)
     {
         if (DataContext is ShellViewModel { Admin: { } admin }) await admin.RefreshAsync();
+    }
+
+    private async void OnRefreshArchive(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { ArchiveAccess: { } archiveAccess })
+            await archiveAccess.RefreshAsync();
+    }
+
+    private async void OnArchiveSearch(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { ArchiveAccess: { } archiveAccess })
+            await archiveAccess.RefreshOrdersAsync();
+    }
+
+    private async void OnArchiveRowSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is ShellViewModel { ArchiveAccess: { } archiveAccess })
+            await archiveAccess.LoadSelectedAsync();
+    }
+
+    private async void OnCopyArchive(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel { ArchiveAccess: { SelectedArchive: { } archive, CanExport: true } archiveAccess } viewModel)
+            return;
+
+        var dialog = new SaveFileDialog
+        {
+            FileName = $"sushi81-archive-{archive.ArchiveYear:D4}.db",
+            Filter = "SQLite archive (*.db)|*.db|All files (*.*)|*.*",
+            OverwritePrompt = true,
+            Title = LocalizedText(this, "ArchiveCopy", "Copy archive")
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        var result = await archiveAccess.CopySelectedAsync(dialog.FileName);
+        if (result is not null)
+            MessageBox.Show(this, archiveAccess.StatusMessage, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
+        else if (!string.IsNullOrWhiteSpace(archiveAccess.ErrorMessage))
+            MessageBox.Show(this, archiveAccess.ErrorMessage, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private async void OnExportCatalogue(object sender, RoutedEventArgs e)

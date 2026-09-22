@@ -170,3 +170,29 @@ No archive discovery/search UI, user-selected archive export, archived reprint, 
 Implementation validation before delivery: focused WP3 integration suite 7 passed, 0 failed, 0 skipped; focused WP3 architecture suite 2 passed, 0 failed, 0 skipped; full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 871 passed, 0 failed, 0 skipped; full Release solution build: 0 warnings, 0 errors; `git diff --check`: clean. Implementation commit: `a7e7ef81cc60ca6d36fe72d015da2a23566b2d2d`.
 
 Exact-head CI for implementation commit `a7e7ef81cc60ca6d36fe72d015da2a23566b2d2d`: Continuous integration run #855 / workflow run `35667860748` — SUCCESS. The final documentation-only delivery commit below requires its own exact-head CI before `CODEX_DONE`.
+
+## 2026-09-22 — WP4 annual archive access/search/copy package 07
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP4-ARCHIVE-ACCESS-SEARCH-EXPORT-07`, PR #25 comment `5770334827`;
+- handoff start head: `17ab5c8ce9f4033442dcf9f4d4f082a191c94169`;
+- controller prerequisite: WP3 accepted by PR #25 comment `5770223722`;
+- Issue #4 was OPEN and PR #25 remained the active Draft/open implementation PR during execution.
+
+Implemented only the authorized M12 WP4 boundary:
+
+- added a read-only application contract and infrastructure access service that discovers only canonical `sushi81-archive-YYYY.db` files which pass the existing standalone validator, ignoring malformed or corrupt candidates;
+- added explicit archive-year selection, historical search by reference/comment/telephone/product snapshot, status and planned-date range, and full `OrderSnapshot` hydration from persisted archive rows only;
+- added a separate WPF historical archive tab with localized French and Chinese labels, read-only detail rendering, no lifecycle edit/payment/cancel/reprint controls, and an explicit user-selected archive copy/export action;
+- added safe copy semantics using a temporary destination, disk flush, length/SHA-256 verification, same-directory replacement and restoration of an existing destination on replacement failure; canonical archives are never overwritten and source-equals-destination is rejected;
+- left live search isolated from the archive seam and kept archived printing/reprinting for the separately authorized WP5 scope.
+
+Focused evidence:
+
+- WP4 real-SQLite/filesystem integration: 1 passed, 0 failed, 0 skipped;
+- combined M12 infrastructure regression filter: 30 passed, 0 failed, 0 skipped;
+- WP4 desktop architecture/localization suite: 2 passed, 0 failed, 0 skipped;
+- combined M12 architecture regression filter: 4 passed, 0 failed, 0 skipped.
+
+No WP5 archived printing/reprinting, M13 work, OneDrive publication or PR merge is included or authorized by this handoff. Exact-head CI and the durable matching `CODEX_DONE` remain the final delivery steps.

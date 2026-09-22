@@ -457,4 +457,19 @@
   <data name="GestionExportRegenerated" xml:space="preserve"><value>批次已重新生成：{0}。</value></data>
   <data name="GestionExportRegenerateFailure" xml:space="preserve"><value>所选批次无法重新生成。</value></data>
   <data name="GestionExportHistoryFailure" xml:space="preserve"><value>无法加载导出历史。</value></data>
+  <data name="ArchiveAccess" xml:space="preserve"><value>历史归档</value></data>
+  <data name="ArchiveYear" xml:space="preserve"><value>归档年份</value></data>
+  <data name="ArchiveSearchHint" xml:space="preserve"><value>参考号、电话、备注或商品</value></data>
+  <data name="ArchiveSearch" xml:space="preserve"><value>搜索</value></data>
+  <data name="ArchiveFromDate" xml:space="preserve"><value>开始日期（含）</value></data>
+  <data name="ArchiveToDate" xml:space="preserve"><value>结束日期（含）</value></data>
+  <data name="ArchiveCopy" xml:space="preserve"><value>复制归档</value></data>
+  <data name="ArchiveReadOnlyNotice" xml:space="preserve"><value>历史数据只读查看。数据来自持久化快照；此处不提供修改或打印。</value></data>
+  <data name="ArchiveStatusAll" xml:space="preserve"><value>所有状态</value></data>
+  <data name="ArchiveNoArchives" xml:space="preserve"><value>没有可用的已验证年度归档。</value></data>
+  <data name="ArchiveAvailable" xml:space="preserve"><value>可用年度归档：{0} 个。</value></data>
+  <data name="ArchiveAccessFailed" xml:space="preserve"><value>历史归档访问失败。</value></data>
+  <data name="ArchiveInvalidDateRange" xml:space="preserve"><value>历史日期范围无效。</value></data>
+  <data name="ArchiveCopySucceeded" xml:space="preserve"><value>归档已复制到 {0}。</value></data>
+  <data name="ArchiveCopyFailed" xml:space="preserve"><value>无法复制选定的归档。</value></data>
 </root>

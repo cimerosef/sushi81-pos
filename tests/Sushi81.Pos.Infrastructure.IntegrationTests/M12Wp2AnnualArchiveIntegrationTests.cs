@@ -389,6 +389,52 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
     }
 
     [TestMethod]
+    public async Task Wp4AccessDiscoversValidatedArchiveSearchesSnapshotsAndCopiesSafely()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var id = Guid.Parse("52b00000-0000-0000-0000-000000000001");
+        var original = ClosedOrder(id, OrderSourceType.HiboutikPaste, "historical M12 search");
+        await fixture.OrderStore.SaveLifecycleAsync(original, [Payment(id)]);
+        var finalized = await fixture.Service.FinalizeNextArchiveAsync();
+        var canonicalBytes = File.ReadAllBytes(finalized.CanonicalArchivePath);
+
+        File.WriteAllText(Path.Combine(fixture.Paths.ArchiveDirectory, "not-an-archive.db"), "ignored");
+        File.WriteAllBytes(Path.Combine(fixture.Paths.ArchiveDirectory, "sushi81-archive-2025.db"), [0x53, 0x51, 0x4c]);
+        var access = new SqliteAnnualArchiveAccess(fixture.Paths, fixture.Clock);
+
+        var available = await access.DiscoverAsync();
+        Assert.HasCount(1, available);
+        Assert.AreEqual(2026, available.Single().ArchiveYear);
+        Assert.AreEqual(1, available.Single().OrderCount);
+
+        var rows = await access.SearchAsync(2026, new AnnualArchiveSearchCriteria("historical M12"));
+        Assert.HasCount(1, rows);
+        Assert.AreEqual(id, rows.Single().Id);
+        Assert.AreEqual(OrderSourceType.HiboutikPaste, rows.Single().SourceType);
+        Assert.AreEqual(original.TotalTtc, rows.Single().TotalTtc);
+
+        var loaded = await access.GetOrderAsync(2026, id);
+        Assert.IsNotNull(loaded);
+        Assert.AreEqual(original.Comment, loaded!.Comment);
+        Assert.AreEqual(original.Items.Single().ProductName, loaded.Items.Single().ProductName);
+        Assert.AreEqual(original.TaxBreakdown.Single().IncludedVatTtc, loaded.TaxBreakdown.Single().IncludedVatTtc);
+
+        var exported = Path.Combine(fixture.Paths.TempDirectory, "selected-archive.db");
+        File.WriteAllBytes(exported, [0x6f, 0x6c, 0x64]);
+        var copied = await access.CopyAsync(2026, exported);
+        CollectionAssert.AreEqual(canonicalBytes, File.ReadAllBytes(exported));
+        CollectionAssert.AreEqual(canonicalBytes, File.ReadAllBytes(finalized.CanonicalArchivePath));
+        Assert.AreEqual(canonicalBytes.LongLength, copied.Length);
+        Assert.AreEqual(Convert.ToHexString(SHA256.HashData(canonicalBytes)), copied.Sha256);
+
+        var failure = new SqliteAnnualArchiveAccess(fixture.Paths, fixture.Clock, stage => stage == "copy" ? new IOException("synthetic copy failure") : null);
+        var preserved = File.ReadAllBytes(exported);
+        await Assert.ThrowsAsync<IOException>(() => failure.CopyAsync(2026, exported));
+        CollectionAssert.AreEqual(preserved, File.ReadAllBytes(exported));
+        CollectionAssert.AreEqual(canonicalBytes, File.ReadAllBytes(finalized.CanonicalArchivePath));
+    }
+
+    [TestMethod]
     public async Task MigrationNineUpgradesWithoutResetAndBrokenUpgradeRollsBack()
     {
         using (var paths = new TestPaths())

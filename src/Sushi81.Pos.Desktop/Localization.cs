@@ -14,6 +14,7 @@ using Sushi81.Pos.Infrastructure.GitHubTransport;
 using Sushi81.Pos.Infrastructure.Authority;
 using Sushi81.Pos.Infrastructure.Configuration;
 using Sushi81.Pos.Application.Export;
+using Sushi81.Pos.Application.Archive;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -83,7 +84,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private readonly M07ConfigurationSetupService? _m07Setup;
     private AuthorityPhase? _authorityPhase;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, CatalogueWorkbookService? catalogueWorkbookService = null, CatalogueImportService? catalogueImportService = null, GestionExportWorkflowViewModel? gestionExportWorkflow = null)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, CatalogueWorkbookService? catalogueWorkbookService = null, CatalogueImportService? catalogueImportService = null, GestionExportWorkflowViewModel? gestionExportWorkflow = null, IAnnualArchiveAccess? archiveAccess = null)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
         _configuration = configuration ?? new LocalConfiguration();
@@ -118,6 +119,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         CatalogueWorkflow?.ApplyLocalization(Localized);
         GestionExportWorkflow = gestionExportWorkflow;
         GestionExportWorkflow?.ApplyLocalization(Localized);
+        ArchiveAccess = startupSucceeded && archiveAccess is not null ? new AnnualArchiveAccessViewModel(archiveAccess) : null;
+        ArchiveAccess?.ApplyLocalization(Localized);
         if (Admin is not null) Admin.SettingsSaved += OnSettingsSaved;
     }
 
@@ -203,7 +206,11 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public GestionExportWorkflowViewModel? GestionExportWorkflow { get; }
 
+    public AnnualArchiveAccessViewModel? ArchiveAccess { get; }
+
     public bool IsGestionExportAvailable => GestionExportWorkflow is not null;
+
+    public bool IsArchiveAccessAvailable => ArchiveAccess is not null;
 
     public bool IsM03Available => Admin is not null;
 
@@ -266,6 +273,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             PrinterSetup?.ApplyLocalization(Localized);
             CatalogueWorkflow?.ApplyLocalization(Localized);
             GestionExportWorkflow?.ApplyLocalization(Localized);
+            ArchiveAccess?.ApplyLocalization(Localized);
         }
         catch
         {
@@ -424,13 +432,18 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("GestionExportSelectionSummary").Append("GestionExportAllDates").Append("GestionExportFromDate")
              .Append("GestionExportToDate").Append("GestionExportDateRange").Append("GestionExportCreate")
               .Append("GestionExportUpdate").Append("GestionExportCancel").Append("GestionExportBlocking")
-              .Append("GestionExportDiagnosticSettlementDateUnavailable")
+             .Append("GestionExportDiagnosticSettlementDateUnavailable")
               .Append("GestionExportSuccessStatus").Append("GestionExportRegenerateBusy").Append("GestionExportRegenerated")
              .Append("GestionExportRegenerateFailure").Append("GestionExportHistoryFailure")
+             .Append("ArchiveAccess").Append("ArchiveYear").Append("ArchiveSearchHint").Append("ArchiveSearch")
+             .Append("ArchiveFromDate").Append("ArchiveToDate").Append("ArchiveCopy").Append("ArchiveReadOnlyNotice")
+             .Append("ArchiveStatusAll").Append("ArchiveNoArchives").Append("ArchiveAvailable")
+             .Append("ArchiveAccessFailed").Append("ArchiveInvalidDateRange").Append("ArchiveCopySucceeded").Append("ArchiveCopyFailed")
              .ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         CatalogueWorkflow?.ApplyLocalization(Localized);
         GestionExportWorkflow?.ApplyLocalization(Localized);
+        ArchiveAccess?.ApplyLocalization(Localized);
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Status));
         OnPropertyChanged(nameof(AuthorityStatus));

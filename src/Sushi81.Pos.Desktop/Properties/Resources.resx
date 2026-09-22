@@ -457,4 +457,19 @@ Changements effectifs : {2}</value></data>
   <data name="GestionExportRegenerated" xml:space="preserve"><value>Lot régénéré : {0}.</value></data>
   <data name="GestionExportRegenerateFailure" xml:space="preserve"><value>Le lot sélectionné n’a pas pu être régénéré.</value></data>
   <data name="GestionExportHistoryFailure" xml:space="preserve"><value>L’historique des exports n’a pas pu être chargé.</value></data>
+  <data name="ArchiveAccess" xml:space="preserve"><value>Archives historiques</value></data>
+  <data name="ArchiveYear" xml:space="preserve"><value>Année</value></data>
+  <data name="ArchiveSearchHint" xml:space="preserve"><value>Référence, téléphone, commentaire ou article</value></data>
+  <data name="ArchiveSearch" xml:space="preserve"><value>Rechercher</value></data>
+  <data name="ArchiveFromDate" xml:space="preserve"><value>Date de début (incluse)</value></data>
+  <data name="ArchiveToDate" xml:space="preserve"><value>Date de fin (incluse)</value></data>
+  <data name="ArchiveCopy" xml:space="preserve"><value>Copier l’archive</value></data>
+  <data name="ArchiveReadOnlyNotice" xml:space="preserve"><value>Consultation historique en lecture seule. Les données proviennent des instantanés persistés ; aucune modification ni impression n’est disponible ici.</value></data>
+  <data name="ArchiveStatusAll" xml:space="preserve"><value>Tous les statuts</value></data>
+  <data name="ArchiveNoArchives" xml:space="preserve"><value>Aucune archive annuelle validée n’est disponible.</value></data>
+  <data name="ArchiveAvailable" xml:space="preserve"><value>{0} archive(s) annuelle(s) disponible(s).</value></data>
+  <data name="ArchiveAccessFailed" xml:space="preserve"><value>L’accès à l’historique des archives a échoué.</value></data>
+  <data name="ArchiveInvalidDateRange" xml:space="preserve"><value>La période historique est invalide.</value></data>
+  <data name="ArchiveCopySucceeded" xml:space="preserve"><value>Archive copiée vers {0}.</value></data>
+  <data name="ArchiveCopyFailed" xml:space="preserve"><value>L’archive sélectionnée n’a pas pu être copiée.</value></data>
 </root>
