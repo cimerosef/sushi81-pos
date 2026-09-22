@@ -196,3 +196,42 @@ Focused evidence:
 - combined M12 architecture regression filter: 4 passed, 0 failed, 0 skipped.
 
 No WP5 archived printing/reprinting, M13 work, OneDrive publication or PR merge is included or authorized by this handoff. Exact-head CI and the durable matching `CODEX_DONE` remain the final delivery steps.
+
+## 2026-09-22 — WP4 repair/evidence closure package 08
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP4-REPAIR-EVIDENCE-CLOSURE-08`, PR #25 comment `5779783072`;
+- controller review: PR #25 comment `5779775217`;
+- handoff start head: `b14442f17e0668c46af675e924975d1e1a531913`;
+- Issue #4 was OPEN; PR #25 was the active open Draft PR on `codex/m12-annual-archive-authorized`;
+- implementation/evidence commit: `39e0c6aa7a4581a7395119195dea1b09a09c3f3d`;
+- changed only the WP4 access ViewModel, local SQLite archive search, and focused WP4 integration/architecture evidence.
+
+Authorized production repairs only:
+
+- archive discovery now lists validated years without implicitly selecting the newest; refresh preserves an explicitly selected year if it remains valid and clears selection/results/detail if it disappears;
+- discovery, selected-year search and selected-order hydration cancel prior requests and guard every result/error by the current operation generation and selected year/order, preventing late older results from replacing current state; busy state counts overlapping requests;
+- historical telephone search uses the same `TelephoneSearchNormalization.QueryTerms` and punctuation-insensitive stored-number matching as live search, without changing the live search path;
+- added a narrow `replace-after-backup` fault-injection seam so the existing destination-restoration branch is exercised after the old destination has been backed up.
+
+WP4 evidence map (READY criteria 1–32):
+
+- discovery 1–6: two valid annual files are returned newest-first; unrelated filename, corrupt candidate, filename/metadata year mismatch and a completion-ledger year with no file are excluded; byte snapshots prove discovery/search/copy leave canonical and ignored archive files unchanged;
+- read/search/hydration 7–16: historical detail retains reference, POS/HIBOUTIK_PASTE source, item plus predefined/custom adjustments, tax breakdown, payment totals and source total; CLOSED/CANCELLED rows are available while OPEN and live-only rows are absent; reference, phone, status and date filters, year isolation, live-phone parity, business revision, completion ledger and M11 export-ledger stability are asserted while a non-authoritative read state is active;
+- ViewModel/WPF 17–23: discovery starts with no selected year/rows/detail; only an explicit selected year is searched; refresh preserves/clears explicit selection correctly; delayed older discovery, year-search and order-detail results cannot overwrite the newer result; French and zh-CN resources and the separate read-only/non-lifecycle/non-print surface are checked, including live-search path separation;
+- copy/export 24–30: successful copy bytes/length/SHA match and both canonical files remain unchanged; source-equals-destination is rejected; injected copy/flush/verify/pre-replace/post-backup replacement failures preserve source and the previous destination; dialog cancellation returns before `CopySelectedAsync`; read/export leave live/recovery/M11 state unchanged; archive access has no OneDrive API/state dependency;
+- regression 31–32: the existing live phone/query regression remains unchanged and passing; M12 WP1/WP2/WP3 infrastructure and architecture regressions pass with WP4.
+
+Validation evidence for this implementation commit:
+
+- focused WP4 real-SQLite/filesystem integration: 1 passed, 0 failed, 0 skipped;
+- focused WP4 ViewModel/architecture suite: 7 passed, 0 failed, 0 skipped;
+- combined M12 infrastructure regressions: 30 passed, 0 failed, 0 skipped;
+- combined M12 architecture regressions: 9 passed, 0 failed, 0 skipped;
+- existing live phone/query regression: 1 passed, 0 failed, 0 skipped;
+- full `dotnet test Sushi81.Pos.sln --configuration Release --no-restore --nologo`: 879 passed, 0 failed, 0 skipped;
+- full Release solution build: 0 warnings, 0 errors;
+- `git diff --check`: clean before the append-only closure entry.
+
+Exact-head GitHub CI for implementation commit `39e0c6aa7a4581a7395119195dea1b09a09c3f3d` completed SUCCESS in workflow run #858 (`35778494747`). The worklog-only delivery commit will be the final head and requires its own exact-head CI; that status will be recorded in the matching durable `CODEX_DONE`. Issue #4 was OPEN at execution; no merge or WP5/M13 work was performed. No unresolved implementation blocker is known.
