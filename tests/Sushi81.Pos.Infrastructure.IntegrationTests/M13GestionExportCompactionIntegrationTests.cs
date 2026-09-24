@@ -1,6 +1,9 @@
 using System.Globalization;
 using System.Text;
+using ClosedXML.Excel;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Sushi81.Pos.Application.Archive;
 using Sushi81.Pos.Application.Export;
 using Sushi81.Pos.Application.Foundation.Authority;
@@ -225,6 +228,202 @@ public sealed class M13GestionExportCompactionIntegrationTests
         }
     }
 
+    [TestMethod]
+    public async Task ArchivedExpiredSuccessIsPrunedAtStartupAndUnavailableForHistoryAndRegeneration()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var id = Guid.Parse("53700000-0000-0000-0000-000000000001");
+        var batchId = await fixture.AddSuccessfulOrderAsync(id, 2026, "expired archived history", fixture.Clock.UtcNow.AddDays(-30));
+        await fixture.ArchiveService.FinalizeNextArchiveAsync();
+
+        var result = await fixture.CreateStartupCompactionCoordinator().RunAsync();
+
+        Assert.AreEqual(GestionExportCompactionStartupOutcome.Completed, result.Outcome);
+        Assert.AreEqual(1, result.Compaction!.BatchesPruned);
+        Assert.IsEmpty(await fixture.ExportStore.ListSuccessfulBatchesAsync());
+        Assert.IsNull(await fixture.ExportStore.GetBatchAsync(batchId));
+
+        var workbookService = fixture.CreateWorkbookService();
+        var regeneratedPath = Path.Combine(fixture.Paths.TempDirectory, "pruned-history.xlsx");
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await workbookService.RegenerateAsync(batchId, regeneratedPath));
+        Assert.IsFalse(File.Exists(regeneratedPath));
+    }
+
+    [TestMethod]
+    public async Task NewlyArchivedSuccessIsCompactedOnlyAfterArchiveProofExists()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var id = Guid.Parse("53700000-0000-0000-0000-000000000002");
+        var batchId = await fixture.AddSuccessfulOrderAsync(id, 2026, "same-startup archived history", fixture.Clock.UtcNow.AddDays(-45));
+
+        var archive = await fixture.ArchiveService.FinalizeNextArchiveAsync();
+        Assert.AreEqual(AnnualArchiveFinalizationOutcome.CompletedNow, archive.Outcome);
+        Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_order_proofs WHERE order_id=$id;", id.ToString("D")));
+
+        var result = await fixture.CreateStartupCompactionCoordinator().RunAsync();
+
+        Assert.AreEqual(GestionExportCompactionStartupOutcome.Completed, result.Outcome);
+        Assert.AreEqual(1, result.Compaction!.BatchesPruned);
+        Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_batches WHERE batch_id=$batch;", batchId.ToString("D")));
+        Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM pragma_foreign_key_check;"));
+    }
+
+    [TestMethod]
+    public async Task NonAuthoritativeStartupSkipsCompactionAndLeavesLedgerUnchanged()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var id = Guid.Parse("53700000-0000-0000-0000-000000000003");
+        var batchId = await fixture.AddSuccessfulOrderAsync(id, 2026, "read-only startup history", fixture.Clock.UtcNow.AddDays(-45));
+        await fixture.ArchiveService.FinalizeNextArchiveAsync();
+        var before = await ReadLedgerStateAsync(fixture.Factory);
+        fixture.SetAuthorityState(WriteAuthorityState.NonAuthoritativeReadOnly);
+        var injectorCalls = 0;
+
+        var result = await fixture.CreateStartupCompactionCoordinator(_ =>
+        {
+            injectorCalls++;
+            return null;
+        }).RunAsync();
+
+        Assert.AreEqual(GestionExportCompactionStartupOutcome.SkippedNotAuthoritative, result.Outcome);
+        Assert.AreEqual(0, injectorCalls);
+        Assert.AreEqual(before, await ReadLedgerStateAsync(fixture.Factory));
+        Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_batches WHERE batch_id=$batch;", batchId.ToString("D")));
+        Assert.HasCount(1, await fixture.ExportStore.ListSuccessfulBatchesAsync());
+    }
+
+    [TestMethod]
+    public async Task StartupCompactionRetainsSuccessfulStateWithAnUnresolvedPreparedDependency()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var id = Guid.Parse("53700000-0000-0000-0000-000000000006");
+        var successfulBatchId = await fixture.AddSuccessfulOrderAsync(id, 2026, "successful predecessor with pending update", fixture.Clock.UtcNow.AddDays(-45));
+        var changedOrder = ClosedOrder(id, 2026, "unresolved pending update") with { UpdatedAt = fixture.Clock.UtcNow.AddMinutes(-2) };
+        await fixture.OrderStore.SaveLifecycleAsync(changedOrder, []);
+        await fixture.ArchiveService.FinalizeNextArchiveAsync();
+        await ExecuteAsync(fixture.Factory, "UPDATE export_batches SET generated_at_utc=$old WHERE status='PREPARED';", ("$old", Format(fixture.Clock.UtcNow.AddDays(-60))));
+
+        var result = await fixture.CreateStartupCompactionCoordinator().RunAsync();
+
+        Assert.AreEqual(GestionExportCompactionStartupOutcome.Completed, result.Outcome);
+        Assert.AreEqual(0, result.Compaction!.BatchesPruned);
+        Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_batches WHERE batch_id=$batch AND status='SUCCESS';", successfulBatchId.ToString("D")));
+        Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_batches WHERE status='PREPARED' AND completed_at_utc IS NULL;"));
+        Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM pragma_foreign_key_check;"));
+    }
+
+    [TestMethod]
+    public async Task StartupCompactionLeavesLiveOrderSelectionEquivalent()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var id = Guid.Parse("53700000-0000-0000-0000-000000000007");
+        var successfulBatchId = await fixture.AddSuccessfulOrderAsync(id, 2027, "live correction state", fixture.Clock.UtcNow.AddDays(-45));
+        var changedOrder = ClosedOrder(id, 2027, "live order changed after export") with { UpdatedAt = fixture.Clock.UtcNow.AddMinutes(-2) };
+        await fixture.OrderStore.SaveLifecycleAsync(changedOrder, []);
+        var before = SelectionFingerprint(await fixture.ExportService.SelectAsync(new ExportSelectionOptions()));
+
+        var result = await fixture.CreateStartupCompactionCoordinator().RunAsync();
+
+        var after = SelectionFingerprint(await fixture.ExportService.SelectAsync(new ExportSelectionOptions()));
+        Assert.AreEqual(GestionExportCompactionStartupOutcome.Completed, result.Outcome);
+        Assert.AreEqual(0, result.Compaction!.BatchesPruned);
+        Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_batches WHERE batch_id=$batch;", successfulBatchId.ToString("D")));
+        Assert.AreEqual(before, after);
+    }
+
+    [TestMethod]
+    public async Task RecentArchivedSuccessRemainsVisibleAndExactlyRegenerableAfterStartupCompaction()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var id = Guid.Parse("53700000-0000-0000-0000-000000000004");
+        var batchId = await fixture.AddSuccessfulOrderAsync(id, 2026, "retained regeneration payload", fixture.Clock.UtcNow.AddDays(-29));
+        await fixture.ArchiveService.FinalizeNextArchiveAsync();
+        var before = await fixture.ExportStore.GetBatchAsync(batchId);
+        Assert.IsNotNull(before);
+        var serializedBefore = ExportPayloadSerializer.SerializeBatch(before.Payload);
+        var workbookService = fixture.CreateWorkbookService();
+        var beforePath = Path.Combine(fixture.Paths.TempDirectory, "retained-before.xlsx");
+        await workbookService.RegenerateAsync(batchId, beforePath);
+        var workbookHashBefore = WorkbookContentHash(beforePath);
+
+        var result = await fixture.CreateStartupCompactionCoordinator().RunAsync();
+
+        Assert.AreEqual(GestionExportCompactionStartupOutcome.Completed, result.Outcome);
+        Assert.AreEqual(0, result.Compaction!.BatchesPruned);
+        Assert.AreEqual(1, result.Compaction.BatchesRetained);
+        var after = await fixture.ExportStore.GetBatchAsync(batchId);
+        Assert.IsNotNull(after);
+        Assert.AreEqual(before.PayloadHash, after.PayloadHash);
+        Assert.AreEqual(serializedBefore, ExportPayloadSerializer.SerializeBatch(after.Payload));
+        Assert.HasCount(1, await fixture.ExportStore.ListSuccessfulBatchesAsync());
+
+        var afterPath = Path.Combine(fixture.Paths.TempDirectory, "retained-after.xlsx");
+        await workbookService.RegenerateAsync(batchId, afterPath);
+        Assert.AreEqual(workbookHashBefore, WorkbookContentHash(afterPath));
+    }
+
+    [TestMethod]
+    public async Task StartupCompactionFailureIsLoggedNonfatalAndRetryableNextStartup()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var id = Guid.Parse("53700000-0000-0000-0000-000000000005");
+        var batchId = await fixture.AddSuccessfulOrderAsync(id, 2026, "retry after startup failure", fixture.Clock.UtcNow.AddDays(-45));
+        await fixture.ArchiveService.FinalizeNextArchiveAsync();
+        var before = await ReadLedgerStateAsync(fixture.Factory);
+        var logger = new CapturingLogger();
+
+        var failed = await fixture.CreateStartupCompactionCoordinator(
+            stage => stage == "after-emissions-delete-before-batch-delete"
+                ? new InvalidOperationException("injected compaction failure")
+                : null,
+            logger).RunAsync();
+
+        Assert.AreEqual(GestionExportCompactionStartupOutcome.FailedRetryable, failed.Outcome);
+        Assert.IsTrue(logger.Entries.Any(entry =>
+            entry.EventId.Id == 1301
+            && entry.Level == LogLevel.Warning
+            && entry.Message.Contains("transactional export history was retained", StringComparison.Ordinal)));
+        Assert.AreEqual(before, await ReadLedgerStateAsync(fixture.Factory));
+        Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM export_batches WHERE batch_id=$batch;", batchId.ToString("D")));
+
+        var retried = await fixture.CreateStartupCompactionCoordinator().RunAsync();
+
+        Assert.AreEqual(GestionExportCompactionStartupOutcome.Completed, retried.Outcome);
+        Assert.AreEqual(1, retried.Compaction!.BatchesPruned);
+        Assert.IsNull(await fixture.ExportStore.GetBatchAsync(batchId));
+    }
+
+    private static string WorkbookContentHash(string path)
+    {
+        using var workbook = new XLWorkbook(path);
+        var content = new StringBuilder();
+        foreach (var sheet in workbook.Worksheets)
+        {
+            content.Append('[').Append(sheet.Name).AppendLine("]");
+            foreach (var cell in sheet.CellsUsed().OrderBy(cell => cell.Address.RowNumber).ThenBy(cell => cell.Address.ColumnNumber))
+                content.Append(cell.Address).Append('=').Append(cell.GetFormattedString(CultureInfo.InvariantCulture)).AppendLine();
+        }
+
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(content.ToString())));
+    }
+
+    private sealed class CapturingLogger : ILogger
+    {
+        public List<(EventId EventId, LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((eventId, logLevel, formatter(state, exception)));
+    }
+
     private static string SelectionFingerprint(ExportSelectionResult result) =>
         string.Join("\n", result.Actions.Select(ExportPayloadSerializer.SerializeAction))
         + "\n--diagnostics--\n"
@@ -363,6 +562,14 @@ public sealed class M13GestionExportCompactionIntegrationTests
 
         public SqliteGestionExportCompactionService CreateCompactor(Func<string, Exception?>? failureInjector = null) =>
             new(Factory, Runner, Authority, Clock, failureInjector);
+
+        public GestionExportCompactionStartupCoordinator CreateStartupCompactionCoordinator(
+            Func<string, Exception?>? failureInjector = null,
+            ILogger? logger = null) =>
+            new(Authority, CreateCompactor(failureInjector), logger ?? NullLogger<GestionExportCompactionStartupCoordinator>.Instance);
+
+        public GestionExportWorkbookService CreateWorkbookService() =>
+            new(ExportService, ExportStore, new ClosedXmlGestionExportWorkbookGateway(), Clock, Authority);
 
         public void SetAuthorityState(WriteAuthorityState state) => Authority.SetState(state);
 

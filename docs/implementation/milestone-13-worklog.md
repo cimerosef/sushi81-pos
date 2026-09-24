@@ -84,3 +84,24 @@ Local verification on this worktree:
 ## 2026-09-24 — WP1 final verification update
 
 Final review added an exact per-order proof-set assertion and a failure injection immediately after archive-proof insertion but before live-order deletion. The M12/M11 regression filter then passed 65 tests (50 infrastructure integration and 15 application), with 0 failures and 0 skipped. The final full Release test command passed 888 tests, 0 failed, 0 skipped. The final full Release build completed with 0 warnings and 0 errors; `git diff --check` passed. Exact-head GitHub CI remains the final completion gate after pushing this head.
+
+## 2026-09-24 — WP2 startup cleanup and history behavior
+
+Handoff `M13-WP2-RETENTION-RUNTIME-HISTORY-02` was executed on the authorized PR #26 branch after the owner approved the bounded startup cleanup.
+
+Implemented:
+
+- Application startup now attempts one Gestion export-history compaction after authority resolution and the M12 annual archive startup attempt.
+- Compaction is skipped unless this installation has authoritative write access. A failed compaction is logged as retryable and does not fail application startup; cancellation still propagates.
+- Startup/history integration evidence covers: pruned batches disappearing from history and regeneration; same-startup archive proof before pruning; non-authoritative no-op; unresolved PREPARED dependencies; live-order selection equivalence; retained payload and workbook regeneration equivalence; transactional failure rollback and retry.
+- No timer, background loop, manual trigger, shutdown trigger, or later M13 work package was added.
+
+Local verification:
+
+- Focused WP2 integration class: 13 passed, 0 failed, 0 skipped.
+- Focused startup composition architecture tests: 3 passed, 0 failed, 0 skipped.
+- Focused M11/M12 regression filter: 76 passed, 0 failed, 0 skipped (50 infrastructure integration, 15 application, 11 architecture).
+- Full `dotnet test Sushi81.Pos.sln --configuration Release --no-restore --nologo`: 896 passed across six test assemblies, 0 failed, 0 skipped.
+- Full Release build: 0 warnings, 0 errors.
+- `git diff --check`: passed.
+- Exact-head GitHub CI is checked after push and before publishing the matching `CODEX_DONE`; its run and result are recorded there. PR #26 remains unmerged, and this handoff does not authorize a successor work package.

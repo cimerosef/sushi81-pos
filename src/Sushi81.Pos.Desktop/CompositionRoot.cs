@@ -148,6 +148,10 @@ public static partial class CompositionRoot
                  authorityGuard,
                  annualArchiveFinalizationService.FinalizeNextArchiveAsync,
                  logger);
+             var gestionExportCompactionStartupCoordinator = new GestionExportCompactionStartupCoordinator(
+                 authorityGuard,
+                 new SqliteGestionExportCompactionService(connectionFactory, transactionRunner, authorityGuard, clock),
+                 logger);
              var gestionExportService = new GestionExportService(gestionExportStore, gestionExportStore, clock, authorityGuard, durableChangeNotifier, idGenerator);
              var gestionExportWorkbookService = new GestionExportWorkbookService(
                  gestionExportService,
@@ -232,6 +236,7 @@ public static partial class CompositionRoot
              }
              if (annualArchiveStartupCoordinator is not null)
                  await annualArchiveStartupCoordinator.RunAsync();
+             await gestionExportCompactionStartupCoordinator.RunAsync();
              LogFoundationStartupSucceeded(logger);
             startupSucceeded = true;
         }
