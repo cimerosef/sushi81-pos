@@ -79,6 +79,7 @@ M12 is merged under the explicit owner waiver. The deferred real populated-archi
 - `milestone-13-worklog.md` — append-only evidence ledger;
 - `milestone-13-final-manual-acceptance.md` — prepared final V1 owner checklist;
 - branch `codex/m13-installer-final-acceptance-authorized`;
+- Draft PR #26 — active M13 durable mailbox;
 - Issue #4 — sole execution switch/status pointer, currently CLOSED.
 
 First intended executable scope after repository privacy is resolved: WP1 Gestion export retention/compaction core only.
