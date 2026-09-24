@@ -27,7 +27,7 @@ public sealed class M11ExportIntegrationTests
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, new FixedClock()).InitializeAsync();
 
         await using var connection = await factory.OpenLiveConnectionAsync();
-        Assert.AreEqual(9L, await ScalarAsync(connection, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(10L, await ScalarAsync(connection, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.AreEqual(1L, await ScalarAsync(connection, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='export_batches';"));
         Assert.AreEqual(1L, await ScalarAsync(connection, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='export_batch_orders';"));
         Assert.AreEqual(1L, await ScalarAsync(connection, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='export_emissions';"));
@@ -50,7 +50,7 @@ public sealed class M11ExportIntegrationTests
         var snapshots = new SqliteLocalRecoverySnapshotService(paths, factory, clock);
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, snapshots).InitializeAsync();
 
-        Assert.AreEqual(9L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(10L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.AreEqual(existing.TotalTtc, (await orderStore.GetByIdAsync(orderId))!.TotalTtc);
         Assert.AreEqual(existing.Comment, (await orderStore.GetByIdAsync(orderId))!.Comment);
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='export_batch_orders';"));

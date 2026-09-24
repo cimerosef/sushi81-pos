@@ -213,6 +213,7 @@ public sealed class SqliteAnnualArchiveFinalizationService(
             if (currentCount != ids.Length)
                 throw new InvalidDataException("The exact archived order set is no longer present before live removal.");
 
+            var completedAtUtc = clock.UtcNow.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
             await ExecuteAsync(sqlite,
                 "INSERT INTO annual_archive_completions(archive_year,archive_format_version,archive_schema_version,archive_file_name,archive_order_count,archive_sha256,completed_at_utc) VALUES($year,$format,$schema,$file,$count,$sha,$completed);",
                 token,
@@ -222,7 +223,20 @@ public sealed class SqliteAnnualArchiveFinalizationService(
                 ("$file", Path.GetFileName(canonical.Path)),
                 ("$count", ids.Length),
                 ("$sha", canonical.Sha256),
-                ("$completed", clock.UtcNow.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)));
+                ("$completed", completedAtUtc));
+
+            foreach (var id in ids)
+            {
+                await ExecuteAsync(sqlite,
+                    "INSERT INTO annual_archive_order_proofs(order_id,archive_year,archive_sha256,archive_completed_at_utc) VALUES($order,$year,$sha,$completed);",
+                    token,
+                    ("$order", id.ToString("D")),
+                    ("$year", staging.ArchiveYear),
+                    ("$sha", canonical.Sha256),
+                    ("$completed", completedAtUtc));
+            }
+
+            Inject("after-archive-proofs-before-delete");
 
             var deleted = await ExecuteWithIdsAsync(sqlite, BuildInQuery("DELETE FROM orders WHERE order_id IN ({0});", ids), ids, token);
             if (deleted != ids.Length)

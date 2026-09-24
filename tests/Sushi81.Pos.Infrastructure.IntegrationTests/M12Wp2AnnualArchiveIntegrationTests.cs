@@ -71,6 +71,9 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
         Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders WHERE order_id IN ('52000000-0000-0000-0000-000000000001','52000000-0000-0000-0000-000000000002','52000000-0000-0000-0000-000000000003','52000000-0000-0000-0000-000000000004');"));
         Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders;"));
         Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_completions WHERE archive_year=2026;"));
+        Assert.AreEqual(4L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_order_proofs WHERE archive_year=2026;"));
+        Assert.AreEqual(4L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_order_proofs WHERE archive_year=2026 AND order_id IN ('52000000-0000-0000-0000-000000000001','52000000-0000-0000-0000-000000000002','52000000-0000-0000-0000-000000000003','52000000-0000-0000-0000-000000000004');"));
+        Assert.AreEqual(4L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_order_proofs p JOIN annual_archive_completions c ON c.archive_year=p.archive_year WHERE p.archive_year=2026 AND p.archive_sha256=c.archive_sha256 AND p.archive_completed_at_utc=c.completed_at_utc;"));
         Assert.IsGreaterThan(revisionBefore, await ScalarAsync(fixture.Factory, "SELECT value FROM foundation_metadata WHERE key='business_data_revision';"));
         Assert.AreEqual(2, fixture.Notifier.Count);
         Assert.AreEqual(successfulHistoryBefore, await ReadSuccessfulLedgerDumpAsync(fixture.Factory));
@@ -353,11 +356,33 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => transactionFailure.FinalizeNextArchiveAsync());
         Assert.AreEqual(1L, await ScalarAsync(transactionFixture.Factory, "SELECT COUNT(*) FROM orders;"));
         Assert.AreEqual(0L, await ScalarAsync(transactionFixture.Factory, "SELECT COUNT(*) FROM annual_archive_completions;"));
+        Assert.AreEqual(0L, await ScalarAsync(transactionFixture.Factory, "SELECT COUNT(*) FROM annual_archive_order_proofs;"));
         Assert.AreEqual(1L, await ScalarAsync(transactionFixture.Factory, "SELECT COUNT(*) FROM export_batches WHERE status='PREPARED';"));
         var retried = await transactionFixture.Service.FinalizeNextArchiveAsync();
         Assert.AreEqual(AnnualArchiveFinalizationOutcome.CompletedNow, retried.Outcome);
         Assert.AreEqual(0L, await ScalarAsync(transactionFixture.Factory, "SELECT COUNT(*) FROM orders;"));
+        Assert.AreEqual(1L, await ScalarAsync(transactionFixture.Factory, "SELECT COUNT(*) FROM annual_archive_order_proofs;"));
         Assert.AreEqual(1L, await ScalarAsync(transactionFixture.Factory, "SELECT COUNT(*) FROM export_batches WHERE status='PREPARED';"));
+    }
+
+    [TestMethod]
+    public async Task ArchiveProofWrittenBeforeDeletionRollsBackWithFinalizationFailure()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var id = Guid.Parse("52200000-0000-0000-0000-000000000003");
+        await fixture.OrderStore.SaveLifecycleAsync(ClosedOrder(id, OrderSourceType.Pos, "proof transaction rollback"), [Payment(id)]);
+        var failing = fixture.CreateService(stage => stage == "after-archive-proofs-before-delete" ? new InvalidOperationException("rollback after proof insert") : null);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => failing.FinalizeNextArchiveAsync());
+
+        Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders WHERE order_id=$id;", id));
+        Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_completions;"));
+        Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_order_proofs;"));
+
+        var retried = await fixture.Service.FinalizeNextArchiveAsync();
+        Assert.AreEqual(AnnualArchiveFinalizationOutcome.CompletedNow, retried.Outcome);
+        Assert.AreEqual(0L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM orders WHERE order_id=$id;", id));
+        Assert.AreEqual(1L, await ScalarAsync(fixture.Factory, "SELECT COUNT(*) FROM annual_archive_order_proofs WHERE order_id=$id;", id));
     }
 
     [TestMethod]
@@ -648,7 +673,7 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
     }
 
     [TestMethod]
-    public async Task MigrationNineUpgradesWithoutResetAndBrokenUpgradeRollsBack()
+    public async Task MigrationNineAndTenUpgradeWithoutResetAndBrokenUpgradeRollsBack()
     {
         using (var paths = new TestPaths())
         {
@@ -661,7 +686,7 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
             var id = Guid.Parse("52400000-0000-0000-0000-000000000001");
             await orderStore.SaveLifecycleAsync(ClosedOrder(id, OrderSourceType.Pos, "upgrade"), [Payment(id)]);
             await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, new FixedSnapshotService()).InitializeAsync();
-            Assert.AreEqual(9L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+            Assert.AreEqual(10L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
             Assert.AreEqual(0L, await ScalarAsync(factory, "SELECT COUNT(*) FROM annual_archive_completions;"));
             Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM orders WHERE order_id=$id;", id));
         }

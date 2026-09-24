@@ -60,3 +60,27 @@ Controller disposition:
 For safe compaction, absence from `orders` is not accepted as proof of M12 archival.
 
 WP1 is directed to add/use compact durable per-order archive proof in `live.db`, populated atomically with M12 live-order deletion/completion. This proof follows normal live-database handoff and avoids depending on local Archive files that do not transfer with authority. Missing/legacy proof fails closed and retains export history. The proof itself may remain long-term; only obsolete full M11 payload/history is subject to the approved compaction policy.
+
+## 2026-09-24 — WP1 implementation and automated evidence
+
+Handoff `M13-WP1-GESTION-EXPORT-RETENTION-COMPACTION-01` was consumed from the active PR #26 mailbox while Issue #4 was OPEN. Implementation stayed within WP1 Gestion export retention/compaction core.
+
+Implemented:
+
+- Production migration 10, `create-annual-archive-order-proof-ledger`, adds the durable per-order M12 archive proof table in `live.db`.
+- M12 finalization records the archive completion and one proof per removed order in the same transaction as exact live-order deletion. A failure before commit rolls all of them back.
+- `SqliteGestionExportCompactionService` applies the inclusive 30-day threshold and prunes a complete SUCCESS batch only when its payload/ledger/emissions validate, each order is absent from live orders with matching positive M12 proof, and no PREPARED dependency covers the order. Emissions are deleted before the referenced batch in one authority-guarded transaction.
+- Focused real-SQLite evidence covers migration preservation, archive proof success/rollback, younger and exact-age boundaries, PREPARED and live dependencies, missing/malformed proof, mixed batches, valid whole-batch pruning, live-order selection equivalence, foreign keys, rollback, idempotence and non-authoritative rejection.
+
+Local verification on this worktree:
+
+- Focused M13 WP1 integration tests: 6 passed, 0 failed, 0 skipped.
+- Focused M11/M12 regressions: 64 passed, 0 failed, 0 skipped (49 infrastructure integration, 15 application tests).
+- Full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 887 passed, 0 failed, 0 skipped.
+- Full Release build: 0 warnings, 0 errors.
+- `git diff --check`: passed.
+- Exact-head GitHub CI is required after push and must pass before the matching `CODEX_DONE` is published. PR #26 remains unmerged; no successor M13 work is authorized by this handoff.
+
+## 2026-09-24 — WP1 final verification update
+
+Final review added an exact per-order proof-set assertion and a failure injection immediately after archive-proof insertion but before live-order deletion. The M12/M11 regression filter then passed 65 tests (50 infrastructure integration and 15 application), with 0 failures and 0 skipped. The final full Release test command passed 888 tests, 0 failed, 0 skipped. The final full Release build completed with 0 warnings and 0 errors; `git diff --check` passed. Exact-head GitHub CI remains the final completion gate after pushing this head.
