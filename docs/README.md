@@ -120,17 +120,17 @@ M11 completed implementation package:
 - draft preparation PR #23 / `prep/m11-gestion-export` — historical preparation line;
 - implementation PR #24 / `codex/m11-gestion-export-authorized` — historical implementation mailbox, CLOSED/MERGED.
 
-Current M12 implementation package:
+M12 completed implementation package:
 
 - `decisions/m12-local-archive-and-user-selected-export.md` — Approved M12 archive storage/export decision;
 - `acceptance-criteria-amendment-m12-local-archive.md` — matching Approved acceptance amendment;
-- `implementation/milestone-12-preparation-readiness.md` — current readiness review and OneDrive acknowledgement finding;
-- `implementation/milestone-12-annual-archive-historical-access.md` — M12 implementation contract;
-- `implementation/milestone-12-authorization.md` — AUTHORIZED;
-- `implementation/milestone-12-worklog.md` — active package/evidence ledger;
-- Draft PR #25 / `codex/m12-annual-archive-authorized` — active durable mailbox;
-- Issue #4 — sole execution switch/status pointer;
-- M13 — unauthorized.
+- `implementation/milestone-12-preparation-readiness.md`;
+- `implementation/milestone-12-annual-archive-historical-access.md`;
+- `implementation/milestone-12-authorization.md`;
+- `implementation/milestone-12-worklog.md`;
+- `implementation/milestone-12-final-manual-acceptance.md`;
+- PR #25 / `codex/m12-annual-archive-authorized` — historical mailbox, CLOSED/MERGED;
+- deferred real populated-archive operational verification remains explicit under owner waiver and is not claimed Passed.
 
 Current M13 control package:
 
@@ -159,7 +159,8 @@ Relevant later decisions include:
 - `decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`;
 - `decisions/m10-category-short-code-workbook-semantics.md`;
 - `decisions/m11-export-lifecycle-and-settlement-clarifications.md`;
-- `decisions/m12-local-archive-and-user-selected-export.md`.
+- `decisions/m12-local-archive-and-user-selected-export.md`;
+- `decisions/m13-gestion-export-ledger-retention-compaction.md`.
 
 Where a later Approved decision explicitly supersedes a narrow older clause, the later decision controls until the next complete consolidation pass. A genuine unresolved contradiction still requires implementation to stop rather than guess.
 
