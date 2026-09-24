@@ -31,7 +31,7 @@ No source-repository visibility change is required by M13.
 
 ## 3. No unresolved M13 business/product ambiguity
 
-Apart from the repository-visibility action above, current Approved docs contain enough product/data semantics to implement M13 without a new owner business decision.
+Current Approved docs contain enough product/data semantics to implement M13 without a new owner business decision.
 
 Pure technical decisions are delegated to the controller/Codex within the existing priority:
 
