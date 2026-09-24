@@ -2,7 +2,7 @@
 
 **Status:** Preparation  
 **Branch:** `codex/m13-installer-final-acceptance-authorized`  
-**Draft PR:** TBD at creation  
+**Draft PR:** #26 — M13: Installer, localization completion and final V1 acceptance  
 **Start baseline:** `f59663c6b47ab21114c24360544e4e25094f4722`
 
 This file is append-only for M13 package/evidence history. Historical failures are not rewritten away.
@@ -33,3 +33,10 @@ Security finding:
 - Preparation may continue, but Issue #4 remains CLOSED and no executable READY is published until owner/admin resolves that discrepancy.
 
 Next intended executable package after resolution: WP1 — Gestion export retention/compaction core only.
+
+## 2026-09-24 — durable M13 mailbox established
+
+- Draft PR #26 was opened from `codex/m13-installer-final-acceptance-authorized` to `main`.
+- PR start baseline remains `f59663c6b47ab21114c24360544e4e25094f4722`.
+- Issue #4 remains CLOSED; active executable handoff = none.
+- No READY was published because the source-repository visibility discrepancy remains unresolved.
