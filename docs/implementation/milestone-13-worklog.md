@@ -40,3 +40,16 @@ Next intended executable package after resolution: WP1 — Gestion export retent
 - PR start baseline remains `f59663c6b47ab21114c24360544e4e25094f4722`.
 - Issue #4 remains CLOSED; active executable handoff = none.
 - No READY was published because the source-repository visibility discrepancy remains unresolved.
+
+
+## 2026-09-24 — owner repository-visibility disposition
+
+The project owner explicitly instructed the controller not to block M13 because `cimerosef/sushi81-pos` is public and stated that the public state is intentional.
+
+Controller disposition:
+
+- repository visibility is no longer an M13 blocker;
+- no visibility change is required for M13;
+- preparation/control package remains valid;
+- the next executable handoff is WP1 Gestion export retention/compaction core only;
+- Issue #4 may be reopened only after the exact WP1 READY is durably published on PR #26.
