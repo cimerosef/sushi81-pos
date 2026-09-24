@@ -30,7 +30,7 @@ M11 Gestion intermediate export is Passed/merged through PR #24 at `1a94f3400e0a
 
 M12 Annual archive and historical access is controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722`. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3`; exact-head CI #862 / run `36021889765` succeeded with 881/881, 0 failed, 0 skipped and Release build 0 warnings / 0 errors; post-merge CI #863 / run `36023054757` build-and-test succeeded. Remaining real populated historical-archive checks are explicitly deferred under the owner waiver and are not claimed Passed. The first safe real verification point remains on or after 2027-02-01 for real 2026 rows.
 
-M13 is owner-authorized in preparation on `codex/m13-installer-final-acceptance-authorized`. The control package and Approved Gestion export retention/compaction decision are present, but execution is paused because GitHub currently reports the source repository as public, conflicting with the project's expected private posture. Issue #4 remains CLOSED and no executable M13 READY exists.
+M13 is owner-authorized on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. The owner explicitly confirmed the source repository's public visibility is intentional and not a blocker. WP1 Gestion export retention/compaction core is the first executable package; execution still requires the exact READY and OPEN Issue #4.
 
 ## Historical M10 preparation — Catalogue `.xlsx` import/export
 
@@ -73,7 +73,7 @@ M12 is merged under the explicit owner waiver. The deferred real populated-archi
 
 - `../decisions/m13-gestion-export-ledger-retention-compaction.md` — Approved owner decision;
 - `../acceptance-criteria-amendment-m13-gestion-export-retention.md` — matching Approved acceptance amendment;
-- `milestone-13-preparation-readiness.md` — controller readiness and repository-visibility blocker;
+- `milestone-13-preparation-readiness.md` — controller readiness;
 - `milestone-13-installer-localization-final-acceptance.md` — WP1–WP6 implementation contract;
 - `milestone-13-authorization.md` — OWNER-AUTHORIZED; execution not enabled;
 - `milestone-13-worklog.md` — append-only evidence ledger;
