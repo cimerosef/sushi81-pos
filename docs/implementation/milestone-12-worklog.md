@@ -265,3 +265,24 @@ Validation before final delivery commit:
 - `git diff --check`: clean.
 
 The self-contained owner candidate was published successfully with `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o "$env:TEMP\Sushi81POS-M12-WP5-09-owner-candidate" --no-restore`; output is in `%TEMP%\Sushi81POS-M12-WP5-09-owner-candidate` (421 files including `Sushi81.Pos.Desktop.exe`, no database, recovery, log, workbook, CSV or credential-like files detected). Exact-head GitHub CI and final source SHA are pending and must be recorded by the matching durable `CODEX_DONE`. The truthful M12 state is WP1–WP5 implemented/controller-review-ready, owner Windows/WPF manual acceptance pending, M13 unauthorized, and PR still Draft/Open.
+
+## 2026-09-24 — M12 final documentation/owner-waiver closure package 20
+
+Mailbox and owner disposition:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-FINAL-DOCS-OWNER-WAIVER-CLOSURE-20`, PR #25 comment `5816808552`;
+- handoff start head: `e62db0003f837297b848448a28a94e30c5db64a4`;
+- owner decision: `M12-DEFER-REMAINING-ARCHIVE-MANUAL-VERIFICATION-20260924`, PR #25 comment `5816797035`;
+- Issue #4 was OPEN and pointed to active Draft PR #25 during this documentation-only closure;
+- no product source, tests, schema, XAML, dependencies or runtime behavior were changed.
+
+Closure reconciliation:
+
+- recorded the intermittent same-head synthetic archive-discovery outcomes as conflicting deferred observations, not a proven defect; no speculative repair is authorized;
+- kept the owner manual checklist unchecked and distinguished the limited observed discovery outcomes and accepted WP1–WP5 automated/controller evidence from the populated-archive checks explicitly deferred by the owner;
+- recorded the practical risk waiver, the invariant that archive failure must not silently remove eligible live orders, and the first real-data verification point: first safe authoritative startup on/after 2027-02-01 for 2026 archives;
+- reconciled M12 status to implementation-accepted / operational verification partially deferred under explicit owner waiver / closure-ready for controller review and merge;
+- carried the approved M13 Gestion export-ledger retention/compaction decision `M13-GESTION-EXPORT-LEDGER-RETENTION-COMPACTION-20260923` into living status/plan, without starting M13;
+- corrected stale source-candidate CI wording: accepted source head `e62db0003f837297b848448a28a94e30c5db64a4`, CI #860 / run `35785073179`, 881 passed, 0 failed, 0 skipped, Release build 0 warnings/errors. Exact documentation-delivery head CI is recorded in the matching `CODEX_DONE` comment.
+
+Validation for the documentation delivery: `git diff --check` must be clean; verify Markdown references and confirm the diff is limited to the six authorized documentation files. The PR remains Draft/Open and unmerged; this package does not implement M13. Final head, exact-head CI, and final PR state are in the matching PR #25 `CODEX_DONE`.

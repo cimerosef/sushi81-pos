@@ -1,8 +1,8 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-22
-**Current state:** M01 through M11 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current authoritative `main` is M11 merge commit `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. M12 Annual archive and historical access is owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25. WP1–WP5 implementation is complete and controller-review-ready; owner Windows/WPF manual acceptance remains pending on the exact candidate, so M12 is not Passed or Closure-ready. Canonical archives are permanent application-managed local databases and export is an explicit operator-selected copy action. M13 remains unauthorized.
+**Last updated:** 2026-09-24
+**Current state:** M01 through M11 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current authoritative `main` is M11 merge commit `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. M12 Annual archive and historical access is implementation-accepted on `codex/m12-annual-archive-authorized` / Draft PR #25. Under explicit owner waiver, real populated-archive operational verification is partially deferred; M12 is closure-ready for controller review/merge, not an unqualified claim that every manual checklist item Passed. Accepted source candidate `e62db0003f837297b848448a28a94e30c5db64a4` has exact-head CI #860 / run `35785073179` (881 passed, 0 failed, 0 skipped; Release build 0 warnings/errors). The documentation closure head's exact CI is recorded in its matching PR `CODEX_DONE`. Canonical archives are permanent application-managed local databases and export is an explicit operator-selected copy action. M13 remains unstarted and unauthorized until M12 merge; its approved export-ledger retention/compaction requirement is carried forward below.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -13,7 +13,7 @@
 - `Authorized` — project-owner implementation approval is durable, but execution still requires the matching implementation branch/PR/handoff/open gate.
 - `In progress` — an authorized executable handoff is active under OPEN Issue #4.
 - `Partial` — some evidence exists, but complete acceptance is not yet satisfied.
-- `Closure-ready` — owner acceptance is complete; final controller closure and separate explicit merge approval remain.
+- `Closure-ready` — owner acceptance (including any explicit documented waiver) is complete; final controller closure remains. Any merge authorization or prerequisite is governed by its durable owner record.
 - `Passed` — required automated/manual evidence is recorded and passes.
 - `Blocked — amendment required` — a genuine material specification conflict prevents conforming implementation.
 - `Blocked — architecture decision required` — a required technical capability still needs an approved architecture decision/proof.
@@ -37,8 +37,8 @@ Only `Passed` and properly approved `Not applicable — amended` satisfy final V
 | Post-M09 — Hiboutik daily CB/Espèce dashboard | Passed | PR #19 merged at `861cfba1dfacbb3289395c0370f6d42765b6c223`; controller/owner acceptance complete. |
 | M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
 | M11 — Gestion intermediate export | Passed | PR #24 CLOSED/MERGED at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831, 0 failed, 0 skipped and Release build 0 warnings/errors. |
-| M12 — Annual archive/historical access | Partial | WP1–WP5 implementation/controller review ready on Draft PR #25; Release suite 881/881 passed and Release build has 0 warnings/errors. Exact-head CI and owner Windows/WPF manual acceptance remain pending. Do not mark Passed/Closure-ready until owner evidence and controller closure are recorded. |
-| M13 — Installer and final acceptance | Not started | Unauthorized; pending M12. |
+| M12 — Annual archive/historical access | Closure-ready | WP1–WP5 accepted on PR #25 source candidate `e62db0003f837297b848448a28a94e30c5db64a4`; CI #860 / run `35785073179` succeeded (881/881, 0 failed/skipped; Release build 0 warnings/errors). Owner operational verification requiring real populated historical rows is partially deferred under explicit waiver, not marked Passed; see the final manual-acceptance record. Final documentation-head CI is recorded in matching PR #25 `CODEX_DONE`; controller review/closure remains a separate step. |
+| M13 — Installer and final acceptance | Not started | No M13 implementation before M12 merge. The owner-approved Gestion export-ledger retention/compaction requirement is carried forward; after M12 merge, M13 may be prepared/authorized as the final V1 milestone without another owner confirmation. |
 
 ## 3. Current merged baseline
 
@@ -129,7 +129,7 @@ Work-package plan:
 
 No material M11 business/spec decision remains open.
 
-## 5. Current M12 readiness and execution gate
+## 5. Current M12 disposition and execution gate
 
 M12 control line:
 
@@ -139,20 +139,32 @@ M12 control line:
 - preparation/readiness: `implementation/milestone-12-preparation-readiness.md`;
 - implementation contract: `implementation/milestone-12-annual-archive-historical-access.md`;
 - authorization record: `implementation/milestone-12-authorization.md`;
-- M13: unauthorized.
+- final owner manual-acceptance/waiver record: `implementation/milestone-12-final-manual-acceptance.md`;
+- M13 implementation: not authorized before M12 merge.
 
-Implementation-readiness result:
+Accepted implementation and evidence:
 
 - current SQLite order aggregate and historical snapshot tables are reusable;
 - `IWriteAuthorityGuard`, application Temp path, read-only SQLite connection factory and M08 snapshot-based print model are reusable seams; M12 adds a permanent local Archive application-data path;
 - normal `SearchLiveAsync` remains live-only and must not be widened implicitly;
 - M11 immutable successful export emissions survive order-row deletion physically, but pending/un-emitted corrections are derived from the live order and must be durably preserved before removal as required by the implementation plan;
-- no production archive implementation currently exists;
+- WP1–WP5 production archive implementation is present on accepted source candidate `e62db0003f837297b848448a28a94e30c5db64a4`;
 - owner-approved decision `decisions/m12-local-archive-and-user-selected-export.md` removes OneDrive from annual archive publication/access;
-- WP1 can be implemented without final local canonical promotion or live deletion and is READY;
+- exact-head CI #860 / workflow run `35785073179` succeeded with 881 passed, 0 failed, 0 skipped and a Release build with 0 warnings/errors;
 - WP2 is no longer blocked by OneDrive acknowledgement: it must use staged validation -> durable local canonical promotion -> reopen-validation -> exact live removal, while preserving pending export payloads first.
 
-Issue #4 remains the sole Codex execution switch/status pointer. The previous WP1 READY was revoked while this Approved amendment was aligned. A new unique exact-head WP1 READY must be published before Codex resumes. One WP1 DONE does not authorize WP2.
+Owner manual disposition and remaining verification:
+
+- the owner has explicitly waived/deferred populated-archive manual checks until real prior-year business rows exist; this is not a full-manual-checklist Passed claim;
+- same-head synthetic archive discovery produced intermittent conflicting UI observations; no deterministic product defect or safe repair was established, and the owner stopped further synthetic forensic cycles;
+- at the first safe authoritative startup on or after 2027-02-01, verify real 2026 archive discovery/selection and historical detail/search/copy/reprint/read-only behavior; reopen as a product defect if the real archive is missing/unselectable or an archive operation fails;
+- the fail-safe remains that archive failure must not silently delete eligible live orders. Extended retention in `live.db` is the owner-accepted practical fallback while verification is deferred.
+
+M12 is implementation-accepted and closure-ready under this explicit waiver; do not claim that all manual checks passed. The documentation closure head's CI result is tracked in the matching PR #25 `CODEX_DONE`; controller review/closure remains a separate step. The owner has pre-authorized PR #25 merge after controller acceptance and green exact-head CI; Codex must not merge it.
+
+### M13 approved carry-forward — not implementation authorization
+
+Owner decision `M13-GESTION-EXPORT-LEDGER-RETENTION-COMPACTION-20260923` (PR #25 comment `5792796519`) is a future M13 requirement, not permission to start M13 in this handoff. M13 must preserve unresolved PREPARED/pending export work, retain required export state while an order remains live, and only clean obsolete per-order state after annual archival and pending-work resolution. Immutable full successful-batch payload/exact-regeneration history is retained for 30 days and may then be pruned safely when dependencies permit. The UI exposes only retained/rebuildable successful batches. Compaction must be transactional, idempotent and failure-safe while preserving foreign-key, authority, recovery and handoff invariants. After M12 merge, M13 may be prepared/authorized as the final V1 milestone without another owner confirmation.
 
 ## 6. Evidence preservation
 

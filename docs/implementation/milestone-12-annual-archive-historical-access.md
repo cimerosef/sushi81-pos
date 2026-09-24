@@ -1,6 +1,6 @@
 # M12 — Annual archive and historical access — implementation contract
 
-**Status:** OWNER-AUTHORIZED; WP1–WP5 implementation complete/controller-review-ready; owner manual acceptance pending
+**Status:** WP1–WP5 implementation accepted; owner operational archive verification is partially deferred under explicit waiver; closure-ready for controller review/merge subject to exact-head CI.
 **Milestone:** M12
 **Implementation branch:** `codex/m12-annual-archive-authorized`
 **Start baseline:** `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`
@@ -101,3 +101,13 @@ WP1 must **not**:
 ## 5. Later package boundary
 
 WP2 is now governed by the Approved local-archive amendment: preserve pending export actions, durably promote/reopen-validate the canonical local archive, then perform exact live removal and post-archive recovery. The prior OneDrive acknowledgement blocker is removed. A `CODEX_DONE` for WP1 still does not authorize WP2.
+
+## 6. Final M12 acceptance disposition — 2026-09-24
+
+The project-owner decision `M12-DEFER-REMAINING-ARCHIVE-MANUAL-VERIFICATION-20260924` is recorded on PR #25 comment `5816797035`. It accepts the operational risk of deferring remaining manual checks that require populated historical rows until a real prior-year archive exists. This is an explicit waiver/deferment, not a claim that the full manual checklist passed. The intermittent synthetic archive-discovery observations are unresolved deferred verification, not a proven product defect; no speculative source repair is authorized.
+
+The accepted WP1–WP5 source candidate is `e62db0003f837297b848448a28a94e30c5db64a4`. Exact-head CI #860 / run `35785073179` succeeded: 881 passed, 0 failed, 0 skipped; Release build 0 warnings and 0 errors. Owner-observed discovery runs were intermittent: some showed only `2025 (0)`, while other same-head runs showed both `2025 (0)` and synthetic `2024 (3)`. These observations do not establish the remaining populated-archive detail/search/copy/reprint/read-only checks as passed.
+
+The follow-up operational verification is due at the first safe authoritative startup on or after **2027-02-01**, when 2026 is naturally eligible as the previous complete calendar year. Verify real populated-archive discovery/selection and historical detail/search/copy/reprint/read-only behavior; if the real archive is missing/unselectable or any archive operation fails, reopen the issue as a product defect using real-data evidence. Until then, eligible orders may remain in `live.db` for an extended period as the owner-accepted practical fallback. The fail-safe invariant remains: archive failure must not silently delete eligible live orders.
+
+M12 is implementation-accepted with operational verification partially deferred under the owner waiver and is closure-ready for controller review/merge. The final manual-acceptance record preserves the unchecked/deferred distinction. Exact documentation-head CI and final PR state are reported in the matching PR #25 `CODEX_DONE`; no merge or M13 implementation is part of this closure.
