@@ -4,6 +4,7 @@
 **Milestone:** M13  
 **Reviewed baseline:** `f59663c6b47ab21114c24360544e4e25094f4722`  
 **Review date:** 2026-09-24
+**Durable mailbox:** Draft PR #26
 
 ## 1. Re-established GitHub baseline
 
