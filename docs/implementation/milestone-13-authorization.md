@@ -4,6 +4,7 @@
 **Milestone:** M13  
 **Implementation branch:** `codex/m13-installer-final-acceptance-authorized`  
 **Baseline:** `f59663c6b47ab21114c24360544e4e25094f4722`
+**Durable mailbox:** Draft PR #26
 
 ## Authorization basis
 
