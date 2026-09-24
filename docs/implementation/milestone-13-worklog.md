@@ -53,3 +53,10 @@ Controller disposition:
 - preparation/control package remains valid;
 - the next executable handoff is WP1 Gestion export retention/compaction core only;
 - Issue #4 may be reopened only after the exact WP1 READY is durably published on PR #26.
+
+
+## 2026-09-24 — controller WP1 technical decision
+
+For safe compaction, absence from `orders` is not accepted as proof of M12 archival.
+
+WP1 is directed to add/use compact durable per-order archive proof in `live.db`, populated atomically with M12 live-order deletion/completion. This proof follows normal live-database handoff and avoids depending on local Archive files that do not transfer with authority. Missing/legacy proof fails closed and retains export history. The proof itself may remain long-term; only obsolete full M11 payload/history is subject to the approved compaction policy.
