@@ -142,6 +142,7 @@ Current M13 control package:
 - `implementation/milestone-13-worklog.md`;
 - `implementation/milestone-13-final-manual-acceptance.md`;
 - branch `codex/m13-installer-final-acceptance-authorized`;
+- Draft PR #26 — active M13 durable mailbox;
 - Issue #4 — sole execution gate, currently CLOSED.
 
 ## Decision records
