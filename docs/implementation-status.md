@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Last updated:** 2026-09-24
-**Current state:** M01 through M11 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current authoritative `main` is M12 merge commit `f59663c6b47ab21114c24360544e4e25094f4722`. M12 is controller-accepted and merged under the explicit owner waiver; real populated-archive operational verification remains deferred and is not claimed Passed. M13 is owner-authorized in preparation on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. GitHub currently reports the source repository as public, conflicting with the project's expected private posture; Issue #4 remains CLOSED and no executable M13 handoff exists.
+**Current state:** M01 through M11 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current authoritative `main` is M12 merge commit `f59663c6b47ab21114c24360544e4e25094f4722`. M12 is controller-accepted and merged under the explicit owner waiver; real populated-archive operational verification remains deferred and is not claimed Passed. M13 is owner-authorized in preparation on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. The project owner explicitly confirmed that the source repository's public visibility is intentional and is not an M13 blocker. Issue #4 may be opened only against an exact M13 READY.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -39,7 +39,7 @@
 | M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
 | M11 — Gestion intermediate export | Passed | PR #24 CLOSED/MERGED at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831, 0 failed, 0 skipped and Release build 0 warnings/errors. |
 | M12 — Annual archive/historical access | Accepted under waiver / merged | PR #25 CLOSED/MERGED at `f59663c6b47ab21114c24360544e4e25094f4722`. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3`; exact-head CI #862 / run `36021889765` succeeded with 881/881, 0 failed/skipped and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test succeeded. Real populated-archive operational verification remains explicitly deferred under the owner waiver and is not claimed Passed. |
-| M13 — Installer and final acceptance | Preparation / owner-authorized / execution blocked | Control package is being established on `codex/m13-installer-final-acceptance-authorized`. The Approved M13 export-ledger retention/compaction requirement is now a decision + acceptance amendment. GitHub currently reports the source repository as public, conflicting with the expected private posture; Issue #4 remains CLOSED and no executable READY may be issued until that safety discrepancy is resolved. |
+| M13 — Installer and final acceptance | Authorized / WP1 ready | Control package is established on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. The owner explicitly confirmed the source repository's public visibility is intentional and not a blocker. First executable package is WP1 Gestion export retention/compaction core only. |
 
 ## 3. Current merged baseline
 
@@ -156,9 +156,9 @@ M13 current control line:
 5. WP5 — diagnostics/performance/repository-security/production hardening;
 6. WP6 — final exact-head production candidate, operating guide and owner V1 acceptance.
 
-### Current execution blocker
+### Current execution state
 
-Live GitHub repository metadata currently reports `cimerosef/sushi81-pos` visibility as `public`, while the project requires/identifies the source repository as private. This is a material final-V1 repository/security discrepancy. Preparation documentation may proceed, but Issue #4 must remain CLOSED and no executable `CODEX_HANDOFF_READY` may be published until the owner/admin restores private visibility or explicitly records a contrary repository-visibility decision.
+The owner explicitly confirmed on 2026-09-24 that the source repository's public visibility is intentional and does not block M13. Repository visibility therefore requires no M13 action.
 
 The M13 export retention/compaction behavior is now formalized as Approved criteria AC-EXP-012 through AC-EXP-016. The first implementation package remains WP1 only after the repository-safety blocker is resolved.
 
