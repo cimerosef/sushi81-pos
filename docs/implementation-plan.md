@@ -200,9 +200,9 @@ A passing build without required tests and acceptance evidence is not milestone 
 
 Phase 6 planning remains Approved.
 
-Current merged baseline as of 2026-09-21:
+Current merged baseline as of 2026-09-24:
 
-- M01 through M10: Passed / merged under their recorded PRs;
+- M01 through M11: Passed / merged under their recorded PRs;
 - M11 — Gestion intermediate export: Passed / merged through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`;
 - M11 accepted runtime candidate: `77ccecf9d947462e96e74b8aa1d99ced30e3788e`;
 - M11 final documentation head: `4eddf0a93c5a141326d76c6e67a9a9c5840e5068`;
@@ -218,6 +218,3 @@ M13 preparation/authorization is active on `codex/m13-installer-final-acceptance
 
 GitHub currently reports the source repository as public, conflicting with the project's expected private posture. Issue #4 remains CLOSED and M13 execution is blocked until that repository-safety discrepancy is resolved.
 
-The owner-approved 2026-09-21 M12 amendment moves canonical annual archives to application-managed local storage and removes OneDrive from annual archive publication/access. WP2 therefore uses a local staged -> durable canonical promotion/reopen-validation -> live-removal boundary; no OneDrive remote acknowledgement is required. Explicit archive export is a separate operator-selected copy action and must not move/delete the canonical archive.
-
-M13 is owner-authorized in preparation; execution remains package-gated and currently blocked by the repository-visibility discrepancy.
