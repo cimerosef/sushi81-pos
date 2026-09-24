@@ -1,6 +1,6 @@
 # M13 — implementation authorization
 
-**Status:** OWNER-AUTHORIZED / EXECUTION NOT YET ENABLED  
+**Status:** OWNER-AUTHORIZED / WP1 EXECUTION ENABLED BY EXACT GATE+READY ONLY  
 **Milestone:** M13  
 **Implementation branch:** `codex/m13-installer-final-acceptance-authorized`  
 **Baseline:** `f59663c6b47ab21114c24360544e4e25094f4722`
@@ -24,7 +24,8 @@ Codex may execute only when all of the following are simultaneously true:
 4. the handoff ID, start head, branch, PR and scope all match;
 5. no controller stop/blocker is active.
 
-At preparation time GitHub reports the source repository as public, conflicting with the project's private-repository expectation. Therefore Issue #4 remains CLOSED and no M13 READY is executable until that repository-safety discrepancy is resolved.
+The project owner explicitly confirmed on 2026-09-24 that the source repository's public visibility is intentional and must not block M13. Repository visibility is therefore not an execution blocker.
+
 
 ## Authorized milestone scope
 
