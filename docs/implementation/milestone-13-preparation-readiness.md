@@ -1,6 +1,6 @@
 # M13 — Installer, localization completion and final V1 acceptance — preparation/readiness
 
-**Status:** PREPARATION COMPLETE / OWNER-AUTHORIZED / EXECUTION GATE BLOCKED BY REPOSITORY-VISIBILITY DISCREPANCY  
+**Status:** PREPARATION COMPLETE / OWNER-AUTHORIZED / WP1 READY  
 **Milestone:** M13  
 **Reviewed baseline:** `f59663c6b47ab21114c24360544e4e25094f4722`  
 **Review date:** 2026-09-24
@@ -21,19 +21,13 @@ Verified:
 - M12's populated real-archive operational verification remains explicitly deferred under the owner waiver; it is not represented as fully Passed;
 - the approved M13 Gestion export retention/compaction decision is PR #25 comment `5792796519`.
 
-## 2. Security/readiness discrepancy requiring owner/admin action
+## 2. Repository visibility disposition
 
-Current GitHub repository metadata reports `cimerosef/sushi81-pos` as **public**, while the project owner and project workflow identify this source repository as private.
+GitHub currently reports `cimerosef/sushi81-pos` as public.
 
-This is not a product/business-rule ambiguity and does not prevent preparation documentation, but it is a material repository-safety discrepancy for the final V1 release gate.
+On 2026-09-24 the project owner explicitly instructed the controller not to treat that visibility as an M13 blocker and stated that the public state is intentional. Repository visibility therefore does not block M13 execution or final V1 acceptance unless later owner instructions change.
 
-Until the owner restores private visibility or explicitly records a contrary repository-visibility decision:
-
-- Issue #4 must remain CLOSED;
-- no `CODEX_HANDOFF_READY` is executable;
-- final V1 repository/security acceptance cannot close.
-
-The dedicated handoff repositories remain separate concerns; this finding is specifically about the source repository `cimerosef/sushi81-pos`.
+No source-repository visibility change is required by M13.
 
 ## 3. No unresolved M13 business/product ambiguity
 
@@ -112,6 +106,6 @@ WP6 is the release/acceptance closure package and cannot precede exact-head gree
 
 ## 8. First executable package decision
 
-Once the repository-visibility discrepancy is resolved and Issue #4 is deliberately opened, the first executable handoff will be **WP1 only**.
+Issue #4 may now be deliberately opened for the first executable handoff, which is **WP1 only**.
 
 WP1 must not start installer work.
