@@ -53,7 +53,21 @@ Required behavior:
 - injected failures roll back completely;
 - non-authoritative execution is blocked.
 
-A conservative all-or-nothing successful-batch prune is preferred over a more complex partial-payload rewrite if it satisfies the Approved retention rules. Do not introduce a separate per-order summary table unless the existing model demonstrably cannot preserve M11 selection semantics safely without it.
+A conservative all-or-nothing successful-batch prune is preferred over a more complex partial-payload rewrite if it satisfies the Approved retention rules.
+
+### Controller technical decision — durable archive proof
+
+Do **not** infer that an order was archived merely because its row is absent from `orders`. M13 must have positive durable proof that the order left the live set through completed M12 archival.
+
+The preferred simple V1 shape is a small versioned live-database archive-proof ledger (exact table/type names are delegated) keyed by `order_id`, carrying at least the archive year and enough completion identity/time metadata to establish the M12 archival event. M12 finalization must write that proof for each removed order in the **same live SQLite transaction** as the exact order deletion/completion update. Therefore:
+
+- proof creation and order deletion commit or roll back together;
+- the compact proof travels with normal authoritative `live.db` handoff even though local archive files themselves do not;
+- pre-existing/malformed/missing proof fails closed for compaction;
+- no retroactive rule such as "not live means archived" is allowed;
+- the compact archive-proof marker may be retained long-term; the M13 requirement is to prevent obsolete **full export payload/history** from growing indefinitely, not to erase minimal safety metadata.
+
+This archive-proof ledger is not a replacement for M11 export state and must not alter CREATE/UPDATE/CANCEL selection semantics.
 
 ### Required evidence
 
