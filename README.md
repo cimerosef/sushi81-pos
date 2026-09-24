@@ -53,7 +53,7 @@ M10 completed control package:
 - `docs/implementation/milestone-10-worklog.md`;
 - `docs/implementation/milestone-10-authorization.md` — AUTHORIZED; execution remains limited to the exact Issue #4 handoff.
 
-Current M11 preparation package:
+M11 completed control package:
 
 - `docs/decisions/m11-export-lifecycle-and-settlement-clarifications.md`;
 - `docs/acceptance-criteria-amendment-m11-gestion-export.md`;
@@ -63,6 +63,17 @@ Current M11 preparation package:
 - `docs/implementation/milestone-11-final-manual-acceptance.md`;
 - `docs/implementation/milestone-11-worklog.md`;
 - `docs/implementation/milestone-11-authorization.md` — AUTHORIZED; execution remains limited to the exact Issue #4 handoff.
+
+M12 completed control package:
+
+- `docs/decisions/m12-local-archive-and-user-selected-export.md`;
+- `docs/acceptance-criteria-amendment-m12-local-archive.md`;
+- `docs/implementation/milestone-12-preparation-readiness.md`;
+- `docs/implementation/milestone-12-annual-archive-historical-access.md`;
+- `docs/implementation/milestone-12-final-manual-acceptance.md`;
+- `docs/implementation/milestone-12-worklog.md`;
+- `docs/implementation/milestone-12-authorization.md`;
+- PR #25 — historical mailbox, CLOSED/MERGED.
 
 M13 current control package:
 
