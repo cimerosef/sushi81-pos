@@ -1,10 +1,10 @@
 # V1 implementation plan
 
-**Status:** Approved — Phase 6 baseline, amended 2026-08-31  
-**Approval date:** 2026-08-27  
-**Latest plan amendment:** 2026-08-31  
-**Current-state reconciliation:** 2026-09-17  
-**Product:** Sushi81 POS  
+**Status:** Approved — Phase 6 baseline, amended 2026-08-31
+**Approval date:** 2026-08-27
+**Latest plan amendment:** 2026-08-31
+**Current-state reconciliation:** 2026-09-21
+**Product:** Sushi81 POS
 **Purpose:** Define the controlled implementation sequence for the frozen-and-amended V1 Specification.
 
 ## 1. Authority and scope
@@ -54,7 +54,7 @@ Detailed task definition: `implementation/milestone-01-foundation.md`.
 
 M02 ran before broad business implementation.
 
-The original generic/competitive OneDrive acquisition model was deterministically tested and found unable to provide the required ordinary N-device single-writer guarantee without an external exclusive grant. The approved amendment changed normal transfer to source-directed transfer to exactly one target and selected a dedicated private GitHub Release Asset transport with strict server receipt/grant semantics. OneDrive remains recovery/archive storage.
+The original generic/competitive OneDrive acquisition model was deterministically tested and found unable to provide the required ordinary N-device single-writer guarantee without an external exclusive grant. The approved amendment changed normal transfer to source-directed transfer to exactly one target and selected a dedicated private GitHub Release Asset transport with strict server receipt/grant semantics. OneDrive remains the Disaster Recovery storage boundary; the later M12 amendment moved annual archives to local application-managed storage.
 
 Primary acceptance preparation: amended `AC-STO-002` through `AC-STO-005`, `AC-STO-007` through `AC-STO-010`.
 
@@ -158,17 +158,21 @@ Primary acceptance ownership: `AC-EXP-001` through `AC-EXP-011`, final export po
 
 ### M12 — Annual archive and historical access
 
-Implement February/late-start previous-calendar-year archiving, end-year eligibility, staged validation/publication, failure-safe live removal, explicit archive selection/search, read-only hydration and historical reprinting.
+Implement February/late-start previous-calendar-year archiving, end-year eligibility, staged validation and durable local canonical publication, failure-safe live removal, permanent local archive access, explicit archive selection/search, user-selected archive export and historical reprinting.
 
 Before removing an order from `live.db`, preserve every not-yet-emitted or pending export action as a durable immutable technical payload, or use an equivalent implementation that demonstrably preserves the frozen export contract. Archiving must never make a valid export/correction silently disappear.
 
 Primary acceptance ownership: `AC-STO-011` through `AC-STO-014`, `AC-PRINT-009`, archive portion of `AC-LIFE-015`.
+
+Current disposition: WP1–WP5 are implementation-accepted on source head `e62db0003f837297b848448a28a94e30c5db64a4`. The owner explicitly deferred remaining real populated-archive operational checks under a documented risk waiver; this is not an unqualified claim that the manual checklist Passed. M12 is closure-ready for controller review/merge, subject to green exact-head documentation-delivery CI. See `implementation/milestone-12-final-manual-acceptance.md` and `implementation/milestone-12-worklog.md`.
 
 ### M13 — Installer, localization completion and final V1 acceptance
 
 Complete the self-contained Windows x64 release, per-user Inno Setup installer, upgrade/reinstall preservation, full French/Chinese UI, diagnostics, performance work, repository safety review, complete acceptance regression and the practical user operating guide required by the root README.
 
 Primary acceptance ownership: `AC-PROD-001` through `AC-PROD-004`, `AC-ARCH-007`, `AC-NFR-001` through `AC-NFR-004`, all explicit V1 exclusions and the complete production-target acceptance gate.
+
+Approved export-ledger retention/compaction carry-forward (`OWNER_DECISION: M13-GESTION-EXPORT-LEDGER-RETENTION-COMPACTION-20260923`, PR #25 comment `5792796519`): never prune unresolved PREPARED/pending export work; retain required export state while an order remains live; after annual archival and pending-work resolution, obsolete per-order export state may be cleaned; retain immutable full successful-batch payload/exact-regeneration history for 30 days, then prune safely when dependencies allow; show only retained/rebuildable successful batches; and make compaction transactional, idempotent and failure-safe while preserving FK/authority/recovery/handoff invariants. This is an M13 requirement, not authorization to implement M13 before M12 merges. The owner has authorized M13 preparation/authorization as the final V1 milestone after M12 merge without a further owner confirmation.
 
 ## 4. Mandatory milestone gate
 
@@ -196,23 +200,20 @@ A passing build without required tests and acceptance evidence is not milestone 
 
 Phase 6 planning remains Approved.
 
-Current merged baseline as of 2026-09-17:
+Current merged baseline as of 2026-09-21:
 
-- M01: Passed / merged through PR #1;
-- M02: amended revalidation Passed / merged;
-- M03: Passed / merged through PR #5;
-- M04: Passed / merged through PR #6;
-- M05: Passed / merged through PR #10;
-- M06: Passed / merged through PR #11;
-- M07: Passed / merged through PR #13;
-- M08: Passed / merged through PR #14;
-- M09: Passed / merged through PR #17;
-- post-M09 Hiboutik daily dashboard enhancement: Passed / merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`.
+- M01 through M10: Passed / merged under their recorded PRs;
+- M11 — Gestion intermediate export: Passed / merged through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`;
+- M11 accepted runtime candidate: `77ccecf9d947462e96e74b8aa1d99ced30e3788e`;
+- M11 final documentation head: `4eddf0a93c5a141326d76c6e67a9a9c5840e5068`;
+- M11 controller closure: PR #24 comment `5762784303`;
+- M11 merge completion: PR #24 comment `5762846107`;
+- post-merge CI #821 / run `35617254203`: success, 831/831 passed, 0 failed, 0 skipped, Release build 0 warnings / 0 errors.
 
-M10 is the next planned milestone and its specification/readiness preparation is complete on draft PR #20. The project owner approved the M10 Category short-code workbook semantics on 2026-09-17. `implementation/milestone-10-preparation-readiness.md` concludes **READY FOR PROJECT-OWNER IMPLEMENTATION AUTHORIZATION**.
+M12 — Annual archive and historical access — is implementation-accepted on branch `codex/m12-annual-archive-authorized` / Draft PR #25. Its control package includes `implementation/milestone-12-preparation-readiness.md`, `implementation/milestone-12-annual-archive-historical-access.md`, `implementation/milestone-12-authorization.md`, `implementation/milestone-12-worklog.md` and `implementation/milestone-12-final-manual-acceptance.md`. The owner deferred remaining real populated-archive operational verification under an explicit risk waiver; M12 is closure-ready for controller review/merge, not an unqualified full manual-acceptance pass. Accepted WP1–WP5 source candidate `e62db0003f837297b848448a28a94e30c5db64a4` passed exact-head CI #860 / workflow run `35785073179`: 881 passed, 0 failed, 0 skipped; Release build 0 warnings/errors. The exact documentation-delivery head's CI is reported in matching PR #25 `CODEX_DONE`.
 
-M10 remains **NOT AUTHORIZED**. `implementation/milestone-10-authorization.md` remains NOT AUTHORIZED; ClosedXML has not been added to production; no production M10 implementation or executable M10 handoff exists. GitHub Issue #4 remains CLOSED.
+WP1–WP5 have been implemented under their separately authorized handoffs. The owner has accepted proceeding with remaining populated-archive manual checks deferred until real historical rows exist; no checklist item is represented as passed solely by that waiver. Intermittent synthetic-fixture archive discovery is recorded as a deferred observation rather than a proven defect or repair authorization. Exact-head CI #860 / run `35785073179` at accepted source head `e62db0003f837297b848448a28a94e30c5db64a4` succeeded (881 passed, 0 failed/skipped; Release build 0 warnings/errors). M12 is closure-ready for controller review/merge under the waiver; the exact documentation-delivery head's CI result is recorded in matching PR #25 `CODEX_DONE`. No OneDrive annual archive publication is used, and M13 implementation remains unauthorized until M12 merge.
 
-A separate explicit project-owner statement **“批准 M10 implementation”** is required before authorization setup. Even after that statement, Codex may execute only after a dedicated implementation branch/PR/mailbox exists, exactly one complete executable handoff is published, Issue #4 points to that handoff and the gate is OPEN.
+The owner-approved 2026-09-21 M12 amendment moves canonical annual archives to application-managed local storage and removes OneDrive from annual archive publication/access. WP2 therefore uses a local staged -> durable canonical promotion/reopen-validation -> live-removal boundary; no OneDrive remote acknowledgement is required. Explicit archive export is a separate operator-selected copy action and must not move/delete the canonical archive.
 
-M11, M12 and M13 remain unauthorized. Completion of preparation, a specification decision, `CODEX_DONE`, controller acceptance or manual acceptance never automatically authorizes the next work package, merge or milestone.
+M13 remains unauthorized.

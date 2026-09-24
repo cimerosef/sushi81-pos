@@ -5,7 +5,7 @@
 **Product:** Sushi81 POS  
 **Purpose:** Define the implementation architecture that preserves the approved product, lifecycle and data-model semantics while prioritizing reliability, simplicity and maintainability.
 
-**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` replaces competitive/generic handoff acquisition with source-directed transfer to one target device. `docs/decisions/github-handoff-transport.md` replaces OneDrive desktop synchronization acknowledgement for normal handoff with a dedicated private GitHub Release Asset transport; OneDrive remains historical/DR/archive storage where separately approved.
+**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` replaces competitive/generic handoff acquisition with source-directed transfer to one target device. `docs/decisions/github-handoff-transport.md` replaces OneDrive desktop synchronization acknowledgement for normal handoff with a dedicated private GitHub Release Asset transport. `docs/decisions/m12-local-archive-and-user-selected-export.md` moves annual archives to permanent application-managed local storage; OneDrive remains for separately approved Disaster Recovery functions, not annual archives.
 
 ## 1. Architecture priorities
 
@@ -41,7 +41,7 @@ Recommended internal separation:
 - **Application layer** — order-entry, catalogue, payment, archive, import/export and handoff use cases;
 - **Domain/business-rules layer** — approved pricing, validation, lifecycle and calculation rules;
 - **Persistence layer** — SQLite repositories/queries, migrations and transactional persistence;
-- **Infrastructure services** — printing, Excel import/export, local snapshot generation, GitHub Release Asset handoff transport and technical logging. Historical OneDrive diagnostics remain isolated from the normal authority gate.
+- **Infrastructure services** — printing, Excel import/export, local snapshot/archive generation, user-selected archive file export, GitHub Release Asset handoff transport and technical logging. Historical OneDrive/DR diagnostics remain isolated from the normal authority gate.
 
 These are code-organization boundaries, not separate processes or network services.
 
@@ -55,7 +55,7 @@ The active SQLite working database must **not** be opened directly from a OneDri
 
 The local working database and local recovery snapshots are application-managed technical data. Normal users are not asked to choose, move, rename or directly manipulate those files.
 
-Cross-device normal handoff is configured separately through a dedicated private GitHub repository and authenticated Release Asset API. Selecting/configuring that repository does not move or expose the local working database. OneDrive folder configuration remains separate for approved recovery/archive and historical diagnostics.
+Cross-device normal handoff is configured separately through a dedicated private GitHub repository and authenticated Release Asset API. Selecting/configuring that repository does not move or expose the local working database. OneDrive folder configuration remains separate for approved Disaster Recovery and historical diagnostics; annual archive storage is local after the M12 amendment.
 
 The architecture must not hard-code assumptions such as exactly two devices, `SHOP-PC` plus `HOME-PC`, or two fixed synchronization slots.
 
@@ -119,7 +119,7 @@ At any moment:
 - a generic released handoff is never competed for through N-device claims/election;
 - no automatic row-level database merge is performed.
 
-GitHub Release Assets are therefore the **normal handoff transport/acknowledgement medium**, not the live database engine, not a real-time database synchronization service and not a distributed lock provider. OneDrive remains a recovery/archive medium and historical diagnostic boundary.
+GitHub Release Assets are therefore the **normal handoff transport/acknowledgement medium**, not the live database engine, not a real-time database synchronization service and not a distributed lock provider. OneDrive remains a Disaster Recovery medium and historical diagnostic boundary. Annual archives are local application-managed business data.
 
 ### 7.1 Source-directed authority token
 
@@ -174,14 +174,15 @@ Application-managed local business/technical data uses a fixed per-user applicat
 
 - `Data\` — active `live.db`;
 - `Recovery\` — local rolling recovery snapshots;
-- `Cache\` — disposable local caches, including archive read-only hydration where needed;
+- `Archive\` — permanent local annual archive databases;
+- `Cache\` — disposable local caches;
 - `Logs\` — technical logs;
 - `Config\` — local machine/application configuration including device identity and durable authority/transfer state;
-- `Temp\` — staging files used for safe snapshot/archive operations.
+- `Temp\` — staging files used for safe snapshot/archive/export operations.
 
 The working `live.db` and local Recovery path are not ordinary user-configurable locations.
 
-The operator configures the dedicated private GitHub handoff repository/release for normal authority transfer. A shared OneDrive root remains separately configured for approved recovery/archive functions and historical diagnostics.
+The operator configures the dedicated private GitHub handoff repository/release for normal authority transfer. A shared OneDrive root remains separately configured for approved Disaster Recovery functions and historical diagnostics. Annual archives use the local application-managed `Archive\` area; optional archive export uses an operator-selected destination.
 
 Application update/reinstall logic must not treat local business data, device identity or durable authority/transfer state as disposable program files.
 

@@ -346,7 +346,7 @@ Core operation does not require a hosted backend.
 Committed data survives normal application restart/failure.
 
 **NFR-004 — Recoverability**  
-The approved local recovery, OneDrive handoff/disaster-recovery and annual archive paths are implemented before production use.
+The approved local recovery, GitHub target-directed handoff, OneDrive Disaster Recovery and local annual archive paths are implemented before production use.
 
 **NFR-005 — Safe schema evolution**  
 Persistent schema changes are versioned/testable and must not silently reset/discard production data.

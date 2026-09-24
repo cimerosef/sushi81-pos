@@ -5,7 +5,7 @@
 **Product:** Sushi81 POS  
 **Purpose:** Convert the approved V1 product, business, lifecycle, catalogue, data, storage, architecture, paste-import, printing and export specifications into verifiable implementation acceptance criteria.
 
-**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below. `docs/decisions/github-handoff-transport.md` makes a dedicated private GitHub Release Asset API the normal handoff transport and server acknowledgement path; OneDrive remains separately approved for recovery/archive only. `docs/decisions/filtered-catalogue-bulk-activation.md` adds AC-CAT-013 for filtered current-catalogue bulk activation/deactivation. `docs/acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` adds AC-HIB-010 and clarifies the ordinary POS summary boundary.
+**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below. `docs/decisions/github-handoff-transport.md` makes a dedicated private GitHub Release Asset API the normal handoff transport and server acknowledgement path. `docs/decisions/m12-local-archive-and-user-selected-export.md` moves annual archives to local application-managed storage and removes OneDrive from annual archive completion/access while preserving OneDrive Disaster Recovery. `docs/decisions/filtered-catalogue-bulk-activation.md` adds AC-CAT-013 for filtered current-catalogue bulk activation/deactivation. `docs/acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` adds AC-HIB-010 and clarifies the ordinary POS summary boundary.
 
 ## 1. Acceptance principle
 
@@ -38,7 +38,7 @@ Pure visual details remain implementation choices unless a criterion explicitly 
 
 **Given** the authoritative device temporarily has no Internet/OneDrive connectivity,  
 **when** the operator performs normal local order/catalogue/payment/printing work,  
-**then** those core functions remain available against the authoritative local database; only operations that intrinsically require GitHub handoff or OneDrive recovery/archive publication may be unavailable.
+**then** those core functions remain available against the authoritative local database; only operations that intrinsically require GitHub handoff or OneDrive Disaster Recovery publication may be unavailable.
 
 **Evidence:** controlled offline integration/manual test.
 
@@ -728,15 +728,19 @@ The same rule applies whether the hidden source discriminator is ordinary POS or
 
 ### AC-STO-013 — Archive publication safety
 
-Eligible records are removed from `live.db` only after a complete archive database is staged, validated, published to OneDrive Archive and publication/synchronization succeeds. Any failure leaves the records live and retryable.
+As amended by `acceptance-criteria-amendment-m12-local-archive.md`, eligible records are removed from `live.db` only after a complete target-year archive is staged locally, validated, durably promoted to the application-managed local annual-archive area, reopened and validated there as the completed canonical archive. Any failure leaves the records live and retryable.
 
-**Evidence:** archive failure-injection test.
+OneDrive publication/synchronization is not part of annual archive completion.
+
+**Evidence:** real-SQLite archive staging/promotion/reopen/live-removal failure-injection tests.
 
 ### AC-STO-014 — Permanent read-only annual archives
 
-Annual archives remain independent read-only SQLite historical databases, survive application reinstall, are retained permanently unless deliberately managed outside normal POS workflow, and remain queryable/reprintable through explicit archive selection.
+As amended by `acceptance-criteria-amendment-m12-local-archive.md`, annual archives remain independent read-only SQLite historical databases in application-managed local business-data storage, survive ordinary application update/reinstall, are retained permanently by normal POS workflow, and remain queryable/reprintable through explicit archive selection.
 
-**Evidence:** reinstall/archive access test.
+The operator can explicitly export/copy a completed validated archive to a destination they choose. Export never moves/deletes the canonical local archive and export failure does not mutate the canonical archive or `live.db`.
+
+**Evidence:** reinstall/local-archive access test plus user-selected archive export/failure test.
 
 ## 10. Architecture, deployment and data integrity
 

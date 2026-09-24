@@ -26,7 +26,9 @@ using Sushi81.Pos.Application.Foundation.GitHubTransport;
 using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Infrastructure.Printing;
 using Sushi81.Pos.Application.Export;
+using Sushi81.Pos.Application.Archive;
 using Sushi81.Pos.Infrastructure.Export;
+using Sushi81.Pos.Infrastructure.Archive;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -60,11 +62,14 @@ public static partial class CompositionRoot
         JsonAuthorityStateStore? authorityStateStore = null;
         AuthorityPhase? authorityPhase = null;
         IOrderPrintApplicationService? printService = null;
+        IArchivedOrderPrintApplicationService? archivedOrderPrintService = null;
         PrinterSetupViewModel? printerSetup = null;
         HiboutikImportOrchestrator? hiboutikImportOrchestrator = null;
          CatalogueWorkbookService? catalogueWorkbookService = null;
          CatalogueImportService? catalogueImportService = null;
          GestionExportWorkflowViewModel? gestionExportWorkflow = null;
+        AnnualArchiveStartupCoordinator? annualArchiveStartupCoordinator = null;
+        IAnnualArchiveAccess? annualArchiveAccess = null;
 
         try
         {
@@ -81,6 +86,7 @@ public static partial class CompositionRoot
 
             var clock = new TimeProviderBusinessClock(TimeProvider.System, TimeZoneInfo.Local);
             var connectionFactory = new SqliteConnectionFactory(paths);
+            annualArchiveAccess = new SqliteAnnualArchiveAccess(paths, clock);
             var snapshotService = new SqliteLocalRecoverySnapshotService(paths, connectionFactory, clock);
             var businessRevisionReader = new SqliteBusinessRevisionStore(paths, connectionFactory);
             JsonSystemMetadataStore? systemMetadata = null;
@@ -129,6 +135,19 @@ public static partial class CompositionRoot
             settingsService = new BusinessSettingsService(settingsStore, authorityGuard, durableChangeNotifier);
              var orderStore = new SqliteOrderStore(connectionFactory, transactionRunner, null, idGenerator, clock);
              var gestionExportStore = new SqliteGestionExportStore(connectionFactory, orderStore, transactionRunner, idGenerator);
+             var annualArchiveFinalizationService = new SqliteAnnualArchiveFinalizationService(
+                 paths,
+                 clock,
+                 authorityGuard,
+                 connectionFactory,
+                 transactionRunner,
+                 gestionExportStore,
+                 idGenerator,
+                 durableChangeNotifier);
+             annualArchiveStartupCoordinator = new AnnualArchiveStartupCoordinator(
+                 authorityGuard,
+                 annualArchiveFinalizationService.FinalizeNextArchiveAsync,
+                 logger);
              var gestionExportService = new GestionExportService(gestionExportStore, gestionExportStore, clock, authorityGuard, durableChangeNotifier, idGenerator);
              var gestionExportWorkbookService = new GestionExportWorkbookService(
                  gestionExportService,
@@ -152,6 +171,7 @@ public static partial class CompositionRoot
                 new WindowsPrintDocumentSubmitter(),
                 clock);
             printService = new OrderPrintApplicationService(orderStore, printDispatcher);
+            archivedOrderPrintService = new ArchivedOrderPrintApplicationService(printDispatcher);
             printerSetup = new PrinterSetupViewModel(configuration, configurationService, new WindowsPrintQueueCatalog());
             orderEntryService = new OrderEntryService(
                 orderCatalogueQueries, settingsStore, orderStore, printDispatcher, idGenerator, clock, authorityGuard, durableChangeNotifier);
@@ -207,10 +227,12 @@ public static partial class CompositionRoot
                     connectionTester,
                     connectionSetup,
                     disasterRecovery,
-                    recoveryCandidates);
-                await m07Runtime.RefreshAuthorityStateAsync();
-            }
-            LogFoundationStartupSucceeded(logger);
+                 recoveryCandidates);
+                 await m07Runtime.RefreshAuthorityStateAsync();
+             }
+             if (annualArchiveStartupCoordinator is not null)
+                 await annualArchiveStartupCoordinator.RunAsync();
+             LogFoundationStartupSucceeded(logger);
             startupSucceeded = true;
         }
         catch (Exception exception)
@@ -240,7 +262,9 @@ public static partial class CompositionRoot
             hiboutikImportOrchestrator,
              catalogueWorkbookService,
              catalogueImportService,
-             gestionExportWorkflow);
+             gestionExportWorkflow,
+             annualArchiveAccess,
+             archivedOrderPrintService);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,

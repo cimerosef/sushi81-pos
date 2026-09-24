@@ -1,0 +1,288 @@
+# M12 — Annual archive and historical access — worklog
+
+**Status:** Active implementation evidence ledger
+**Milestone:** M12
+**Implementation PR:** #25
+**Branch:** `codex/m12-annual-archive-authorized`
+
+## 2026-09-21 — Controller preparation / current-state reconciliation
+
+Verified before M12 execution:
+
+- authoritative main: `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`;
+- PR #24 M11: CLOSED/MERGED;
+- M11 accepted runtime candidate: `77ccecf9d947462e96e74b8aa1d99ced30e3788e`;
+- M11 final documentation head: `4eddf0a93c5a141326d76c6e67a9a9c5840e5068`;
+- controller closure: PR #24 comment `5762784303`;
+- merge completion: PR #24 comment `5762846107`;
+- post-merge CI #821 / run `35617254203`: SUCCESS, 831/831 passed, 0 failed, 0 skipped, Release build 0 warnings / 0 errors;
+- Issue #4 was CLOSED with no active executable handoff before M12 setup;
+- M12 owner authorization was already granted for post-M11 start;
+- M13 remains unauthorized.
+
+Readiness review and implementation contract were created on PR #25. The review found no blocker to WP1, but preserved the known M02 OneDrive remote-publication acknowledgement limitation as a blocker to the later WP2 live-removal gate under `AC-STO-013`.
+
+## Package ledger
+
+| Package | State | Evidence |
+|---|---|---|
+| WP1 — archive core/eligibility/staging | READY pending exact handoff | First executable M12 package; no OneDrive publication/live deletion. |
+| WP2 — export preservation/publication/live removal | BLOCKED at remote acknowledgement choice | Must not enable live deletion until conforming publication confirmation is explicitly approved. |
+| WP3 — scheduler/authority/retry | Not started | No executable handoff. |
+| WP4 — explicit archive selection/hydration/search | Not started | No executable handoff. |
+| WP5 — archived reprint/hardening/owner candidate | Not started | No executable handoff. |
+
+
+## 2026-09-21 — Owner amendment — local archive + user-selected export
+
+Owner evidence: PR #25 comment `5765067664`.
+
+Approved change:
+
+- canonical annual archive databases are permanent application-managed local business data under the Sushi81 POS local application-data root;
+- OneDrive is removed from annual archive publication, acknowledgement, retention, discovery and ordinary historical access;
+- automatic February/late-start archiving remains non-interactive;
+- completed archive export is a separate explicit copy action and the operator chooses its destination;
+- export never moves/deletes the canonical local archive and failure cannot mutate canonical archive/live data;
+- normal handoff does not automatically transfer annual archive files.
+
+Control action:
+
+- Issue #4 was CLOSED before reconciliation;
+- former READY `M12-WP1-ARCHIVE-CORE-STAGING-01` / PR #25 comment `5764191282` was revoked before further execution;
+- Approved decision and acceptance amendment were added and baseline/living docs aligned;
+- the former OneDrive remote-publication acknowledgement blocker no longer applies to M12 annual archive completion;
+- a new unique WP1 READY is required from the reconciled exact head.
+
+Updated package plan:
+
+| Package | State | Evidence |
+|---|---|---|
+| WP1 — archive core/eligibility/staging | READY after reconciliation | Local staging only; no canonical promotion/live deletion/export UI. |
+| WP2 — export preservation/local canonical publication/live removal | Not started | Stage/validate -> durable local canonical promotion/reopen validation -> exact removal; preserve pending export payloads first. |
+| WP3 — scheduler/authority/retry | Not started | Automatic February/late-start remains non-interactive. |
+| WP4 — explicit local archive selection/search + user-selected export | Not started | Local Archive discovery/read-only access; explicit export copy destination selected by operator. |
+| WP5 — archived reprint/hardening/owner candidate | Not started | No change to M08 snapshot/reprint semantics. |
+
+## 2026-09-21 — WP1 evidence/governance closure package 03
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP1-EVIDENCE-CLOSURE-03`, PR #25 comment `5766940595`;
+- handoff start head: `ef437f535c160224666269e50bb3060a858bf5b9`;
+- historical premature/intermediate completion record `CODEX_DONE: M12-WP1-LOCAL-ARCHIVE-CORE-STAGING-02`, PR #25 comment `5766817946`, was preserved and not reused or edited for this closure;
+- controller finding: PR #25 comment `5766933100` identified the focused evidence gap and required a new distinct closure record;
+- production code changed: no; WP1 production implementation remains the start-head implementation. This package adds only focused integration evidence and this append-only ledger entry.
+
+Focused evidence added and passing:
+
+1. `ValidatorRejectsTruncatedArchiveAndPreservesLiveData` rejects a truncated SQLite archive and verifies live orders plus the M11 export ledger remain unchanged.
+2. `ValidatorRejectsMissingRequiredSchemaAndCountMismatch` rejects a missing required table and an expected-order-count mismatch.
+3. `ValidatorRejectsChildMismatchAndArchiveRetainsEquivalentSnapshotFactsWithoutCatalogue` rejects missing child rows and reconstructs archive-only scalar, item, adjustment, payment, and tax facts without current Catalogue/VAT/settings reads.
+4. `RepeatedStagingIsIndependentAndM11LedgerStateRemainsByteEquivalent` proves two successful independent staging attempts, byte-equivalent `export_batches`/`export_batch_orders`/`export_emissions` state, service-level validation-failure cleanup, and retry success.
+
+The previously retained WP1 policy/time, eligibility, authority, path, metadata, and builder-failure/retry tests remain passing. Focused M12 result: 19 passed, 0 failed, 0 skipped (9 application policy tests, 9 annual-archive integration tests, 1 archive-path test). Full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 850 passed, 0 failed, 0 skipped. Full Release build: 0 warnings, 0 errors. `git diff --check`: clean. Test implementation head: `66a592c`.
+
+Final closure delivery remains bounded to WP1 evidence/governance. No WP2 behavior, canonical archive promotion, live deletion, scheduler, archive UI/search/export/reprint, or M13 work is included or authorized by this handoff. Issue #4 gate was OPEN during execution; PR #25 remains the active Draft/open implementation PR and is not merged.
+
+## 2026-09-21 — WP2 local publication/export-preservation/live-removal package 04
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP2-LOCAL-PUBLISH-EXPORT-PRESERVATION-LIVE-REMOVAL-04`, PR #25 comment `5767278524`;
+- handoff start head: `c0c16ac7e11a52f87d3a939a9d024f866c361a7e`;
+- controller prerequisite: WP1 accepted by PR #25 comment `5767263231`;
+- implementation/evidence commit: `2c68d4a` (`feat: finalize local annual archive removal`);
+- Issue #4 was OPEN and PR #25 remained the active Draft/open implementation PR during execution.
+
+Implemented only the authorized M12 WP2 boundary:
+
+- migration 9 adds the durable `annual_archive_completions` ledger and upgrade/failure-rollback coverage;
+- pending M11 CREATE/UPDATE/CANCEL actions are preserved as immutable PREPARED payloads using the exact action/payload/predecessor tuple, with retry reuse and stale-prepared separation;
+- validated WP1 staging is copied through an incoming file, flushed, reopened/validated, atomically promoted without overwrite, and validated again before live removal;
+- the exact validated order identity set is deleted in one SQLite transaction with the completion marker, automatic business-revision advancement, and post-commit durable recovery notification;
+- repeated completion is idempotent, a missing canonical file is not silently recreated, corrupt canonical data fails closed, and copy/transaction failures leave live data retryable;
+- expanded archive validation compares the full historical fact rows relevant to the target orders, not only identifiers and child counts.
+
+Evidence recorded before final delivery:
+
+- focused M12 WP2 real-SQLite/filesystem suite: 6 passed, 0 failed, 0 skipped;
+- existing M12 WP1 staging/validation regression: 9 passed, 0 failed, 0 skipped;
+- full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 856 passed, 0 failed, 0 skipped;
+- full Release solution build: 0 warnings, 0 errors;
+- `git diff --check`: clean before commit.
+
+The package remains bounded to local annual archive publication, pending Gestion payload preservation, exact live removal and recovery notification. No scheduler, archive UI/search, user-selected archive export, historical reprint, OneDrive publication, M13 work or PR merge is included or authorized by this handoff. Exact-head CI and the durable matching `CODEX_DONE` remain the final delivery steps.
+
+## 2026-09-21 — WP2 evidence/governance closure package 05
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP2-EVIDENCE-CLOSURE-05`, PR #25 comment `5767856589`;
+- handoff start head: `6529b3014c772f8877b9ea2233ba69fb13c2c89f`;
+- controller review: PR #25 comment `5767851546`;
+- Issue #4 was OPEN and PR #25 remained the active Draft/open implementation PR during execution;
+- production code changed: no; this closure package adds focused real-SQLite/filesystem integration evidence and this append-only ledger entry only.
+
+Focused evidence added and passing:
+
+1. unchanged already-successful UPDATE and CANCEL actions produce no new PREPARED preservation action;
+2. exact PREPARED reuse does not duplicate, while a stale differing PREPARED payload does not satisfy the current action and the current action is preserved once; the exact/current PREPARED batches remain usable through `MarkBatchSucceededAsync` after live order deletion;
+3. a zero-order year publishes a canonical archive, records count 0/year/hash, has no PREPARED action, and the second call is `AlreadyCompleted` without mutation;
+4. exact closed/cancelled removal deletes child rows while open orders and closed/cancelled orders from another year remain;
+5. `flush`, `incoming-validation`, `rename` and `post-rename-validation` publication failures leave live state and completion-marker state retryable;
+6. a valid canonical archive without a completion marker is reused, while a source-mismatching canonical archive fails closed without replacement or live deletion;
+7. an independently computed SHA-256 matches the finalization result and completion metadata;
+8. pre-existing successful M11 export history is content-equivalent before and after archive finalization.
+
+Validation evidence:
+
+- focused WP2 real-SQLite/filesystem suite: 12 passed, 0 failed, 0 skipped;
+- combined M12 WP1/WP2 regression filter: 22 passed, 0 failed, 0 skipped;
+- full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 862 passed, 0 failed, 0 skipped;
+- full Release solution build: 0 warnings, 0 errors;
+- `git diff --check`: clean.
+
+This closure remains bounded to WP2 evidence/governance. No WP3 scheduler/authority/retry work, archive UI/search/export/reprint, M13 work or PR merge is included or authorized. Exact-head CI and the durable matching `CODEX_DONE` remain the final delivery steps.
+
+Exact-head CI for the pushed evidence commit `c2ae720f8a0c0aaa7c1989e7973b16898a4e9251`: Continuous integration run #853 / workflow run `35660059392` — SUCCESS. The subsequent documentation-only delivery commit retains the same tested implementation and requires its own exact-head CI before `CODEX_DONE`.
+
+## 2026-09-22 — WP3 startup scheduler/authority/retry package 06
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP3-STARTUP-SCHEDULER-AUTHORITY-RETRY-06`, PR #25 comment `5768769806`;
+- handoff start head: `9d102a1b84a617da777360e5725d0a69d8e8cde6`;
+- controller prerequisite: WP2 accepted by PR #25 comment `5768761886`;
+- Issue #4 was OPEN and PR #25 remained the active Draft/open implementation PR during execution.
+
+Implemented only the authorized M12 WP3 boundary:
+
+- added `AnnualArchiveStartupCoordinator` with the explicit outcomes `NoTargetYet`, `SkippedNotAuthoritative`, `CompletedNow`, `AlreadyCompleted` and `FailedRetryable`;
+- wired one non-interactive startup invocation after migrations, authority resolution, and the optional M07 runtime authority refresh, but before the successful-startup log;
+- delegated target-year policy, WP2 idempotency, local canonical publication, exact removal, preservation and the existing durable recovery notification to `SqliteAnnualArchiveFinalizationService` without duplicating those rules;
+- non-authoritative, transitioning and recovery-required startup states skip without invoking the finalizer; operational failures are logged without customer/order payloads and remain retryable on a later safe authoritative startup; cancellation is not swallowed and there is no same-startup retry, watcher, background loop or second notifier;
+- added real-SQLite/filesystem evidence for January no-target behavior, February and delayed previous-year selection with current-year preservation, authority skips, two-startup idempotency, retryable copy failure, canonical reuse after transaction rollback, preservation de-duplication, and exactly one post-commit notifier;
+- added architecture evidence for startup ordering and the absence of OneDrive, watcher-delay and duplicate-notification policy in the coordinator.
+
+No archive discovery/search UI, user-selected archive export, archived reprint, OneDrive publication, M13 work or PR merge is included or authorized by this handoff. Final delivery requires the pushed exact head, exact-head CI and the durable matching `CODEX_DONE`.
+
+Implementation validation before delivery: focused WP3 integration suite 7 passed, 0 failed, 0 skipped; focused WP3 architecture suite 2 passed, 0 failed, 0 skipped; full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 871 passed, 0 failed, 0 skipped; full Release solution build: 0 warnings, 0 errors; `git diff --check`: clean. Implementation commit: `a7e7ef81cc60ca6d36fe72d015da2a23566b2d2d`.
+
+Exact-head CI for implementation commit `a7e7ef81cc60ca6d36fe72d015da2a23566b2d2d`: Continuous integration run #855 / workflow run `35667860748` — SUCCESS. The final documentation-only delivery commit below requires its own exact-head CI before `CODEX_DONE`.
+
+## 2026-09-22 — WP4 annual archive access/search/copy package 07
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP4-ARCHIVE-ACCESS-SEARCH-EXPORT-07`, PR #25 comment `5770334827`;
+- handoff start head: `17ab5c8ce9f4033442dcf9f4d4f082a191c94169`;
+- controller prerequisite: WP3 accepted by PR #25 comment `5770223722`;
+- Issue #4 was OPEN and PR #25 remained the active Draft/open implementation PR during execution.
+
+Implemented only the authorized M12 WP4 boundary:
+
+- added a read-only application contract and infrastructure access service that discovers only canonical `sushi81-archive-YYYY.db` files which pass the existing standalone validator, ignoring malformed or corrupt candidates;
+- added explicit archive-year selection, historical search by reference/comment/telephone/product snapshot, status and planned-date range, and full `OrderSnapshot` hydration from persisted archive rows only;
+- added a separate WPF historical archive tab with localized French and Chinese labels, read-only detail rendering, no lifecycle edit/payment/cancel/reprint controls, and an explicit user-selected archive copy/export action;
+- added safe copy semantics using a temporary destination, disk flush, length/SHA-256 verification, same-directory replacement and restoration of an existing destination on replacement failure; canonical archives are never overwritten and source-equals-destination is rejected;
+- left live search isolated from the archive seam and kept archived printing/reprinting for the separately authorized WP5 scope.
+
+Focused evidence:
+
+- WP4 real-SQLite/filesystem integration: 1 passed, 0 failed, 0 skipped;
+- combined M12 infrastructure regression filter: 30 passed, 0 failed, 0 skipped;
+- WP4 desktop architecture/localization suite: 2 passed, 0 failed, 0 skipped;
+- combined M12 architecture regression filter: 4 passed, 0 failed, 0 skipped.
+
+No WP5 archived printing/reprinting, M13 work, OneDrive publication or PR merge is included or authorized by this handoff. Exact-head CI and the durable matching `CODEX_DONE` remain the final delivery steps.
+
+## 2026-09-22 — WP4 repair/evidence closure package 08
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP4-REPAIR-EVIDENCE-CLOSURE-08`, PR #25 comment `5779783072`;
+- controller review: PR #25 comment `5779775217`;
+- handoff start head: `b14442f17e0668c46af675e924975d1e1a531913`;
+- Issue #4 was OPEN; PR #25 was the active open Draft PR on `codex/m12-annual-archive-authorized`;
+- implementation/evidence commit: `39e0c6aa7a4581a7395119195dea1b09a09c3f3d`;
+- changed only the WP4 access ViewModel, local SQLite archive search, and focused WP4 integration/architecture evidence.
+
+Authorized production repairs only:
+
+- archive discovery now lists validated years without implicitly selecting the newest; refresh preserves an explicitly selected year if it remains valid and clears selection/results/detail if it disappears;
+- discovery, selected-year search and selected-order hydration cancel prior requests and guard every result/error by the current operation generation and selected year/order, preventing late older results from replacing current state; busy state counts overlapping requests;
+- historical telephone search uses the same `TelephoneSearchNormalization.QueryTerms` and punctuation-insensitive stored-number matching as live search, without changing the live search path;
+- added a narrow `replace-after-backup` fault-injection seam so the existing destination-restoration branch is exercised after the old destination has been backed up.
+
+WP4 evidence map (READY criteria 1–32):
+
+- discovery 1–6: two valid annual files are returned newest-first; unrelated filename, corrupt candidate, filename/metadata year mismatch and a completion-ledger year with no file are excluded; byte snapshots prove discovery/search/copy leave canonical and ignored archive files unchanged;
+- read/search/hydration 7–16: historical detail retains reference, POS/HIBOUTIK_PASTE source, item plus predefined/custom adjustments, tax breakdown, payment totals and source total; CLOSED/CANCELLED rows are available while OPEN and live-only rows are absent; reference, phone, status and date filters, year isolation, live-phone parity, business revision, completion ledger and M11 export-ledger stability are asserted while a non-authoritative read state is active;
+- ViewModel/WPF 17–23: discovery starts with no selected year/rows/detail; only an explicit selected year is searched; refresh preserves/clears explicit selection correctly; delayed older discovery, year-search and order-detail results cannot overwrite the newer result; French and zh-CN resources and the separate read-only/non-lifecycle/non-print surface are checked, including live-search path separation;
+- copy/export 24–30: successful copy bytes/length/SHA match and both canonical files remain unchanged; source-equals-destination is rejected; injected copy/flush/verify/pre-replace/post-backup replacement failures preserve source and the previous destination; dialog cancellation returns before `CopySelectedAsync`; read/export leave live/recovery/M11 state unchanged; archive access has no OneDrive API/state dependency;
+- regression 31–32: the existing live phone/query regression remains unchanged and passing; M12 WP1/WP2/WP3 infrastructure and architecture regressions pass with WP4.
+
+Validation evidence for this implementation commit:
+
+- focused WP4 real-SQLite/filesystem integration: 1 passed, 0 failed, 0 skipped;
+- focused WP4 ViewModel/architecture suite: 7 passed, 0 failed, 0 skipped;
+- combined M12 infrastructure regressions: 30 passed, 0 failed, 0 skipped;
+- combined M12 architecture regressions: 9 passed, 0 failed, 0 skipped;
+- existing live phone/query regression: 1 passed, 0 failed, 0 skipped;
+- full `dotnet test Sushi81.Pos.sln --configuration Release --no-restore --nologo`: 879 passed, 0 failed, 0 skipped;
+- full Release solution build: 0 warnings, 0 errors;
+- `git diff --check`: clean before the append-only closure entry.
+
+Exact-head GitHub CI for implementation commit `39e0c6aa7a4581a7395119195dea1b09a09c3f3d` completed SUCCESS in workflow run #858 (`35778494747`). The worklog-only delivery commit will be the final head and requires its own exact-head CI; that status will be recorded in the matching durable `CODEX_DONE`. Issue #4 was OPEN at execution; no merge or WP5/M13 work was performed. No unresolved implementation blocker is known.
+
+## 2026-09-22 — WP5 archived reprint/hardening/owner-candidate package 09
+
+Mailbox and scope record:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-WP5-ARCHIVED-REPRINT-HARDENING-OWNER-CANDIDATE-09`, published on the active M12 implementation PR;
+- handoff start head: `1c306254b236c8b2c45f695deab4e5f2f5def3fa`;
+- Issue #4 was OPEN and pointed to this exact active handoff; WP1–WP4 were controller-accepted before execution;
+- implementation remains limited to WP5; no M13, installer work, or merge was performed.
+
+Implemented:
+
+- added an Application archived-print seam that accepts an already hydrated `OrderSnapshot` and delegates directly to the existing M08 `IOrderPrintOutcomeDispatcher` with `ExplicitReprint`; it has no live order store, Catalogue, archive mutation service, or write-authority dependency;
+- reused the existing M08 document factory and Windows queue dispatcher for kitchen/customer archive reprints;
+- added explicit, localized archive-detail reprint controls, enabled only for the currently hydrated selected archive order and while no archive operation is active;
+- captured the selected archive year/order/snapshot and selection generation for each request; a late print outcome is not attached to a subsequently selected order;
+- kept the existing `RÉIMPRESSION`, `DUPLICATA` and `ANNULÉ` semantics and added safe localized success/failure/ambiguous feedback;
+- added archive-snapshot integration evidence after mutating the current Catalogue product name/price/VAT, covering HIBOUTIK_PASTE and POS, payments, taxes, item options, totals, cancellation marks, queue routing, unavailable/failed/ambiguous print results, and a cancelled submission;
+- added the concise owner checklist at `milestone-12-final-manual-acceptance.md`. It remains unchecked; Codex did not perform or claim owner acceptance.
+
+Validation before final delivery commit:
+
+- WP5 archived-print + M08 application test suite: 12 passed, 0 failed, 0 skipped;
+- WP5 archive WPF architecture/ViewModel suite: 8 passed, 0 failed, 0 skipped; combined M12 architecture regression: 10 passed, 0 failed, 0 skipped;
+- WP5 real-SQLite/filesystem integration (including cancellation): 1 passed, 0 failed, 0 skipped; combined M12 infrastructure regression: 30 passed, 0 failed, 0 skipped;
+- full Release test suite on final WP5 source: 881 passed, 0 failed, 0 skipped;
+- Release solution build: 0 warnings, 0 errors;
+- `git diff --check`: clean.
+
+The self-contained owner candidate was published successfully with `dotnet publish src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o "$env:TEMP\Sushi81POS-M12-WP5-09-owner-candidate" --no-restore`; output is in `%TEMP%\Sushi81POS-M12-WP5-09-owner-candidate` (421 files including `Sushi81.Pos.Desktop.exe`, no database, recovery, log, workbook, CSV or credential-like files detected). Exact-head GitHub CI and final source SHA are pending and must be recorded by the matching durable `CODEX_DONE`. The truthful M12 state is WP1–WP5 implemented/controller-review-ready, owner Windows/WPF manual acceptance pending, M13 unauthorized, and PR still Draft/Open.
+
+## 2026-09-24 — M12 final documentation/owner-waiver closure package 20
+
+Mailbox and owner disposition:
+
+- source handoff: `CODEX_HANDOFF_READY: M12-FINAL-DOCS-OWNER-WAIVER-CLOSURE-20`, PR #25 comment `5816808552`;
+- handoff start head: `e62db0003f837297b848448a28a94e30c5db64a4`;
+- owner decision: `M12-DEFER-REMAINING-ARCHIVE-MANUAL-VERIFICATION-20260924`, PR #25 comment `5816797035`;
+- Issue #4 was OPEN and pointed to active Draft PR #25 during this documentation-only closure;
+- no product source, tests, schema, XAML, dependencies or runtime behavior were changed.
+
+Closure reconciliation:
+
+- recorded the intermittent same-head synthetic archive-discovery outcomes as conflicting deferred observations, not a proven defect; no speculative repair is authorized;
+- kept the owner manual checklist unchecked and distinguished the limited observed discovery outcomes and accepted WP1–WP5 automated/controller evidence from the populated-archive checks explicitly deferred by the owner;
+- recorded the practical risk waiver, the invariant that archive failure must not silently remove eligible live orders, and the first real-data verification point: first safe authoritative startup on/after 2027-02-01 for 2026 archives;
+- reconciled M12 status to implementation-accepted / operational verification partially deferred under explicit owner waiver / closure-ready for controller review and merge;
+- carried the approved M13 Gestion export-ledger retention/compaction decision `M13-GESTION-EXPORT-LEDGER-RETENTION-COMPACTION-20260923` into living status/plan, without starting M13;
+- corrected stale source-candidate CI wording: accepted source head `e62db0003f837297b848448a28a94e30c5db64a4`, CI #860 / run `35785073179`, 881 passed, 0 failed, 0 skipped, Release build 0 warnings/errors. Exact documentation-delivery head CI is recorded in the matching `CODEX_DONE` comment.
+
+Validation for the documentation delivery: `git diff --check` must be clean; verify Markdown references and confirm the diff is limited to the six authorized documentation files. The PR remains Draft/Open and unmerged; this package does not implement M13. Final head, exact-head CI, and final PR state are in the matching PR #25 `CODEX_DONE`.

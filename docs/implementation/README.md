@@ -24,11 +24,13 @@ Key recent baselines:
 
 Historical contracts/worklogs/manual-acceptance records remain authoritative in their existing files and PRs. Do not rewrite historical evidence merely to match later project state.
 
-## M11 current closure state
+## Current M11/M12 state
 
-M11 Gestion intermediate export implementation and owner A–E acceptance are complete on PR #24. The accepted runtime candidate is source head `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; M11 is **Closure-ready**, pending final controller closure and separate explicit project-owner merge approval. PR #24 remains Draft/Open/unmerged. M12/M13 remain unauthorized. Detailed current evidence is maintained in `implementation-status.md` and `milestone-11-final-manual-acceptance.md`; historical preparation records below are not rewritten.
+M11 Gestion intermediate export is Passed/merged through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831 passed, 0 failed, 0 skipped and Release build 0 warnings / 0 errors.
 
-## M10 preparation — Catalogue `.xlsx` import/export
+M12 Annual archive and historical access is owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25. WP1–WP5 implementation is accepted; the accepted source candidate is `e62db0003f837297b848448a28a94e30c5db64a4`. Exact-head source CI #860 / run `35785073179` succeeded with 881 passed, 0 failed, 0 skipped and a Release build with 0 warnings / 0 errors. Remaining populated historical-archive owner checks are explicitly deferred under the owner waiver and are not claimed Passed; under that waiver, M12 is closure-ready for controller review/merge. The documentation-delivery commit's current exact-head CI is tracked in the matching PR #25 `CODEX_DONE` record. The owner-approved 2026-09-21 amendment makes the canonical annual archive a permanent local application-managed database, removes OneDrive from annual archive publication/access, and provides explicit user-selected archive copy/export. The local-canonical-archive and copy/export semantics remain unchanged. The concise owner checklist is `milestone-12-final-manual-acceptance.md`. M13 implementation remains unauthorized until M12 is merged.
+
+## Historical M10 preparation — Catalogue `.xlsx` import/export
 
 M10 preparation is complete and is **READY FOR PROJECT-OWNER IMPLEMENTATION AUTHORIZATION**, but implementation remains **NOT AUTHORIZED**.
 
@@ -44,7 +46,7 @@ Prepared control package:
 
 The project owner approved the Category short-code workbook semantics on 2026-09-17. That specification decision closes the last material M10 readiness gap but **does not authorize implementation**.
 
-Current execution state:
+Historical execution state at that preparation point:
 
 - Issue #4: CLOSED;
 - executable M10 `CODEX_HANDOFF_READY`: none;
@@ -53,6 +55,18 @@ Current execution state:
 - M11/M12/M13: unauthorized.
 
 A separate explicit project-owner statement such as **“批准 M10 implementation”** is still required before the controller may mark M10 Authorized. Only after that may the dedicated implementation branch/PR/mailbox be established, one complete handoff be published, Issue #4 be updated to that unique pointer, and the gate be opened.
+
+## M12 current package
+
+- `milestone-12-preparation-readiness.md` — code/spec readiness review, including historical OneDrive blocker finding and the superseding local-archive amendment;
+- `milestone-12-annual-archive-historical-access.md` — work-package contract and final owner-waiver disposition;
+- `milestone-12-authorization.md` — durable owner authorization;
+- `milestone-12-worklog.md` — append-only package/evidence ledger;
+- `milestone-12-final-manual-acceptance.md` — owner-observed, automated/controller, and explicitly deferred operational checks; no waived item is claimed Passed;
+- Draft PR #25 — active durable mailbox;
+- Issue #4 — sole execution switch/status pointer.
+
+M12 is implementation-accepted and closure-ready for controller review/merge with real populated-archive operational verification partially deferred under the owner's explicit waiver. M13 remains unstarted until M12 merges. Its approved Gestion export-ledger retention/compaction requirements are recorded in `implementation-status.md` and `implementation-plan.md`.
 
 ## Governance reminder
 
