@@ -24,11 +24,13 @@ Key recent baselines:
 
 Historical contracts/worklogs/manual-acceptance records remain authoritative in their existing files and PRs. Do not rewrite historical evidence merely to match later project state.
 
-## Current M11/M12 state
+## Current M11/M12/M13 state
 
 M11 Gestion intermediate export is Passed/merged through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831 passed, 0 failed, 0 skipped and Release build 0 warnings / 0 errors.
 
-M12 Annual archive and historical access is owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25. WP1–WP5 implementation is accepted; the accepted source candidate is `e62db0003f837297b848448a28a94e30c5db64a4`. Exact-head source CI #860 / run `35785073179` succeeded with 881 passed, 0 failed, 0 skipped and a Release build with 0 warnings / 0 errors. Remaining populated historical-archive owner checks are explicitly deferred under the owner waiver and are not claimed Passed; under that waiver, M12 is closure-ready for controller review/merge. The documentation-delivery commit's current exact-head CI is tracked in the matching PR #25 `CODEX_DONE` record. The owner-approved 2026-09-21 amendment makes the canonical annual archive a permanent local application-managed database, removes OneDrive from annual archive publication/access, and provides explicit user-selected archive copy/export. The local-canonical-archive and copy/export semantics remain unchanged. The concise owner checklist is `milestone-12-final-manual-acceptance.md`. M13 implementation remains unauthorized until M12 is merged.
+M12 Annual archive and historical access is controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722`. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3`; exact-head CI #862 / run `36021889765` succeeded with 881/881, 0 failed, 0 skipped and Release build 0 warnings / 0 errors; post-merge CI #863 / run `36023054757` build-and-test succeeded. Remaining real populated historical-archive checks are explicitly deferred under the owner waiver and are not claimed Passed. The first safe real verification point remains on or after 2027-02-01 for real 2026 rows.
+
+M13 is owner-authorized in preparation on `codex/m13-installer-final-acceptance-authorized`. The control package and Approved Gestion export retention/compaction decision are present, but execution is paused because GitHub currently reports the source repository as public, conflicting with the project's expected private posture. Issue #4 remains CLOSED and no executable M13 READY exists.
 
 ## Historical M10 preparation — Catalogue `.xlsx` import/export
 
@@ -56,17 +58,30 @@ Historical execution state at that preparation point:
 
 A separate explicit project-owner statement such as **“批准 M10 implementation”** is still required before the controller may mark M10 Authorized. Only after that may the dedicated implementation branch/PR/mailbox be established, one complete handoff be published, Issue #4 be updated to that unique pointer, and the gate be opened.
 
-## M12 current package
+## M12 completed package
 
-- `milestone-12-preparation-readiness.md` — code/spec readiness review, including historical OneDrive blocker finding and the superseding local-archive amendment;
-- `milestone-12-annual-archive-historical-access.md` — work-package contract and final owner-waiver disposition;
-- `milestone-12-authorization.md` — durable owner authorization;
-- `milestone-12-worklog.md` — append-only package/evidence ledger;
-- `milestone-12-final-manual-acceptance.md` — owner-observed, automated/controller, and explicitly deferred operational checks; no waived item is claimed Passed;
-- Draft PR #25 — active durable mailbox;
-- Issue #4 — sole execution switch/status pointer.
+- `milestone-12-preparation-readiness.md`;
+- `milestone-12-annual-archive-historical-access.md`;
+- `milestone-12-authorization.md`;
+- `milestone-12-worklog.md`;
+- `milestone-12-final-manual-acceptance.md`;
+- PR #25 — historical durable mailbox, CLOSED/MERGED.
 
-M12 is implementation-accepted and closure-ready for controller review/merge with real populated-archive operational verification partially deferred under the owner's explicit waiver. M13 remains unstarted until M12 merges. Its approved Gestion export-ledger retention/compaction requirements are recorded in `implementation-status.md` and `implementation-plan.md`.
+M12 is merged under the explicit owner waiver. The deferred real populated-archive operational verification remains visible and must not be represented as Passed.
+
+## M13 current package
+
+- `../decisions/m13-gestion-export-ledger-retention-compaction.md` — Approved owner decision;
+- `../acceptance-criteria-amendment-m13-gestion-export-retention.md` — matching Approved acceptance amendment;
+- `milestone-13-preparation-readiness.md` — controller readiness and repository-visibility blocker;
+- `milestone-13-installer-localization-final-acceptance.md` — WP1–WP6 implementation contract;
+- `milestone-13-authorization.md` — OWNER-AUTHORIZED; execution not enabled;
+- `milestone-13-worklog.md` — append-only evidence ledger;
+- `milestone-13-final-manual-acceptance.md` — prepared final V1 owner checklist;
+- branch `codex/m13-installer-final-acceptance-authorized`;
+- Issue #4 — sole execution switch/status pointer, currently CLOSED.
+
+First intended executable scope after repository privacy is resolved: WP1 Gestion export retention/compaction core only.
 
 ## Governance reminder
 
