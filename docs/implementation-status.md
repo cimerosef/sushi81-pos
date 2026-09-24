@@ -136,6 +136,7 @@ M13 current control line:
 
 - owner authorization: GRANTED under the implementation-plan preauthorization that became effective after M12 merge;
 - dedicated branch: `codex/m13-installer-final-acceptance-authorized`;
+- Draft implementation PR/mailbox: #26 — `M13: Installer, localization completion and final V1 acceptance`;
 - M13 preparation/readiness: `implementation/milestone-13-preparation-readiness.md`;
 - implementation contract: `implementation/milestone-13-installer-localization-final-acceptance.md`;
 - authorization record: `implementation/milestone-13-authorization.md`;
