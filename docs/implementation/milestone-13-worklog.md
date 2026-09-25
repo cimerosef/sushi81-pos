@@ -1,8 +1,8 @@
 # M13 — Installer, localization completion and final V1 acceptance — worklog
 
-**Status:** Preparation  
-**Branch:** `codex/m13-installer-final-acceptance-authorized`  
-**Draft PR:** #26 — M13: Installer, localization completion and final V1 acceptance  
+**Status:** Preparation
+**Branch:** `codex/m13-installer-final-acceptance-authorized`
+**Draft PR:** #26 — M13: Installer, localization completion and final V1 acceptance
 **Start baseline:** `f59663c6b47ab21114c24360544e4e25094f4722`
 
 This file is append-only for M13 package/evidence history. Historical failures are not rewritten away.
@@ -254,3 +254,29 @@ Local verification on the implementation candidate before this append-only resul
 - git diff --check: passed.
 
 Exact-head CI and the m13-production-installer lifecycle/artifact job remain required after push. Owner Section D plus navigation/visual-layout review remains pending on the combined exact candidate; E-F remain paused. No owner acceptance or merge is claimed.
+
+
+## 2026-09-25 — Chinese and English operating-guide repair
+
+Consumed M13-FINAL-OPERATING-GUIDE-ZHCN-ONBOARDING-09 from active PR #26 comment 5834980691 while Issue #4 was OPEN. The exact starting head is 9f4521627b21f44c2dc5452f03db840a143e1ee4 on codex/m13-installer-final-acceptance-authorized. Scope is operator documentation and the Section F acceptance record only.
+
+Completed:
+
+- Added docs/operating-guide.zh-CN.md as the primary natural Simplified Chinese operator manual. It starts with ordered new-PC setup, approved installer identity/artifact checks, data-preservation rules, language and authority status, the six M07 setup fields, owner-confirmed credential preparation, restart and GitHub connection test, read-only join, exact-target GitHub authority transfer, interruption handling and the exceptional Disaster Recovery boundary.
+- Added per-computer printer setup using the verified French and Chinese UI labels, including queue refresh, kitchen/customer mapping, save, local-only scope and unavailable-queue recovery.
+- Documented the approved first-initialization defaults from docs/business-rules.md: Retrait discount 10%, post-discount minimum EUR 15.00, Livraison minimum EUR 30.00, delivery fee disabled and EUR 0.00, with delivery-fee VAT fixed at 10%. Explained eligibility and ordering semantics and the requirement to verify transferred settings/catalogue rather than reset an existing lineage.
+- Expanded docs/operating-guide.md to equivalent practical completeness for English readers, retaining the existing day-to-day workflows and V1 exclusions. Linked both guides in docs/README.md and identified the Chinese guide as primary.
+- Updated only Section F of docs/implementation/milestone-13-final-manual-acceptance.md: the old guide remains recorded as FAIL, and owner re-test of the revised guides is pending. Sections A-E remain unchanged; no M13 Passed or owner acceptance is inferred.
+- Inspected the production credential provider, setup dialog, tests and current translations. The provider reads a Windows Credential Manager Generic credential by target name and consumes its secret blob; it does not read the Username field. The application/tests do not define a safe operator-facing credential creation procedure or Username semantics. The guides state this precise provisioning gap and require owner/IT preparation through an approved secure process rather than guessing.
+
+Scope review: only docs/README.md, docs/operating-guide.md, docs/operating-guide.zh-CN.md, docs/implementation/milestone-13-final-manual-acceptance.md and this worklog changed. No production behavior, application source, test source, schema, XAML, dependencies, release configuration or workflow behavior changed. The accepted application candidate artifact 10870768282 is not superseded; any installer artifact automatically generated for this docs head is documentation-head provenance only. Owner Section F re-test remains pending.
+
+Local verification:
+
+- git diff --check: passed.
+- Repository safety scanner self-test: 16 synthetic cases passed.
+- Full repository safety scan: passed for 442 tracked/non-ignored files with no findings.
+- Markdown local-link/path check: passed.
+- Required UI labels, approved settings/defaults and operator-scope content checks: passed.
+- Automated application tests/build were not rerun because this handoff changes documentation only. Exact-head GitHub CI is required after push; any installer output remains documentation-head provenance and does not replace artifact 10870768282.
+- PR #26 remains open/unmerged. No owner F PASS, M13 Passed, release or merge is claimed.

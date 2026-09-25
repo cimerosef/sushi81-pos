@@ -1,113 +1,146 @@
-# Sushi81 POS — day-to-day operating guide
+# Sushi81 POS operating guide
 
-**For:** Sushi 81 operators
+**Audience:** Sushi 81 operators
+**Language:** The [Simplified Chinese guide](operating-guide.zh-CN.md) is the primary practical manual for Chinese-speaking staff. This English guide is the equivalent reference.
 
-**Status:** M13 final-candidate guide. Use the exact installer artifact identified by the matching WP6 `CODEX_DONE: M13-WP6-FINAL-CANDIDATE-OPERATING-GUIDE-06` comment on PR #26. Owner acceptance remains pending until the owner completes the checklist in [`implementation/milestone-13-final-manual-acceptance.md`](implementation/milestone-13-final-manual-acceptance.md).
+## New PC quick start: join an existing Sushi81 system
 
-This guide covers the workflows present in the V1 candidate. It does not grant a device authority, replace the separate Gestion SUSHI 81 workbook, or make an unverified screen or feature available.
+Follow these steps in order. Pairing a computer does not give it write authority.
 
-## 1. Install and preserve your data
+1. **Prepare the prerequisites.**
+   - Obtain the approved per-user installer from the matching WP6 CODEX_DONE record on PR #26. The accepted application candidate is source head 9f4521627b21f44c2dc5452f03db840a143e1ee4 and installer artifact ID 10870768282. Verify the filename, size, SHA-256 and installed release-provenance.json against that record. An installer artifact automatically produced by this documentation-only update represents the documentation head; it does not replace the accepted application candidate.
+   - Install and sign in to OneDrive. Make sure the existing Sushi81 shared root is available and synchronized on this computer.
+   - Have the computer/printer administrator install the required Windows printer drivers and create the Windows printer queue or queues.
+   - Ask the system owner for the existing GitHub transfer settings and a protected Windows Credential Manager credential that was prepared through the approved process. Do not invent an owner, repository or credential target.
+   - Keep the old authoritative PC available for a normal transfer. Only a genuine Disaster Recovery case follows the separate exceptional path below.
 
-Use the exact per-user installer and version recorded in the WP6 completion comment. The installed program files live under:
+2. **Install without removing durable data.**
+   - Run the verified per-user installer. Program files go under %LOCALAPPDATA%\Programs\Sushi81 POS; application data goes under %LOCALAPPDATA%\Sushi81 POS.
+   - Ordinary installation, update, repair and uninstall must preserve durable application data. Do not treat the data directory as a cache.
+   - Never copy live.db, authority JSON or handoff files manually between PCs. Do not rename, replace or repair those files by hand.
 
-```text
-%LOCALAPPDATA%\Programs\Sushi81 POS
-```
+3. **Configure the existing system.**
+   - Open “Configure Sushi81 system” (配置 Sushi81 系统). This screen stores the OneDrive path and non-secret GitHub transfer settings; saving it does not create pairing or grant authority.
+   - Copy each value exactly from the existing PC or obtain it from the system owner:
 
-Durable application data is stored separately under:
+     | Field | Meaning and source | Secret? |
+     |---|---|---|
+     | Sushi81 OneDrive shared folder | Absolute path to the existing shared root as synchronized on this PC. Use Browse to select it; do not choose a personal Desktop folder or create a different root. | Not a credential; use the owner-confirmed path. |
+     | GitHub owner | GitHub account or organization that owns the transfer repository. | No. Copy from existing configuration. |
+     | GitHub transfer repository | Name of the dedicated private transfer repository. | No. Copy exactly; do not substitute the application source repository. |
+     | GitHub release tag | Tag used by the configured transfer release. | No. Copy exactly. |
+     | GitHub release name | Name of the configured transfer release. | No. Copy exactly. |
+     | Protected GitHub credential target name | Lookup name of the Generic credential in Windows Credential Manager. | The name is not secret. The PAT/token is secret and must never be entered in the app. |
 
-```text
-%LOCALAPPDATA%\Sushi81 POS
-```
+   - **Never paste a PAT, token, password or authorization header into an application field, note, log or chat.** The production provider looks up the Windows Credential Manager Generic credential by target name and reads its secret blob; it does not read the entry’s Username field. The application and existing tests do not provide an operator-facing credential creation/write procedure or define Username semantics. The system owner/IT must provision and verify this credential through an approved secure process. If that procedure is not available, stop and ask the owner; do not guess what a Windows dialog field means or create the entry on your own.
 
-That data area contains the live database and may contain `Archive`, `Recovery`, `Config`, printer/settings state and logs. Application updates, repair/reinstall and ordinary uninstall are designed to leave durable data in place. Do not delete this data folder as an uninstall step. Before testing an existing operational profile, make and verify a safe recovery point.
+4. **Save, restart and test the connection.**
+   - Save the technical configuration and wait for the restart-required message. Exit and restart Sushi81 POS completely so it can compose the M07 services.
+   - Choose “Test GitHub transfer connection” (测试 GitHub 转移连接). A successful check reports that the transfer connection is available. A missing/unreadable credential, HTTP 401, 403 or 404 indicates a configuration or credential, access, or repository/release problem. Ask the owner to verify the existing values; never solve it by entering a token in the app.
 
-To identify the installed build, inspect `release-provenance.json` in the installed program folder. Compare its source head and version with the exact candidate recorded in the matching WP6 completion comment. Logs are under:
+5. **Set the language and join read-only.**
+   - At the top of the app, use Language (语言) and choose Simplified Chinese (简体中文 / zh-CN) or French (Français / FR).
+   - Confirm the shared root contains the existing lineage. Choose “Join existing system” (加入现有系统 / Rejoindre le système existant), enter a clear device name that distinguishes this computer from the others, and confirm.
+   - A successful join reports that the computer is paired read-only. It can view available business data but cannot write. Pairing does not move authority from the old PC. If lineage metadata is missing or invalid, do not initialize an empty system or select a different root; ask the owner to investigate.
+   - Read the visible authority state before business work. Only a device explicitly shown as authoritative may create or change business records. Read-only, transitioning or recovery-required states do not allow business writes.
 
-```text
-%LOCALAPPDATA%\Sushi81 POS\Logs
-```
+6. **Transfer authority from the old PC to the new PC.**
+   - Normal authority transfer uses the configured GitHub transfer repository to send one immutable transfer to one paired target. The OneDrive shared root holds system metadata and Disaster Recovery material; it is not the normal handoff transport.
+   - On the current authoritative old PC, finish or save pending work and choose “Transfer authority and close” (转移权威并关闭 / Transférer l’autorité et fermer).
+   - Check the target by its device name. If the app presents multiple candidates, choose the exact paired device in the current generation. Cancel and confirm with the owner if the identity is uncertain.
+   - Wait for the old PC to report completion and close. After it durably relinquishes authority, it must remain read-only; do not take orders on it or retarget the pending transfer.
+   - On the designated new PC, choose “Check and acquire transferred authority” (检查并获取已转移的权威 / Vérifier et acquérir l’autorité transférée). Wait for validation and the business view to refresh. Resume business only after the new PC is shown as authoritative/writable and the old PC remains read-only.
+   - If you are only closing the app and want authority to remain on this computer, choose “Close and retain authority” (关闭并保留权威 / Fermer et conserver l’autorité). A normal close does not pass authority to another PC.
+   - If the transfer is interrupted, the old PC may remain authoritative only if durable relinquishment has not happened. After relinquishment it must stay read-only. It may use “Resume pending transfer” (继续待处理的转移 / Reprendre le transfert en attente) only to retry that same target-bound transfer. Do not edit files, cancel or retarget it, and do not let a third PC write. Non-target devices remain read-only.
 
-Share logs only through the owner's approved support route; do not edit them to troubleshoot business records.
+7. **Use Disaster Recovery only for a genuine abnormal loss.**
+   - Consider Disaster Recovery only when the normal authority/designated-target path genuinely cannot be recovered. The owner must confirm that the prior authoritative/designated-target computer is stopped or quarantined and will not be used for writes. The operator must understand possible loss after the selected recovery point and that the system generation advances.
+   - Disaster Recovery is not a routine handoff or a shortcut because a PC is offline, the app is closed or a transfer is slow. If quarantine or the recovery point is uncertain, stop and contact the owner.
 
-## 2. First launch and device authority
+## Printer setup (repeat on every PC)
 
-The application shows whether this device is authoritative, read-only/non-authoritative, or waiting for an authority/recovery action. **Only the current authoritative device may create or change business data.** A paired device, a computer that happens to be online, or a device with a newer-looking file does not gain write authority automatically.
+Printer selection is local to the PC and is not carried in the business lineage. Configure each computer separately.
 
-When setting up another computer, install the application, join the existing Sushi81 lineage using the configured shared root and pairing flow, and let the application validate the available snapshot. The new device is read-only unless a completed normal handoff specifically targets it and it successfully acquires that handoff. Pairing alone does not transfer authority.
+1. Have the computer/printer administrator install the appropriate Windows printer driver and create the queue in Windows. This guide does not prescribe model-specific driver steps.
+2. Open Sushi81 POS → Settings (Paramètres / 设置).
+3. Choose “Refresh printers” (Actualiser les imprimantes / 刷新打印机) and wait for the installed queues to appear.
+4. Select the kitchen queue under “Kitchen printer” (Imprimante cuisine / 厨房打印机) and the customer queue under “Customer printer” (Imprimante client / 客户打印机). Both settings may point to the same Windows queue if that matches the local hardware.
+5. Save and confirm that the selection was saved locally.
+6. At a safe business time, print a test order from the authoritative computer or use the appropriate reprint action on an existing order. A read-only computer may print orders available in its local data, but create a new test order only on the authoritative computer.
+7. If a saved queue is unavailable, first check that its Windows queue is installed and available, then return to Settings, refresh, select an available queue and save again. Do not create duplicate orders to test a broken printer; order saving and printing are separate.
 
-At close, use the explicit close intent that matches what you mean:
+## Verify business settings after joining
 
-- **Close and retain authority** keeps this same device authoritative for its next valid launch.
-- **Transfer authority and close** is a deliberate transfer to one eligible paired target. Select the intended device when asked and wait for the application to report the transfer complete. The source becomes read-only after it durably relinquishes authority.
+For a first initialization/reference, the approved defaults are:
 
-Do not copy or edit handoff, pairing, authority or database files by hand. If a transfer is pending or cannot be confirmed, keep to the displayed read-only/retry state and contact the owner before trying another device as writable.
+| Setting field in the UI | French / Simplified Chinese label | First-initialization default |
+|---|---|---:|
+| Retrait discount rate | Remise Retrait (%) / 自取折扣 (%) | 10% |
+| Minimum after Retrait discount | Minimum après remise (€) / 折扣后最低金额 (€) | €15.00 |
+| Livraison minimum | Minimum Livraison (€) / 配送最低金额 (€) | €30.00 |
+| Delivery fee enabled | Frais de livraison activés / 启用配送费 | Off |
+| Fixed delivery fee amount | Frais de livraison (€) / 配送费 (€) | €0.00 |
+| Delivery-fee VAT when enabled | TVA des frais de livraison activés / 启用配送费的增值税 | Fixed at 10%; not configurable in V1 |
 
-**Disaster Recovery is for a genuine abnormal loss of the normal authoritative/target path.** Do not use it just because the authoritative application is closed, a computer is temporarily offline, or a handoff is inconvenient. Recovery can lose changes made after the selected checkpoint and advances the device generation. Use it only through the application after confirming the prior authoritative/designated-target device is unavailable and will remain stopped/quarantined from Sushi81 business writes. If unsure, stop and ask the owner.
+The values follow docs/business-rules.md. Their meaning is:
 
-## 3. Caisse: orders, payment and retrieval
+- A Retrait discount applies only when requested and only to discount-eligible catalogue product amounts. Positive option surcharges are not discounted; negative option adjustments reduce the discountable amount.
+- If applying the discount would put the final total below the configured post-discount minimum, the discount is rejected.
+- Livraison does not receive the normal Retrait discount. Its merchandise/commercial minimum is checked before a delivery fee is added; a fee cannot make an under-minimum order eligible.
+- Defaults are for first initialization and reference. On an existing lineage, verify the transferred settings and catalogue after authority acquisition. Do not reset working business settings to the defaults.
 
-### Create and confirm
+## First-use checklist
 
-In **Caisse**, find products by category, code or name, add them to the cart, set quantities and choose any required product options. Complete the order's **Retrait** or **Livraison** mode, planned fulfilment date/time where needed, telephone, delivery address and comment. Review the total before confirming.
+Before resuming business, confirm:
 
-The configured Retrait discount applies only to eligible products and follows the configured post-discount minimum. Delivery charges and delivery minimums follow the current settings. If an exceptional total is needed, use the order's authoritative total field and recheck it after changing products, quantities, options or fulfilment fees because a price-affecting change recalculates it.
+- The device name and read-only/authoritative status are clear.
+- The existing catalogue is visible and correct.
+- Transferred business settings have been checked without resetting them.
+- Kitchen and customer queues are selected; the GitHub transfer connection test succeeds.
+- Any test order is created only on the computer explicitly shown as authoritative.
+- A safe print or reprint works; after a completed transfer the old PC remains read-only.
 
-Confirmation saves the order before sending its kitchen and customer tickets to the configured printers. If printing fails, the saved order remains; use the retry/reprint action rather than creating a duplicate order.
+## Day-to-day operation
 
-### Change, pay, close or cancel
+### Caisse: create, edit, pay, close or cancel an order
 
-Orders can be edited while Open or Closed. Saving an edit updates the same order; it does not create an operator-facing revision history. If an edit makes the recorded payment total differ from the current order total, the order is Open again until balanced.
+In Caisse, find products by category, code or name, add them to the cart, set quantities and options, choose Retrait or Livraison, enter the needed fulfilment date/time, telephone, delivery address and comment, then review the total. Telephone and delivery address are not required for initial confirmation under the approved rules.
 
-Enter cumulative money actually received in **CB** and **Espèce**. If payment was received on a different date, use its effective payment date. The **Clôturer** action is allowed only when `CB + Espèce` exactly equals the current order total to the cent. Underpayment or overpayment leaves the order Open. Cancel only when the order itself should be cancelled; cancellation retains its record and payment facts and does not execute a card refund.
-
-The Caisse dashboard shows operational turnover, received CB/cash and Hiboutik CB/cash separately, plus future, due-today and overdue order views. Hiboutik values are reference totals and do not change ordinary POS turnover or payment totals.
-
-Use **Commandes** to retrieve orders by date, reference, telephone or comment and review their current status. A future order keeps its planned fulfilment date/time; due-today and overdue reminders remain visible according to their status and date.
+Saving an edit updates the same order. Enter cumulative money actually received in CB and Espèce. If payment was received on another date, record its effective payment date. “Close” (Clôturer) is allowed only when CB plus cash exactly equals the order total. Underpayment or overpayment leaves the order open. Cancellation preserves the order and payment facts; it does not issue a card refund. A price-affecting edit may recalculate the total, so review it again.
 
 ### Print and reprint
 
-Normal confirmation attempts kitchen and customer tickets after the order is saved. These outputs can be reprinted independently. Payment changes may require a new customer ticket. Archived orders can also be reprinted from their historical snapshot. A printer failure never means that the order was rolled back; check the order first, then retry the relevant output.
+Order confirmation saves the order before attempting the kitchen and customer tickets. A print failure does not roll back the saved order. Check the order, then retry or reprint the relevant output instead of creating a duplicate. A payment change may require a new customer ticket. A read-only device may print or reprint orders visible in its local data.
 
-## 4. Catalogue and settings
+### Catalogue and XLSX
 
-In **Catalogue**, maintain products, categories, prices, VAT, active status, Retrait-discount eligibility and product options. Deactivate a temporarily unavailable product; inactive items are hidden from normal new-order selection but can be reactivated. Permanent deletion is a separately confirmed action and does not remove historical order snapshots.
+In Catalogue, maintain products, categories, prices, VAT, active status, Retrait-discount eligibility and product options. Deactivate temporarily unavailable products; historical order snapshots remain. For XLSX batch import, review the preview and resolve blocking validation errors before committing. Do not change technical internal IDs. Export a fresh workbook when you need a current template. The workbook is for catalogue maintenance, not order editing or the separate Gestion export.
 
-Catalogue `.xlsx` import/export is a batch-maintenance option. Review the import preview and resolve blocking validation issues before committing. Do not rename, invent or edit technical internal IDs in the workbook; use operator-facing product codes, category names and fields. Export a fresh workbook when you need a current template. The workbook is for catalogue maintenance, not for editing orders or the separate Gestion export file.
+### Hiboutik paste fallback
 
-Use **Paramètres** for the settings shown by the application, including fulfilment/discount settings, device/system configuration and kitchen/customer printer selection. Do not manually edit configuration, identity or authority files to change these values.
+If Hiboutik server-side printing is unavailable, copy the complete product-detail block from the Hiboutik order email. In Caisse expand “Commande Hiboutik”, paste it and choose “Analyser la commande Hiboutik”. Resolve unknown lines using current catalogue product codes, enter the normal fulfilment details and review the POS price/options before confirmation.
 
-## 5. Hiboutik paste fallback
+Pasting or analysing does not save an order. The app does not read the clipboard, email or Hiboutik automatically. The source total is reference-only; it does not set the POS total. A hidden source discriminator keeps Hiboutik paste-created orders out of ordinary POS turnover and Gestion export to avoid double-counting.
 
-If Hiboutik server-side printing is unavailable, copy the complete product-detail block from the Hiboutik order email. In Caisse expand **Commande Hiboutik**, paste the block and choose **Analyser la commande Hiboutik**. The parser uses exact current catalogue product codes; explicitly resolve unknown lines or leave the import. Enter Retrait/Livraison, date/time, telephone, address and comment through the ordinary order fields, review the ordinary POS price/options, then confirm through the normal order flow.
+### Gestion export to Gestion SUSHI 81
 
-Pasting or analysing does not save an order. The application does not read the clipboard, email or Hiboutik automatically. The pasted source total is reference-only; it does not set the POS total. After confirmation, the order uses the ordinary Caisse lifecycle and print flow. Its Hiboutik origin is hidden and keeps it out of ordinary POS turnover and Gestion export to avoid counting the same sale twice.
+Open Data (Données / 数据) and choose the separate Gestion export (销售数据导出) tab. Choose an inclusive fulfilment-date range or leave it unfiltered. Use “Preview / refresh” (Aperçu / actualiser) to review applicable actions. Eligible ordinary closed orders may create CREATE actions; later corrections may create UPDATE actions; cancellations may create CANCEL actions. Hiboutik paste-created orders are excluded.
 
-## 6. Gestion export to Gestion SUSHI 81
+After reviewing the preview, choose “Generate Excel file” (Générer le fichier Excel). Import the generated file into the separate Gestion SUSHI 81 workbook using that workbook’s process; the POS does not write directly into it. Successful batches can be regenerated from their retained immutable payload. Keep a pending PREPARED batch and use “Retry pending batch” (Réessayer le lot en attente); do not delete or rewrite batch history manually.
 
-In the top navigation, open **Données / 数据** and choose the separate **Gestion export / 销售数据导出** or **Archives historiques / 历史归档** tab. Each section keeps its own workflow and state.
+Successful payloads are retained for at least 30 days from completion. After that, a batch may be compacted only if all related orders are no longer live, have positive annual-archive proof and have no unresolved dependency. PREPARED batches are never pruned. An order missing from the live list alone is not proof that its export history is safe to remove. Operators do not need to wait 30 days for acceptance testing and must not manually clean up the records.
 
-**Gestion export** creates a controlled intermediate Excel file; it does not write directly into `Gestion SUSHI 81.xlsm`. An operator imports the generated file into the separate workbook using that workbook's process.
+### Annual archives and historical access
 
-Choose the inclusive fulfilment-date range or leave it unfiltered, then use **Aperçu / actualiser** to review applicable actions. Eligible ordinary closed orders may produce `CREATE`, later corrections may produce `UPDATE`, and cancellations may produce `CANCEL`; the application maintains the stable order identifiers and duplicate-protection state. Hiboutik paste-created orders are excluded.
+In Data, open “Historical archives” (Archives historiques), select an archive year and search/filter orders. Archive access is read-only; values come from saved historical snapshots, not the current catalogue. Select an order for an explicit reprint. Completed annual databases are retained permanently under the application-managed local Archive area. “Copy archive” (Copier l’archive) copies a validated archive to a chosen location; it does not move or delete the canonical archive. Annual archiving is managed on the authoritative PC; normal authority handoff does not automatically copy annual archive files to another computer.
 
-Use **Générer le fichier Excel** after reviewing the preview. Successful batches appear under **Lots réussis** and can be regenerated from their retained immutable payload. A pending **PREPARED** batch appears under **Lots à finaliser**; use **Réessayer le lot en attente** to retry it. Do not manually delete or rewrite batch history.
+The first real populated 2026-to-2027 archive operational verification remains deferred under the M12 owner waiver. It must be performed separately at the first safe authoritative startup on or after 2027-02-01 with real 2026 rows. This guide does not claim that check Passed.
 
-Successful payloads are retained for at least 30 days from batch completion. After that, a batch may be compacted only when its orders are no longer live, have positive annual-archive proof, and have no unresolved dependency. Therefore older, safely archived history may disappear; an order's absence from the live list alone is not enough for cleanup. The compact archive-proof record may remain longer. The operator does not need to wait 30 real days during owner acceptance; automated tests cover that boundary.
+## Language, support and V1 boundaries
 
-## 7. Annual archives and historical access
+Use Language (Langue / 语言) at the top to switch between French (Français / FR) and Simplified Chinese (中文（简体）/ zh-CN). Only the interface changes; stored product names, customer details, orders, comments and historical snapshots are not translated.
 
-Completed annual databases are stored locally under the application-managed `Archive` area and are retained permanently. In **Données / 数据**, open **Archives historiques**, choose an archive year and search/filter the available historical orders. Archive viewing is read-only; historical values come from saved snapshots, not today's catalogue. Select an order for an explicit reprint if needed.
-
-**Copier l’archive** makes a copy of a validated completed archive to a destination you choose. It does not move or delete the canonical archive. Annual archiving is an application-managed authoritative-device operation; ordinary POS use does not synchronize canonical annual archives through OneDrive. Normal authority handoff transfers live data only, so archive files on another computer may need their own approved copy/availability plan.
-
-The first real populated 2026-to-2027 archive operational verification remains deferred under the existing M12 owner waiver. It is not claimed Passed by this guide or by M13. The deferred check is due at the first safe authoritative startup on or after 2027-02-01 with real 2026 rows.
-
-## 8. Language and support
-
-Use the language selector at the top of the application to switch between **FR** and **zh-CN**. Only interface text changes. Stored product/category names, customer details, comments, orders and historical snapshots are not translated.
-
-Common screen and action labels:
+Common labels:
 
 | Français | 简体中文 |
 |---|---|
@@ -118,17 +151,14 @@ Common screen and action labels:
 | Gestion export | 销售数据导出 |
 | Paramètres | 设置 |
 | Archives historiques | 历史归档 |
-| Confirmer | 确认 |
-| Enregistrer la modification | 保存修改 |
-| Clôturer | 关闭订单 |
-| Aperçu / actualiser | 预览 / 刷新 |
-| Générer le fichier Excel | 生成 Excel 文件 |
-| Réessayer le lot en attente | 重试待完成批次 |
-| Réimprimer client / cuisine | 重印客户单 / 重印厨房单 |
-| Copier l’archive | 复制归档 |
+| Rejoindre le système existant | 加入现有系统 |
+| Transférer l’autorité et fermer | 转移权威并关闭 |
+| Vérifier et acquérir l’autorité transférée | 检查并获取已转移的权威 |
+| Fermer et conserver l’autorité | 关闭并保留权威 |
+| Imprimante cuisine | 厨房打印机 |
+| Imprimante client | 客户打印机 |
+| Actualiser les imprimantes | 刷新打印机 |
 
-For an unexpected failure, note the screen/action and approximate time and ask the owner to review the application message and recent files in `%LOCALAPPDATA%\Sushi81 POS\Logs`. Retry only the action the application identifies as safe. Do not delete, replace or manually edit `live.db`, an archive, a recovery checkpoint, settings, configuration, pairing or authority files. Never solve an uncertain startup or migration issue by resetting the profile.
+For an unexpected failure, note the screen/action and approximate time. Ask the owner to review the app message and recent files in %LOCALAPPDATA%\Sushi81 POS\Logs. Retry only an action the app identifies as safe. Do not delete, replace or manually edit live.db, an archive, a recovery checkpoint, settings, pairing or authority files. Never reset the profile to troubleshoot a startup or migration issue.
 
-## 9. V1 boundaries
-
-V1 does not provide inventory or purchasing, table management, staff accounts/roles, loyalty/CRM, automatic Hiboutik API/email synchronization, direct card-terminal control or POS-run refunds, full accounting/ERP, a replacement for Gestion SUSHI 81, formal B2B invoices, live SQLite synchronization through OneDrive, simultaneous multi-writer operation, or an automatic updater. Ask the owner before relying on a workflow outside the controls described in this guide.
+V1 does not provide inventory/purchasing, table management, staff accounts/roles, loyalty/CRM, automatic Hiboutik API/email synchronization, direct card-terminal control or POS-run refunds, full accounting/ERP, a replacement for Gestion SUSHI 81, formal B2B invoices, live SQLite synchronization through OneDrive, simultaneous multi-writer operation or an automatic updater. Ask the system owner before relying on a workflow outside this guide.

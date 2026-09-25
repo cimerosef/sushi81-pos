@@ -141,10 +141,11 @@ Current M13 control package:
 - `implementation/milestone-13-authorization.md`;
 - `implementation/milestone-13-worklog.md`;
 - `implementation/milestone-13-final-manual-acceptance.md`;
-- `operating-guide.md` — final-candidate day-to-day operator guide;
+- [Simplified Chinese operator guide](operating-guide.zh-CN.md) — primary practical manual for Chinese-speaking staff; start with the new-PC setup.
+- [English operating guide](operating-guide.md) — equivalent English reference.
 - branch `codex/m13-installer-final-acceptance-authorized`;
 - Draft PR #26 — active M13 durable mailbox;
-- Issue #4 — sole execution gate, OPEN for `M13-WP6-FINAL-CANDIDATE-OPERATING-GUIDE-06`.
+- Issue #4 — sole execution gate, OPEN for M13-FINAL-OPERATING-GUIDE-ZHCN-ONBOARDING-09.
 
 ## Decision records
 

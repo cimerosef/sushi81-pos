@@ -1,6 +1,6 @@
 # M13 — Final V1 owner manual acceptance
 
-**Status:** SECTIONS A-C PASS EVIDENCE ON PRIOR CANDIDATE; SECTION D FAIL; REPAIRED-CANDIDATE D RE-TEST PENDING
+**Status:** SECTIONS A-C PASS EVIDENCE ON PRIOR CANDIDATE; SECTION D FAIL; REPAIRED-CANDIDATE D RE-TEST PENDING; SECTION F FAIL ON OLD GUIDE / REVISED-GUIDE RE-TEST PENDING
 
 **Milestone:** M13
 
@@ -10,7 +10,7 @@
 
 ## 1. Acceptance principle
 
-This record tracks owner acceptance after testing the exact WP6 candidate `33145cf796e939741255f7599dc8174df9d7d083` / artifact `10860083727`. The owner recorded Sections A-C as PASS on that candidate and Section D as FAIL because transient operator statuses remained in Chinese after switching to French. The old artifact is superseded. A-C remain recorded as prior-candidate evidence only; they do not establish acceptance of the repaired candidate. After controller review of the combined navigation-adjusted exact-head artifact, the owner must re-run Section D and inspect the final navigation/visual layout on that candidate. Sections E-F remain paused pending the owner re-test and controller review.
+This record tracks owner acceptance after the exact WP6 candidate 33145cf796e939741255f7599dc8174df9d7d083 / artifact 10860083727 was tested. Sections A-C are PASS evidence on that prior candidate; Section D is FAIL because transient operator statuses remained in Chinese after switching to French. The old artifact is superseded, and A-C do not certify the repaired candidate. After controller review of the combined navigation-adjusted exact-head artifact, the owner must re-run Section D together with the final navigation/visual-layout review. Section E remains paused pending controller review and the repaired-candidate Section D re-test. Section F failed on the old guide under owner comment OWNER_ACCEPTANCE_FAILURE: M13-FINAL-F-OPERATING-GUIDE-20260925; the revised Chinese and English guides require owner re-test. Do not mark D, E or F PASS here.
 
 Automated evidence is recorded in the matching language-repair and final-navigation completion comments; it does not convert manual checks to PASS. Do not claim M13 Passed, merge or release here.
 
@@ -87,9 +87,9 @@ Do not manually delete export history or database rows.
 
 ### F — operating guide
 
-Open [`../operating-guide.md`](../operating-guide.md) and confirm it matches the installed UI, labels and supported day-to-day workflows.
+Open both the primary Simplified Chinese guide at [../operating-guide.zh-CN.md](../operating-guide.zh-CN.md) and the equivalent English guide at [../operating-guide.md](../operating-guide.md). Follow the new-PC setup, protected GitHub credential boundary, read-only join, exact-target authority transfer, printer setup, settings verification and daily-operation procedures. Confirm that the procedures match the installed UI and supported workflows. Record any confusing, incorrect or incomplete operator instruction.
 
-**Owner result/date/evidence:** Paused pending controller review and the repaired-candidate Section D re-test.
+**Owner result/date/evidence:** FAIL on the old guide per owner comment OWNER_ACCEPTANCE_FAILURE: M13-FINAL-F-OPERATING-GUIDE-20260925 (PR #26 comment 5834968433); revised Chinese and English guide re-test pending on the exact combined candidate. This documentation change is not owner acceptance.
 
 ## 5. M12 deferred archive verification remains separate
 
