@@ -1,6 +1,6 @@
 # M13 — Installer, localization completion and final V1 acceptance — implementation contract
 
-**Status:** OWNER-AUTHORIZED; execution package-gated; current gate blocked pending repository-visibility resolution  
+**Status:** OWNER-AUTHORIZED; WP1–WP5 controller-accepted; WP6 final-candidate documentation prepared; owner acceptance pending
 **Milestone:** M13  
 **Implementation branch:** `codex/m13-installer-final-acceptance-authorized`  
 **Start baseline:** `f59663c6b47ab21114c24360544e4e25094f4722`

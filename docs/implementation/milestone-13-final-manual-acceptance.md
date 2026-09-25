@@ -1,100 +1,94 @@
 # M13 — Final V1 owner manual acceptance
 
-**Status:** NOT STARTED  
-**Milestone:** M13  
-**Candidate head:** TBD  
-**Installer artifact:** TBD  
-**Acceptance date:** TBD
+**Status:** CANDIDATE PREPARED / OWNER ACCEPTANCE PENDING
+
+**Milestone:** M13
+
+**Candidate source SHA and installer artifact:** See the matching top-level PR #26 comment `CODEX_DONE: M13-WP6-FINAL-CANDIDATE-OPERATING-GUIDE-06` for the exact source head and artifact identity. This source file intentionally does not contain its own not-yet-built commit SHA.
+
+**Acceptance date:** Pending owner execution
 
 ## 1. Acceptance principle
 
-Do not repeat every historical manual test from M01–M12. M13 owner acceptance is the shortest high-value final release check that validates the new M13 behavior and proves the installed production artifact preserves previously accepted operational state.
+This is the short final owner check for the exact WP6 production candidate. Do not repeat every historical M01–M12 manual test. Exact-head automated evidence is recorded in the matching WP6 completion comment; this checklist covers the installed production artifact, preservation of an existing profile, a small business smoke, language switching, retained export behavior and the operator guide.
 
-Automated and exact-head CI evidence remain primary for exhaustive regression.
+WP6 prepares a candidate. It does not claim owner acceptance, M13 Passed, merge or release. Record PASS / FAIL / DEFERRED-NOT-M13 only after the owner performs the relevant check.
 
 ## 2. Preconditions
 
-Before owner testing:
+Before testing:
 
-- all M13 implementation packages are controller-accepted;
-- exact candidate head CI is green;
-- Release build has 0 warnings / 0 errors;
-- final installer artifact is produced from that exact head;
-- installer SHA-256/source/version/run provenance is recorded;
-- repository/security blockers are closed;
-- a safe backup/recovery point exists before any test involving an existing operational profile.
+- WP1–WP5 are controller-accepted and their exact heads/CI are recorded in `implementation-status.md`.
+- Review the controller's WP6 review and the matching `CODEX_DONE` comment on PR #26.
+- Download only the exact installer artifact named in that completion comment. Verify the listed installer filename, byte size and SHA-256; verify installed `release-provenance.json` identifies the listed source head and version.
+- Confirm exact-head CI, full Release build/tests, safety scans and hosted installer lifecycle are green in that completion evidence.
+- Create and verify a safe recovery point before testing any existing operational profile. Do not use real business data for a disposable test.
+
+If any exact artifact identity or precondition is missing, stop and report it; do not substitute a different installer.
 
 ## 3. Owner checklist
 
-### A — production installer identity and launch
+### A — exact installer identity and launch
 
-- Install the exact M13 per-user installer.
-- Confirm Sushi81 POS launches without a separate .NET runtime install.
-- Confirm installed version/provenance corresponds to the accepted candidate.
-- Confirm no development/test data appears.
+- Install the exact per-user installer identified in the WP6 `CODEX_DONE` comment.
+- Confirm Sushi81 POS launches without a separate .NET runtime installation.
+- Confirm the installed product/file version and `release-provenance.json` match the exact candidate source head.
+- Confirm no development/test data appears in the installed tree.
 
-### B — upgrade/reinstall preservation
+**Owner result/date/evidence:** Pending owner execution.
 
-Using a controlled existing Sushi81 profile:
+### B — existing-profile upgrade and reinstall preservation
 
-- verify the pre-upgrade `live.db` orders are still present;
-- verify Archive years/files remain discoverable;
-- verify Recovery state remains present;
-- verify Config/device identity/pairing/authority state was not reset;
-- verify configured printer/settings remain;
-- perform same-version repair/reinstall and confirm the same preservation;
-- where a safe acceptance environment is available, uninstall/reinstall and confirm durable application data still survives.
+Using a controlled existing Sushi81 profile, verify before and after upgrade/repair:
 
-Any silent data reset, authority reset, lost archive or forced re-pair caused only by installer operations is FAIL.
+- `Data\live.db` and its existing orders are present;
+- canonical `Archive` files remain discoverable;
+- `Recovery` material remains present;
+- `Config`, device identity, pairing and authority state have not reset;
+- printer selections and application settings remain.
 
-### C — basic business smoke
+Perform same-version repair/reinstall. If a safe acceptance environment is available, also exercise uninstall/reinstall. Ordinary install, upgrade, repair and uninstall must not remove durable application data. **Any silent data reset, authority reset, lost archive or forced re-pair caused only by installer operations is FAIL.**
 
-On an authoritative safe test profile:
+**Owner result/date/evidence:** Pending owner execution.
 
-- launch Caisse;
-- create/edit a small order;
-- save, pay/close and retrieve it;
-- perform one safe print/reprint smoke if printers are available;
-- open Catalogue and Settings;
-- open Gestion export and archive history surfaces.
+### C — small authoritative business smoke
 
-This is a smoke test, not a repetition of all earlier milestone acceptance.
+On a safe test profile where this device is confirmed authoritative:
 
-### D — French / Simplified Chinese
+- open Caisse; create a small order, edit it, save it, enter its actual CB / Espèce received amounts and close it when the exact total is settled;
+- retrieve the saved order; make one safe print/reprint attempt if printers are available;
+- open Catalogue, Paramètres, Gestion export and Archives historiques.
 
-Switch FR -> zh-CN -> FR and inspect the major final surfaces:
+Do not perform refund execution or use Disaster Recovery as a routine smoke step. A non-authoritative device remains read-only for business writes.
 
-- Caisse/order lifecycle;
-- Catalogue/settings;
-- Gestion export, including pending/history controls;
-- authority/handoff/recovery controls;
-- archive access/reprint controls;
-- errors/confirmations relevant to the smoke flow.
+**Owner result/date/evidence:** Pending owner execution.
 
-Record any hard-coded wrong-language string, garbling or operationally significant clipping.
+### D — French / Simplified Chinese review
 
-### E — retention/history observable behavior
+Switch **FR → zh-CN → FR** and inspect the major surfaces used in the smoke: Caisse/order lifecycle, Catalogue/Paramètres, Gestion export, authority/recovery controls, archive access/reprint, and relevant confirmations/errors. Record any wrong-language hard-coded text, garbling or operationally significant clipping. Confirm entered catalogue, customer and order data did not change when the display language changed.
 
-The owner does not need to wait 30 real days. Automated deterministic-clock evidence proves the retention boundary.
+**Owner result/date/evidence:** Pending owner execution.
 
-Manual acceptance only confirms:
+### E — retained Gestion export behavior
 
-- retained successful batches can still be regenerated;
-- pending PREPARED batches remain visible/retryable;
-- legally pruned history is not presented as regenerable if a prepared acceptance fixture is supplied.
+- Confirm a retained successful batch can still be regenerated from history.
+- Confirm a pending `PREPARED` batch remains visible and can be retried.
+- If a prepared acceptance fixture is available, confirm legally pruned history is not shown as regenerable. Do not wait 30 real days; the deterministic automated evidence covers the retention boundary.
 
-### F — final operating guide
+Do not manually delete export history or database rows.
 
-Open the delivered operating guide and confirm it describes the actual final UI/workflows sufficiently for day-to-day Sushi 81 operation.
+**Owner result/date/evidence:** Pending owner execution.
+
+### F — operating guide
+
+Open [`../operating-guide.md`](../operating-guide.md) and confirm it matches the installed UI, labels and supported day-to-day workflows.
+
+**Owner result/date/evidence:** Pending owner execution.
 
 ## 4. M12 deferred archive verification remains separate
 
-Do not use M13 to relabel the deferred M12 populated-archive checks as Passed.
-
-At the first safe authoritative startup on or after 2027-02-01 with real 2026 data, verify real archive discovery/selection/detail/search/copy/reprint/read-only behavior under the existing M12 waiver record.
+The first safe real populated-archive verification remains deferred under the existing M12 owner waiver. At the first safe authoritative startup on or after **2027-02-01** with real 2026 rows, separately verify real archive discovery, selection, detail/search, user-selected copy, reprint and read-only behavior. Record it as **DEFERRED-NOT-M13** until performed. Do not use M13 to relabel it Passed.
 
 ## 5. Acceptance record
 
-For each section record PASS / FAIL / DEFERRED-NOT-M13 with concise evidence.
-
-Final V1 can close only when all M13-required sections pass and any remaining M12 deferred item is still represented accurately as deferred rather than silently waived.
+After performing the checks, the owner records PASS / FAIL / DEFERRED-NOT-M13 and concise evidence for A–F, with date and the exact candidate SHA/artifact. Do not pre-fill or infer owner results from hosted CI. Final V1 acceptance and any merge decision remain separate explicit owner/controller actions.

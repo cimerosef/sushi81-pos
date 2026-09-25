@@ -188,3 +188,16 @@ Local verification in the isolated WP5 worktree:
 - Direct/transitive NuGet vulnerability audit: passed, no findings.
 - `git diff --check`: passed.
 - Exact-head GitHub normal CI and the production-installer lifecycle/artifact workflow remain mandatory after push. Their exact source SHA, workflow results, installer artifact identity/hash, and 90-day retention are recorded in the matching `CODEX_DONE`. Owner visual FR/zh-CN, real-device install/upgrade/recovery, and real populated-archive acceptance remain owner checks. PR #26 remains unmerged; no WP6 work is authorized by this handoff.
+
+## 2026-09-25 — WP6 final candidate documentation and owner-acceptance preparation
+
+Handoff `M13-WP6-FINAL-CANDIDATE-OPERATING-GUIDE-06` was consumed from active PR #26 comment `5831103818` while Issue #4 was OPEN. The exact starting head is `aa734cc94bb6500be42cbaa00407e8fc8ec7a1fd`. Scope is final-candidate documentation, operating guide, living-state reconciliation and owner-acceptance preparation only.
+
+Prepared:
+
+- Added `docs/operating-guide.md` with installation/data-path/provenance/log guidance; authoritative/read-only/transfer/Disaster Recovery boundaries; Caisse, order/payment/printing, Catalogue, Hiboutik paste, Gestion export and annual-archive operation; FR/zh-CN label mapping; troubleshooting and explicit V1 exclusions.
+- Reconciled the root README, `docs/README.md`, implementation status and implementation index to the current M13 state. WP1–WP5 remain controller-accepted at their exact heads and CI runs; repository public visibility is owner-confirmed intentional; Issue #4 is OPEN for this WP6 handoff; PR #26 remains unmerged.
+- Changed the final manual-acceptance record to `CANDIDATE PREPARED / OWNER ACCEPTANCE PENDING`, with the short owner A–F checklist and explicit separation of M12's deferred real populated-archive check.
+- The exact final candidate source SHA, workflow/job evidence, production artifact/provenance identity and hashes are recorded in the matching WP6 `CODEX_DONE` comment rather than embedded self-referentially in this source document.
+
+Scope review: documentation and worklog only. No production source, tests, schema, XAML, dependencies, release configuration or workflow behavior is changed. No owner manual acceptance, interactive Windows/UI test, device operation or M12 real populated-archive check is claimed here. Exact-head automated verification and CI/artifact evidence are delivered in the matching completion comment. PR #26 remains unmerged; WP6 does not claim M13 Passed, owner acceptance or release.

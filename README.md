@@ -21,9 +21,19 @@ Recent final baselines:
 
 M12's remaining real populated-archive operational verification is **deferred, not Passed**. The first safe real verification point remains an authoritative startup on or after 2027-02-01 with real 2026 data; archive failure must continue to leave eligible live rows safe/retryable.
 
-M13 — Installer, localization completion and final V1 acceptance — is owner-authorized in preparation on `codex/m13-installer-final-acceptance-authorized`. Its Approved scope includes Gestion export retention/compaction, complete FR/zh-CN parity, self-contained win-x64 packaging, per-user Inno Setup, upgrade/reinstall preservation, diagnostics/performance/security hardening, final release provenance and the operating guide.
+M13 — Installer, localization completion and final V1 acceptance — is authorized on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. WP1–WP5 are controller-accepted. WP6 has prepared the exact-head release-candidate documentation, operating guide and owner-acceptance package; its matching `CODEX_DONE` comment records final verification and artifact provenance. Owner acceptance remains pending; this status does not claim M13 Passed, merge or release.
 
-Current execution is paused because GitHub reports the source repository `cimerosef/sushi81-pos` as **public**, conflicting with the project's expected private-repository posture. Issue #4 remains CLOSED; no executable M13 handoff is active.
+Accepted M13 package heads and exact-head CI:
+
+| Package | Accepted head | Exact-head CI |
+|---|---|---|
+| WP1 — Gestion export retention/compaction | `a3d3110b59f436bc0a9107777ea97f73df85119d` | #872 / `36057354475` — success |
+| WP2 — retention runtime/history | `97d0a6e048aedca66b1f93e9768285f49f04ac63` | #873 / `36063106606` — success |
+| WP3 — localization completion | `e40a1f882d4c0557fc0fe4e30cb88395be290c89` | #874 / `36106655435` — success |
+| WP4 — production publish/installer | `0f73cee0311a1c76e8b4cafd7413720c252be27c` | #880 / `36114601424` — success; artifact `10854348679` |
+| WP5 — diagnostics/performance/security hardening | `aa734cc94bb6500be42cbaa00407e8fc8ec7a1fd` | #882 / `36124050769` — success; artifact `10859146322` |
+
+The owner confirmed that the source repository's public visibility is intentional and is not an M13 blocker. M12's populated real-archive operational verification remains **deferred, not Passed**; its first safe real verification point remains an authoritative startup on or after 2027-02-01 with real 2026 data. The matching WP6 `CODEX_DONE` comment on PR #26 will identify the exact final source head and installer artifact; owner acceptance remains pending.
 
 Controlling M09 records:
 
@@ -82,6 +92,7 @@ M13 current control package:
 - `docs/implementation/milestone-13-preparation-readiness.md`;
 - `docs/implementation/milestone-13-installer-localization-final-acceptance.md`;
 - `docs/implementation/milestone-13-final-manual-acceptance.md`;
+- `docs/operating-guide.md` — final-candidate day-to-day operator guide;
 - `docs/implementation/milestone-13-worklog.md`;
 - `docs/implementation/milestone-13-authorization.md`.
 

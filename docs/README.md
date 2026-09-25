@@ -4,13 +4,13 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M11 are Passed/merged. M12 Annual archive and historical access is controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722` under the explicit owner waiver; real populated-archive operational verification remains deferred and is not claimed Passed. M13 is owner-authorized in preparation on `codex/m13-installer-final-acceptance-authorized`.**
+**Phase 6 implementation active: M01–M11 are Passed/merged. M12 Annual archive and historical access is controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722` under the explicit owner waiver; real populated-archive operational verification remains deferred and is not claimed Passed. M13 WP1–WP5 are controller-accepted on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. WP6 has prepared the final-candidate documentation and owner-acceptance package; exact-head verification and artifact provenance are recorded in its matching `CODEX_DONE`. Owner acceptance remains pending; PR #26 remains unmerged.**
 
 M12 final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3` passed exact-head CI #862 / run `36021889765` with 881/881 tests and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test also succeeded.
 
 M13 includes the Approved Gestion export ledger retention/compaction amendment, full FR/zh-CN localization completion, self-contained win-x64 packaging, per-user Inno Setup installer, upgrade/reinstall data preservation, diagnostics/performance/repository-security hardening, final production-target regression, release provenance and the user operating guide.
 
-Current execution is intentionally paused: GitHub repository metadata reports `cimerosef/sushi81-pos` as public, conflicting with the project's expected private source-repository posture. Issue #4 remains CLOSED and there is no executable `CODEX_HANDOFF_READY` until that repository-safety discrepancy is resolved.
+The owner confirmed on 2026-09-24 that the source repository's public visibility is intentional and is not an M13 blocker. WP1–WP5 accepted heads and exact-head CI are recorded in the root README and the M13 PR mailbox. WP6 does not claim owner acceptance, M13 Passed, merge or release; the matching WP6 `CODEX_DONE` comment is the authoritative source for the final source SHA and installer artifact identity. M12's real populated-archive verification remains deferred under its existing owner waiver.
 
 ## V1 documentation baseline
 
@@ -141,9 +141,10 @@ Current M13 control package:
 - `implementation/milestone-13-authorization.md`;
 - `implementation/milestone-13-worklog.md`;
 - `implementation/milestone-13-final-manual-acceptance.md`;
+- `operating-guide.md` — final-candidate day-to-day operator guide;
 - branch `codex/m13-installer-final-acceptance-authorized`;
 - Draft PR #26 — active M13 durable mailbox;
-- Issue #4 — sole execution gate, currently CLOSED.
+- Issue #4 — sole execution gate, OPEN for `M13-WP6-FINAL-CANDIDATE-OPERATING-GUIDE-06`.
 
 ## Decision records
 

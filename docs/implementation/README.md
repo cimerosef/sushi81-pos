@@ -30,7 +30,7 @@ M11 Gestion intermediate export is Passed/merged through PR #24 at `1a94f3400e0a
 
 M12 Annual archive and historical access is controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722`. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3`; exact-head CI #862 / run `36021889765` succeeded with 881/881, 0 failed, 0 skipped and Release build 0 warnings / 0 errors; post-merge CI #863 / run `36023054757` build-and-test succeeded. Remaining real populated historical-archive checks are explicitly deferred under the owner waiver and are not claimed Passed. The first safe real verification point remains on or after 2027-02-01 for real 2026 rows.
 
-M13 is owner-authorized on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. The owner explicitly confirmed the source repository's public visibility is intentional and not a blocker. WP1 Gestion export retention/compaction core is the first executable package; execution still requires the exact READY and OPEN Issue #4.
+M13 WP1–WP5 are controller-accepted on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. The owner confirmed repository public visibility is intentional and is not a blocker. WP6 has prepared the final-candidate documentation, operating guide and owner-acceptance checklist; its matching `CODEX_DONE` records exact-head CI and artifact provenance. Owner acceptance remains pending and PR #26 remains unmerged. Exact WP1–WP5 accepted heads and CI runs are listed in `implementation-status.md` and the root README. M12 real populated-archive verification remains deferred and is not claimed Passed.
 
 ## Historical M10 preparation — Catalogue `.xlsx` import/export
 
@@ -75,14 +75,15 @@ M12 is merged under the explicit owner waiver. The deferred real populated-archi
 - `../acceptance-criteria-amendment-m13-gestion-export-retention.md` — matching Approved acceptance amendment;
 - `milestone-13-preparation-readiness.md` — controller readiness;
 - `milestone-13-installer-localization-final-acceptance.md` — WP1–WP6 implementation contract;
-- `milestone-13-authorization.md` — OWNER-AUTHORIZED; execution not enabled;
+- `milestone-13-authorization.md` — OWNER-AUTHORIZED; package execution requires its exact open-gate handoff;
 - `milestone-13-worklog.md` — append-only evidence ledger;
 - `milestone-13-final-manual-acceptance.md` — prepared final V1 owner checklist;
+- `../operating-guide.md` — WP6 final-candidate day-to-day operator guide;
 - branch `codex/m13-installer-final-acceptance-authorized`;
 - Draft PR #26 — active M13 durable mailbox;
-- Issue #4 — sole execution switch/status pointer, currently CLOSED.
+- Issue #4 — sole execution switch/status pointer; its WP6 READY authorized this documentation package.
 
-First intended executable scope after repository privacy is resolved: WP1 Gestion export retention/compaction core only.
+WP1–WP5 controller-accepted heads and exact-head CI are recorded in `implementation-status.md`. WP6 must remain docs-only and end at `FINAL CANDIDATE READY / OWNER ACCEPTANCE PENDING`; the exact final SHA and artifact identity belong in the matching WP6 `CODEX_DONE` comment. No owner acceptance, M13 Passed, release or merge is implied.
 
 ## Governance reminder
 
