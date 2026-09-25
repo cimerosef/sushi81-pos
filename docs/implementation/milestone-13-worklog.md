@@ -232,3 +232,25 @@ Verification on the local repair head before push:
 - `git diff --check`: passed.
 
 After push, exact-head GitHub CI and the `m13-production-installer` artifact/lifecycle job remain required. The exact artifact ID, installer filename/size/SHA-256, ZIP digest and release-provenance fields will be recorded in the matching `CODEX_DONE`. No owner D PASS, Sections E-F, next package, or merge is authorized by this handoff.
+## 2026-09-25 — final navigation and operational-tab presentation
+
+Handoff M13-FINAL-NAVIGATION-LAYOUT-UI-08 was consumed from active PR #26 while Issue #4 was OPEN, from exact start head 67a4e132b830bbd52983afea99828e43539fa4cf. The user-authorized scope is limited to the final navigation/layout adjustment, focused tests and matching guide/acceptance evidence.
+
+Implemented:
+
+- Reordered top-level navigation to Catalogue, Paramètres, Données, Commandes, Caisse in French; Simplified Chinese resource captions are 商品目录, 设置, 数据, 订单, 收银台.
+- Grouped the existing Gestion export and Archives historiques surfaces under Données / 数据 while preserving each child's existing DataContext, availability, commands, and handlers. The parent is available if either child is; selection falls back to the available child when needed.
+- Added distinct restrained blue operational header styling for Commandes and Caisse with selected/unselected states. Default WPF template behavior remains in place; Windows High Contrast switches to system brushes.
+- Replaced top-level index-based PerformanceTrace identification with stable semantic tab tags and added nested data-child trace identities.
+- Updated only the operating-guide navigation directions, final acceptance pending-owner-review record, localization parity/value coverage, and navigation/structure/workflow regression tests.
+
+Local verification on the implementation candidate before this append-only result record:
+
+- Focused navigation/localization/language-status/Gestion-export/archive suite: 44 passed, 0 failed, 0 skipped; includes all five M13FinalNavigationTests and representative existing WPF/export/archive coverage.
+- Full Release solution tests: 916 passed across six test assemblies, 0 failed, 0 skipped.
+- Full Release solution build: 0 warnings, 0 errors.
+- Repository safety scanner: 16 synthetic self-test cases passed; full tracked/non-ignored scan passed across 441 files with no findings.
+- Direct/transitive NuGet vulnerability audit: passed with no findings.
+- git diff --check: passed.
+
+Exact-head CI and the m13-production-installer lifecycle/artifact job remain required after push. Owner Section D plus navigation/visual-layout review remains pending on the combined exact candidate; E-F remain paused. No owner acceptance or merge is claimed.

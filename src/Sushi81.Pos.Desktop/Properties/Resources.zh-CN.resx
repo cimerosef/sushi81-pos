@@ -473,4 +473,5 @@
   <data name="ArchiveInvalidDateRange" xml:space="preserve"><value>历史日期范围无效。</value></data>
   <data name="ArchiveCopySucceeded" xml:space="preserve"><value>归档已复制到 {0}。</value></data>
   <data name="ArchiveCopyFailed" xml:space="preserve"><value>无法复制选定的归档。</value></data>
+  <data name="DataTools" xml:space="preserve"><value>数据</value></data>
 </root>

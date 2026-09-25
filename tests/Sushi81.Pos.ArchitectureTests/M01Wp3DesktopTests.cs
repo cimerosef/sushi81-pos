@@ -413,7 +413,11 @@ public sealed class M01Wp3DesktopTests
             {
                 window.Show();
                 window.UpdateLayout();
-                var gestion = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["GestionExport"]);
+                var mainTabs = VisualDescendants<TabControl>(window).Single(tab => tab.Name == "mainTabs");
+                Assert.IsTrue(shell.IsDataToolsAvailable);
+                mainTabs.Items.OfType<TabItem>().Single(item => Equals(item.Tag, "data")).IsSelected = true;
+                window.UpdateLayout();
+                var gestion = VisualDescendants<TabItem>(window).Single(item => Equals(item.Tag, "gestion-export"));
                 gestion.IsSelected = true;
                 window.UpdateLayout();
 
@@ -463,7 +467,11 @@ public sealed class M01Wp3DesktopTests
             {
                 window.Show();
                 window.UpdateLayout();
-                var gestion = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["GestionExport"]);
+                var mainTabs = VisualDescendants<TabControl>(window).Single(tab => tab.Name == "mainTabs");
+                Assert.IsTrue(shell.IsDataToolsAvailable);
+                mainTabs.Items.OfType<TabItem>().Single(item => Equals(item.Tag, "data")).IsSelected = true;
+                window.UpdateLayout();
+                var gestion = VisualDescendants<TabItem>(window).Single(item => Equals(item.Tag, "gestion-export"));
                 gestion.IsSelected = true;
                 window.UpdateLayout();
                 var datePickers = VisualDescendants<DatePicker>(window)

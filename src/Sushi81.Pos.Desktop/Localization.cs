@@ -217,6 +217,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public bool IsArchiveAccessAvailable => ArchiveAccess is not null;
 
+    public bool IsDataToolsAvailable => IsGestionExportAvailable || IsArchiveAccessAvailable;
+
     public bool IsM03Available => Admin is not null;
 
     public bool IsM04Available => Entry is not null;
@@ -440,7 +442,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("GestionExportDiagnosticSettlementDateUnavailable")
               .Append("GestionExportSuccessStatus").Append("GestionExportRegenerateBusy").Append("GestionExportRegenerated")
              .Append("GestionExportRegenerateFailure").Append("GestionExportHistoryFailure")
-             .Append("ArchiveAccess").Append("ArchiveYear").Append("ArchiveSearchHint").Append("ArchiveSearch")
+             .Append("DataTools").Append("ArchiveAccess").Append("ArchiveYear").Append("ArchiveSearchHint").Append("ArchiveSearch")
              .Append("ArchiveFromDate").Append("ArchiveToDate").Append("ArchiveCopy").Append("ArchiveReadOnlyNotice")
              .Append("ArchiveStatusAll").Append("ArchiveNoArchives").Append("ArchiveAvailable")
              .Append("ArchiveAccessFailed").Append("ArchiveInvalidDateRange").Append("ArchiveCopySucceeded").Append("ArchiveCopyFailed")

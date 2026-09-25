@@ -10,23 +10,29 @@
 
 ## 1. Acceptance principle
 
-This record tracks owner acceptance after testing the exact WP6 candidate `33145cf796e939741255f7599dc8174df9d7d083` / artifact `10860083727`. The owner recorded Sections A-C as PASS on that candidate and Section D as FAIL because transient operator statuses remained in Chinese after switching to French. The old artifact is superseded. A-C remain recorded as prior-candidate evidence only; they do not establish acceptance of the repaired candidate. After controller review of the new exact-head artifact, the owner must re-run Section D on that repaired candidate. Sections E-F remain paused until the language repair is accepted.
+This record tracks owner acceptance after testing the exact WP6 candidate `33145cf796e939741255f7599dc8174df9d7d083` / artifact `10860083727`. The owner recorded Sections A-C as PASS on that candidate and Section D as FAIL because transient operator statuses remained in Chinese after switching to French. The old artifact is superseded. A-C remain recorded as prior-candidate evidence only; they do not establish acceptance of the repaired candidate. After controller review of the combined navigation-adjusted exact-head artifact, the owner must re-run Section D and inspect the final navigation/visual layout on that candidate. Sections E-F remain paused pending the owner re-test and controller review.
 
-Automated evidence is recorded in the matching repair `CODEX_DONE`; it does not convert manual checks to PASS. Do not claim M13 Passed, merge or release here.
+Automated evidence is recorded in the matching language-repair and final-navigation completion comments; it does not convert manual checks to PASS. Do not claim M13 Passed, merge or release here.
 
-## 2. Preconditions
+## 2. Final navigation and layout adjustment
+
+The top-level order is **Catalogue | Paramètres | Données | Commandes | Caisse** in French and **商品目录 | 设置 | 数据 | 订单 | 收银台** in Simplified Chinese. **Données / 数据** contains the separate Gestion export and Archives historiques child tabs. Commandes and Caisse have distinct restrained blue operational header accents; high-contrast mode uses system brushes. This owner-requested presentation adjustment does not change any workflow or the carried-forward A-C, D, E or F result.
+
+**Owner re-test pending:** Section D and the final navigation/visual layout must be reviewed together on the exact combined candidate after controller review. Do not mark D, E or F PASS here.
+
+## 3. Preconditions
 
 Before testing:
 
 - WP1-WP6 controller reviews and exact-head evidence are available on PR #26.
-- Review the controller review and matching language-repair `CODEX_DONE` comment before downloading the repaired candidate.
-- Download only the exact repaired installer artifact named in that completion comment. Verify its filename, byte size and SHA-256; verify installed `release-provenance.json` identifies the listed source head, version, runtime and AppId.
+- Review the controller review and matching language-repair and final-navigation completion comments before downloading the combined candidate.
+- Download only the exact combined final-candidate installer artifact named in the final-navigation completion comment. Verify its filename, byte size and SHA-256; verify installed `release-provenance.json` identifies the listed source head, version, runtime and AppId.
 - Confirm exact-head CI, full Release build/tests, safety scans and hosted installer lifecycle are green in that completion evidence.
-- The current outstanding owner action is Section D on that exact repaired candidate.
+- The current outstanding owner action is Section D plus final navigation/visual-layout review on that exact combined candidate.
 
 If any exact artifact identity or precondition is missing, stop and report it; do not substitute a different installer.
 
-## 3. Owner checklist
+## 4. Owner checklist
 
 ### A — exact installer identity and launch
 
@@ -85,10 +91,10 @@ Open [`../operating-guide.md`](../operating-guide.md) and confirm it matches the
 
 **Owner result/date/evidence:** Paused pending controller review and the repaired-candidate Section D re-test.
 
-## 4. M12 deferred archive verification remains separate
+## 5. M12 deferred archive verification remains separate
 
 The first safe real populated-archive verification remains deferred under the existing M12 owner waiver. At the first safe authoritative startup on or after **2027-02-01** with real 2026 rows, separately verify real archive discovery, selection, detail/search, user-selected copy, reprint and read-only behavior. Record it as **DEFERRED-NOT-M13** until performed. Do not use M13 to relabel it Passed.
 
-## 5. Acceptance record
+## 6. Acceptance record
 
 After performing the checks, the owner records PASS / FAIL / DEFERRED-NOT-M13 and concise evidence for A–F, with date and the exact candidate SHA/artifact. Do not pre-fill or infer owner results from hosted CI. Final V1 acceptance and any merge decision remain separate explicit owner/controller actions.

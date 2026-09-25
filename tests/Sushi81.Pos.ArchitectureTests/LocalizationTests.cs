@@ -217,8 +217,10 @@ public sealed class LocalizationTests
             "M07DisasterRecoverySucceeded", "Catalogue", "CatalogueImportPreviewTitle", "CatalogueExport",
             "NewOrder", "OrderClose", "OrderSearch", "DashboardHiboutikCard", "OrderPrintCustomerFailure",
             "OrderReprintKitchen", "HiboutikPasteInstructions", "GestionExportHistory", "GestionExportRegenerate",
-            "GestionExportDatePickerWatermark", "ArchiveAccess", "ArchiveNoArchives", "ValidationGeneric", "OperationFailed"
+            "GestionExportDatePickerWatermark", "DataTools", "ArchiveAccess", "ArchiveNoArchives", "ValidationGeneric", "OperationFailed"
         };
+
+        Assert.AreEqual("Données", french.Localized["DataTools"]);
 
         foreach (var key in keys)
             Assert.IsFalse(string.IsNullOrWhiteSpace(french.Localized[key]), $"French representative resource {key} did not resolve.");
@@ -233,9 +235,11 @@ public sealed class LocalizationTests
             Assert.AreEqual(key["GestionExport".Length..].ToUpperInvariant(), french.Localized[key], $"The fixed {key} export identifier changed.");
 
         await french.ChangeLanguageAsync(french.Languages.Single(option => option.CultureName == "zh-CN"));
+
         foreach (var key in keys)
             Assert.IsFalse(string.IsNullOrWhiteSpace(french.Localized[key]), $"zh-CN representative resource {key} did not resolve.");
         Assert.AreNotEqual(frenchCatalogue, french.Localized["Catalogue"]);
+        Assert.AreEqual("数据", french.Localized["DataTools"]);
         Assert.AreEqual("2026/9/25", new DateTime(2026, 9, 25).ToString("d", CultureInfo.GetCultureInfo("zh-CN")));
         StringAssert.Contains(
             string.Format(CultureInfo.GetCultureInfo("zh-CN"), french.Localized["HiboutikSourceTotalFormat"], 1234.5m),

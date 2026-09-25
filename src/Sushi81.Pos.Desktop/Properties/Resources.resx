@@ -473,4 +473,5 @@ Changements effectifs : {2}</value></data>
   <data name="ArchiveInvalidDateRange" xml:space="preserve"><value>La période historique est invalide.</value></data>
   <data name="ArchiveCopySucceeded" xml:space="preserve"><value>Archive copiée vers {0}.</value></data>
   <data name="ArchiveCopyFailed" xml:space="preserve"><value>L’archive sélectionnée n’a pas pu être copiée.</value></data>
+  <data name="DataTools" xml:space="preserve"><value>Données</value></data>
 </root>

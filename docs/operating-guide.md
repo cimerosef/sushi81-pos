@@ -85,6 +85,8 @@ Pasting or analysing does not save an order. The application does not read the c
 
 ## 6. Gestion export to Gestion SUSHI 81
 
+In the top navigation, open **Données / 数据** and choose the separate **Gestion export / 销售数据导出** or **Archives historiques / 历史归档** tab. Each section keeps its own workflow and state.
+
 **Gestion export** creates a controlled intermediate Excel file; it does not write directly into `Gestion SUSHI 81.xlsm`. An operator imports the generated file into the separate workbook using that workbook's process.
 
 Choose the inclusive fulfilment-date range or leave it unfiltered, then use **Aperçu / actualiser** to review applicable actions. Eligible ordinary closed orders may produce `CREATE`, later corrections may produce `UPDATE`, and cancellations may produce `CANCEL`; the application maintains the stable order identifiers and duplicate-protection state. Hiboutik paste-created orders are excluded.
@@ -95,7 +97,7 @@ Successful payloads are retained for at least 30 days from batch completion. Aft
 
 ## 7. Annual archives and historical access
 
-Completed annual databases are stored locally under the application-managed `Archive` area and are retained permanently. Open **Archives historiques**, choose an archive year and search/filter the available historical orders. Archive viewing is read-only; historical values come from saved snapshots, not today's catalogue. Select an order for an explicit reprint if needed.
+Completed annual databases are stored locally under the application-managed `Archive` area and are retained permanently. In **Données / 数据**, open **Archives historiques**, choose an archive year and search/filter the available historical orders. Archive viewing is read-only; historical values come from saved snapshots, not today's catalogue. Select an order for an explicit reprint if needed.
 
 **Copier l’archive** makes a copy of a validated completed archive to a destination you choose. It does not move or delete the canonical archive. Annual archiving is an application-managed authoritative-device operation; ordinary POS use does not synchronize canonical annual archives through OneDrive. Normal authority handoff transfers live data only, so archive files on another computer may need their own approved copy/availability plan.
 
@@ -112,6 +114,7 @@ Common screen and action labels:
 | Caisse | 收银台 |
 | Commandes | 订单 |
 | Catalogue | 商品目录 |
+| Données | 数据 |
 | Gestion export | 销售数据导出 |
 | Paramètres | 设置 |
 | Archives historiques | 历史归档 |

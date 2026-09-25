@@ -425,18 +425,41 @@ public partial class MainWindow : Window
 
     private void OnMainTabsSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (sender is not TabControl || mainTabs.SelectedItem is not TabItem selected) return;
-        var key = mainTabs.Items.IndexOf(selected) switch
-        {
-             0 => "catalogue",
-             1 => "gestion-export",
-             2 => "settings",
-             3 => "commandes",
-             4 => "caisse",
-             5 => "archive",
-             _ => "settings"
-         };
+        if (sender is not TabControl tabs || !ReferenceEquals(tabs, mainTabs) || mainTabs.SelectedItem is not TabItem selected)
+            return;
+
+        if (selected.Tag is not string key)
+            return;
+
+        if (key == "data")
+            SelectAvailableDataTab();
+
         PerformanceTrace.Log($"tab.selected.{key}");
+    }
+
+    private void OnDataToolsTabsSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not TabControl tabs || !ReferenceEquals(tabs, dataToolsTabs))
+            return;
+
+        e.Handled = true;
+        if (dataToolsTabs.SelectedItem is TabItem selected && selected.Tag is string key)
+            PerformanceTrace.Log($"tab.selected.data.{key}");
+    }
+
+    private void SelectAvailableDataTab()
+    {
+        if (DataContext is not ShellViewModel shell || !shell.IsDataToolsAvailable)
+            return;
+
+        if (dataToolsTabs.SelectedItem is TabItem selected &&
+            selected.Visibility == Visibility.Visible &&
+            selected.IsEnabled)
+        {
+            return;
+        }
+
+        dataToolsTabs.SelectedItem = shell.IsGestionExportAvailable ? gestionExportTab : archiveAccessTab;
     }
 
     private void ResizeCommandesColumns(DataGrid grid, double? targetWidth = null)

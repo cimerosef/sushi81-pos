@@ -2519,7 +2519,7 @@ public sealed class M05DesktopTests
     {
         var xamlPath = Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml");
         var xaml = File.ReadAllText(xamlPath);
-        var caisseStart = xaml.IndexOf("<TabItem Header=\"{Binding DataContext.Localized[Caisse]", StringComparison.Ordinal);
+        var caisseStart = xaml.IndexOf("<TabItem Tag=\"caisse\" Header=\"{Binding DataContext.Localized[Caisse]", StringComparison.Ordinal);
         var caisseEnd = xaml.IndexOf("</TabItem>", caisseStart, StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, caisseStart);
         Assert.IsGreaterThan(caisseStart, caisseEnd);
