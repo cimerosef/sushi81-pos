@@ -40,7 +40,6 @@ CloseApplications=yes
 RestartApplications=no
 Uninstallable=yes
 UninstallDisplayName=Sushi81 POS
-UninstallDisplayVersion={#ProductVersion}
 OutputDir={#PackageDir}
 OutputBaseFilename=Sushi81POS-Setup-{#ProductVersion}-{#SourceShort}
 SetupLogging=yes

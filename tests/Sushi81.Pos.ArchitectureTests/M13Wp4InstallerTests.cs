@@ -24,6 +24,8 @@ public sealed class M13Wp4InstallerTests
         var setup = File.ReadAllText(LocateRepositoryFile("installer", "sushi81-pos.iss"));
         StringAssert.Contains(setup, "#if Ver != (6 * 16777216 + 7 * 65536 + 3 * 256)");
         StringAssert.Contains(setup, "AppId={{C7A1B9E2-1E62-4B4B-A2EA-7802814408FC}");
+        StringAssert.Contains(setup, "AppVersion={#ProductVersion}");
+        Assert.IsFalse(setup.Contains("UninstallDisplayVersion", StringComparison.Ordinal));
         StringAssert.Contains(setup, "PrivilegesRequired=lowest");
         StringAssert.Contains(setup, "ArchitecturesAllowed=x64compatible");
         StringAssert.Contains(setup, "ArchitecturesInstallIn64BitMode=x64compatible");
