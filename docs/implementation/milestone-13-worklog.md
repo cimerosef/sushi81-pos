@@ -280,3 +280,28 @@ Local verification:
 - Required UI labels, approved settings/defaults and operator-scope content checks: passed.
 - Automated application tests/build were not rerun because this handoff changes documentation only. Exact-head GitHub CI is required after push; any installer output remains documentation-head provenance and does not replace artifact 10870768282.
 - PR #26 remains open/unmerged. No owner F PASS, M13 Passed, release or merge is claimed.
+
+## 2026-09-25 — final operating-guide credential, join and installer closure
+
+Consumed `M13-FINAL-OPERATING-GUIDE-CLOSURE-10` from active PR #26 comment `5835596861` while Issue #4 was OPEN. The exact starting head was `a9909fa5d113a3d989a9dd34d38b32d206f9cf66` on `codex/m13-installer-final-acceptance-authorized`. This is a documentation-only repair.
+
+Completed:
+
+- Replaced the PR/WP/artifact-specific operator quick-start installer reference in both guides with the current owner-approved installer and distribution process, provenance identity verification, and the durable-data-preserving update/repair expectation.
+- Added the Windows 10/11 Credential Manager GUI procedure in both guides: Windows Credentials > Generic Credentials > Add a generic credential; exact configured target in Internet or network address; non-secret optional Username; approved PAT in Password; then enter only the target name in Sushi81 POS, restart and test the GitHub transfer connection.
+- Documented fine-grained PAT access limited to the dedicated private transfer repository, never the Sushi81 POS source repository; Contents read/write is the only selectable repository permission required by the production release and asset read/create/upload/delete calls, with GitHub's built-in read-only Metadata permission for repository lookup. No account or organization permissions are needed. Added official Microsoft and GitHub source links to both guides.
+- Corrected fresh self-join semantics: pairing establishes device registration but is non-authoritative; a fresh PC may remain `PairedUninitializedReadOnly` without a usable current dataset until approved acquisition/reinitialization. The transfer procedure now states that successful acquisition installs/refreshes the validated dataset before the target becomes writable.
+- Updated only Section F of final manual acceptance: the old-guide FAIL remains historical; handoff 09 required this final controller correction; owner re-test of the revised guides remains pending. A-E and all owner evidence are unchanged.
+
+Source/specification review confirmed the Windows Credential Manager generic-credential flow and Username behavior against Microsoft documentation; fine-grained token permissions against GitHub's current REST permission matrix and release/release-asset endpoints; M07 connection-test labels and all six setup-field labels against both resource files; fresh-join/acquisition behavior against the implementation and approved M07 record; and initialization defaults against `BusinessSettings.Defaults` plus `docs/business-rules.md`.
+
+Scope: only `docs/operating-guide.zh-CN.md`, `docs/operating-guide.md`, `docs/implementation/milestone-13-final-manual-acceptance.md`, and this worklog. No application source, tests, XAML, schema, dependency, workflow, or release configuration changed. No owner acceptance, M13 Passed result, installer replacement, or merge is claimed.
+
+Local verification:
+
+- `git diff --check`: passed.
+- Repository safety scanner self-test: 16 synthetic cases passed; full scan: 442 tracked/non-ignored files, no findings.
+- Changed-file Markdown local links: passed.
+- Exact zh-CN setup labels, default business values, credential instructions, PAT repository/permission scope, fresh-join semantics, and evergreen installer wording checks: passed.
+- Application tests/build were not rerun for this docs-only repair. Exact-head CI remains required after push.
+- Owner Section F re-test remains pending after controller review. PR #26 remains OPEN, Draft, and unmerged; Issue #4 was OPEN for this handoff.

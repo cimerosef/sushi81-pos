@@ -89,7 +89,7 @@ Do not manually delete export history or database rows.
 
 Open both the primary Simplified Chinese guide at [../operating-guide.zh-CN.md](../operating-guide.zh-CN.md) and the equivalent English guide at [../operating-guide.md](../operating-guide.md). Follow the new-PC setup, protected GitHub credential boundary, read-only join, exact-target authority transfer, printer setup, settings verification and daily-operation procedures. Confirm that the procedures match the installed UI and supported workflows. Record any confusing, incorrect or incomplete operator instruction.
 
-**Owner result/date/evidence:** FAIL on the old guide per owner comment OWNER_ACCEPTANCE_FAILURE: M13-FINAL-F-OPERATING-GUIDE-20260925 (PR #26 comment 5834968433); revised Chinese and English guide re-test pending on the exact combined candidate. This documentation change is not owner acceptance.
+**Owner result/date/evidence:** FAIL on the old guide remains historical per owner comment OWNER_ACCEPTANCE_FAILURE: M13-FINAL-F-OPERATING-GUIDE-20260925 (PR #26 comment 5834968433). Handoff 09 revised both guides but required this final controller documentation correction. The handoff-10 corrections are now included; owner re-test of both revised guides remains pending on the exact combined candidate. This documentation change is not owner acceptance.
 
 ## 5. M12 deferred archive verification remains separate
 

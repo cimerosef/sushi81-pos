@@ -8,7 +8,7 @@
 Follow these steps in order. Pairing a computer does not give it write authority.
 
 1. **Prepare the prerequisites.**
-   - Obtain the approved per-user installer from the matching WP6 CODEX_DONE record on PR #26. The accepted application candidate is source head 9f4521627b21f44c2dc5452f03db840a143e1ee4 and installer artifact ID 10870768282. Verify the filename, size, SHA-256 and installed release-provenance.json against that record. An installer artifact automatically produced by this documentation-only update represents the documentation head; it does not replace the accepted application candidate.
+   - Use the current owner-approved per-user Sushi81 POS installer, obtained through the owner-approved distribution location/process. After installation, verify that `release-provenance.json` version and source identity match the identity supplied with that approved installer. Do not treat an older acceptance artifact or source head as the permanent installer source. Ordinary updates and repairs preserve `%LOCALAPPDATA%\Sushi81 POS`.
    - Install and sign in to OneDrive. Make sure the existing Sushi81 shared root is available and synchronized on this computer.
    - Have the computer/printer administrator install the required Windows printer drivers and create the Windows printer queue or queues.
    - Ask the system owner for the existing GitHub transfer settings and a protected Windows Credential Manager credential that was prepared through the approved process. Do not invent an owner, repository or credential target.
@@ -32,7 +32,13 @@ Follow these steps in order. Pairing a computer does not give it write authority
      | GitHub release name | Name of the configured transfer release. | No. Copy exactly. |
      | Protected GitHub credential target name | Lookup name of the Generic credential in Windows Credential Manager. | The name is not secret. The PAT/token is secret and must never be entered in the app. |
 
-   - **Never paste a PAT, token, password or authorization header into an application field, note, log or chat.** The production provider looks up the Windows Credential Manager Generic credential by target name and reads its secret blob; it does not read the entry’s Username field. The application and existing tests do not provide an operator-facing credential creation/write procedure or define Username semantics. The system owner/IT must provision and verify this credential through an approved secure process. If that procedure is not available, stop and ask the owner; do not guess what a Windows dialog field means or create the entry on your own.
+   - **Save the token in Windows Credential Manager.** On Windows 10/11, search for `Credential Manager` from the taskbar and open `Credential Manager Control Panel`; it can also be opened through Control Panel > User Accounts > Credential Manager. Select `Windows Credentials`, then choose `Add a generic credential` under `Generic Credentials`.
+     1. `Internet or network address`: enter the exact “Protected GitHub credential target name” configured in Sushi81 POS. This is a lookup key, not a secret.
+     2. `User name`: if the dialog requires it, enter a non-secret descriptive/account label. Sushi81 POS does not read this field; it does not represent or grant authority.
+     3. `Password`: enter the owner/IT-approved GitHub fine-grained personal access token (PAT) for the dedicated private transfer repository, then save.
+   - **Minimum token permissions:** restrict fine-grained PAT repository access to only the dedicated private transfer repository; never authorize the Sushi81 POS source-code repository. Grant only `Contents: Read and write` on that repository. Production transfer calls read release/tag/assets and list/download assets; creating a missing release and uploading/deleting assets require Contents write. Repository lookup requires read-only Metadata permission, which GitHub includes by default for fine-grained tokens. `write` includes `read`. No account- or organization-level permissions are needed.
+   - After saving the credential, enter only the same target name in the Sushi81 POS “Protected GitHub credential target name” field, never the token; then continue with step 4.
+   - **Security boundary:** never put the PAT in a Sushi81 POS field, repository documentation, screenshots, logs, chat, a terminal/command line or shell history.
 
 4. **Save, restart and test the connection.**
    - Save the technical configuration and wait for the restart-required message. Exit and restart Sushi81 POS completely so it can compose the M07 services.
@@ -41,7 +47,7 @@ Follow these steps in order. Pairing a computer does not give it write authority
 5. **Set the language and join read-only.**
    - At the top of the app, use Language (语言) and choose Simplified Chinese (简体中文 / zh-CN) or French (Français / FR).
    - Confirm the shared root contains the existing lineage. Choose “Join existing system” (加入现有系统 / Rejoindre le système existant), enter a clear device name that distinguishes this computer from the others, and confirm.
-   - A successful join reports that the computer is paired read-only. It can view available business data but cannot write. Pairing does not move authority from the old PC. If lineage metadata is missing or invalid, do not initialize an empty system or select a different root; ask the owner to investigate.
+   - A successful join proves that device pairing/registration completed; the new PC remains read-only and non-authoritative. If usable local business data is present, read-only consultation may be available. A fresh PC may be `PairedUninitializedReadOnly` and may have no usable current business dataset until an approved target acquisition/reinitialization path completes. Join success proves neither data acquisition nor write authority, and does not move authority from the old PC. If lineage metadata is missing or invalid, do not initialize an empty system or select a different root; ask the owner to investigate.
    - Read the visible authority state before business work. Only a device explicitly shown as authoritative may create or change business records. Read-only, transitioning or recovery-required states do not allow business writes.
 
 6. **Transfer authority from the old PC to the new PC.**
@@ -49,7 +55,7 @@ Follow these steps in order. Pairing a computer does not give it write authority
    - On the current authoritative old PC, finish or save pending work and choose “Transfer authority and close” (转移权威并关闭 / Transférer l’autorité et fermer).
    - Check the target by its device name. If the app presents multiple candidates, choose the exact paired device in the current generation. Cancel and confirm with the owner if the identity is uncertain.
    - Wait for the old PC to report completion and close. After it durably relinquishes authority, it must remain read-only; do not take orders on it or retarget the pending transfer.
-   - On the designated new PC, choose “Check and acquire transferred authority” (检查并获取已转移的权威 / Vérifier et acquérir l’autorité transférée). Wait for validation and the business view to refresh. Resume business only after the new PC is shown as authoritative/writable and the old PC remains read-only.
+   - On the designated new PC, choose “Check and acquire transferred authority” (检查并获取已转移的权威 / Vérifier et acquérir l’autorité transférée). Wait for validation and for the validated business dataset to be installed/refreshed locally. Resume business only after acquisition succeeds, the new PC is shown as authoritative/writable and the old PC remains read-only.
    - If you are only closing the app and want authority to remain on this computer, choose “Close and retain authority” (关闭并保留权威 / Fermer et conserver l’autorité). A normal close does not pass authority to another PC.
    - If the transfer is interrupted, the old PC may remain authoritative only if durable relinquishment has not happened. After relinquishment it must stay read-only. It may use “Resume pending transfer” (继续待处理的转移 / Reprendre le transfert en attente) only to retry that same target-bound transfer. Do not edit files, cancel or retarget it, and do not let a third PC write. Non-target devices remain read-only.
 
@@ -162,3 +168,8 @@ Common labels:
 For an unexpected failure, note the screen/action and approximate time. Ask the owner to review the app message and recent files in %LOCALAPPDATA%\Sushi81 POS\Logs. Retry only an action the app identifies as safe. Do not delete, replace or manually edit live.db, an archive, a recovery checkpoint, settings, pairing or authority files. Never reset the profile to troubleshoot a startup or migration issue.
 
 V1 does not provide inventory/purchasing, table management, staff accounts/roles, loyalty/CRM, automatic Hiboutik API/email synchronization, direct card-terminal control or POS-run refunds, full accounting/ERP, a replacement for Gestion SUSHI 81, formal B2B invoices, live SQLite synchronization through OneDrive, simultaneous multi-writer operation or an automatic updater. Ask the system owner before relying on a workflow outside this guide.
+
+## Official references
+
+- Microsoft: [Credential Manager in Windows](https://support.microsoft.com/en-us/windows/security/credential-manager-in-windows) documents the Windows 10/11 entry point; this [Generic credential UI example](https://learn.microsoft.com/en-us/sharepointmigration/mm-setup-clients) shows the field labels (its Azure-specific values do not apply to Sushi81 POS); the [CREDENTIALA structure](https://learn.microsoft.com/en-us/windows/win32/api/wincred/ns-wincred-credentiala) documents that Credential Manager ignores UserName for a Generic credential.
+- GitHub: [fine-grained PAT permission matrix](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens), [Release REST API](https://docs.github.com/en/rest/releases/releases), [release asset REST API](https://docs.github.com/en/rest/releases/assets), and [PAT management guide](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).

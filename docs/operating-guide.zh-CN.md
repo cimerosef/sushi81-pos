@@ -5,7 +5,7 @@
 按顺序完成这些步骤。加入配对不等于取得写入权威。
 
 1. **先备齐条件。**
-   - 从 PR #26 对应 WP6 CODEX_DONE 记录取得已批准的每用户安装程序。当前已接受的应用候选是源代码 head 9f4521627b21f44c2dc5452f03db840a143e1ee4、安装程序 artifact ID 10870768282；按该记录核对下载文件名、大小、SHA-256 与安装后 release-provenance.json。本次文档更新若由 CI 另外生成安装程序 artifact，它只代表文档 head，不能替代此已接受的应用候选。
+   - 使用当前由业主批准的 Sushi81 POS 每用户安装程序，并从业主批准的分发位置/流程取得。安装后，将 `release-provenance.json` 中的版本和源代码身份与该批准安装程序随附的身份信息核对；不要把旧验收记录中的 artifact 或 source head 当作长期安装来源。普通更新和修复应保留 `%LOCALAPPDATA%\Sushi81 POS`。
    - 在这台电脑安装并登录 OneDrive；确认已有 Sushi81 OneDrive 共享根目录已完整同步且本机可访问。
    - 先由电脑/打印机管理员安装实际使用的 Windows 打印机驱动，并建立 Windows 打印队列。
    - 请系统负责人提供现有系统的 GitHub 转移配置，以及已按批准方式准备好的 Windows Credential Manager 受保护凭据。不要自行编造 owner、仓库或凭据目标名。
@@ -33,19 +33,25 @@
      | GitHub release 名称 | 转移 release 使用的名称。 | 非机密标识；逐字抄录。 |
      | 受保护 GitHub 凭据目标名称 | Windows Credential Manager 中 Generic credential 的目标名称；它只是查找键。 | 名称非机密。真正的 PAT/token 是机密，绝不可填入 Sushi81 POS。 |
 
-   - **不要把 PAT、token、密码或授权头粘贴进任何应用字段、备注、日志或聊天。**当前程序按配置的目标名称读取 Windows Credential Manager Generic credential 的 secret blob；代码不会读取该条目的 Username 字段。应用和现有测试没有给出可由操作员照做的凭据创建/写入界面步骤，也没有规定 Username 内容。因此应让系统负责人/IT 按批准的安全流程预置并验证凭据；没有该流程时先停下询问负责人，不要猜 Windows 对话框字段含义或自行建立条目。
+   - **在 Windows 凭据管理器中保存令牌。**在 Windows 10/11 任务栏搜索 `Credential Manager`，打开 `Credential Manager Control Panel`；也可从“控制面板 > 用户帐户 > 凭据管理器”进入。选择 `Windows Credentials`，在 `Generic Credentials` 下选择 `Add a generic credential`。
+     1. `Internet or network address`：逐字填写 Sushi81 POS 配置中的“受保护 GitHub 凭据目标名称”；它是查找键，不是秘密。
+     2. `User name`：如界面要求，填写非机密的说明性/账户标签。Sushi81 POS 不读取此字段；它不代表权限，也不授予访问权。
+     3. `Password`：填写由负责人/IT 批准、用于专用私有转移仓库的 GitHub fine-grained personal access token (PAT)，然后保存。
+   - **令牌的最小权限：**将 fine-grained PAT 的 repository access 限定为仅所需的专用私有转移仓库，绝不要授权 Sushi81 POS 源代码仓库；仅授予该仓库的 `Contents: Read and write`。生产传输调用用仓库元数据和 release/tag/assets 读取版本、列出/下载资源；release 缺失时创建 release，并上传或删除资源需要 Contents 写权限；`write` 已包含 `read`。GitHub 的细粒度权限矩阵将仓库查询列为 Metadata 读取（fine-grained token 自动包含 Metadata read）。当前操作无需账户或组织级权限。
+   - 把令牌保存在 Credential Manager 后，在 Sushi81 POS 的“受保护 GitHub 凭据目标名称”字段中只填写同一个目标名称，绝不填写令牌；然后继续执行步骤 4。
+   - **安全边界：**绝不要把 PAT 放入 Sushi81 POS 字段、仓库文档、截图、日志、聊天、终端/命令行或 shell 历史。
    - 保存配置，等候“请重启 Sushi81 POS”提示，然后完全退出并重启应用。重启后选择“测试 GitHub 转移连接”。成功时应显示 GitHub 转移连接可用。未配置/无法读取凭据、401、403 或 404 分别说明配置或凭据、访问权、仓库/release 有问题；先让负责人核对现有值，不要尝试把 secret 输入应用。
 
 5. **加入现有系统（只读加入）。**
    - 确认共享根目录中已有系统的 lineage 信息可用。点击“加入现有系统”，输入能让同事辨认且不与现有设备混淆的设备名称，并确认。
-   - 成功加入应显示配对成功；新电脑仍是只读/非权威状态，可以查看现有业务数据，但不能写入。加入配对本身不会把权威从旧电脑移走。若应用提示系统信息缺失或无效，不要初始化空系统或换共享根目录；请负责人检查。
+   - 成功加入只证明设备配对/登记完成，且仍是只读、非权威状态；若本机已有可用的业务数据集，可进行只读查看。全新电脑可能处于 `PairedUninitializedReadOnly`，在获批的目标获取/重新初始化流程完成之前可能没有可用的当前业务数据。加入成功不代表数据已获取，也不赋予写入权威；配对不会把权威从旧电脑移走。若应用提示系统信息缺失或无效，不要初始化空系统或更换共享根目录；请负责人检查。
 
 6. **旧电脑转移权威到新电脑（正常流程）。**
    - 普通权威转移使用已配置的 GitHub 转移仓库，把一次不可变转移定向给一个配对目标；OneDrive 共享根目录用于系统元数据和灾难恢复，不是正常转移通道。
    - 在仍显示为权威的旧电脑，正常保存/完成当前操作，再选择关闭操作“转移权威并关闭”。
    - 按设备名称核对目标；若出现多个候选，选新电脑对应的确切当前代际设备。名字或设备身份不清楚时取消并先确认。
    - 等待旧电脑报告转移完成并关闭。权威一旦在旧电脑持久地释放，旧电脑必须保持只读；不能继续接单，也不能把待处理转移改给另一台机器。
-   - 在指定新电脑选择“检查并获取已转移的权威”。等候校验和本机业务数据刷新完成；确认新电脑显示为权威/可写，旧电脑仍为只读后才继续营业。
+   - 在指定新电脑选择“检查并获取已转移的权威”。等待系统校验转移，并在本机安装/刷新经过验证的业务数据集；只有成功完成获取且确认新电脑显示为权威/可写、旧电脑仍为只读后才继续营业。
    - 若只是关机且权威要留在原电脑，使用“关闭并保留权威”，不要转移。普通关机不会自动把权威交给其他电脑。
    - 若转移在中途失败：释放权威前，旧电脑可能仍可保有权威；释放后它必须只读。旧电脑只可使用“继续待处理的转移”重试同一个目标转移；不要手改文件、取消、换目标或让第三台电脑写入。不是指定目标的其他设备始终只读。
 
@@ -153,3 +159,8 @@
 遇到意外错误时，记下页面、操作和大致时间，把应用提示与 %LOCALAPPDATA%\Sushi81 POS\Logs 中近期日志交系统负责人查看。仅重试应用明确允许安全重试的操作。不要删除、替换或手动编辑 live.db、归档、恢复点、设置、配对或权威文件；不要通过重置用户资料排查问题。
 
 V1 不提供库存/采购、桌位管理、员工权限、会员 CRM、Hiboutik API/邮件自动同步、银行卡终端控制或 POS 退款、完整会计/ERP、替代 Gestion SUSHI 81、正式 B2B 发票、通过 OneDrive 实时同步 SQLite、多写入者同时工作或自动更新。超出本指南的流程先询问系统负责人。
+
+## 官方参考
+
+- Microsoft：[Windows 凭据管理器](https://support.microsoft.com/en-us/windows/security/credential-manager-in-windows) 说明 Windows 10/11 的打开方式和 Windows Credentials 入口；[Generic credential 图形界面示例](https://learn.microsoft.com/en-us/sharepointmigration/mm-setup-clients) 展示字段名称（示例中的 Azure 值与 Sushi81 POS 无关）；[CREDENTIALA 结构](https://learn.microsoft.com/en-us/windows/win32/api/wincred/ns-wincred-credentiala) 说明 Credential Manager 会忽略 Generic credential 的 UserName 字段。
+- GitHub：[fine-grained PAT 权限矩阵](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens)、[Release REST API](https://docs.github.com/en/rest/releases/releases)、[Release asset REST API](https://docs.github.com/en/rest/releases/assets) 和 [PAT 管理指南](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)。
