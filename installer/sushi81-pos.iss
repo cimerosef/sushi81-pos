@@ -4,6 +4,12 @@
 #define PublishDir GetEnv("SUSHI81_PUBLISH_DIR")
 #define PackageDir GetEnv("SUSHI81_PACKAGE_OUT_DIR")
 
+; Inno Setup's ISCC.exe has no useful Windows file-version resource. Ver is
+; the compiler engine version, encoded as major/minor/revision/build bytes.
+#if Ver != (6 * 16777216 + 7 * 65536 + 3 * 256)
+  #error This installer must be compiled with Inno Setup 6.7.3.
+#endif
+
 #if ProductVersion == ""
   #error SUSHI81_PRODUCT_VERSION is required.
 #endif

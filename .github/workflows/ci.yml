@@ -88,10 +88,11 @@ jobs:
           )
           $iscc = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
           if (-not $iscc) { throw 'ISCC.exe was not installed.' }
-          $compilerVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($iscc).FileVersion
-          if ($compilerVersion -notlike "$version*") { throw "Expected Inno Setup $version, found $compilerVersion." }
+          # The compiler engine exposes its actual version through ISPP's Ver
+          # predefined variable; sushi81-pos.iss checks that during compilation.
+          # ISCC.exe itself has no useful Windows file-version resource.
           "path=$iscc" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "Inno Setup: $compilerVersion; signed publisher: $publisher" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Pinned Inno Setup package: $version; signed publisher: $publisher" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
       - name: Package and verify the production installer
         shell: pwsh
         env:

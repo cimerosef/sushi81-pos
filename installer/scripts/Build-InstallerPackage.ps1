@@ -31,10 +31,10 @@ if ([string]::IsNullOrWhiteSpace($CompilerPath) -or -not (Test-Path -LiteralPath
     throw 'Pinned Inno Setup 6 compiler ISCC.exe was not found.'
 }
 $compilerPathResolved = (Resolve-Path -LiteralPath $CompilerPath).Path
-$compilerVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($compilerPathResolved).FileVersion
-if ($compilerVersion -notlike "$($config.innoSetupVersion)*") {
-    throw "Inno Setup compiler version '$compilerVersion' does not match pinned $($config.innoSetupVersion)."
-}
+# The Inno compiler's executable has no useful Windows file-version resource.
+# The committed .iss checks ISPP's built-in Ver at compile time against this
+# pinned release, so successful compilation is the version verification.
+$compilerVersion = [string]$config.innoSetupVersion
 
 $OutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 $publishDirectory = Join-Path $OutputDirectory 'publish'
