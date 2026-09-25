@@ -130,3 +130,35 @@ Local verification:
 - Full Release solution build: 0 warnings, 0 errors.
 - git diff --check: passed before this append; rechecked on the final staged diff before commit.
 - Exact-head GitHub CI is required after push and will be reported in the matching CODEX_DONE before completion delivery. PR #26 remains unmerged; no successor package is authorized by this handoff.
+
+
+## 2026-09-25 — WP4 production publish and per-user installer
+
+Handoff `M13-WP4-PRODUCTION-PUBLISH-INSTALLER-04` was consumed from the active PR #26 mailbox while Issue #4 was OPEN at the exact WP3 head `e40a1f882d4c0557fc0fe4e30cb88395be290c89`. Work is limited to production packaging, the per-user installer, its evidence, and the migration fail-safe regression; no WP5/WP6 or merge work is included.
+
+Implemented:
+
+- Added the pinned release configuration for product `1.0.0`, file version `1.0.0.0`, `win-x64`, self-contained .NET 10, `PublishSingleFile=false`, Inno Setup 6.7.3, stable AppId `C7A1B9E2-1E62-4B4B-A2EA-7802814408FC`, and 90-day workflow-artifact retention.
+- Added `installer/sushi81-pos.iss`: `PrivilegesRequired=lowest`, x64-compatible install mode, stable binary root `{localappdata}\Programs\Sushi81 POS`, safe in-place file replacement, and a per-user Start Menu shortcut. It has no data-root deletion, SQL/schema actions, updater, service, scheduled task, or uninstall remove-all-data rule. Durable application data remains at `%LOCALAPPDATA%\Sushi81 POS` outside the installer-owned program directory.
+- Added a packaging script that requires the checkout HEAD to equal the requested full source SHA; runs the Release `win-x64` self-contained publish with explicit product/file/informational version metadata; verifies the EXE metadata, bundled .NET and Windows Desktop runtimes, French neutral-resource fallback for `fr-FR`, and the `zh-CN` satellite; safety-scans staged files; compiles with the pinned Inno compiler; and records `release-provenance.json`, installer byte size/SHA-256, executable SHA-256, and a machine-readable package summary. Provenance is included inside the installed binary tree and beside the uploaded installer.
+- Replaced the M11 owner-candidate artifact workflow with an exact-source-head M13 installer job while retaining normal Release build/test. PR jobs checkout and verify `github.event.pull_request.head.sha`; push jobs use and verify `github.sha`. The authorized implementation branch has a push trigger. The workflow downloads the pinned upstream Inno Setup 6.7.3 release, checks its Authenticode signature and Pyrsys B.V. signer, and uploads the production installer, provenance, package summary, and lifecycle summary for 90 days. The GitHub artifact ID and per-run installer size/hash are emitted in the workflow summary and matching CODEX_DONE after upload.
+- Added hosted-runner lifecycle verification using only synthetic files beneath that runner user's profile: clean install, same-version repair, uninstall preservation, reinstall, a `0.9.0` installer-mechanics fixture built from accepted WP3 source `e40a1f882d4c0557fc0fe4e30cb88395be290c89`, in-place upgrade, and post-upgrade uninstall/reinstall. Data hashes are checked after each step for `Data\live.db`, Archive, Recovery, Config, device identity, authority/transfer-state, and printer/settings fixtures. The script verifies HKCU uninstall metadata, the distinct per-user roots, installed provenance/resources, no Sushi81 service/task/updater, and no forbidden file in the installed tree. The WP3 fixture proves installer mechanics only; it does not claim WP3 historically shipped an installer.
+- Added targeted forbidden-content scanning for SQLite/business data, recovery/archive fixtures, local settings and identity/authority/handoff fixtures, credentials/secrets, operator workbooks/CSV, logs, PDBs, tests, and source/build residue. Runtime JSON and .NET resource/runtime files remain allowed.
+- Extended the future-schema migration test to prove that the known business sentinel row and future migration marker remain intact when this application rejects a schema version newer than it supports.
+
+Verification in the isolated WP4 worktree:
+
+- Focused WP4 package/lifecycle architecture tests: 3 passed, 0 failed, 0 skipped.
+- Future-schema migration preservation regression: 1 passed, 0 failed, 0 skipped.
+- Full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 903 passed across six test assemblies, 0 failed, 0 skipped.
+- Full Release solution build: 0 warnings, 0 errors.
+- Release `win-x64` self-contained publish probe: completed; product/file/informational EXE version fields, bundled .NET / Windows Desktop runtimes, `zh-CN` resources, and 417-file forbidden-content scan verified. French app resources are embedded in the main Desktop assembly and are the existing neutral fallback for `fr-FR`; no artificial duplicate French satellite was introduced.
+- PowerShell parser: all four installer scripts parsed successfully. `git diff --check`: passed.
+- The local publish probe used a temporary in-progress worktree and is not accepted as exact final-source provenance. Final installer bytes, SHA-256, artifact ID, and lifecycle results come from the post-push exact-head CI job and are recorded in its run summary and matching CODEX_DONE. Interactive WPF launch/UI remains owner acceptance; no headless UI result is claimed.
+
+Release identity and deferred owner/compliance checks:
+
+- Installer filename pattern: `Sushi81POS-Setup-1.0.0-<short-source-sha>.exe`; GitHub artifact name: `Sushi81-POS-production-installer-win-x64-1.0.0-<short-source-sha>`; retention: 90 days. The upload action assigns the run-specific artifact ID after packaging; the final ID and installer byte/hash values are recorded in the matching CODEX_DONE rather than fabricated in this append-only source commit.
+- Inno Setup's upstream 6.7.3 revision notes ask commercial users to purchase a license; no license key or purchase is included in this handoff. The pinned public compiler and its signer are verified by CI. Owner/compliance review of that vendor request remains separate from this installer-mechanics work package and must be resolved before commercial distribution if applicable.
+- The installer does not launch the app or migrate data. First-launch schema migration remains application-controlled and fail-closed. Real-device install/upgrade, re-pair/authority acceptance, and interactive UI review remain owner checks for final V1 acceptance.
+- Exact-head normal CI and the production-installer lifecycle/artifact job are required after push and will be captured in CODEX_DONE. PR #26 remains open/unmerged; this handoff does not authorize WP5/WP6 or merge.

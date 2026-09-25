@@ -72,6 +72,11 @@ public sealed class InfrastructureIntegrationTests
 
         var futureError = await Assert.ThrowsAsync<DatabaseMigrationException>(async () => await runner.InitializeAsync());
         StringAssert.Contains(futureError.Message, "newer");
+
+        await using var preservedConnection = await factory.OpenLiveConnectionAsync();
+        Assert.AreEqual("preserved", await ScalarStringAsync(preservedConnection, "SELECT value FROM sentinel;"));
+        Assert.AreEqual(99L, await ScalarLongAsync(preservedConnection, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(1L, await ScalarLongAsync(preservedConnection, "SELECT COUNT(*) FROM schema_migrations WHERE version = 99 AND name = 'future';"));
     }
 
     [TestMethod]
