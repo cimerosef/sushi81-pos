@@ -116,7 +116,7 @@ public sealed class SqliteGestionExportCompactionService(
         CancellationToken cancellationToken)
     {
         var batches = new List<BatchRow>();
-        await using (var command = CreateCommand(sqlite, "SELECT batch_id,order_count,payload_json,payload_hash,completed_at_utc FROM export_batches WHERE status='PREPARED' ORDER BY batch_id;"))
+        await using (var command = CreateCommand(sqlite, "SELECT batch_id,order_count,payload_json,payload_hash,completed_at_utc FROM export_batches WHERE status='PREPARED' ORDER BY generated_at_utc DESC,batch_id DESC;"))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
             while (await reader.ReadAsync(cancellationToken))
@@ -152,7 +152,7 @@ public sealed class SqliteGestionExportCompactionService(
         CancellationToken cancellationToken)
     {
         var batches = new List<BatchRow>();
-        await using var command = CreateCommand(sqlite, "SELECT batch_id,order_count,payload_json,payload_hash,completed_at_utc FROM export_batches WHERE status='SUCCESS' ORDER BY batch_id;");
+        await using var command = CreateCommand(sqlite, "SELECT batch_id,order_count,payload_json,payload_hash,completed_at_utc FROM export_batches WHERE status='SUCCESS' ORDER BY generated_at_utc DESC,batch_id DESC;");
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {

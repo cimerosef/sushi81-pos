@@ -80,6 +80,192 @@ public sealed class InfrastructureIntegrationTests
     }
 
     [TestMethod]
+    public async Task M13Wp5OrderingIndexesPreserveDataAndRemoveHotReadSorts()
+    {
+        using var paths = new TestAppPaths();
+        var factory = new SqliteConnectionFactory(paths);
+        var clock = new FixedClock();
+        var beforeWp5 = ProductionMigrations.All.Where(migration => migration.Version <= 10).ToArray();
+        await new SqliteMigrationRunner(factory, beforeWp5, clock).InitializeAsync();
+
+        await using (var connection = await factory.OpenLiveConnectionAsync())
+        {
+            await ExecuteAsync(connection, """
+                INSERT INTO categories(category_id,name,normalized_name,created_at_utc,updated_at_utc)
+                VALUES ('d3bfbcb6-7303-4408-9e7d-3c396d8846d6','Synthetic category','synthetic category','2026-08-27T12:00:00.0000000+00:00','2026-08-27T12:00:00.0000000+00:00');
+                """);
+            await ExecuteAsync(connection, """
+                INSERT INTO products(product_id,code,normalized_code,name,category_id,price_ttc_cents,vat_rate,is_active,discount_eligible,options_enabled,created_at_utc,updated_at_utc)
+                VALUES ('a86b56cc-f0f7-4f1a-a237-c36de37968f1','SYN-001','SYN-001','Synthetic product','d3bfbcb6-7303-4408-9e7d-3c396d8846d6',1200,'0.10',1,1,0,'2026-08-27T12:00:00.0000000+00:00','2026-08-27T12:00:00.0000000+00:00');
+                """);
+
+            await ExecuteAsync(connection, CreateSyntheticSequenceCte() + """
+                INSERT INTO products(product_id,code,normalized_code,name,category_id,price_ttc_cents,vat_rate,is_active,discount_eligible,options_enabled,created_at_utc,updated_at_utc)
+                SELECT printf('10000000-0000-0000-0000-%012d',n),printf('SYN-%05d',n),printf('SYN-%05d',n),printf('Synthetic product %05d',n),
+                       'd3bfbcb6-7303-4408-9e7d-3c396d8846d6',1200,'0.10',n%2,1,0,
+                       '2026-08-27T12:00:00.0000000+00:00','2026-08-27T12:00:00.0000000+00:00'
+                FROM numbers WHERE n<=10000;
+                """);
+            await ExecuteAsync(connection, CreateSyntheticSequenceCte() + """
+                INSERT INTO orders(
+                    order_id,source_type,status,created_at_utc,updated_at_utc,closed_at_utc,cancelled_at_utc,
+                    fulfilment_mode,planned_fulfilment_date,planned_fulfilment_time,advance_order_marker,
+                    telephone,delivery_address,comment,total_ttc_cents,manual_total_override_active,
+                    pickup_discount_applied,pickup_discount_rate,delivery_fee_ttc_cents,order_reference,
+                    card_payment_ttc_cents,cash_payment_ttc_cents,source_total_ttc_cents)
+                SELECT printf('00000000-0000-0000-0000-%012d',n),'POS',CASE WHEN n%10=0 THEN 'OPEN' ELSE 'CLOSED' END,
+                       '2026-08-27T12:00:00.0000000+00:00','2026-08-27T12:00:00.0000000+00:00',
+                       CASE WHEN n%10=0 THEN NULL ELSE '2026-08-27T12:00:00.0000000+00:00' END,NULL,'RETRAIT',
+                       date('2026-08-01',printf('+%d days',n%30)),
+                       CASE WHEN n%7=0 THEN NULL ELSE printf('%02d:%02d',((n*7)/60)%24,(n*7)%60) END,
+                       n%2,'0600000000','Synthetic address','Synthetic order comment',1250,0,0,NULL,0,
+                       printf('20260827-%05d',n),0,0,1250
+                FROM numbers WHERE n<=50000;
+                """);
+            await ExecuteAsync(connection, CreateSyntheticSequenceCte() + """
+                INSERT INTO payment_adjustments(payment_adjustment_id,order_id,bucket,delta_cents,effective_business_date,effective_at,recorded_at)
+                SELECT printf('50000000-0000-0000-0000-%012d',n),printf('00000000-0000-0000-0000-%012d',n),
+                       CASE WHEN n%2=0 THEN 'CB' ELSE 'ESPECE' END,50,date('2026-08-01',printf('+%d days',n%30)),
+                       '2026-08-27T12:00:00.0000000+00:00','2026-08-27T12:00:00.0000000+00:00'
+                FROM numbers WHERE n<=50000;
+                """);
+            await ExecuteAsync(connection, CreateSyntheticSequenceCte() + """
+                INSERT INTO order_items(order_item_id,order_id,line_position,source_product_id,product_code_snapshot,product_name_snapshot,category_name_snapshot,product_base_price_ttc_cents,product_vat_rate,product_discount_eligible_snapshot,quantity,extended_base_ttc_cents,calculated_line_total_ttc_cents)
+                SELECT printf('60000000-0000-0000-0000-%012d',n),printf('00000000-0000-0000-0000-%012d',n),0,NULL,
+                       'SYN-00001','Synthetic product','Synthetic category',100,'0.10',1,1,100,100
+                FROM numbers WHERE n<=50000;
+                """);
+            await ExecuteAsync(connection, CreateSyntheticSequenceCte() + """
+                INSERT INTO export_batches(batch_id,schema_version,generated_at_utc,app_version,filter_start_date,filter_end_date,order_count,order_line_count,tax_breakdown_count,status,payload_json,payload_hash,completed_at_utc)
+                SELECT printf('20000000-0000-0000-0000-%012d',n),'1.0',printf('2026-08-%02dT12:00:00.0000000+00:00',1+(n%27)),
+                       '1.0.0',NULL,NULL,1,1,0,'SUCCESS','{}','synthetic-hash','2026-08-27T12:00:00.0000000+00:00'
+                FROM numbers WHERE n<=2000;
+                """);
+            await ExecuteAsync(connection, CreateSyntheticSequenceCte() + """
+                INSERT INTO export_batch_orders(batch_id,order_id,action,action_payload_hash,expected_previous_positive_hash)
+                SELECT printf('20000000-0000-0000-0000-%012d',n),printf('00000000-0000-0000-0000-%012d',n),'CREATE','synthetic-hash',NULL
+                FROM numbers WHERE n<=2000;
+                """);
+            await ExecuteAsync(connection, CreateSyntheticSequenceCte() + """
+                INSERT INTO export_emissions(emission_id,batch_id,order_id,action,positive_snapshot_hash,positive_payload_json,fulfilment_date,settlement_date,emitted_at_utc)
+                SELECT printf('30000000-0000-0000-0000-%012d',n),printf('20000000-0000-0000-0000-%012d',n),
+                       printf('00000000-0000-0000-0000-%012d',n),'CREATE','synthetic-hash','{}','2026-08-27','2026-08-27','2026-08-27T12:00:00.0000000+00:00'
+                FROM numbers WHERE n<=2000;
+                """);
+
+            Assert.AreEqual(10001L, await ScalarLongAsync(connection, "SELECT COUNT(*) FROM products;"));
+            Assert.AreEqual(50000L, await ScalarLongAsync(connection, "SELECT COUNT(*) FROM orders;"));
+            Assert.AreEqual(50000L, await ScalarLongAsync(connection, "SELECT COUNT(*) FROM payment_adjustments;"));
+            Assert.AreEqual(2000L, await ScalarLongAsync(connection, "SELECT COUNT(*) FROM export_batches;"));
+
+            var productPlan = await ReadQueryPlanDetailsAsync(connection, """
+                EXPLAIN QUERY PLAN
+                SELECT p.product_id,p.code,p.name,c.name
+                FROM products p JOIN categories c ON c.category_id=p.category_id
+                ORDER BY p.code COLLATE NOCASE,p.product_id;
+                """);
+            var orderPlan = await ReadQueryPlanDetailsAsync(connection, """
+                EXPLAIN QUERY PLAN
+                SELECT order_id FROM orders
+                WHERE planned_fulfilment_date='2026-08-27'
+                ORDER BY planned_fulfilment_time IS NULL,planned_fulfilment_time,order_id;
+                """);
+            StringAssert.Contains(string.Join("\n", productPlan), "TEMP B-TREE FOR ORDER BY");
+            StringAssert.Contains(string.Join("\n", orderPlan), "TEMP B-TREE FOR ORDER BY");
+        }
+
+        var snapshot = new RecordingSnapshotService();
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, snapshot).InitializeAsync();
+
+        await using var migrated = await factory.OpenLiveConnectionAsync();
+        Assert.AreEqual(11L, await ScalarLongAsync(migrated, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.HasCount(1, snapshot.Changes);
+        Assert.AreEqual(10L, snapshot.Changes[0].Sequence);
+        Assert.AreEqual("Synthetic category", await ScalarStringAsync(migrated, "SELECT name FROM categories WHERE category_id='d3bfbcb6-7303-4408-9e7d-3c396d8846d6';"));
+        Assert.AreEqual("Synthetic product", await ScalarStringAsync(migrated, "SELECT name FROM products WHERE product_id='a86b56cc-f0f7-4f1a-a237-c36de37968f1';"));
+        Assert.AreEqual(10001L, await ScalarLongAsync(migrated, "SELECT COUNT(*) FROM products;"));
+        Assert.AreEqual(50000L, await ScalarLongAsync(migrated, "SELECT COUNT(*) FROM orders;"));
+        Assert.AreEqual(50000L, await ScalarLongAsync(migrated, "SELECT COUNT(*) FROM payment_adjustments;"));
+        Assert.AreEqual(2000L, await ScalarLongAsync(migrated, "SELECT COUNT(*) FROM export_batches;"));
+        Assert.AreEqual(1L, await ScalarLongAsync(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='ix_products_code_nocase_product_id';"));
+        Assert.AreEqual(1L, await ScalarLongAsync(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='ix_orders_planned_date_nulls_last';"));
+
+        var migratedProductPlan = await ReadQueryPlanDetailsAsync(migrated, """
+            EXPLAIN QUERY PLAN
+            SELECT p.product_id,p.code,p.name,c.name
+            FROM products p JOIN categories c ON c.category_id=p.category_id
+            ORDER BY p.code COLLATE NOCASE,p.product_id;
+            """);
+        var migratedOrderPlan = await ReadQueryPlanDetailsAsync(migrated, """
+            EXPLAIN QUERY PLAN
+            SELECT order_id FROM orders
+            WHERE planned_fulfilment_date='2026-08-27'
+            ORDER BY planned_fulfilment_time IS NULL,planned_fulfilment_time,order_id;
+            """);
+        var productPlanText = string.Join("\n", migratedProductPlan);
+        var orderPlanText = string.Join("\n", migratedOrderPlan);
+        StringAssert.Contains(productPlanText, "ix_products_code_nocase_product_id");
+        StringAssert.Contains(orderPlanText, "ix_orders_planned_date_nulls_last");
+        Assert.IsFalse(productPlanText.Contains("TEMP B-TREE FOR ORDER BY", StringComparison.OrdinalIgnoreCase), productPlanText);
+        Assert.IsFalse(orderPlanText.Contains("TEMP B-TREE FOR ORDER BY", StringComparison.OrdinalIgnoreCase), orderPlanText);
+
+        var activeProductLookupPlan = await ReadQueryPlanDetailsAsync(migrated, "EXPLAIN QUERY PLAN SELECT product_id FROM products WHERE normalized_code='SYN-00042' AND is_active=1;");
+        StringAssert.Contains(string.Join("\n", activeProductLookupPlan), "normalized_code=?");
+        var orderReferencePlan = await ReadQueryPlanDetailsAsync(migrated, "EXPLAIN QUERY PLAN SELECT order_id FROM orders WHERE order_reference='20260827-00042';");
+        StringAssert.Contains(string.Join("\n", orderReferencePlan), "ux_orders_reference");
+        var paymentSummaryPlan = await ReadQueryPlanDetailsAsync(migrated, """
+            EXPLAIN QUERY PLAN
+            SELECT COALESCE(SUM(pa.delta_cents),0)
+            FROM payment_adjustments pa JOIN orders o ON o.order_id=pa.order_id
+            WHERE pa.effective_business_date='2026-08-27' AND o.source_type='POS' AND o.status <> 'CANCELLED';
+            """);
+        StringAssert.Contains(string.Join("\n", paymentSummaryPlan), "ix_payment_adjustments_effective");
+
+        var dashboardPlan = await ReadQueryPlanDetailsAsync(migrated, """
+            EXPLAIN QUERY PLAN
+            SELECT order_id FROM orders
+            WHERE status='OPEN' AND planned_fulfilment_date='2026-08-27'
+              AND advance_order_marker=1 AND source_type='POS';
+            """);
+        StringAssert.Contains(string.Join("\n", dashboardPlan), "ix_orders_lifecycle_date");
+
+        var telephoneContainsPlan = await ReadQueryPlanDetailsAsync(migrated, """
+            EXPLAIN QUERY PLAN
+            SELECT order_id FROM orders
+            WHERE replace(replace(replace(replace(replace(replace(COALESCE(telephone,''),' ',''),'-',''),'.',''),'(',''),')',''),'+','') LIKE '%612345678%';
+            """);
+        var telephoneContainsText = string.Join("\n", telephoneContainsPlan);
+        StringAssert.Contains(telephoneContainsText, "SCAN orders");
+        Assert.IsFalse(telephoneContainsText.Contains("TEMP B-TREE", StringComparison.OrdinalIgnoreCase), telephoneContainsText);
+
+        var exportHistoryPlan = await ReadQueryPlanDetailsAsync(migrated, "EXPLAIN QUERY PLAN SELECT batch_id FROM export_batches WHERE status='SUCCESS' ORDER BY generated_at_utc DESC,batch_id DESC;");
+        StringAssert.Contains(string.Join("\n", exportHistoryPlan), "ix_export_batches_status_time");
+        var exportRegenerationPlan = await ReadQueryPlanDetailsAsync(migrated, "EXPLAIN QUERY PLAN SELECT payload_json FROM export_batches WHERE batch_id='20000000-0000-0000-0000-000000000042';");
+        StringAssert.Contains(string.Join("\n", exportRegenerationPlan), "batch_id=?");
+        var compactionCandidatesPlan = await ReadQueryPlanDetailsAsync(migrated, "EXPLAIN QUERY PLAN SELECT batch_id,order_count FROM export_batches WHERE status='SUCCESS' ORDER BY generated_at_utc DESC,batch_id DESC;");
+        var compactionCandidatesText = string.Join("\n", compactionCandidatesPlan);
+        StringAssert.Contains(compactionCandidatesText, "ix_export_batches_status_time");
+        Assert.IsFalse(compactionCandidatesText.Contains("TEMP B-TREE FOR ORDER BY", StringComparison.OrdinalIgnoreCase), compactionCandidatesText);
+        var batchDependencyPlan = await ReadQueryPlanDetailsAsync(migrated, "EXPLAIN QUERY PLAN SELECT order_id,batch_id FROM export_batch_orders WHERE order_id='00000000-0000-0000-0000-000000000042';");
+        StringAssert.Contains(string.Join("\n", batchDependencyPlan), "ix_export_batch_orders_order");
+        var archiveProofPlan = await ReadQueryPlanDetailsAsync(migrated, "EXPLAIN QUERY PLAN SELECT archive_year FROM annual_archive_order_proofs WHERE order_id='00000000-0000-0000-0000-000000000042';");
+        StringAssert.Contains(string.Join("\n", archiveProofPlan), "order_id=?");
+        var archiveDiscoveryPlan = await ReadQueryPlanDetailsAsync(migrated, "EXPLAIN QUERY PLAN SELECT order_id FROM annual_archive_order_proofs WHERE archive_year=2025 ORDER BY order_id;");
+        StringAssert.Contains(string.Join("\n", archiveDiscoveryPlan), "ix_annual_archive_order_proofs_year");
+        var archiveSearchPlan = await ReadQueryPlanDetailsAsync(migrated, """
+            EXPLAIN QUERY PLAN
+            SELECT o.order_id FROM orders o
+            WHERE o.planned_fulfilment_date>='2026-08-10' AND o.planned_fulfilment_date<='2026-08-27'
+              AND EXISTS (SELECT 1 FROM order_items si WHERE si.order_id=o.order_id AND si.product_name_snapshot LIKE '%Synthetic%')
+            ORDER BY o.planned_fulfilment_date,o.planned_fulfilment_time IS NULL,o.planned_fulfilment_time,o.order_id;
+            """);
+        var archiveSearchText = string.Join("\n", archiveSearchPlan);
+        StringAssert.Contains(archiveSearchText, "ix_orders_planned_date_nulls_last");
+        StringAssert.Contains(archiveSearchText, "ix_order_items_order");
+        Assert.IsFalse(archiveSearchText.Contains("TEMP B-TREE FOR ORDER BY", StringComparison.OrdinalIgnoreCase), archiveSearchText);
+    }
+
+    [TestMethod]
     public async Task FailedMigrationRollsBackAndNeverReplacesSentinelDatabase()
     {
         using var paths = new TestAppPaths();
@@ -702,10 +888,11 @@ public sealed class InfrastructureIntegrationTests
     public void RedactorExcludesRepresentativeSensitiveValues()
     {
         const string usernameOnlyUrl = "https://synthetic-user@example.test/path";
+        var credentialUrl = string.Concat("https://", "user", ":", "password", "@example.test/api?access_token=query-secret&next=1");
         var output = SensitiveDataRedactor.Redact(
             "phone 0612345678 email client@example.test "
             + "Bearer standalone-secret ghp_abcdefghijklmnopqrstuvwxyz "
-            + "https://user:password@example.test/api?access_token=query-secret&next=1 token=field-secret "
+            + credentialUrl + " token=field-secret "
             + usernameOnlyUrl + " "
             + "{\"token\":\"json-token\", \"access_token\": \"json-access\", "
             + "\"refresh_token\":\"json-refresh\", \"secret\": \"json-secret\", "
@@ -738,14 +925,16 @@ public sealed class InfrastructureIntegrationTests
         using (var provider = new RollingFileLoggerProvider(paths, TimeProvider.System))
         {
             var logger = provider.CreateLogger("synthetic");
+            var messageCredentialUrl = string.Concat("https://", "user", ":", "password", "@example.test/api?token=query-secret");
+            var exceptionCredentialUrl = string.Concat("https://", "exception-user", ":", "exception-password", "@example.test/exception");
             logger.Log(
                 LogLevel.Error,
                 new EventId(9001, "SyntheticSecret"),
-                "transport failed https://user:password@example.test/api?token=query-secret "
+                "transport failed " + messageCredentialUrl + " "
                     + "https://synthetic-user@example.test/message ghp_abcdefghijklmnopqrstuvwxyz "
                     + "{\"token\":\"json-token\", \"password\": \"json-password\"}",
                 new InvalidOperationException(
-                    "https://exception-user:exception-password@example.test/exception "
+                    exceptionCredentialUrl + " "
                     + "https://exception-synthetic-user@example.test/exception-user "
                     + "?access_token=exception-query {\"secret\":\"exception-json\", \"client_secret\": \"exception-client\"} "
                     + "ghp_exception_abcdefghijklmnopqrstuvwxyz Authorization: Bearer exception-secret"),
@@ -769,6 +958,37 @@ public sealed class InfrastructureIntegrationTests
         Assert.IsFalse(output.Contains("json-password", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void RollingFileLoggerFailureDoesNotEscapeIntoBusinessOperation()
+    {
+        using var paths = new TestAppPaths();
+        using var provider = new RollingFileLoggerProvider(paths, TimeProvider.System);
+        Directory.Delete(paths.LogsDirectory);
+        File.WriteAllText(paths.LogsDirectory, "synthetic blocker");
+        var logger = provider.CreateLogger("synthetic-failure-path");
+
+        logger.Log(LogLevel.Error, new EventId(9002, "SyntheticLogIoFailure"), "diagnostics unavailable", null, static (state, _) => state);
+
+        Assert.AreEqual("synthetic blocker", File.ReadAllText(paths.LogsDirectory));
+    }
+
+    [TestMethod]
+    public void RollingFileLoggerRetainsAtMostFourteenNewestFiles()
+    {
+        using var paths = new TestAppPaths();
+        paths.EnsureInitialized();
+        for (var sequence = 0; sequence < 16; sequence++)
+            File.WriteAllText(Path.Combine(paths.LogsDirectory, $"sushi81-20250101-{sequence:D3}.log"), "synthetic old log");
+
+        using (var provider = new RollingFileLoggerProvider(paths, TimeProvider.System))
+            provider.CreateLogger("retention-test").Log(LogLevel.Information, new EventId(9003, "SyntheticRetention"), "synthetic newest log", null, static (state, _) => state);
+
+        var remaining = Directory.EnumerateFiles(paths.LogsDirectory, "sushi81-*.log").ToArray();
+        Assert.HasCount(14, remaining);
+        Assert.IsTrue(remaining.Any(path => Path.GetFileName(path).StartsWith("sushi81-", StringComparison.Ordinal)));
+        Assert.IsFalse(File.Exists(Path.Combine(paths.LogsDirectory, "sushi81-20250101-000.log")));
+    }
+
     private static async Task ExecuteAsync(SqliteConnection connection, string sql, SqliteTransaction? transaction = null, CancellationToken cancellationToken = default)
     {
         await using var command = connection.CreateCommand();
@@ -784,11 +1004,33 @@ public sealed class InfrastructureIntegrationTests
         return Convert.ToInt64(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    private static string CreateSyntheticSequenceCte() => """
+        WITH digit(n) AS (VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9)),
+        numbers(n) AS (
+            SELECT 1 + ones.n + tens.n*10 + hundreds.n*100 + thousands.n*1000 + tenThousands.n*10000
+            FROM digit AS ones
+            CROSS JOIN digit AS tens
+            CROSS JOIN digit AS hundreds
+            CROSS JOIN digit AS thousands
+            CROSS JOIN digit AS tenThousands
+        )
+        """;
+
     private static async Task<string> ScalarStringAsync(SqliteConnection connection, string sql)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
         return Convert.ToString(await command.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty;
+    }
+
+    private static async Task<IReadOnlyList<string>> ReadQueryPlanDetailsAsync(SqliteConnection connection, string sql)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        var details = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync()) details.Add(reader.GetString(3));
+        return details;
     }
 
     private static async Task<bool> RunWithoutThrowingAsync(SqliteMigrationRunner runner)

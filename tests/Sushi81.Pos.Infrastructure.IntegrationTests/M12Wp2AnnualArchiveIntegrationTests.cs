@@ -686,7 +686,7 @@ public sealed class M12Wp2AnnualArchiveIntegrationTests
             var id = Guid.Parse("52400000-0000-0000-0000-000000000001");
             await orderStore.SaveLifecycleAsync(ClosedOrder(id, OrderSourceType.Pos, "upgrade"), [Payment(id)]);
             await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, new FixedSnapshotService()).InitializeAsync();
-            Assert.AreEqual(10L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+            Assert.AreEqual(11L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
             Assert.AreEqual(0L, await ScalarAsync(factory, "SELECT COUNT(*) FROM annual_archive_completions;"));
             Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM orders WHERE order_id=$id;", id));
         }

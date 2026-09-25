@@ -150,6 +150,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private readonly OrderEntryService service;
     private readonly IWriteAuthorityGuard? authorityGuard;
     private readonly HiboutikImportOrchestrator? hiboutikImportOrchestrator;
+    private readonly DesktopOperationDiagnostics? diagnostics;
     private readonly Dictionary<int, OrderEntryCartLineViewModel> hiboutikCartLines = [];
     private readonly HashSet<int> removedHiboutikCartLineSourceNumbers = [];
     private HiboutikImportSession? hiboutikImportSession;
@@ -205,11 +206,12 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private string quantityLabel = "Quantité";
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>(StringComparer.Ordinal);
 
-    public OrderEntryShellViewModel(OrderEntryService service, IWriteAuthorityGuard? authorityGuard = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null)
+    public OrderEntryShellViewModel(OrderEntryService service, IWriteAuthorityGuard? authorityGuard = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, DesktopOperationDiagnostics? diagnostics = null)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
         this.authorityGuard = authorityGuard;
         this.hiboutikImportOrchestrator = hiboutikImportOrchestrator;
+        this.diagnostics = diagnostics;
         Categories = new ObservableCollection<CategorySummary>();
         Products = new ObservableCollection<ProductSummary>();
         Cart = new ObservableCollection<OrderEntryCartLineViewModel>();
@@ -530,9 +532,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         {
             if (throwOnFailure) throw;
         }
-        catch (Exception) when (throwOnFailure || IsCurrent(request))
+        catch (Exception exception) when (throwOnFailure || IsCurrent(request))
         {
             if (throwOnFailure) throw;
+            diagnostics?.ReportUnexpectedFailure("order-entry.refresh", exception);
             ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         }
         finally { EndRefresh(request); PerformanceTrace.Log("entry.refresh.end"); }
@@ -582,9 +585,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         {
             if (throwOnFailure) throw;
         }
-        catch (Exception) when (throwOnFailure || IsCurrentBrowserRefresh(request))
+        catch (Exception exception) when (throwOnFailure || IsCurrentBrowserRefresh(request))
         {
             if (throwOnFailure) throw;
+            diagnostics?.ReportUnexpectedFailure("order-entry.browser-refresh", exception);
             ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         }
         finally { EndBrowserRefresh(request); PerformanceTrace.Log("entry.browser-refresh.end"); }
@@ -621,9 +625,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         {
             if (throwOnFailure) throw;
         }
-        catch (Exception) when (throwOnFailure || IsCurrentBrowserSelection(request))
+        catch (Exception exception) when (throwOnFailure || IsCurrentBrowserSelection(request))
         {
             if (throwOnFailure) throw;
+            diagnostics?.ReportUnexpectedFailure("order-entry.browser-selection", exception);
             ReloadedOrder = null;
             ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         }
@@ -674,7 +679,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return false; }
-        catch (Exception) { ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); return false; }
+        catch (Exception exception) { diagnostics?.ReportUnexpectedFailure("order-entry.hiboutik-import-start", exception); ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); return false; }
         finally { if (!disposed) IsBusy = false; }
     }
 
@@ -782,7 +787,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             ApplyPricing(result);
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
-        catch (Exception) when (IsCurrent(request)) { ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); OnPropertyChanged(nameof(CanConfirm)); }
+        catch (Exception exception) when (IsCurrent(request)) { diagnostics?.ReportUnexpectedFailure("order-entry.reprice", exception); ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); OnPropertyChanged(nameof(CanConfirm)); }
         finally { EndPrice(request); }
     }
 
@@ -1405,7 +1410,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             ApplyProducts(products);
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
-        catch (Exception) when (IsCurrent(request)) { ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); }
+        catch (Exception exception) when (IsCurrent(request)) { diagnostics?.ReportUnexpectedFailure("order-entry.products-refresh", exception); ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); }
         finally { EndRefresh(request); PerformanceTrace.Log("entry.products-refresh.end"); }
     }
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

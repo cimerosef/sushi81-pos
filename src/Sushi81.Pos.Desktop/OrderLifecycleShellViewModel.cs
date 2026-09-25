@@ -116,6 +116,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private readonly OrderLifecycleService service;
     private readonly IWriteAuthorityGuard? authorityGuard;
     private readonly IOrderPrintApplicationService? printService;
+    private readonly DesktopOperationDiagnostics? diagnostics;
     private readonly object refreshLock = new();
     private CancellationTokenSource? refreshCancellation;
     private long refreshVersion;
@@ -146,11 +147,12 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private OperationalOrderView? operationalView;
     private OrderOperationalSummary summary = new(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0, Money.Zero, Money.Zero);
 
-    public OrderLifecycleShellViewModel(OrderLifecycleService service, IWriteAuthorityGuard? authorityGuard = null, IOrderPrintApplicationService? printService = null)
+    public OrderLifecycleShellViewModel(OrderLifecycleService service, IWriteAuthorityGuard? authorityGuard = null, IOrderPrintApplicationService? printService = null, DesktopOperationDiagnostics? diagnostics = null)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
         this.authorityGuard = authorityGuard;
         this.printService = printService;
+        this.diagnostics = diagnostics;
         browseDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue);
         effectivePaymentDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue);
         Orders = new ObservableCollection<OrderManagementRowViewModel>();
@@ -410,9 +412,10 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         {
             if (throwOnFailure) throw;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
             if (throwOnFailure) throw;
+            diagnostics?.ReportUnexpectedFailure("order-lifecycle.refresh", exception);
             ValidationMessage = Text("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         }
         finally { PerformanceTrace.Log("lifecycle.refresh.end"); }

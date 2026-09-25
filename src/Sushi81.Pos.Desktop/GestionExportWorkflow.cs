@@ -49,6 +49,7 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
     private readonly IWriteAuthorityGuard authorityGuard;
     private readonly string appVersion;
     private readonly Func<bool> presentationRefreshBlocked;
+    private readonly DesktopOperationDiagnostics? diagnostics;
     private IReadOnlyDictionary<string, string> localized;
     private DateTime? startDate;
     private DateTime? endDate;
@@ -68,12 +69,14 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         string appVersion,
         IReadOnlyDictionary<string, string>? localized = null,
         Func<bool>? presentationRefreshBlocked = null,
-        IExportPreparedBatchReader? preparedBatchReader = null)
+        IExportPreparedBatchReader? preparedBatchReader = null,
+        DesktopOperationDiagnostics? diagnostics = null)
     {
         this.workbookService = workbookService ?? throw new ArgumentNullException(nameof(workbookService));
         this.historyReader = historyReader ?? throw new ArgumentNullException(nameof(historyReader));
         this.authorityGuard = authorityGuard ?? throw new ArgumentNullException(nameof(authorityGuard));
         this.preparedBatchReader = preparedBatchReader;
+        this.diagnostics = diagnostics;
         this.appVersion = string.IsNullOrWhiteSpace(appVersion) ? "1.0.0" : appVersion;
         this.localized = localized ?? new Dictionary<string, string>(StringComparer.Ordinal);
         this.presentationRefreshBlocked = presentationRefreshBlocked ?? (() => false);
@@ -229,11 +232,11 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         }
         catch (Exception exception)
         {
+            diagnostics?.ReportUnexpectedFailure("gestion-export.preview", exception);
             preview = null;
             UpdateSelectionPresentation();
             FailureMessage = Read("GestionExportFailure", "The export preview could not be loaded.");
             StatusMessage = FailureMessage;
-            _ = exception;
         }
         finally
         {
@@ -280,6 +283,7 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         }
         catch (Exception exception)
         {
+            diagnostics?.ReportUnexpectedFailure("gestion-export.create", exception);
             try
             {
                 // Preparation is durable before workbook generation/finalization. Refresh the
@@ -287,13 +291,13 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
                 // for a safe retry instead of leaving the operator with stale UI state.
                 await RefreshHistoryCoreAsync(CancellationToken.None);
             }
-            catch
+            catch (Exception historyException)
             {
+                diagnostics?.ReportUnexpectedFailure("gestion-export.history-refresh-after-failure", historyException);
                 // Keep the operator-facing failure safe even if the refresh itself is unavailable.
             }
             FailureMessage = Read("GestionExportFailure", "The export could not be completed; any prepared batch remains available under pending batches for retry.");
             StatusMessage = FailureMessage;
-            _ = exception;
             return null;
         }
         finally
@@ -327,9 +331,9 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         }
         catch (Exception exception)
         {
+            diagnostics?.ReportUnexpectedFailure("gestion-export.regenerate", exception);
             FailureMessage = Read("GestionExportRegenerateFailure", "The selected batch could not be regenerated.");
             StatusMessage = FailureMessage;
-            _ = exception;
             return null;
         }
         finally
@@ -365,9 +369,9 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         }
         catch (Exception exception)
         {
+            diagnostics?.ReportUnexpectedFailure("gestion-export.complete-prepared", exception);
             FailureMessage = Read("GestionExportPreparedRetryFailure", "The pending batch could not be completed; it remains available for retry.");
             StatusMessage = FailureMessage;
-            _ = exception;
             return null;
         }
         finally
@@ -382,8 +386,9 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         SetBusy(true);
         try { await RefreshHistoryCoreAsync(cancellationToken); }
         catch (OperationCanceledException) { }
-        catch (Exception)
+        catch (Exception exception)
         {
+            diagnostics?.ReportUnexpectedFailure("gestion-export.history-refresh", exception);
             FailureMessage = Read("GestionExportHistoryFailure", "Export history could not be loaded.");
             StatusMessage = FailureMessage;
         }

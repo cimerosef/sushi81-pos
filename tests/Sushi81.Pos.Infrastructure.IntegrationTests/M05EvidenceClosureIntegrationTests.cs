@@ -49,7 +49,7 @@ public sealed class M05EvidenceClosureIntegrationTests
         var snapshots = new RecordingSnapshotService();
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, snapshots).InitializeAsync();
 
-        Assert.AreEqual(10L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(11L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.HasCount(1, snapshots.Changes);
         foreach (var row in v4Orders)
         {
@@ -97,7 +97,7 @@ public sealed class M05EvidenceClosureIntegrationTests
         Assert.AreEqual(0L, await ScalarAsync(factory, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('payment_adjustments','order_reference_sequences');"));
 
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, snapshots).InitializeAsync();
-        Assert.AreEqual(10L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(11L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.AreEqual("20260831-001", await TextAsync(factory, "SELECT order_reference FROM orders WHERE order_id=$id;", orderId.ToString()));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM orders WHERE telephone='0655555555' AND comment='retry me';"));
     }

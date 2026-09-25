@@ -21,6 +21,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     private readonly CatalogueService catalogue;
     private readonly BusinessSettingsService settings;
     private readonly IWriteAuthorityGuard? authorityGuard;
+    private readonly DesktopOperationDiagnostics? diagnostics;
     private ProductSummary? selectedProduct;
     private CategorySummary? selectedCategory;
     private Guid selectedCategoryId;
@@ -41,11 +42,12 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     private static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(250);
 
-    public M03ShellViewModel(CatalogueService catalogue, BusinessSettingsService settings, IWriteAuthorityGuard? authorityGuard = null)
+    public M03ShellViewModel(CatalogueService catalogue, BusinessSettingsService settings, IWriteAuthorityGuard? authorityGuard = null, DesktopOperationDiagnostics? diagnostics = null)
     {
         this.catalogue = catalogue ?? throw new ArgumentNullException(nameof(catalogue));
         this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
         this.authorityGuard = authorityGuard;
+        this.diagnostics = diagnostics;
         Categories = new ObservableCollection<CategorySummary>();
         Products = new ObservableCollection<ProductSummary>();
         CategoryFilters = new ObservableCollection<CategorySummary>();
@@ -367,10 +369,11 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         {
             // A newer filter request superseded this one. It must not report an error.
         }
-        catch
+        catch (Exception exception)
         {
             if (IsCurrentRequest(request))
             {
+                diagnostics?.ReportUnexpectedFailure("catalogue.filter-refresh", exception);
                 // Do not leave an older result actionable after a failed filter query.
                 Products.Clear();
                 NotifyProductFilterProperties();

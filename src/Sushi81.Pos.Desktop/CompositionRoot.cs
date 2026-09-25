@@ -46,6 +46,7 @@ public static partial class CompositionRoot
         ISelectedCultureStore cultureStore = new InMemorySelectedCultureStore();
         var startupSucceeded = false;
         ILogger? startupLogger = null;
+        DesktopOperationDiagnostics? operationDiagnostics = null;
         CatalogueService? catalogueService = null;
         BusinessSettingsService? settingsService = null;
         OrderEntryService? orderEntryService = null;
@@ -77,6 +78,7 @@ public static partial class CompositionRoot
             loggerProvider = new RollingFileLoggerProvider(paths, TimeProvider.System);
             var logger = loggerProvider.CreateLogger(typeof(CompositionRoot).FullName!);
             startupLogger = logger;
+            operationDiagnostics = new DesktopOperationDiagnostics(logger);
             configurationService = new JsonLocalConfigurationService(paths);
             configuration = await configurationService.LoadAsync();
             authorityStateStore = new JsonAuthorityStateStore(paths);
@@ -165,7 +167,8 @@ public static partial class CompositionRoot
                  authorityGuard,
                  typeof(CompositionRoot).Assembly.GetName().Version?.ToString() ?? "1.0.0",
                   presentationRefreshBlocked: () => false,
-                  preparedBatchReader: gestionExportStore);
+                  preparedBatchReader: gestionExportStore,
+                  diagnostics: operationDiagnostics);
              var orderCatalogueQueries = new OrderEntryCatalogueService(catalogueStore);
             hiboutikImportOrchestrator = new HiboutikImportOrchestrator(orderCatalogueQueries, settingsStore);
             orderLifecycleService = new OrderLifecycleService(orderStore, idGenerator, clock, authorityGuard, durableChangeNotifier, orderCatalogueQueries, settingsStore);
@@ -176,7 +179,7 @@ public static partial class CompositionRoot
                 clock);
             printService = new OrderPrintApplicationService(orderStore, printDispatcher);
             archivedOrderPrintService = new ArchivedOrderPrintApplicationService(printDispatcher);
-            printerSetup = new PrinterSetupViewModel(configuration, configurationService, new WindowsPrintQueueCatalog());
+            printerSetup = new PrinterSetupViewModel(configuration, configurationService, new WindowsPrintQueueCatalog(), operationDiagnostics);
             orderEntryService = new OrderEntryService(
                 orderCatalogueQueries, settingsStore, orderStore, printDispatcher, idGenerator, clock, authorityGuard, durableChangeNotifier);
             if (systemMetadata is not null)
@@ -269,7 +272,8 @@ public static partial class CompositionRoot
              catalogueImportService,
              gestionExportWorkflow,
              annualArchiveAccess,
-             archivedOrderPrintService);
+             archivedOrderPrintService,
+             operationDiagnostics);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,

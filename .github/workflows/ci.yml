@@ -19,7 +19,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout the exact source head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify checked-out source head
@@ -30,11 +30,20 @@ jobs:
           $actual = (git rev-parse HEAD).Trim()
           if ($actual -ne $env:EXPECTED_SOURCE_SHA) { throw "Expected $env:EXPECTED_SOURCE_SHA but checked out $actual." }
           "Exact source head: $actual" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-      - uses: actions/setup-dotnet@v4
+      - name: Test repository safety scanner
+        shell: pwsh
+        run: '& .github/scripts/Test-RepositorySafety.ps1 -SelfTest'
+      - name: Scan tracked and non-ignored repository files
+        shell: pwsh
+        run: '& .github/scripts/Test-RepositorySafety.ps1'
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
       - name: Restore
         run: dotnet restore Sushi81.Pos.sln
+      - name: Audit direct and transitive NuGet vulnerabilities
+        shell: pwsh
+        run: '& .github/scripts/Audit-NuGetVulnerabilities.ps1'
       - name: Build
         run: dotnet build Sushi81.Pos.sln -c Release --no-restore
       - name: Test
@@ -48,7 +57,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout the exact production source head
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -65,7 +74,7 @@ jobs:
           "short=$short" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "Exact source head: $actual" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
       - name: Install pinned Inno Setup compiler
@@ -107,7 +116,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'WP4 packaging/lifecycle verification failed.' }
       - name: Upload exact-head production installer
         id: upload-installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Sushi81-POS-production-installer-win-x64-1.0.0-${{ steps.source.outputs.short }}
           path: artifacts/m13-wp4/*

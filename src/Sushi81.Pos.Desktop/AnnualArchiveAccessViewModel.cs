@@ -18,10 +18,12 @@ public sealed record ArchiveStatusOption(OrderStatus? Value, string Label);
 /// </summary>
 public sealed class AnnualArchiveAccessViewModel(
     IAnnualArchiveAccess access,
-    IArchivedOrderPrintApplicationService? printService = null) : INotifyPropertyChanged
+    IArchivedOrderPrintApplicationService? printService = null,
+    DesktopOperationDiagnostics? diagnostics = null) : INotifyPropertyChanged
 {
     private readonly IAnnualArchiveAccess access = access ?? throw new ArgumentNullException(nameof(access));
     private readonly IArchivedOrderPrintApplicationService? printService = printService;
+    private readonly DesktopOperationDiagnostics? operationDiagnostics = diagnostics;
     private AnnualArchiveDescriptor? selectedArchive;
     private OrderBrowserRow? selectedRow;
     private OrderSnapshot? selectedOrder;
@@ -193,8 +195,9 @@ public sealed class AnnualArchiveAccessViewModel(
             }
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception)
+        catch (Exception exception)
         {
+            operationDiagnostics?.ReportUnexpectedFailure("archive-access.print", exception);
             if (IsCurrentPrintSelection(generation, archiveYear, orderId))
                 SetPrintStatus(M03Presentation.Message(
                     new ValidationIssue(kind == PrintDocumentKind.Kitchen ? "kitchen-print" : "customer-print", string.Empty),
@@ -248,8 +251,9 @@ public sealed class AnnualArchiveAccessViewModel(
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested && !cancellationToken.IsCancellationRequested) { }
         catch (OperationCanceledException) { throw; }
-        catch (Exception)
+        catch (Exception exception)
         {
+            operationDiagnostics?.ReportUnexpectedFailure("archive-access.discover", exception);
             if (!IsCurrent(discoveryCancellation, operation, discoveryGeneration, generation)) return;
             AvailableArchives.Clear();
             Orders.Clear();
@@ -306,8 +310,9 @@ public sealed class AnnualArchiveAccessViewModel(
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested && !cancellationToken.IsCancellationRequested) { }
         catch (OperationCanceledException) { throw; }
-        catch (Exception)
+        catch (Exception exception)
         {
+            operationDiagnostics?.ReportUnexpectedFailure("archive-access.search", exception);
             if (IsCurrentSearch(operation, generation, archiveYear))
             {
                 Orders.Clear();
@@ -342,8 +347,9 @@ public sealed class AnnualArchiveAccessViewModel(
             return result;
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception)
+        catch (Exception exception)
         {
+            operationDiagnostics?.ReportUnexpectedFailure("archive-access.copy", exception);
             ErrorMessage = Text("ArchiveCopyFailed", "The selected archive could not be copied.");
             return null;
         }
@@ -370,8 +376,9 @@ public sealed class AnnualArchiveAccessViewModel(
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested && !cancellationToken.IsCancellationRequested) { }
         catch (OperationCanceledException) { throw; }
-        catch (Exception)
+        catch (Exception exception)
         {
+            operationDiagnostics?.ReportUnexpectedFailure("archive-access.order-detail", exception);
             if (IsCurrentDetail(operation, generation, archiveYear, orderId))
             {
                 SelectedOrder = null;

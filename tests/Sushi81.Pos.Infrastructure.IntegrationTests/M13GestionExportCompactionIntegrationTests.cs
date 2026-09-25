@@ -43,7 +43,7 @@ public sealed class M13GestionExportCompactionIntegrationTests
 
         await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock, new FixedSnapshotService()).InitializeAsync();
 
-        Assert.AreEqual(10L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
+        Assert.AreEqual(11L, await ScalarAsync(factory, "SELECT MAX(version) FROM schema_migrations;"));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM orders WHERE order_id=$id;", id.ToString("D")));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM annual_archive_completions WHERE archive_year=2025 AND archive_sha256=$sha;", new string('A', 64)));
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='annual_archive_order_proofs';"));

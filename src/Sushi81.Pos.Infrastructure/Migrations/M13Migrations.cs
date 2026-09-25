@@ -17,6 +17,19 @@ public static class M13Migrations
             );
             CREATE INDEX ix_annual_archive_order_proofs_year
                 ON annual_archive_order_proofs(archive_year, order_id);
+            """),
+        new SqliteMigration(
+            11,
+            "add-hot-read-ordering-indexes",
+            """
+            CREATE INDEX ix_products_code_nocase_product_id
+                ON products(code COLLATE NOCASE, product_id);
+            CREATE INDEX ix_orders_planned_date_nulls_last
+                ON orders(
+                    planned_fulfilment_date,
+                    (planned_fulfilment_time IS NULL),
+                    planned_fulfilment_time,
+                    order_id);
             """)
     ];
 }

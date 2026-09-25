@@ -83,12 +83,14 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private LocalConfiguration _configuration;
     private readonly M07ConfigurationSetupService? _m07Setup;
     private AuthorityPhase? _authorityPhase;
+    private readonly DesktopOperationDiagnostics? diagnostics;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, CatalogueWorkbookService? catalogueWorkbookService = null, CatalogueImportService? catalogueImportService = null, GestionExportWorkflowViewModel? gestionExportWorkflow = null, IAnnualArchiveAccess? archiveAccess = null, IArchivedOrderPrintApplicationService? archivedOrderPrintService = null)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, CatalogueWorkbookService? catalogueWorkbookService = null, CatalogueImportService? catalogueImportService = null, GestionExportWorkflowViewModel? gestionExportWorkflow = null, IAnnualArchiveAccess? archiveAccess = null, IArchivedOrderPrintApplicationService? archivedOrderPrintService = null, DesktopOperationDiagnostics? diagnostics = null)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
         _configuration = configuration ?? new LocalConfiguration();
         _m07Setup = m07Setup;
+        this.diagnostics = diagnostics;
         _culture = Normalize(_cultureStore.Load());
         StartupSucceeded = startupSucceeded;
         AuthorityState = authorityGuard?.State ?? authorityState;
@@ -107,11 +109,11 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
                 () => _businessPresentationRefreshBlocked,
                 RefreshAfterCatalogueImportAsync);
         }
-        Admin = startupSucceeded && catalogueService is not null && settingsService is not null ? new M03ShellViewModel(catalogueService, settingsService, authorityGuard) : null;
-        Entry = startupSucceeded && orderEntryService is not null ? new OrderEntryShellViewModel(orderEntryService, authorityGuard, hiboutikImportOrchestrator) : null;
+        Admin = startupSucceeded && catalogueService is not null && settingsService is not null ? new M03ShellViewModel(catalogueService, settingsService, authorityGuard, diagnostics) : null;
+        Entry = startupSucceeded && orderEntryService is not null ? new OrderEntryShellViewModel(orderEntryService, authorityGuard, hiboutikImportOrchestrator, diagnostics) : null;
         PrintService = printService;
         PrinterSetup = printerSetup;
-        Lifecycle = startupSucceeded && orderLifecycleService is not null ? new OrderLifecycleShellViewModel(orderLifecycleService, authorityGuard, printService) : null;
+        Lifecycle = startupSucceeded && orderLifecycleService is not null ? new OrderLifecycleShellViewModel(orderLifecycleService, authorityGuard, printService, diagnostics) : null;
         Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
         Entry?.ApplyLocalization(Localized["All"], Localized["FulfilmentUnselected"], Localized["Retrait"], Localized["Livraison"], Localized["ManualTotalActive"], Localized["NewOrder"], Localized["Quantity"], Localized);
         Lifecycle?.ApplyLocalization(Localized);
@@ -119,12 +121,15 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         CatalogueWorkflow?.ApplyLocalization(Localized);
         GestionExportWorkflow = gestionExportWorkflow;
         GestionExportWorkflow?.ApplyLocalization(Localized);
-        ArchiveAccess = startupSucceeded && archiveAccess is not null ? new AnnualArchiveAccessViewModel(archiveAccess, archivedOrderPrintService) : null;
+        ArchiveAccess = startupSucceeded && archiveAccess is not null ? new AnnualArchiveAccessViewModel(archiveAccess, archivedOrderPrintService, diagnostics) : null;
         ArchiveAccess?.ApplyLocalization(Localized);
         if (Admin is not null) Admin.SettingsSaved += OnSettingsSaved;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    internal void ReportUnexpectedFailure(string operation, Exception exception) =>
+        diagnostics?.ReportUnexpectedFailure(operation, exception);
 
     public ObservableCollection<LanguageOption> Languages { get; }
 
@@ -593,6 +598,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             }
             catch (Exception exception)
             {
+                ReportUnexpectedFailure("authority.acquire-post-transition-refresh", exception);
                 // The durable authority transition has already succeeded. Keep every
                 // business surface fail-closed until a later explicit refresh/restart.
                 SetM07Operation("M07AcquireRefreshFailed");
@@ -699,6 +705,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
                 catch (OperationCanceledException) { throw; }
                 catch (Exception exception)
                 {
+                    ReportUnexpectedFailure("disaster-recovery.post-activation-refresh", exception);
                     SetM07Operation("M07AcquireRefreshFailed");
                     RefreshResources();
                     return DisasterRecoveryResult.Failure($"Business presentation refresh failed after Disaster Recovery: {exception.Message}", result.Candidate);
@@ -738,6 +745,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
                 catch (OperationCanceledException) { throw; }
                 catch (Exception exception)
                 {
+                    ReportUnexpectedFailure("disaster-recovery.retry-post-activation-refresh", exception);
                     SetM07Operation("M07AcquireRefreshFailed");
                     RefreshResources();
                     return DisasterRecoveryResult.Failure($"Business presentation refresh failed after Disaster Recovery retry: {exception.Message}", result.Candidate);
@@ -777,6 +785,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
                 catch (OperationCanceledException) { throw; }
                 catch (Exception exception)
                 {
+                    ReportUnexpectedFailure("disaster-recovery.reinitialize-post-activation-refresh", exception);
                     SetM07Operation("M07AcquireRefreshFailed");
                     RefreshResources();
                     return DisasterRecoveryResult.Failure($"Business presentation refresh failed after stale-generation reinitialization: {exception.Message}", result.Candidate);

@@ -11,6 +11,7 @@ public sealed class PrinterSetupViewModel : INotifyPropertyChanged
 {
     private readonly ILocalConfigurationService configurationService;
     private readonly IPrintQueueCatalog queueCatalog;
+    private readonly DesktopOperationDiagnostics? diagnostics;
     private LocalConfiguration configuration;
     private string kitchenQueueId = string.Empty;
     private string kitchenQueueName = string.Empty;
@@ -23,11 +24,13 @@ public sealed class PrinterSetupViewModel : INotifyPropertyChanged
     public PrinterSetupViewModel(
         LocalConfiguration configuration,
         ILocalConfigurationService configurationService,
-        IPrintQueueCatalog queueCatalog)
+        IPrintQueueCatalog queueCatalog,
+        DesktopOperationDiagnostics? diagnostics = null)
     {
         this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         this.configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
         this.queueCatalog = queueCatalog ?? throw new ArgumentNullException(nameof(queueCatalog));
+        this.diagnostics = diagnostics;
         kitchenQueueId = configuration.KitchenPrinterQueueId ?? string.Empty;
         kitchenQueueName = configuration.KitchenPrinterQueueName ?? string.Empty;
         customerQueueId = configuration.CustomerPrinterQueueId ?? string.Empty;
@@ -119,8 +122,9 @@ public sealed class PrinterSetupViewModel : INotifyPropertyChanged
         {
             throw;
         }
-        catch
+        catch (Exception exception)
         {
+            diagnostics?.ReportUnexpectedFailure("printer-setup.refresh", exception);
             StatusMessage = Text("PrinterRefreshFailed", "Installed printer queues could not be listed.");
         }
         finally
@@ -150,8 +154,9 @@ public sealed class PrinterSetupViewModel : INotifyPropertyChanged
         {
             throw;
         }
-        catch
+        catch (Exception exception)
         {
+            diagnostics?.ReportUnexpectedFailure("printer-setup.save", exception);
             StatusMessage = Text("PrinterSaveFailed", "Printer selections could not be saved.");
         }
         finally
