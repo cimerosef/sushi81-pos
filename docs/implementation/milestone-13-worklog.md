@@ -105,3 +105,28 @@ Local verification:
 - Full Release build: 0 warnings, 0 errors.
 - `git diff --check`: passed.
 - Exact-head GitHub CI is checked after push and before publishing the matching `CODEX_DONE`; its run and result are recorded there. PR #26 remains unmerged, and this handoff does not authorize a successor work package.
+
+
+## 2026-09-25 — WP3 localization completion implementation and local verification
+
+Handoff M13-WP3-LOCALIZATION-COMPLETION-03 was consumed from active PR #26 while Issue #4 was OPEN. Work stayed within WP3 French / Simplified Chinese localization completion.
+
+Implemented and audited:
+
+- Added paired OperationFailed resources and included the key in the normal ShellViewModel.Localized refresh seam.
+- Replaced all 15 operator-visible raw exception-message sinks across MainWindow, order entry and lifecycle surfaces with the safe localized operation-failure message. The internal Disaster Recovery result diagnostics remain internal and continue to be mapped to localized operator messages.
+- French and zh-CN each contain 466 resource keys; exact key-set parity passed. Every resource is non-empty, loads through ResourceManager, contains no tested replacement/mojibake marker, and has a valid CompositeFormat signature with matching placeholder indexes.
+- The Desktop source audit found 140 unique static localization-helper keys; all resolve to non-empty French and zh-CN resources.
+- The XAML visible-attribute audit found 24 direct literals. All 24 are in the explicit allowlist: punctuation, action glyphs, and the fixed external BatchId identifier. No unexplained XAML literal or raw exception-to-UI sink remains.
+- Representative shell/authority/startup, pairing/recovery, catalogue/import/export, order/lifecycle/search/dashboard, printing, Hiboutik, Gestion export, archive and validation resources load in both cultures. Runtime switching changes labels in both directions; date/number formatting and CREATE/UPDATE/CANCEL identifiers remain correct.
+- A synthetic SQLite-backed culture-switch regression confirmed stored category/product values, order product/category snapshots, telephone, address and comment remain unchanged.
+- No business/schema/export semantics were changed. Full visual review of all major screens in both cultures remains for the final Windows owner-acceptance pass; no headless visual-proof claim is made.
+
+Local verification:
+
+- Focused WP3 localization/resource architecture tests: 11 passed, 0 failed, 0 skipped.
+- M11 DatePicker and related WPF regressions (M01Wp3DesktopTests): 20 passed, 0 failed, 0 skipped.
+- Full dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo: 900 passed across six test assemblies, 0 failed, 0 skipped.
+- Full Release solution build: 0 warnings, 0 errors.
+- git diff --check: passed before this append; rechecked on the final staged diff before commit.
+- Exact-head GitHub CI is required after push and will be reported in the matching CODEX_DONE before completion delivery. PR #26 remains unmerged; no successor package is authorized by this handoff.

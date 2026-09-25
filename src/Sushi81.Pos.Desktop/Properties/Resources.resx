@@ -126,6 +126,7 @@
   <data name="EnterValidValues" xml:space="preserve"><value>Saisissez des valeurs valides.</value></data>
   <data name="Saved" xml:space="preserve"><value>Enregistré.</value></data>
   <data name="ValidationGeneric" xml:space="preserve"><value>La saisie n’est pas valide.</value></data>
+  <data name="OperationFailed" xml:space="preserve"><value>Opération impossible. Consultez les diagnostics puis réessayez.</value></data>
   <data name="ValidationAuthorityBlocked" xml:space="preserve"><value>Les écritures sont bloquées : cette instance n’a pas l’autorité locale.</value></data>
   <data name="ValidationRequired" xml:space="preserve"><value>Ce champ est obligatoire.</value></data>
   <data name="ValidationCategoryDuplicate" xml:space="preserve"><value>Une catégorie portant ce nom existe déjà.</value></data>

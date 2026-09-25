@@ -126,6 +126,7 @@
   <data name="EnterValidValues" xml:space="preserve"><value>请输入有效值。</value></data>
   <data name="Saved" xml:space="preserve"><value>已保存。</value></data>
   <data name="ValidationGeneric" xml:space="preserve"><value>输入无效。</value></data>
+  <data name="OperationFailed" xml:space="preserve"><value>操作未能完成。请查看诊断信息后重试。</value></data>
   <data name="ValidationAuthorityBlocked" xml:space="preserve"><value>写入已禁止：此实例没有本地权威状态。</value></data>
   <data name="ValidationRequired" xml:space="preserve"><value>此字段为必填项。</value></data>
   <data name="ValidationCategoryDuplicate" xml:space="preserve"><value>已存在同名分类。</value></data>

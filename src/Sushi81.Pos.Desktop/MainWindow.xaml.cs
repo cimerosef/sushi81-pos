@@ -153,7 +153,7 @@ public partial class MainWindow : Window
                  PerformanceTrace.Log("m12.archive-access.end");
              }
         }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception) { MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
         ApplyCatalogueHeaders();
     }
 
@@ -629,7 +629,7 @@ public partial class MainWindow : Window
                 if (dialog.ShowDialog() == true) entry.AddConfiguredLine(product, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
             }
         }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception) { MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
         finally { orderProductAddInProgress = false; }
     }
 
@@ -637,7 +637,7 @@ public partial class MainWindow : Window
     {
         if (DataContext is not ShellViewModel { Entry: { } entry }) return;
         try { await entry.StartHiboutikImportAsync(); }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception) { MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private void OnResetHiboutikImport(object sender, RoutedEventArgs e)
@@ -664,7 +664,7 @@ public partial class MainWindow : Window
             if (entry.HiboutikLines.SingleOrDefault(item => item.SourceLineNumber == line.SourceLineNumber) is { IsOptionReviewPending: true } pending && pending.State.Product is { } product)
                 await ConfigureHiboutikOptionsAsync(entry, pending, product);
         }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception) { MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private void OnIgnoreHiboutikLine(object sender, RoutedEventArgs e)
@@ -677,7 +677,7 @@ public partial class MainWindow : Window
     {
         if (DataContext is not ShellViewModel { Entry: { } entry } || (sender as Button)?.Tag is not HiboutikImportLineViewModel line || line.State.Product is not { } product) return;
         try { await ConfigureHiboutikOptionsAsync(entry, line, product); }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception) { MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private async Task ConfigureHiboutikOptionsAsync(OrderEntryShellViewModel entry, HiboutikImportLineViewModel line, OrderEntryProduct product)
@@ -716,7 +716,7 @@ public partial class MainWindow : Window
             if (dialog.RemoveRequested) entry.RemoveLine(line);
             else if (result == true) entry.UpdateConfiguredLine(line, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
         }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception) { MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private void OnDecreaseOrderQuantity(object sender, RoutedEventArgs e)
@@ -745,7 +745,7 @@ public partial class MainWindow : Window
     {
         if (DataContext is not ShellViewModel { Entry: { } entry }) return;
         try { await entry.ConfirmAsync(); }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception) { MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private void OnNewOrder(object sender, RoutedEventArgs e)
@@ -934,7 +934,7 @@ public partial class MainWindow : Window
 
     private void OnFilterRefreshFailed(object? sender, EventArgs e)
     {
-        MessageBox.Show(this, LocalizedText(this, "ValidationGeneric", "The operation failed."),
+        MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."),
             LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
@@ -1075,7 +1075,7 @@ public partial class MainWindow : Window
     private void ShowResultError(OperationResult result)
     {
         var localized = (DataContext as ShellViewModel)?.Localized ?? new Dictionary<string, string>();
-        MessageBox.Show(this, result.Issues.Count == 0 ? LocalizedText(this, "ValidationGeneric", "The operation failed.") : M03Presentation.FormatIssues(result, localized), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error);
+        MessageBox.Show(this, result.Issues.Count == 0 ? LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.") : M03Presentation.FormatIssues(result, localized), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private sealed class OptionSelectionDialog : Window
@@ -1498,7 +1498,7 @@ public partial class MainWindow : Window
                 if (!result.Succeeded) { validation.Text = M03Presentation.FormatIssues(result, ((ShellViewModel)Owner.DataContext).Localized); return; }
                 await admin.RefreshAsync(); edit.CompleteSave(); name.Clear(); shortCode.Clear(); validation.Text = string.Empty; list.Focus();
             }
-            catch (Exception exception) { validation.Text = exception.Message; }
+            catch (Exception) { validation.Text = LocalizedText(Owner, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); }
             finally { saveInProgress = false; UpdateButtons(); }
         }
     }

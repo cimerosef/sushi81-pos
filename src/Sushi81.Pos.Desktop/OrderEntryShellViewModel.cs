@@ -530,10 +530,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         {
             if (throwOnFailure) throw;
         }
-        catch (Exception exception) when (throwOnFailure || IsCurrent(request))
+        catch (Exception) when (throwOnFailure || IsCurrent(request))
         {
             if (throwOnFailure) throw;
-            ValidationMessage = exception.Message;
+            ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         }
         finally { EndRefresh(request); PerformanceTrace.Log("entry.refresh.end"); }
     }
@@ -582,10 +582,10 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         {
             if (throwOnFailure) throw;
         }
-        catch (Exception exception) when (throwOnFailure || IsCurrentBrowserRefresh(request))
+        catch (Exception) when (throwOnFailure || IsCurrentBrowserRefresh(request))
         {
             if (throwOnFailure) throw;
-            ValidationMessage = exception.Message;
+            ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         }
         finally { EndBrowserRefresh(request); PerformanceTrace.Log("entry.browser-refresh.end"); }
     }
@@ -621,11 +621,11 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         {
             if (throwOnFailure) throw;
         }
-        catch (Exception exception) when (throwOnFailure || IsCurrentBrowserSelection(request))
+        catch (Exception) when (throwOnFailure || IsCurrentBrowserSelection(request))
         {
             if (throwOnFailure) throw;
             ReloadedOrder = null;
-            ValidationMessage = exception.Message;
+            ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         }
         finally { EndBrowserSelection(request); PerformanceTrace.Log("entry.browser-selection.end"); }
     }
@@ -674,7 +674,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return false; }
-        catch (Exception exception) { ValidationMessage = exception.Message; return false; }
+        catch (Exception) { ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); return false; }
         finally { if (!disposed) IsBusy = false; }
     }
 
@@ -782,7 +782,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             ApplyPricing(result);
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
-        catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; OnPropertyChanged(nameof(CanConfirm)); }
+        catch (Exception) when (IsCurrent(request)) { ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); OnPropertyChanged(nameof(CanConfirm)); }
         finally { EndPrice(request); }
     }
 
@@ -1405,7 +1405,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             ApplyProducts(products);
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
-        catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; }
+        catch (Exception) when (IsCurrent(request)) { ValidationMessage = Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); }
         finally { EndRefresh(request); PerformanceTrace.Log("entry.products-refresh.end"); }
     }
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

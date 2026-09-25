@@ -410,10 +410,10 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         {
             if (throwOnFailure) throw;
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             if (throwOnFailure) throw;
-            ValidationMessage = exception.Message;
+            ValidationMessage = Text("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         }
         finally { PerformanceTrace.Log("lifecycle.refresh.end"); }
     }
