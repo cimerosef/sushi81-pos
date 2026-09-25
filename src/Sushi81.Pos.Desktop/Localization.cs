@@ -114,7 +114,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         PrintService = printService;
         PrinterSetup = printerSetup;
         Lifecycle = startupSucceeded && orderLifecycleService is not null ? new OrderLifecycleShellViewModel(orderLifecycleService, authorityGuard, printService, diagnostics) : null;
-        Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
+        Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"], Localized);
         Entry?.ApplyLocalization(Localized["All"], Localized["FulfilmentUnselected"], Localized["Retrait"], Localized["Livraison"], Localized["ManualTotalActive"], Localized["NewOrder"], Localized["Quantity"], Localized);
         Lifecycle?.ApplyLocalization(Localized);
         PrinterSetup?.ApplyLocalization(Localized);
@@ -272,7 +272,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
             _culture = requestedCulture;
             RefreshResources();
-            Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
+            Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"], Localized);
             Entry?.ApplyLocalization(Localized["All"], Localized["FulfilmentUnselected"], Localized["Retrait"], Localized["Livraison"], Localized["ManualTotalActive"], Localized["NewOrder"], Localized["Quantity"], Localized);
             Lifecycle?.ApplyLocalization(Localized);
             PrinterSetup?.ApplyLocalization(Localized);

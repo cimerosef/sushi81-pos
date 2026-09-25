@@ -56,9 +56,9 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
     private bool busy;
     private bool businessPresentationRefreshBlocked;
     private ExportSelectionResult? preview;
-    private string validationMessage = string.Empty;
-    private string statusMessage = string.Empty;
-    private string failureMessage = string.Empty;
+    private LocalizedMessageState? validationMessageState;
+    private LocalizedMessageState? statusMessageState;
+    private LocalizedMessageState? failureMessageState;
     private GestionExportHistoryRow? selectedHistory;
     private GestionExportPreparedBatchRow? selectedPreparedBatch;
 
@@ -175,38 +175,11 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
 
     public string SelectionSummary { get; private set; } = string.Empty;
 
-    public string ValidationMessage
-    {
-        get => validationMessage;
-        private set
-        {
-            if (validationMessage == value) return;
-            validationMessage = value;
-            OnPropertyChanged();
-        }
-    }
+    public string ValidationMessage => validationMessageState?.Render(localized) ?? string.Empty;
 
-    public string StatusMessage
-    {
-        get => statusMessage;
-        private set
-        {
-            if (statusMessage == value) return;
-            statusMessage = value;
-            OnPropertyChanged();
-        }
-    }
+    public string StatusMessage => statusMessageState?.Render(localized) ?? string.Empty;
 
-    public string FailureMessage
-    {
-        get => failureMessage;
-        private set
-        {
-            if (failureMessage == value) return;
-            failureMessage = value;
-            OnPropertyChanged();
-        }
-    }
+    public string FailureMessage => failureMessageState?.Render(localized) ?? string.Empty;
 
     public async Task PreviewAsync(CancellationToken cancellationToken = default)
     {
@@ -214,29 +187,29 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         if (!TryBuildOptions(out var options)) return;
 
         SetBusy(true);
-        FailureMessage = string.Empty;
-        StatusMessage = Read("GestionExportPreviewBusy", "Loading export preview…");
+        SetFailureMessage(null);
+        SetStatusMessage(LocalizedMessageState.Resource("GestionExportPreviewBusy", "Loading export preview…"));
         try
         {
             // SelectAsync is intentionally used here instead of PrepareBatchAsync:
             // opening or refreshing the preview must never create PREPARED state.
             preview = await workbookService.SelectAsync(options, cancellationToken);
             UpdateSelectionPresentation();
-            StatusMessage = preview.IsBlocked
-                ? Read("GestionExportPreviewBlocked", "The preview contains blocking diagnostics.")
-                : Format("GestionExportPreviewReady", "Preview ready: {0} action(s).", preview.Actions.Count);
+            SetStatusMessage(preview.IsBlocked
+                ? LocalizedMessageState.Resource("GestionExportPreviewBlocked", "The preview contains blocking diagnostics.")
+                : LocalizedMessageState.Resource("GestionExportPreviewReady", "Preview ready: {0} action(s).", preview.Actions.Count));
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = Read("GestionExportCancelled", "Export preview cancelled.");
+            SetStatusMessage(LocalizedMessageState.Resource("GestionExportCancelled", "Export preview cancelled."));
         }
         catch (Exception exception)
         {
             diagnostics?.ReportUnexpectedFailure("gestion-export.preview", exception);
             preview = null;
             UpdateSelectionPresentation();
-            FailureMessage = Read("GestionExportFailure", "The export preview could not be loaded.");
-            StatusMessage = FailureMessage;
+            SetFailureMessage(LocalizedMessageState.Resource("GestionExportFailure", "The export preview could not be loaded."));
+            SetStatusMessage(failureMessageState);
         }
         finally
         {
@@ -251,13 +224,13 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         if (!TryBuildOptions(out var options)) return null;
         if (string.IsNullOrWhiteSpace(finalPath))
         {
-            ValidationMessage = Read("GestionExportDestinationRequired", "Choose an export destination.");
+            SetValidationMessage(LocalizedMessageState.Resource("GestionExportDestinationRequired", "Choose an export destination."));
             return null;
         }
 
         SetBusy(true);
-        FailureMessage = string.Empty;
-        StatusMessage = Read("GestionExportBusy", "Generating and validating the export workbook…");
+        SetFailureMessage(null);
+        SetStatusMessage(LocalizedMessageState.Resource("GestionExportBusy", "Generating and validating the export workbook…"));
         try
         {
             var outcome = await workbookService.GenerateWithOutcomeAsync(options, appVersion, finalPath, cancellationToken);
@@ -265,20 +238,27 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
             {
                 preview = outcome.Selection;
                 UpdateSelectionPresentation();
-                StatusMessage = outcome.Selection.IsBlocked
-                    ? Format("GestionExportBlockedAtExport", "Export blocked: {0}", LocalizeDiagnosticMessage(outcome.Selection.Diagnostics[0]))
-                    : Read("GestionExportNoPending", "There are no pending export actions for this scope.");
+                if (outcome.Selection.IsBlocked)
+                {
+                    var diagnostic = outcome.Selection.Diagnostics[0];
+                    SetStatusMessage(LocalizedMessageState.Custom(labels => string.Format(
+                        CultureInfo.CurrentCulture,
+                        Read(labels, "GestionExportBlockedAtExport", "Export blocked: {0}"),
+                        LocalizeDiagnosticMessage(diagnostic, labels))));
+                }
+                else
+                    SetStatusMessage(LocalizedMessageState.Resource("GestionExportNoPending", "There are no pending export actions for this scope."));
                 return null;
             }
 
-            StatusMessage = Format("GestionExportSucceeded", "Export succeeded: {0}.", Path.GetFileName(outcome.Result.FinalPath));
+            SetStatusMessage(LocalizedMessageState.Resource("GestionExportSucceeded", "Export succeeded: {0}.", Path.GetFileName(outcome.Result.FinalPath)));
             await RefreshHistoryCoreAsync(cancellationToken);
             await RefreshPreviewCoreAsync(cancellationToken);
             return outcome.Result;
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = Read("GestionExportCancelled", "Export cancelled.");
+            SetStatusMessage(LocalizedMessageState.Resource("GestionExportCancelled", "Export cancelled."));
             return null;
         }
         catch (Exception exception)
@@ -296,8 +276,8 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
                 diagnostics?.ReportUnexpectedFailure("gestion-export.history-refresh-after-failure", historyException);
                 // Keep the operator-facing failure safe even if the refresh itself is unavailable.
             }
-            FailureMessage = Read("GestionExportFailure", "The export could not be completed; any prepared batch remains available under pending batches for retry.");
-            StatusMessage = FailureMessage;
+            SetFailureMessage(LocalizedMessageState.Resource("GestionExportFailure", "The export could not be completed; any prepared batch remains available under pending batches for retry."));
+            SetStatusMessage(failureMessageState);
             return null;
         }
         finally
@@ -311,29 +291,29 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         if (!CanRegenerate || selectedHistory is not { } selected) return null;
         if (string.IsNullOrWhiteSpace(finalPath))
         {
-            ValidationMessage = Read("GestionExportDestinationRequired", "Choose an export destination.");
+            SetValidationMessage(LocalizedMessageState.Resource("GestionExportDestinationRequired", "Choose an export destination."));
             return null;
         }
 
         SetBusy(true);
-        FailureMessage = string.Empty;
-        StatusMessage = Read("GestionExportRegenerateBusy", "Regenerating the selected successful batch…");
+        SetFailureMessage(null);
+        SetStatusMessage(LocalizedMessageState.Resource("GestionExportRegenerateBusy", "Regenerating the selected successful batch…"));
         try
         {
             var result = await workbookService.RegenerateAsync(selected.BatchId, finalPath, cancellationToken);
-            StatusMessage = Format("GestionExportRegenerated", "Batch regenerated: {0}.", Path.GetFileName(result.FinalPath));
+            SetStatusMessage(LocalizedMessageState.Resource("GestionExportRegenerated", "Batch regenerated: {0}.", Path.GetFileName(result.FinalPath)));
             return result;
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = Read("GestionExportCancelled", "Regeneration cancelled.");
+            SetStatusMessage(LocalizedMessageState.Resource("GestionExportCancelled", "Regeneration cancelled."));
             return null;
         }
         catch (Exception exception)
         {
             diagnostics?.ReportUnexpectedFailure("gestion-export.regenerate", exception);
-            FailureMessage = Read("GestionExportRegenerateFailure", "The selected batch could not be regenerated.");
-            StatusMessage = FailureMessage;
+            SetFailureMessage(LocalizedMessageState.Resource("GestionExportRegenerateFailure", "The selected batch could not be regenerated."));
+            SetStatusMessage(failureMessageState);
             return null;
         }
         finally
@@ -347,31 +327,31 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         if (!CanRetryPrepared || selectedPreparedBatch is not { } selected) return null;
         if (string.IsNullOrWhiteSpace(finalPath))
         {
-            ValidationMessage = Read("GestionExportDestinationRequired", "Choose an export destination.");
+            SetValidationMessage(LocalizedMessageState.Resource("GestionExportDestinationRequired", "Choose an export destination."));
             return null;
         }
 
         SetBusy(true);
-        FailureMessage = string.Empty;
-        StatusMessage = Read("GestionExportPreparedRetryBusy", "Retrying the pending export batch…");
+        SetFailureMessage(null);
+        SetStatusMessage(LocalizedMessageState.Resource("GestionExportPreparedRetryBusy", "Retrying the pending export batch…"));
         try
         {
             var result = await workbookService.FinalizePreparedBatchAsync(selected.BatchId, finalPath, cancellationToken);
             await RefreshHistoryCoreAsync(cancellationToken);
             await RefreshPreviewCoreAsync(cancellationToken);
-            StatusMessage = Format("GestionExportPreparedRetrySucceeded", "Pending batch completed: {0}.", Path.GetFileName(result.FinalPath));
+            SetStatusMessage(LocalizedMessageState.Resource("GestionExportPreparedRetrySucceeded", "Pending batch completed: {0}.", Path.GetFileName(result.FinalPath)));
             return result;
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = Read("GestionExportCancelled", "Export cancelled.");
+            SetStatusMessage(LocalizedMessageState.Resource("GestionExportCancelled", "Export cancelled."));
             return null;
         }
         catch (Exception exception)
         {
             diagnostics?.ReportUnexpectedFailure("gestion-export.complete-prepared", exception);
-            FailureMessage = Read("GestionExportPreparedRetryFailure", "The pending batch could not be completed; it remains available for retry.");
-            StatusMessage = FailureMessage;
+            SetFailureMessage(LocalizedMessageState.Resource("GestionExportPreparedRetryFailure", "The pending batch could not be completed; it remains available for retry."));
+            SetStatusMessage(failureMessageState);
             return null;
         }
         finally
@@ -389,8 +369,8 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         catch (Exception exception)
         {
             diagnostics?.ReportUnexpectedFailure("gestion-export.history-refresh", exception);
-            FailureMessage = Read("GestionExportHistoryFailure", "Export history could not be loaded.");
-            StatusMessage = FailureMessage;
+            SetFailureMessage(LocalizedMessageState.Resource("GestionExportHistoryFailure", "Export history could not be loaded."));
+            SetStatusMessage(failureMessageState);
         }
         finally { SetBusy(false); }
     }
@@ -428,7 +408,9 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         RebuildPendingBatches(PendingBatches.Select(row => row.BatchId).ToArray());
         OnPropertyChanged(nameof(InclusiveDateText));
         OnPropertyChanged(nameof(SelectionSummary));
+        OnPropertyChanged(nameof(ValidationMessage));
         OnPropertyChanged(nameof(StatusMessage));
+        OnPropertyChanged(nameof(FailureMessage));
         OnPropertyChanged(nameof(AuthorityStatusText));
     }
 
@@ -482,10 +464,10 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
     private bool TryBuildOptions(out ExportSelectionOptions options)
     {
         options = new ExportSelectionOptions();
-        ValidationMessage = string.Empty;
+        SetValidationMessage(null);
         if (startDate is { } start && endDate is { } end && start.Date > end.Date)
         {
-            ValidationMessage = Read("GestionExportInvalidRange", "The start date cannot be after the end date.");
+            SetValidationMessage(LocalizedMessageState.Resource("GestionExportInvalidRange", "The start date cannot be after the end date."));
             return false;
         }
 
@@ -529,19 +511,42 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HasPreview));
     }
 
-    private string LocalizeDiagnosticMessage(ExportSelectionDiagnostic diagnostic) =>
+    private string LocalizeDiagnosticMessage(ExportSelectionDiagnostic diagnostic) => LocalizeDiagnosticMessage(diagnostic, localized);
+
+    private static string LocalizeDiagnosticMessage(ExportSelectionDiagnostic diagnostic, IReadOnlyDictionary<string, string> labels) =>
         diagnostic.Code switch
         {
-            "SETTLEMENT_DATE_UNAVAILABLE" => Read(
+            "SETTLEMENT_DATE_UNAVAILABLE" => Read(labels,
                 "GestionExportDiagnosticSettlementDateUnavailable",
                 "Settlement date is unavailable for this order."),
             _ => diagnostic.Message
         };
 
+    private static string Read(IReadOnlyDictionary<string, string> labels, string key, string fallback) =>
+        labels.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? value : fallback;
+
+    private void SetStatusMessage(LocalizedMessageState? state)
+    {
+        statusMessageState = state;
+        OnPropertyChanged(nameof(StatusMessage));
+    }
+
+    private void SetFailureMessage(LocalizedMessageState? state)
+    {
+        failureMessageState = state;
+        OnPropertyChanged(nameof(FailureMessage));
+    }
+
+    private void SetValidationMessage(LocalizedMessageState? state)
+    {
+        validationMessageState = state;
+        OnPropertyChanged(nameof(ValidationMessage));
+    }
+
     private void ClearSelectionState()
     {
         preview = null;
-        ValidationMessage = string.Empty;
+        SetValidationMessage(null);
         UpdateSelectionPresentation();
     }
 
@@ -552,9 +557,9 @@ public sealed class GestionExportWorkflowViewModel : INotifyPropertyChanged
         selectedPreparedBatch = null;
         History.Clear();
         PendingBatches.Clear();
-        ValidationMessage = string.Empty;
-        StatusMessage = string.Empty;
-        FailureMessage = string.Empty;
+        SetValidationMessage(null);
+        SetStatusMessage(null);
+        SetFailureMessage(null);
         UpdateSelectionPresentation();
         OnPropertyChanged(nameof(SelectedHistory));
         OnPropertyChanged(nameof(SelectedPreparedBatch));

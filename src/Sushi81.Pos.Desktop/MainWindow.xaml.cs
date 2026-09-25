@@ -1081,7 +1081,7 @@ public partial class MainWindow : Window
         var result = await admin.SaveSettingsAsync();
         if (!result.Succeeded)
         {
-            admin.SetSettingsValidationMessage(M03Presentation.FormatIssues(result, admin is not null ? ((ShellViewModel)DataContext).Localized : new Dictionary<string, string>()));
+            admin.SetSettingsValidationIssues(result.Issues);
             ShowResultError(result);
         }
         else { admin.SetSettingsValidationMessage(string.Empty); MessageBox.Show(this, LocalizedText(this, "Saved", "Saved."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Information); }

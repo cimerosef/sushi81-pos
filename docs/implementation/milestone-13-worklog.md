@@ -201,3 +201,34 @@ Prepared:
 - The exact final candidate source SHA, workflow/job evidence, production artifact/provenance identity and hashes are recorded in the matching WP6 `CODEX_DONE` comment rather than embedded self-referentially in this source document.
 
 Scope review: documentation and worklog only. No production source, tests, schema, XAML, dependencies, release configuration or workflow behavior is changed. No owner manual acceptance, interactive Windows/UI test, device operation or M12 real populated-archive check is claimed here. Exact-head automated verification and CI/artifact evidence are delivered in the matching completion comment. PR #26 remains unmerged; WP6 does not claim M13 Passed, owner acceptance or release.
+
+## 2026-09-25 — M13 final owner-D cached-status localization repair
+
+Consumed `M13-FINAL-OWNER-D-LANGUAGE-STATUS-REPAIR-07` from active PR #26 comment `5832423656` while Issue #4 was OPEN. The exact starting head was `33145cf796e939741255f7599dc8174df9d7d083` on `codex/m13-installer-final-acceptance-authorized`.
+
+Owner evidence and scope:
+
+- Sections A-B and C are PASS evidence on prior candidate `33145cf796e939741255f7599dc8174df9d7d083` / artifact `10860083727` (owner comments `OWNER_ACCEPTANCE_EVIDENCE: M13-FINAL-A-B-20260925` and `OWNER_ACCEPTANCE_EVIDENCE: M13-FINAL-C-20260925`).
+- Section D failed on that artifact because Caisse committed status, Commandes print status and Paramètres printer-refresh status remained in Chinese after zh-CN → French. The old artifact is superseded. The repaired candidate still requires a narrow owner D re-test after controller review.
+- A separate navigation/layout owner decision was already present in PR comments; it is deliberately outside this status-localization handoff and requires its own later READY.
+
+Root cause and repair:
+
+- The audited view models retained already-rendered localized strings. Their language-switch refresh updated resource dictionaries and labels but had no semantic inputs with which to rebuild the visible statuses.
+- Added internal `LocalizedMessageState` state that retains resource keys and immutable interpolation arguments, or validation-issue/custom render inputs. Re-rendering now uses the current language without parsing prior UI text.
+- Applied the state to Caisse committed/output-failure messages and active validation warnings; Commandes validation and print/reprint status; Paramètres printer refresh/save/unavailable/failure status; M03 settings validation issues/field labels; Gestion export validation/status/failure, including blocked diagnostics and retryable failures; and annual-archive availability, copy, access-error and print/reprint status.
+- Audited `OrderEntryShellViewModel`, `OrderLifecycleShellViewModel`, `PrinterSetupViewModel`, `M03ShellViewModel`, catalogue workbook workflow, `GestionExportWorkflowViewModel`, `AnnualArchiveAccessViewModel`, ShellViewModel and M07 operation status. Catalogue workbook diagnostics already derive presentation from the current resource dictionary; shell/M07 status retains a resource key, so neither had the cached-string defect.
+- Caisse output-dispatch warnings now use the existing localized `OperationFailed` presentation rather than retaining a raw exception string. Failed/ambiguous print warnings remain visible; retry availability is unchanged. Interpolated order references remain stable, and the regression compares stored order values before/after language changes.
+- No business rule, stored business text, persistence, schema, export eligibility, archive/authority/recovery behavior, print execution, installer identity, product/file version or AppId changed.
+- Updated this worklog and final manual acceptance. The final acceptance record carries forward A-C PASS evidence only for the prior candidate, records D FAIL there, marks artifact `10860083727` superseded, and leaves repaired-candidate D re-test pending. E-F remain paused.
+
+Verification on the local repair head before push:
+
+- Focused status/localization regressions: 10 passed, 0 failed, 0 skipped. Covered blocked Gestion export diagnostics, successful and retryable-failed export status, Caisse successful commit/interpolated reference and output-failure warning, M03 settings validation/field label, Commandes successful and ambiguous print/reprint, archive status and print success, and printer refresh success/unavailable/failure.
+- Full `dotnet test Sushi81.Pos.sln -c Release --no-restore --nologo`: 911 passed across six test assemblies, 0 failed, 0 skipped. This includes FR/zh-CN resource parity and the relevant M03/M04/M05/M08/M11/M12/M13 regressions.
+- Full Release solution build: 0 warnings, 0 errors.
+- Repository safety scanner self-test: 16 synthetic cases passed; the full tracked/non-ignored scan passed across 440 files with no findings.
+- Direct/transitive NuGet vulnerability audit: passed, no findings.
+- `git diff --check`: passed.
+
+After push, exact-head GitHub CI and the `m13-production-installer` artifact/lifecycle job remain required. The exact artifact ID, installer filename/size/SHA-256, ZIP digest and release-provenance fields will be recorded in the matching `CODEX_DONE`. No owner D PASS, Sections E-F, next package, or merge is authorized by this handoff.

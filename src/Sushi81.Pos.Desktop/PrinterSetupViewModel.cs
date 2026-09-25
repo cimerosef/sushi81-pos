@@ -17,7 +17,7 @@ public sealed class PrinterSetupViewModel : INotifyPropertyChanged
     private string kitchenQueueName = string.Empty;
     private string customerQueueId = string.Empty;
     private string customerQueueName = string.Empty;
-    private string statusMessage = string.Empty;
+    private LocalizedMessageState? statusMessageState;
     private bool isBusy;
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>(StringComparer.Ordinal);
 
@@ -85,11 +85,7 @@ public sealed class PrinterSetupViewModel : INotifyPropertyChanged
         set { customerQueueName = value ?? string.Empty; OnPropertyChanged(); OnPropertyChanged(nameof(CanSave)); }
     }
 
-    public string StatusMessage
-    {
-        get => statusMessage;
-        private set { statusMessage = value ?? string.Empty; OnPropertyChanged(); }
-    }
+    public string StatusMessage => statusMessageState?.Render(localized) ?? string.Empty;
 
     public bool IsBusy
     {
@@ -102,6 +98,7 @@ public sealed class PrinterSetupViewModel : INotifyPropertyChanged
     public void ApplyLocalization(IReadOnlyDictionary<string, string> values)
     {
         localized = values ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        OnPropertyChanged(nameof(StatusMessage));
     }
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
@@ -114,9 +111,9 @@ public sealed class PrinterSetupViewModel : INotifyPropertyChanged
             Queues.Clear();
             foreach (var queue in queues) Queues.Add(queue);
             ApplyQueueNamesFromSelections();
-            StatusMessage = HasUnavailableConfiguredQueue()
-                ? Text("PrinterQueueUnavailable", "A configured printer queue is unavailable. Reselect it before printing.")
-                : Text("PrinterRefreshSucceeded", "Installed printer queues refreshed.");
+            SetStatusMessage(HasUnavailableConfiguredQueue()
+                ? LocalizedMessageState.Resource("PrinterQueueUnavailable", "A configured printer queue is unavailable. Reselect it before printing.")
+                : LocalizedMessageState.Resource("PrinterRefreshSucceeded", "Installed printer queues refreshed."));
         }
         catch (OperationCanceledException)
         {
@@ -125,7 +122,7 @@ public sealed class PrinterSetupViewModel : INotifyPropertyChanged
         catch (Exception exception)
         {
             diagnostics?.ReportUnexpectedFailure("printer-setup.refresh", exception);
-            StatusMessage = Text("PrinterRefreshFailed", "Installed printer queues could not be listed.");
+            SetStatusMessage(LocalizedMessageState.Resource("PrinterRefreshFailed", "Installed printer queues could not be listed."));
         }
         finally
         {
@@ -148,7 +145,7 @@ public sealed class PrinterSetupViewModel : INotifyPropertyChanged
                     CustomerPrinterQueueName = NullIfBlank(CustomerQueueName)
                 },
                 cancellationToken);
-            StatusMessage = Text("PrinterSaved", "Printer selections saved locally.");
+            SetStatusMessage(LocalizedMessageState.Resource("PrinterSaved", "Printer selections saved locally."));
         }
         catch (OperationCanceledException)
         {
@@ -157,12 +154,18 @@ public sealed class PrinterSetupViewModel : INotifyPropertyChanged
         catch (Exception exception)
         {
             diagnostics?.ReportUnexpectedFailure("printer-setup.save", exception);
-            StatusMessage = Text("PrinterSaveFailed", "Printer selections could not be saved.");
+            SetStatusMessage(LocalizedMessageState.Resource("PrinterSaveFailed", "Printer selections could not be saved."));
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    private void SetStatusMessage(LocalizedMessageState state)
+    {
+        statusMessageState = state;
+        OnPropertyChanged(nameof(StatusMessage));
     }
 
     private void ApplyQueueNamesFromSelections()

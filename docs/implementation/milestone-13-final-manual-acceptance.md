@@ -1,28 +1,28 @@
 # M13 — Final V1 owner manual acceptance
 
-**Status:** CANDIDATE PREPARED / OWNER ACCEPTANCE PENDING
+**Status:** SECTIONS A-C PASS EVIDENCE ON PRIOR CANDIDATE; SECTION D FAIL; REPAIRED-CANDIDATE D RE-TEST PENDING
 
 **Milestone:** M13
 
-**Candidate source SHA and installer artifact:** See the matching top-level PR #26 comment `CODEX_DONE: M13-WP6-FINAL-CANDIDATE-OPERATING-GUIDE-06` for the exact source head and artifact identity. This source file intentionally does not contain its own not-yet-built commit SHA.
+**Prior candidate that received owner checks:** source SHA `33145cf796e939741255f7599dc8174df9d7d083`, artifact ID `10860083727`. This candidate is superseded for acceptance because Section D failed. The repaired candidate SHA and artifact identity will be recorded in the matching top-level PR #26 completion comment after exact-head CI.
 
-**Acceptance date:** Pending owner execution
+**Acceptance evidence date:** 2026-09-25 for the prior candidate; repaired-candidate Section D re-test pending
 
 ## 1. Acceptance principle
 
-This is the short final owner check for the exact WP6 production candidate. Do not repeat every historical M01–M12 manual test. Exact-head automated evidence is recorded in the matching WP6 completion comment; this checklist covers the installed production artifact, preservation of an existing profile, a small business smoke, language switching, retained export behavior and the operator guide.
+This record tracks owner acceptance after testing the exact WP6 candidate `33145cf796e939741255f7599dc8174df9d7d083` / artifact `10860083727`. The owner recorded Sections A-C as PASS on that candidate and Section D as FAIL because transient operator statuses remained in Chinese after switching to French. The old artifact is superseded. A-C remain recorded as prior-candidate evidence only; they do not establish acceptance of the repaired candidate. After controller review of the new exact-head artifact, the owner must re-run Section D on that repaired candidate. Sections E-F remain paused until the language repair is accepted.
 
-WP6 prepares a candidate. It does not claim owner acceptance, M13 Passed, merge or release. Record PASS / FAIL / DEFERRED-NOT-M13 only after the owner performs the relevant check.
+Automated evidence is recorded in the matching repair `CODEX_DONE`; it does not convert manual checks to PASS. Do not claim M13 Passed, merge or release here.
 
 ## 2. Preconditions
 
 Before testing:
 
-- WP1–WP5 are controller-accepted and their exact heads/CI are recorded in `implementation-status.md`.
-- Review the controller's WP6 review and the matching `CODEX_DONE` comment on PR #26.
-- Download only the exact installer artifact named in that completion comment. Verify the listed installer filename, byte size and SHA-256; verify installed `release-provenance.json` identifies the listed source head and version.
+- WP1-WP6 controller reviews and exact-head evidence are available on PR #26.
+- Review the controller review and matching language-repair `CODEX_DONE` comment before downloading the repaired candidate.
+- Download only the exact repaired installer artifact named in that completion comment. Verify its filename, byte size and SHA-256; verify installed `release-provenance.json` identifies the listed source head, version, runtime and AppId.
 - Confirm exact-head CI, full Release build/tests, safety scans and hosted installer lifecycle are green in that completion evidence.
-- Create and verify a safe recovery point before testing any existing operational profile. Do not use real business data for a disposable test.
+- The current outstanding owner action is Section D on that exact repaired candidate.
 
 If any exact artifact identity or precondition is missing, stop and report it; do not substitute a different installer.
 
@@ -35,7 +35,7 @@ If any exact artifact identity or precondition is missing, stop and report it; d
 - Confirm the installed product/file version and `release-provenance.json` match the exact candidate source head.
 - Confirm no development/test data appears in the installed tree.
 
-**Owner result/date/evidence:** Pending owner execution.
+**Owner result/date/evidence:** PASS on prior candidate `33145cf796e939741255f7599dc8174df9d7d083` / artifact `10860083727`; evidence comment `OWNER_ACCEPTANCE_EVIDENCE: M13-FINAL-A-B-20260925`. This does not certify the repaired candidate.
 
 ### B — existing-profile upgrade and reinstall preservation
 
@@ -49,7 +49,7 @@ Using a controlled existing Sushi81 profile, verify before and after upgrade/rep
 
 Perform same-version repair/reinstall. If a safe acceptance environment is available, also exercise uninstall/reinstall. Ordinary install, upgrade, repair and uninstall must not remove durable application data. **Any silent data reset, authority reset, lost archive or forced re-pair caused only by installer operations is FAIL.**
 
-**Owner result/date/evidence:** Pending owner execution.
+**Owner result/date/evidence:** PASS on prior candidate `33145cf796e939741255f7599dc8174df9d7d083` / artifact `10860083727`; evidence comment `OWNER_ACCEPTANCE_EVIDENCE: M13-FINAL-A-B-20260925`. This does not certify the repaired candidate.
 
 ### C — small authoritative business smoke
 
@@ -61,13 +61,13 @@ On a safe test profile where this device is confirmed authoritative:
 
 Do not perform refund execution or use Disaster Recovery as a routine smoke step. A non-authoritative device remains read-only for business writes.
 
-**Owner result/date/evidence:** Pending owner execution.
+**Owner result/date/evidence:** PASS on prior candidate `33145cf796e939741255f7599dc8174df9d7d083` / artifact `10860083727`; evidence comment `OWNER_ACCEPTANCE_EVIDENCE: M13-FINAL-C-20260925`. This does not certify the repaired candidate.
 
 ### D — French / Simplified Chinese review
 
 Switch **FR → zh-CN → FR** and inspect the major surfaces used in the smoke: Caisse/order lifecycle, Catalogue/Paramètres, Gestion export, authority/recovery controls, archive access/reprint, and relevant confirmations/errors. Record any wrong-language hard-coded text, garbling or operationally significant clipping. Confirm entered catalogue, customer and order data did not change when the display language changed.
 
-**Owner result/date/evidence:** Pending owner execution.
+**Owner result/date/evidence:** FAIL on prior candidate `33145cf796e939741255f7599dc8174df9d7d083` / artifact `10860083727`; evidence comment `OWNER_ACCEPTANCE_FAILURE: M13-FINAL-D-LANGUAGE-STATUS-20260925`. The repaired exact-candidate re-test is pending; do not mark PASS until the owner performs it.
 
 ### E — retained Gestion export behavior
 
@@ -77,13 +77,13 @@ Switch **FR → zh-CN → FR** and inspect the major surfaces used in the smoke:
 
 Do not manually delete export history or database rows.
 
-**Owner result/date/evidence:** Pending owner execution.
+**Owner result/date/evidence:** Paused pending controller review and the repaired-candidate Section D re-test.
 
 ### F — operating guide
 
 Open [`../operating-guide.md`](../operating-guide.md) and confirm it matches the installed UI, labels and supported day-to-day workflows.
 
-**Owner result/date/evidence:** Pending owner execution.
+**Owner result/date/evidence:** Paused pending controller review and the repaired-candidate Section D re-test.
 
 ## 4. M12 deferred archive verification remains separate
 

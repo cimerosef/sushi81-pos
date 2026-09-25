@@ -31,8 +31,9 @@ public sealed class AnnualArchiveAccessViewModel(
     private string fromDateText = string.Empty;
     private string toDateText = string.Empty;
     private ArchiveStatusOption? selectedStatus;
-    private string statusMessage = string.Empty;
-    private string errorMessage = string.Empty;
+    private LocalizedMessageState? statusMessageState;
+    private LocalizedMessageState? errorMessageState;
+    private LocalizedMessageState? printStatusMessageState;
     private bool isBusy;
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>(StringComparer.Ordinal);
     private long discoveryGeneration;
@@ -125,17 +126,9 @@ public sealed class AnnualArchiveAccessViewModel(
         set { if (!ReferenceEquals(selectedStatus, value)) { selectedStatus = value; OnPropertyChanged(); } }
     }
 
-    public string StatusMessage
-    {
-        get => statusMessage;
-        private set { if (statusMessage != value) { statusMessage = value; OnPropertyChanged(); } }
-    }
+    public string StatusMessage => statusMessageState?.Render(localized) ?? string.Empty;
 
-    public string ErrorMessage
-    {
-        get => errorMessage;
-        private set { if (errorMessage != value) { errorMessage = value; OnPropertyChanged(); } }
-    }
+    public string ErrorMessage => errorMessageState?.Render(localized) ?? string.Empty;
 
     public bool IsBusy
     {
@@ -152,7 +145,7 @@ public sealed class AnnualArchiveAccessViewModel(
         && SelectedRow.Id == SelectedOrder.Id
         && !IsBusy;
 
-    public string PrintStatusMessage { get; private set; } = string.Empty;
+    public string PrintStatusMessage => printStatusMessageState?.Render(localized) ?? string.Empty;
 
     public void ApplyLocalization(IReadOnlyDictionary<string, string> values)
     {
@@ -165,6 +158,9 @@ public sealed class AnnualArchiveAccessViewModel(
         SelectedStatus = StatusOptions.FirstOrDefault(option => option.Value == previous) ?? StatusOptions[0];
         OnPropertyChanged(nameof(CanExport));
         OnPropertyChanged(nameof(CanReprint));
+        OnPropertyChanged(nameof(StatusMessage));
+        OnPropertyChanged(nameof(ErrorMessage));
+        OnPropertyChanged(nameof(PrintStatusMessage));
     }
 
     public async Task ReprintSelectedAsync(PrintDocumentKind kind, CancellationToken cancellationToken = default)
@@ -177,21 +173,20 @@ public sealed class AnnualArchiveAccessViewModel(
         var orderId = snapshot.Id;
         var generation = selectionGeneration;
         BeginOperation();
-        SetPrintStatus(string.Empty);
+        SetPrintStatus(null);
         try
         {
             var result = await printService.ReprintAsync(snapshot, kind, cancellationToken);
             if (IsCurrentPrintSelection(generation, archiveYear, orderId))
             {
-                var message = result.Succeeded
-                    ? Text("OrderPrintSuccess", "The requested document was accepted by the printer.")
-                    : M03Presentation.Message(
+                var messageState = result.Succeeded
+                    ? LocalizedMessageState.Resource("OrderPrintSuccess", "The requested document was accepted by the printer.")
+                    : LocalizedMessageState.Issue(
                         new ValidationIssue(
                             kind == PrintDocumentKind.Kitchen ? "kitchen-print" : "customer-print",
                             result.OperatorMessage,
-                            result.Status == PrintOutcomeStatus.AmbiguousSubmission ? ValidationCodes.PrintAmbiguous : ValidationCodes.Generic),
-                        localized);
-                SetPrintStatus(message);
+                            result.Status == PrintOutcomeStatus.AmbiguousSubmission ? ValidationCodes.PrintAmbiguous : ValidationCodes.Generic));
+                SetPrintStatus(messageState);
             }
         }
         catch (OperationCanceledException) { throw; }
@@ -199,9 +194,8 @@ public sealed class AnnualArchiveAccessViewModel(
         {
             operationDiagnostics?.ReportUnexpectedFailure("archive-access.print", exception);
             if (IsCurrentPrintSelection(generation, archiveYear, orderId))
-                SetPrintStatus(M03Presentation.Message(
-                    new ValidationIssue(kind == PrintDocumentKind.Kitchen ? "kitchen-print" : "customer-print", string.Empty),
-                    localized));
+                SetPrintStatus(LocalizedMessageState.Issue(
+                    new ValidationIssue(kind == PrintDocumentKind.Kitchen ? "kitchen-print" : "customer-print", string.Empty)));
         }
         finally { EndOperation(); }
     }
@@ -216,7 +210,7 @@ public sealed class AnnualArchiveAccessViewModel(
         BeginOperation();
         try
         {
-            ErrorMessage = string.Empty;
+            SetErrorMessage(null);
             var archives = await access.DiscoverAsync(operation.Token);
             if (!IsCurrent(discoveryCancellation, operation, discoveryGeneration, generation)) return;
 
@@ -245,9 +239,9 @@ public sealed class AnnualArchiveAccessViewModel(
                 await RefreshOrdersAsync(operation.Token);
 
             if (!IsCurrent(discoveryCancellation, operation, discoveryGeneration, generation)) return;
-            StatusMessage = archives.Count == 0
-                ? Text("ArchiveNoArchives", "No validated annual archives are available.")
-                : string.Format(CultureInfo.CurrentCulture, Text("ArchiveAvailable", "{0} annual archive(s) available."), archives.Count);
+            SetStatusMessage(archives.Count == 0
+                ? LocalizedMessageState.Resource("ArchiveNoArchives", "No validated annual archives are available.")
+                : LocalizedMessageState.Resource("ArchiveAvailable", "{0} annual archive(s) available.", archives.Count));
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested && !cancellationToken.IsCancellationRequested) { }
         catch (OperationCanceledException) { throw; }
@@ -260,7 +254,7 @@ public sealed class AnnualArchiveAccessViewModel(
             SelectedArchive = null;
             SelectedRow = null;
             SelectedOrder = null;
-            ErrorMessage = Text("ArchiveAccessFailed", "Historical archive access failed.");
+            SetErrorMessage(LocalizedMessageState.Resource("ArchiveAccessFailed", "Historical archive access failed."));
         }
         finally
         {
@@ -295,11 +289,11 @@ public sealed class AnnualArchiveAccessViewModel(
             if (!TryReadDate(FromDateText, out var from) || !TryReadDate(ToDateText, out var to) || from is not null && to is not null && from > to)
             {
                 if (IsCurrentSearch(operation, generation, archiveYear))
-                    ErrorMessage = Text("ArchiveInvalidDateRange", "The historical date range is invalid.");
+                    SetErrorMessage(LocalizedMessageState.Resource("ArchiveInvalidDateRange", "The historical date range is invalid."));
                 return;
             }
 
-            ErrorMessage = string.Empty;
+            SetErrorMessage(null);
             var criteria = new AnnualArchiveSearchCriteria(SearchText, SelectedStatus?.Value, from, to);
             var rows = await access.SearchAsync(archiveYear!.Value, criteria, operation.Token);
             if (!IsCurrentSearch(operation, generation, archiveYear)) return;
@@ -318,7 +312,7 @@ public sealed class AnnualArchiveAccessViewModel(
                 Orders.Clear();
                 SelectedRow = null;
                 SelectedOrder = null;
-                ErrorMessage = Text("ArchiveAccessFailed", "Historical archive access failed.");
+                SetErrorMessage(LocalizedMessageState.Resource("ArchiveAccessFailed", "Historical archive access failed."));
             }
         }
         finally
@@ -339,18 +333,18 @@ public sealed class AnnualArchiveAccessViewModel(
     {
         if (SelectedArchive is null || string.IsNullOrWhiteSpace(destinationPath)) return null;
         BeginOperation();
-        ErrorMessage = string.Empty;
+        SetErrorMessage(null);
         try
         {
             var result = await access.CopyAsync(SelectedArchive.ArchiveYear, destinationPath, cancellationToken);
-            StatusMessage = string.Format(CultureInfo.CurrentCulture, Text("ArchiveCopySucceeded", "Archive copied to {0}."), result.DestinationPath);
+            SetStatusMessage(LocalizedMessageState.Resource("ArchiveCopySucceeded", "Archive copied to {0}.", result.DestinationPath));
             return result;
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception exception)
         {
             operationDiagnostics?.ReportUnexpectedFailure("archive-access.copy", exception);
-            ErrorMessage = Text("ArchiveCopyFailed", "The selected archive could not be copied.");
+            SetErrorMessage(LocalizedMessageState.Resource("ArchiveCopyFailed", "The selected archive could not be copied."));
             return null;
         }
         finally { EndOperation(); }
@@ -382,7 +376,7 @@ public sealed class AnnualArchiveAccessViewModel(
             if (IsCurrentDetail(operation, generation, archiveYear, orderId))
             {
                 SelectedOrder = null;
-                ErrorMessage = Text("ArchiveAccessFailed", "Historical archive access failed.");
+                SetErrorMessage(LocalizedMessageState.Resource("ArchiveAccessFailed", "Historical archive access failed."));
             }
         }
         finally
@@ -408,13 +402,24 @@ public sealed class AnnualArchiveAccessViewModel(
     private void SelectionChanged()
     {
         selectionGeneration++;
-        SetPrintStatus(string.Empty);
+        SetPrintStatus(null);
     }
 
-    private void SetPrintStatus(string value)
+    private void SetStatusMessage(LocalizedMessageState? state)
     {
-        if (PrintStatusMessage == value) return;
-        PrintStatusMessage = value;
+        statusMessageState = state;
+        OnPropertyChanged(nameof(StatusMessage));
+    }
+
+    private void SetErrorMessage(LocalizedMessageState? state)
+    {
+        errorMessageState = state;
+        OnPropertyChanged(nameof(ErrorMessage));
+    }
+
+    private void SetPrintStatus(LocalizedMessageState? state)
+    {
+        printStatusMessageState = state;
         OnPropertyChanged(nameof(PrintStatusMessage));
     }
 
