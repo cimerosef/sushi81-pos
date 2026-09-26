@@ -128,6 +128,8 @@ In Catalogue, maintain products, categories, prices, VAT, active status, Retrait
 
 In the XLSX `Products` sheet, VAT means percentage points: a plain number `5.5` means 5.5% (likewise `10` and `20`). Excel percentage-formatted numeric cells displaying `5.5%`, `10%` or `20%` are also accepted and converted to the same rates. For compatibility with Sushi81 legacy catalogue files, the three exact plain-numeric encodings `0.055`, `0.1` / `0.10`, and `0.2` / `0.20` are also normalized to canonical `5.5`, `10`, and `20`. This is not a general multiply-by-100 rule: other plain fractional values such as `0.15`, `0.5`, or `0.075` remain literal percentage points. Check representative VAT rows in the import preview before confirming.
 
+To repair an already populated authoritative B catalogue containing those three legacy values, install the repaired candidate on B while preserving its profile, export the **current** catalogue, then immediately import that exact export in Update mode. Confirm that the preview contains only VAT updates to the same existing products, with no creates or deletes, before committing. Verify representative 5.5/10/20 rates and unchanged product/category/option counts and identities; only then use the normal handoff to synchronize A if needed. Do not edit SQLite or reset the catalogue for this repair.
+
 ### Hiboutik paste fallback
 
 If Hiboutik server-side printing is unavailable, copy the complete product-detail block from the Hiboutik order email. In Caisse expand “Commande Hiboutik”, paste it and choose “Analyser la commande Hiboutik”. Resolve unknown lines using current catalogue product codes, enter the normal fulfilment details and review the POS price/options before confirmation.

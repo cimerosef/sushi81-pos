@@ -241,7 +241,7 @@ public sealed class CatalogueWorkbookIntegrationTests
     }
 
     [TestMethod]
-    public async Task VatImportNormalizesOnlyNumericCellsWithRealPercentageFormats()
+    public async Task VatImportNormalizesPercentageFormatsAndOnlyApprovedLegacyPlainValues()
     {
         using var workbook = new XLWorkbook(new MemoryStream(await WriteAsync(new CatalogueWorkbookExport([], Guid.NewGuid()))));
         var sheet = workbook.Worksheet("Products");
@@ -253,9 +253,14 @@ public sealed class CatalogueWorkbookIntegrationTests
             ("PERCENT-55", 0.055m, "0.0%", 5.5m),
             ("PERCENT-10", 0.10m, "0%", 10m),
             ("PERCENT-20", 0.20m, "0.00%", 20m),
-            ("PLAIN-FRACTION", 0.055m, "0.000", 0.055m),
-            ("LITERAL-PERCENT", 0.055m, "0.000\"%\"", 0.055m),
-            ("ESCAPED-PERCENT", 0.055m, "0.000\\%", 0.055m),
+            ("LEGACY-55", 0.055m, "0.000", 5.5m),
+            ("LEGACY-10", 0.10m, "0.00", 10m),
+            ("LEGACY-20", 0.20m, "0.00", 20m),
+            ("LITERAL-PERCENT", 0.055m, "0.000\"%\"", 5.5m),
+            ("ESCAPED-PERCENT", 0.055m, "0.000\\%", 5.5m),
+            ("OTHER-015", 0.15m, "0.00", 0.15m),
+            ("OTHER-05", 0.5m, "0.0", 0.5m),
+            ("OTHER-0075", 0.075m, "0.000", 0.075m),
         };
         for (var index = 0; index < cases.Length; index++)
         {
@@ -266,10 +271,11 @@ public sealed class CatalogueWorkbookIntegrationTests
             sheet.Cell(row, 6).Value = raw;
             if (format is not null) sheet.Cell(row, 6).Style.NumberFormat.Format = format;
         }
-        SetProductBusinessRow(sheet, 11, "BUILTIN-PERCENT", "Builtin", "Plats", "PL");
-        sheet.Cell(11, 9).Value = false;
-        sheet.Cell(11, 6).Value = 0.055m;
-        sheet.Cell(11, 6).Style.NumberFormat.NumberFormatId = 9;
+        var builtInRow = cases.Length + 2;
+        SetProductBusinessRow(sheet, builtInRow, "BUILTIN-PERCENT", "Builtin", "Plats", "PL");
+        sheet.Cell(builtInRow, 9).Value = false;
+        sheet.Cell(builtInRow, 6).Value = 0.055m;
+        sheet.Cell(builtInRow, 6).Style.NumberFormat.NumberFormatId = 9;
 
         await using var stream = new MemoryStream();
         workbook.SaveAs(stream);
@@ -335,6 +341,105 @@ public sealed class CatalogueWorkbookIntegrationTests
         var priced = OrderPricingService.Calculate(draft, BusinessSettings.Defaults(clock.UtcNow));
         Assert.IsTrue(priced.IsValid, string.Join(";", priced.ValidationErrors));
         Assert.AreEqual(5.5m, priced.TaxBreakdown.Single().VatRate);
+    }
+
+    [TestMethod]
+    public async Task BoundCurrentCatalogueExportRepairsOnlyLegacyVatOnTheSameProducts()
+    {
+        using var paths = new TempPaths();
+        var factory = new SqliteConnectionFactory(paths);
+        var clock = new FixedClock();
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var catalogue = new CatalogueService(store);
+        var category = (await catalogue.CreateCategoryWithCodeAsync("Plats", "PL")).Value!;
+        var cases = new (string Code, decimal Stored, decimal Expected)[]
+        {
+            ("LEGACY-55", 0.055m, 5.5m),
+            ("LEGACY-10", 0.1m, 10m),
+            ("LEGACY-20", 0.2m, 20m),
+            ("OTHER-015", 0.15m, 0.15m),
+            ("CANONICAL-55", 5.5m, 5.5m),
+        };
+        var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
+        foreach (var (code, stored, _) in cases)
+        {
+            var groups = code == "LEGACY-55"
+                ? new[] { new OptionGroupDraft(Guid.Empty, "Extras", SelectionMode.Multi, false, 0, 1, 0,
+                    [new OptionDraft(Guid.Empty, "Sauce", Money.FromCents(25), true, 0)]) }
+                : [];
+            var created = await catalogue.CreateProductAsync(new ProductDraft(
+                Guid.Empty, code, code, category.Id, Money.FromCents(100), stored, true, false, groups.Length > 0, groups));
+            Assert.IsTrue(created.Succeeded, created.ErrorMessage);
+            ids.Add(code, created.Value!);
+        }
+
+        var before = await store.ReadCatalogueWorkbookSnapshotAsync();
+        var originalGroupId = before.Single(value => value.Code == "LEGACY-55").OptionGroups.Single().OptionGroupId;
+        var originalOptionId = before.Single(value => value.Code == "LEGACY-55").OptionGroups.Single().Options.Single().OptionId;
+        await using var exported = new MemoryStream();
+        await new CatalogueWorkbookService(store, new ClosedXmlCatalogueWorkbookGateway()).ExportAsync(exported);
+        var bytes = exported.ToArray();
+        using (var workbook = new XLWorkbook(new MemoryStream(bytes)))
+        {
+            var sheet = workbook.Worksheet("Products");
+            foreach (var (code, stored, _) in cases)
+            {
+                var row = sheet.RowsUsed().Single(value => value.Cell(1).GetString() == code);
+                Assert.AreEqual(stored, row.Cell(6).GetValue<decimal>(), code);
+                Assert.AreEqual(ids[code].ToString("D"), row.Cell(11).GetString(), code);
+            }
+        }
+
+        var importer = new CatalogueImportService(
+            new ClosedXmlCatalogueWorkbookImportGateway(), store, store,
+            Sushi81.Pos.Application.Foundation.TestOnlyAuthoritativeGuard.Instance,
+            Sushi81.Pos.Application.Foundation.TestOnlyDurableChangeNotifier.Instance);
+        var preview = await importer.PreviewAsync(new MemoryStream(bytes), CatalogueImportMode.Update);
+        Assert.AreEqual(0, preview.Preview.ErrorCount, string.Join(";", preview.Preview.Issues.Select(issue => issue.Code)));
+        Assert.AreEqual(3, preview.Preview.ProductModifyCount);
+        Assert.AreEqual(0, preview.Preview.ProductCreateCount);
+        Assert.AreEqual(0, preview.Preview.NewCategoryCount);
+        Assert.AreEqual(0, preview.Preview.OptionGroupModifyCount);
+        Assert.AreEqual(0, preview.Preview.OptionModifyCount);
+        Assert.IsNotNull(preview.Plan);
+        Assert.HasCount(3, preview.Plan.Operations);
+        foreach (var (code, _, expected) in cases.Take(3))
+        {
+            var operation = preview.Plan.Operations.Single(value => value.EntityId == ids[code]);
+            Assert.AreEqual(CatalogueImportEntityType.Product, operation.EntityType);
+            Assert.AreEqual(CatalogueImportOperationKind.Modify, operation.Kind);
+            Assert.AreEqual(expected.ToString(System.Globalization.CultureInfo.InvariantCulture), operation.Values["vatRate"]);
+        }
+
+        var committed = await importer.CommitAsync(preview);
+        Assert.IsTrue(committed.Succeeded, string.Join(";", committed.Issues.Select(issue => issue.Code)));
+        Assert.IsTrue(committed.Changed);
+        var after = await store.ReadCatalogueWorkbookSnapshotAsync();
+        Assert.HasCount(before.Count, after);
+        foreach (var (code, _, expected) in cases)
+        {
+            var product = after.Single(value => value.Code == code);
+            Assert.AreEqual(ids[code], product.ProductId);
+            Assert.AreEqual(category.Name, product.CategoryName);
+            Assert.AreEqual(expected, product.VatRate, code);
+            Assert.HasCount(before.Single(value => value.Code == code).OptionGroups.Count, product.OptionGroups);
+        }
+        Assert.AreEqual(originalGroupId, after.Single(value => value.Code == "LEGACY-55").OptionGroups.Single().OptionGroupId);
+        Assert.AreEqual(originalOptionId, after.Single(value => value.Code == "LEGACY-55").OptionGroups.Single().Options.Single().OptionId);
+        Assert.HasCount(1, await store.ListCategoriesAsync());
+
+        foreach (var (code, _, expected) in cases.Take(3))
+        {
+            var selected = await new OrderEntryCatalogueService(store).GetActiveProductAsync(ids[code]);
+            Assert.IsNotNull(selected);
+            var draft = new NewOrderDraft(
+                [new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [], 1, selected.CategoryName)],
+                FulfilmentMode.Retrait, clock.BusinessDate, new TimeOnly(12, 0), null, null, null, false);
+            var priced = OrderPricingService.Calculate(draft, BusinessSettings.Defaults(clock.UtcNow));
+            Assert.IsTrue(priced.IsValid, string.Join(";", priced.ValidationErrors));
+            Assert.AreEqual(expected, priced.TaxBreakdown.Single().VatRate, code);
+        }
     }
 
     [TestMethod]

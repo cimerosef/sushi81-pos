@@ -287,9 +287,22 @@ public sealed class ClosedXmlCatalogueWorkbookImportGateway : ICatalogueWorkbook
     private static decimal? ReadVatRate(IXLCell cell, List<CatalogueImportIssue> issues, string worksheet, int row)
     {
         var value = ReadDecimal(cell, issues, worksheet, row, "vat_rate");
-        if (value is null || cell.DataType != XLDataType.Number || !HasPercentageNumberFormat(cell)) return value;
-        try { return checked(value.Value * 100m); }
-        catch (OverflowException) { AddError(issues, "invalid-scalar", "VAT percentage value is invalid.", worksheet, row, "vat_rate"); return null; }
+        if (value is null || cell.DataType != XLDataType.Number) return value;
+        if (HasPercentageNumberFormat(cell))
+        {
+            try { return checked(value.Value * 100m); }
+            catch (OverflowException) { AddError(issues, "invalid-scalar", "VAT percentage value is invalid.", worksheet, row, "vat_rate"); return null; }
+        }
+
+        // Only the three approved legacy plain-numeric encodings are fractions.
+        // Decimal equality also matches values written with trailing zeroes.
+        return value.Value switch
+        {
+            0.055m => 5.5m,
+            0.1m => 10m,
+            0.2m => 20m,
+            _ => value,
+        };
     }
 
     private static bool HasPercentageNumberFormat(IXLCell cell)
