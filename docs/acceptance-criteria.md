@@ -7,6 +7,8 @@
 
 **Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` amends the storage/handoff acceptance contract below. `docs/decisions/github-handoff-transport.md` makes a dedicated private GitHub Release Asset API the normal handoff transport and server acknowledgement path. `docs/decisions/m12-local-archive-and-user-selected-export.md` moves annual archives to local application-managed storage and removes OneDrive from annual archive completion/access while preserving OneDrive Disaster Recovery. `docs/decisions/filtered-catalogue-bulk-activation.md` adds AC-CAT-013 for filtered current-catalogue bulk activation/deactivation. `docs/acceptance-criteria-amendment-post-m09-hiboutik-daily-payment-dashboard.md` adds AC-HIB-010 and clarifies the ordinary POS summary boundary.
 
+The Approved M13 Gestion export retention/compaction criteria are defined in `docs/acceptance-criteria-amendment-m13-gestion-export-retention.md` (AC-EXP-012 through AC-EXP-016), controlled by `docs/decisions/m13-gestion-export-ledger-retention-compaction.md`. They are part of this final V1 acceptance baseline.
+
 ## 1. Acceptance principle
 
 This document defines the minimum observable and testable conditions that a Sushi81 POS V1 implementation must satisfy before production use.
@@ -847,6 +849,10 @@ V1 may be accepted for production preparation only when:
 4. no unresolved contradiction exists between implementation and the frozen/amended V1 specification;
 5. no test fixture or repository artifact contains unsanitized production customer/business secrets.
 
-This document is the **Approved — Phase 5 acceptance baseline for the frozen V1 Specification, amended 2026-08-28 for target-directed authority handoff and GitHub Release Asset transport**.
+## 14. M13 full business-data reset amendment
+
+The owner-approved reset contract is recorded in `docs/decisions/m13-full-business-data-reset.md`. Acceptance requires the authority guard, count-only preview, cancel/no-mutation path, exact `RESET` plus separate final confirmation, retained private backup, failure recovery, approved reset scope and preservation of pairing, authority, configuration, business settings, printer selections, language and recovery material. Codex automated coverage must use synthetic data; live business data must never be reset for automated validation.
+
+This document is the **Approved — Phase 5 acceptance baseline for the frozen V1 Specification**, supplemented by approved post-freeze acceptance amendments, including the M13 Gestion export retention/compaction amendment dated 2026-09-23 and the owner-approved M13 full business-data reset amendment dated 2026-09-26.
 
 Codex implementation must treat these criteria as the acceptance contract. Any future behavior change that conflicts with them requires an explicit approved specification amendment; implementation must not silently waive a criterion by reproducing legacy VBA behavior that the approved V1 specification intentionally replaced.

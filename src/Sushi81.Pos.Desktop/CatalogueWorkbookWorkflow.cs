@@ -198,7 +198,17 @@ public sealed class CatalogueWorkbookWorkflowViewModel : INotifyPropertyChanged
             row.Worksheet,
             row.ExcelRow,
             LocalizeEntity(row.EntityType),
-            string.Join(", ", row.Operations.Select(LocalizeOperation)))).ToArray() ?? [];
+            FormatAffectedRowActions(row))).ToArray() ?? [];
+
+    private string FormatAffectedRowActions(CatalogueImportAffectedRow row)
+    {
+        var actions = string.Join(", ", row.Operations.Select(LocalizeOperation));
+        if (row.EntityType != CatalogueImportEntityType.Product) return actions;
+        var operation = preview?.Plan?.Operations.FirstOrDefault(value =>
+            value.EntityType == CatalogueImportEntityType.Product && value.ExcelRow == row.ExcelRow && value.Worksheet == row.Worksheet);
+        if (operation is null || !operation.Values.TryGetValue("vatRate", out var vatRate) || string.IsNullOrWhiteSpace(vatRate)) return actions;
+        return $"{actions}, {Read("Vat", "VAT")} {vatRate}%";
+    }
 
     public bool CanConfirm => !busy
         && !commitAttempted

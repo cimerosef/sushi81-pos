@@ -1,7 +1,7 @@
 # Export to Gestion SUSHI 81
 
-**Status:** Approved — Phase 4 baseline, amended for M11  
-**Last updated:** 2026-09-20  
+**Status:** Approved — Phase 4 baseline, amended for M11 and M13 retention  
+**Last updated:** 2026-09-24  
 **Product:** Sushi81 POS  
 **Purpose:** Define the reliable export of eligible Sushi81 POS orders and sales detail into a controlled intermediate file for the downstream `Gestion SUSHI 81` workflow.
 
@@ -361,8 +361,23 @@ The Phase 4 export design is frozen:
 - intermediate schema is versioned and independent from the current Gestion workbook layout;
 - successful batches can be regenerated exactly without inventing a new business export action.
 
-## 14. Approval
+## 14. M13 retention and compaction amendment
 
-**Approved — Phase 4 baseline, amended by the approved M11 clarification dated 2026-09-20.**
+The Approved M13 retention contract is controlled by `docs/decisions/m13-gestion-export-ledger-retention-compaction.md` and `docs/acceptance-criteria-amendment-m13-gestion-export-retention.md`.
+
+It does not alter the workbook schema or CREATE/UPDATE/CANCEL meanings. It adds lifecycle rules for durable export state:
+
+- unresolved PREPARED/pending/unemitted work is never pruned;
+- live orders retain the last-successful state required for duplicate protection and correction decisions;
+- archived-order state is cleanup-eligible only after completed annual archival, after unresolved work is resolved, and only when no still-live decision can be affected;
+- full successful-batch payload/exact-regeneration history is retained for at least 30 days after success;
+- successful history lists only retained/rebuildable batches;
+- cleanup is transactional, idempotent, failure-safe, foreign-key safe and authority-safe.
+
+A dependency may extend retention beyond 30 days. V1 does not require a manual destructive cleanup button.
+
+## 15. Approval
+
+**Approved — Phase 4 baseline, amended by the approved M11 clarification dated 2026-09-20 and the M13 retention/compaction amendment dated 2026-09-23.**
 
 All material V1 export business rules and the POS-side intermediate-file contract are frozen/amended. Downstream import into `Gestion SUSHI 81` may evolve independently as long as it respects the versioned export contract.

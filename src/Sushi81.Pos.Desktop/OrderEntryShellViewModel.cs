@@ -150,6 +150,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private readonly OrderEntryService service;
     private readonly IWriteAuthorityGuard? authorityGuard;
     private readonly HiboutikImportOrchestrator? hiboutikImportOrchestrator;
+    private readonly DesktopOperationDiagnostics? diagnostics;
     private readonly Dictionary<int, OrderEntryCartLineViewModel> hiboutikCartLines = [];
     private readonly HashSet<int> removedHiboutikCartLineSourceNumbers = [];
     private HiboutikImportSession? hiboutikImportSession;
@@ -175,6 +176,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private OrderPricingResult? pricing;
     private string validationMessage = string.Empty;
     private IReadOnlyList<ValidationIssue>? activeValidationIssues;
+    private LocalizedMessageState? validationMessageState;
+    private LocalizedMessageState? committedMessageState;
     private bool pricingValidationActive;
     private bool renderingValidationMessage;
     private string committedMessage = string.Empty;
@@ -205,11 +208,12 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     private string quantityLabel = "Quantité";
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>(StringComparer.Ordinal);
 
-    public OrderEntryShellViewModel(OrderEntryService service, IWriteAuthorityGuard? authorityGuard = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null)
+    public OrderEntryShellViewModel(OrderEntryService service, IWriteAuthorityGuard? authorityGuard = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, DesktopOperationDiagnostics? diagnostics = null)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
         this.authorityGuard = authorityGuard;
         this.hiboutikImportOrchestrator = hiboutikImportOrchestrator;
+        this.diagnostics = diagnostics;
         Categories = new ObservableCollection<CategorySummary>();
         Products = new ObservableCollection<ProductSummary>();
         Cart = new ObservableCollection<OrderEntryCartLineViewModel>();
@@ -289,6 +293,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         foreach (var line in HiboutikLines) line.ApplyLocalization(localized);
         if (pricingValidationActive) RenderPricingValidationMessage();
         else if (activeValidationIssues is { Count: > 0 }) RenderValidationIssues();
+        else if (validationMessageState is not null) RenderValidationMessage(validationMessageState.Render(localized));
+        OnPropertyChanged(nameof(CommittedMessage));
         OnPropertyChanged(nameof(AllCategoriesLabel));
         OnPropertyChanged(nameof(SelectedFulfilment));
         OnPropertyChanged(nameof(SelectedPlannedHour));
@@ -448,7 +454,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         ClearHiboutikImport(removeCartLines: true);
         Cart.Clear(); SelectedCartLine = null; selectedFulfilment = null; plannedDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue); plannedTime = null; selectedPlannedHour = null; selectedPlannedMinute = null;
         telephone = source.Telephone ?? string.Empty; deliveryAddress = source.DeliveryAddress ?? string.Empty; comment = source.Comment ?? string.Empty; pickupDiscountRequested = false; manualTotalOverride = null; pricing = null; totalText = "0.00"; isCommitted = false; reloadOrderIdText = string.Empty; reloadedOrder = null;
-        activeValidationIssues = null; pricingValidationActive = false;
+        activeValidationIssues = null; validationMessageState = null; pricingValidationActive = false;
         OnPropertyChanged(string.Empty); _ = RepriceAsync(clearManualOverride: true);
     }
     public bool PlannedTimeValid => (SelectedPlannedHour is null && SelectedPlannedMinute is null)
@@ -464,12 +470,13 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             if (!renderingValidationMessage)
             {
                 activeValidationIssues = null;
+                validationMessageState = null;
                 pricingValidationActive = false;
             }
             OnPropertyChanged();
         }
     }
-    public string CommittedMessage { get => committedMessage; private set { committedMessage = value; OnPropertyChanged(); } }
+    public string CommittedMessage => committedMessageState?.Render(localized) ?? string.Empty;
     public string ReloadOrderIdText { get => reloadOrderIdText; set { reloadOrderIdText = value ?? string.Empty; OnPropertyChanged(); } }
     public OrderSnapshot? ReloadedOrder
     {
@@ -533,7 +540,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         catch (Exception exception) when (throwOnFailure || IsCurrent(request))
         {
             if (throwOnFailure) throw;
-            ValidationMessage = exception.Message;
+            diagnostics?.ReportUnexpectedFailure("order-entry.refresh", exception);
+            SetLocalizedValidationMessage("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         }
         finally { EndRefresh(request); PerformanceTrace.Log("entry.refresh.end"); }
     }
@@ -585,7 +593,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         catch (Exception exception) when (throwOnFailure || IsCurrentBrowserRefresh(request))
         {
             if (throwOnFailure) throw;
-            ValidationMessage = exception.Message;
+            diagnostics?.ReportUnexpectedFailure("order-entry.browser-refresh", exception);
+            SetLocalizedValidationMessage("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         }
         finally { EndBrowserRefresh(request); PerformanceTrace.Log("entry.browser-refresh.end"); }
     }
@@ -624,8 +633,9 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         catch (Exception exception) when (throwOnFailure || IsCurrentBrowserSelection(request))
         {
             if (throwOnFailure) throw;
+            diagnostics?.ReportUnexpectedFailure("order-entry.browser-selection", exception);
             ReloadedOrder = null;
-            ValidationMessage = exception.Message;
+            SetLocalizedValidationMessage("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         }
         finally { EndBrowserSelection(request); PerformanceTrace.Log("entry.browser-selection.end"); }
     }
@@ -634,7 +644,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     {
         if (SelectedProduct is not { } selected || IsCommitted) return;
         var product = await service.GetActiveProductAsync(selected.Id, cancellationToken);
-        if (product is null) { ValidationMessage = Localized("ProductInactive", "Le produit n’est plus actif."); return; }
+        if (product is null) { SetLocalizedValidationMessage("ProductInactive", "Le produit n’est plus actif."); return; }
         PendingProduct = product;
         OnPropertyChanged(nameof(PendingProduct));
     }
@@ -674,7 +684,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return false; }
-        catch (Exception exception) { ValidationMessage = exception.Message; return false; }
+        catch (Exception exception) { diagnostics?.ReportUnexpectedFailure("order-entry.hiboutik-import-start", exception); SetLocalizedValidationMessage("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); return false; }
         finally { if (!disposed) IsBusy = false; }
     }
 
@@ -755,7 +765,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         {
             manualTotalOverride = null;
             TotalText = (pricing?.TotalTtc ?? Money.Zero).Euros.ToString("0.00", CultureInfo.CurrentCulture);
-            ValidationMessage = Localized("InvalidManualTotal", "Le total TTC saisi est invalide.");
+            SetLocalizedValidationMessage("InvalidManualTotal", "Le total TTC saisi est invalide.");
             _ = RepriceAsync(clearManualOverride: true);
             return;
         }
@@ -764,7 +774,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         {
             manualTotalOverride = null;
             TotalText = (pricing?.TotalTtc ?? Money.Zero).Euros.ToString("0.00", CultureInfo.CurrentCulture);
-            ValidationMessage = Localized("InvalidManualTotal", "Le total TTC saisi est invalide.");
+            SetLocalizedValidationMessage("InvalidManualTotal", "Le total TTC saisi est invalide.");
             _ = RepriceAsync(clearManualOverride: true);
             return;
         }
@@ -782,7 +792,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             ApplyPricing(result);
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
-        catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; OnPropertyChanged(nameof(CanConfirm)); }
+        catch (Exception exception) when (IsCurrent(request)) { diagnostics?.ReportUnexpectedFailure("order-entry.reprice", exception); SetLocalizedValidationMessage("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); OnPropertyChanged(nameof(CanConfirm)); }
         finally { EndPrice(request); }
     }
 
@@ -856,10 +866,12 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
                     catch (OperationCanceledException) when (operationToken.IsCancellationRequested) { throw; }
                 }
             }
-            CommittedMessage = result.HasOutputFailure
-                ? string.Format(CultureInfo.CurrentCulture, Localized("OrderSavedOutputFailed", "Commande {0} enregistrée ; l’envoi de sortie a échoué."), committedLabel)
-                : string.Format(CultureInfo.CurrentCulture, Localized("OrderSaved", "Commande {0} enregistrée."), committedLabel);
-            ValidationMessage = result.HasOutputFailure ? string.Join(Environment.NewLine, result.Issues.Select(LocalizeIssue)) : string.Empty;
+            committedMessageState = result.HasOutputFailure
+                ? LocalizedMessageState.Resource("OrderSavedOutputFailed", "Commande {0} enregistrée ; l’envoi de sortie a échoué.", committedLabel)
+                : LocalizedMessageState.Resource("OrderSaved", "Commande {0} enregistrée.", committedLabel);
+            OnPropertyChanged(nameof(CommittedMessage));
+            if (result.HasOutputFailure) SetValidationIssues(result.Issues);
+            else ValidationMessage = string.Empty;
             return result;
         }
         catch (OperationCanceledException) when (disposed || lifetimeCancellation.IsCancellationRequested) { return null; }
@@ -890,7 +902,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
                 Issues = output.Issues,
                 Output = output
             };
-            ValidationMessage = output.Succeeded ? string.Empty : string.Join(Environment.NewLine, output.Issues.Select(LocalizeIssue));
+            if (output.Succeeded) ValidationMessage = string.Empty;
+            else SetValidationIssues(output.Issues);
             RaiseInitialRetryProperties();
         }
         catch (OperationCanceledException) when (disposed || lifetimeCancellation.IsCancellationRequested) { }
@@ -902,9 +915,9 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     public async Task<bool> ReloadOrderAsync(CancellationToken cancellationToken = default)
     {
-        if (!Guid.TryParse(ReloadOrderIdText.Trim(), out var id)) { ReloadedOrder = null; ValidationMessage = Localized("InvalidOrderId", "Identifiant de commande invalide."); return false; }
+        if (!Guid.TryParse(ReloadOrderIdText.Trim(), out var id)) { ReloadedOrder = null; SetLocalizedValidationMessage("InvalidOrderId", "Identifiant de commande invalide."); return false; }
         ReloadedOrder = await service.GetOrderByIdAsync(id, cancellationToken);
-        if (ReloadedOrder is null) ValidationMessage = Localized("OrderNotFound", "Commande introuvable.");
+        if (ReloadedOrder is null) SetLocalizedValidationMessage("OrderNotFound", "Commande introuvable.");
         else ValidationMessage = string.Empty;
         return ReloadedOrder is not null;
     }
@@ -932,7 +945,8 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         pricingValidationActive = false;
         totalText = "0.00";
         validationMessage = string.Empty;
-        committedMessage = string.Empty;
+        committedMessageState = null;
+        OnPropertyChanged(nameof(CommittedMessage));
         reloadOrderIdText = string.Empty;
         reloadedOrder = null;
         isCommitted = false;
@@ -989,6 +1003,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
         for (var index = 0; index < Math.Min(Cart.Count, pricing.Lines.Count); index++) Cart[index].SetLineTotal(pricing.Lines[index].CalculatedLineTotalTtc);
         if (hiboutikImportSession is { CanConfirm: false } importSession)
         {
+            validationMessageState = null;
             pricingValidationActive = false;
             activeValidationIssues = importSession.Blockers.Select(blocker => new ValidationIssue("import", blocker.Message, blocker.Code)).ToArray();
             RenderValidationIssues();
@@ -997,6 +1012,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             OnPropertyChanged(nameof(CanConfirm));
             return;
         }
+        validationMessageState = null;
         pricingValidationActive = true;
         activeValidationIssues = null;
         RenderPricingValidationMessage();
@@ -1007,6 +1023,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     private void SetValidationIssues(IReadOnlyList<ValidationIssue> issues)
     {
+        validationMessageState = null;
         activeValidationIssues = issues;
         pricingValidationActive = false;
         if (issues.Count == 0) ValidationMessage = string.Empty;
@@ -1017,6 +1034,14 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
     {
         if (activeValidationIssues is not { Count: > 0 }) return;
         RenderValidationMessage(string.Join(Environment.NewLine, activeValidationIssues.Select(LocalizeIssue)));
+    }
+
+    private void SetLocalizedValidationMessage(string key, string fallback)
+    {
+        activeValidationIssues = null;
+        pricingValidationActive = false;
+        validationMessageState = LocalizedMessageState.Resource(key, fallback);
+        RenderValidationMessage(validationMessageState.Render(localized));
     }
 
     private void RenderPricingValidationMessage()
@@ -1095,6 +1120,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     private string LocalizeIssue(ValidationIssue issue)
     {
+        if (issue.Field == "output") return Localized("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         if (issue.Field is "kitchen-print" or "customer-print")
             return M03Presentation.Message(issue, localized);
         return issue.StableCode switch
@@ -1405,7 +1431,7 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
             ApplyProducts(products);
         }
         catch (OperationCanceledException) when (request.Cancellation.IsCancellationRequested) { }
-        catch (Exception exception) when (IsCurrent(request)) { ValidationMessage = exception.Message; }
+        catch (Exception exception) when (IsCurrent(request)) { diagnostics?.ReportUnexpectedFailure("order-entry.products-refresh", exception); SetLocalizedValidationMessage("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."); }
         finally { EndRefresh(request); PerformanceTrace.Log("entry.products-refresh.end"); }
     }
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

@@ -355,6 +355,10 @@ Because the underlying web sale already exists in Hiboutik, the hidden source di
 
 This section incorporates and is subordinate to the later approved Phase 4 rules in `paste-order-import.md` and `docs/decisions/hiboutik-paste-simplification.md`.
 
+### 4.15 M13 full business-data reset
+
+The owner-approved full business-data reset is a protected maintenance exception governed by [`docs/decisions/m13-full-business-data-reset.md`](decisions/m13-full-business-data-reset.md). It is not an order lifecycle transition or per-order deletion. Ordinary cancellation continues to retain the order and payment facts. No installer, recovery, authority-transfer or troubleshooting flow may reset business data.
+
 ## 5. Lifecycle features explicitly not required in V1
 
 Unless a later approved specification amendment reintroduces them, V1 does not include:

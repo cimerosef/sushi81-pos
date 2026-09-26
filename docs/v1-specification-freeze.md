@@ -233,7 +233,28 @@ The amendment freezes:
 
 Archive-year rules, authority boundaries, historical snapshots/reprinting and M11 pending-export preservation remain unchanged.
 
-## 14. Authority and conflict rule for implementation
+## 14. Post-freeze amendment — M13 Gestion export ledger retention/compaction (2026-09-23)
+
+The project owner approved a final V1 data-retention requirement for the M11 Gestion export ledger as part of M13.
+
+The controlling records are:
+
+- `docs/decisions/m13-gestion-export-ledger-retention-compaction.md`;
+- `docs/acceptance-criteria-amendment-m13-gestion-export-retention.md`;
+- aligned M13 implementation controls.
+
+The amendment freezes:
+
+- unresolved PREPARED/pending/unemitted CREATE/UPDATE/CANCEL work is never pruned;
+- while an order remains live, required last-successful export state remains available for duplicate protection and later UPDATE/CANCEL semantics;
+- archived-order export state becomes cleanup-eligible only after the order leaves the live set through completed M12 archival, no unresolved work remains and no still-live decision can be affected;
+- complete immutable successful-batch payload/exact-regeneration history is retained for at least 30 days after successful completion;
+- legitimately pruned successful batches are no longer presented as regenerable history;
+- compaction is transactional, idempotent, failure-safe, foreign-key safe and preserves authority/recovery/handoff invariants.
+
+The implementation may retain state longer when a dependency remains; it must not prune earlier than the Approved safety boundary.
+
+## 15. Authority and conflict rule for implementation
 
 Codex and other implementation agents must use the frozen-and-amended GitHub specification rather than prior chat memory or legacy VBA behavior.
 
@@ -250,7 +271,7 @@ Pure implementation details preserving approved semantics may be selected autono
 
 **reliability > simplicity > maintainability > operational clarity > novelty.**
 
-## 15. Change-control rule after freeze
+## 16. Change-control rule after freeze
 
 The V1 Specification is a baseline, not an immutable historical artifact.
 
@@ -258,21 +279,22 @@ A future necessary change is allowed, but any change that alters frozen product/
 
 Approved post-freeze amendments above demonstrate this process.
 
-## 16. Current exit condition
+## 17. Current exit condition
 
 **Phase 5 remains complete.**
 
 Phase 6 implementation is active.
 
-Current state as of 2026-09-21:
+Current state as of 2026-09-24:
 
 - M01 through M11: Passed / merged;
-- current authoritative `main`: M11 merge commit `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`;
-- M11 accepted runtime candidate: `77ccecf9d947462e96e74b8aa1d99ced30e3788e`;
-- M11 controller closure: PR #24 comment `5762784303`; merge completion: comment `5762846107`;
-- M11 post-merge CI #821 / run `35617254203`: SUCCESS, 831/831 passed, 0 failed, 0 skipped, Release build 0 warnings / 0 errors;
-- M12 Annual archive and historical access: owner-authorized on `codex/m12-annual-archive-authorized` / Draft PR #25; the 2026-09-21 local-archive amendment is Approved and removes OneDrive from annual archive publication/access;
-- M12 WP1 remains the first implementation package; later WP2 uses local canonical archive promotion/validation before live removal rather than OneDrive acknowledgement;
-- M13 remains unauthorized.
+- current authoritative `main`: M12 merge commit `f59663c6b47ab21114c24360544e4e25094f4722`;
+- M12 PR #25: CLOSED / MERGED;
+- M12 final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3`; CI #862 / run `36021889765`: SUCCESS, 881/881 passed, 0 failed, 0 skipped, Release build 0 warnings / 0 errors;
+- M12 post-merge CI #863 / run `36023054757`: build-and-test SUCCESS;
+- M12 is controller-accepted/merged under the explicit owner waiver; real populated-archive operational verification remains deferred and is not claimed Passed;
+- M13 is owner-authorized in preparation on `codex/m13-installer-final-acceptance-authorized`;
+- the Approved M13 export-ledger retention/compaction amendment is part of the frozen-and-amended V1 baseline;
+- GitHub currently reports the source repository as public, conflicting with the project's private-repository expectation; this repository-safety discrepancy blocks executable M13 work.
 
-Issue #4 remains the sole live execution switch. Preparation, a `CODEX_DONE`, controller acceptance or M12 package completion does not authorize the next package, merge or M13.
+Issue #4 remains the sole live execution switch and is currently CLOSED. No executable M13 handoff exists until the repository-safety discrepancy is resolved.

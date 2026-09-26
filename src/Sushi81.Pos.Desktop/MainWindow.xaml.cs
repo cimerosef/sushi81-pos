@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -14,6 +15,7 @@ using Sushi81.Pos.Application.Pairing.SystemMetadata;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Application.Printing;
+using Sushi81.Pos.Application.Maintenance;
 using Sushi81.Pos.Domain;
 using Sushi81.Pos.Infrastructure.Configuration;
 using DomainSelectionMode = Sushi81.Pos.Domain.SelectionMode;
@@ -78,8 +80,9 @@ public partial class MainWindow : Window
         {
             targets = await runtime.GetEligibleTransferTargetsAsync();
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            ReportUnexpectedFailure(exception);
             ShowCloseFailure(viewModel);
             return new MainWindowCloseRequest(MainWindowCloseIntent.Cancel);
         }
@@ -153,7 +156,7 @@ public partial class MainWindow : Window
                  PerformanceTrace.Log("m12.archive-access.end");
              }
         }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception exception) { ReportUnexpectedFailure(exception); MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
         ApplyCatalogueHeaders();
     }
 
@@ -178,7 +181,7 @@ public partial class MainWindow : Window
             ApplySelectedCultureToGestionExportDatePickers(viewModel);
             ApplyCatalogueHeaders();
         }
-        catch { MessageBox.Show(this, viewModel.LanguageSaveFailure, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception exception) { ReportUnexpectedFailure(exception); MessageBox.Show(this, viewModel.LanguageSaveFailure, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private async void OnJoinExistingLineage(object sender, RoutedEventArgs e)
@@ -192,8 +195,9 @@ public partial class MainWindow : Window
             await viewModel.JoinExistingLineageAsync(dialog.DisplayName);
             MessageBox.Show(this, LocalizedText(this, "JoinSucceeded", "This computer is paired read-only."), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
-        catch
+        catch (Exception exception)
         {
+            ReportUnexpectedFailure(exception);
             MessageBox.Show(this, LocalizedText(this, "M07JoinFailed", "Pairing could not complete. This device remains read-only."), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -208,8 +212,9 @@ public partial class MainWindow : Window
                 MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (OperationCanceledException) { }
-        catch
+        catch (Exception exception)
         {
+            ReportUnexpectedFailure(exception);
             MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -224,8 +229,9 @@ public partial class MainWindow : Window
                 MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (OperationCanceledException) { }
-        catch
+        catch (Exception exception)
         {
+            ReportUnexpectedFailure(exception);
             MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -249,8 +255,9 @@ public partial class MainWindow : Window
                 MessageBox.Show(this, viewModel.GetLocalizedDisasterRecoveryResult(result), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (OperationCanceledException) { }
-        catch
+        catch (Exception exception)
         {
+            ReportUnexpectedFailure(exception);
             MessageBox.Show(this, viewModel.Localized["M07OperationFailed"], viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -267,8 +274,9 @@ public partial class MainWindow : Window
                 MessageBox.Show(this, viewModel.GetLocalizedDisasterRecoveryResult(result), viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (OperationCanceledException) { }
-        catch
+        catch (Exception exception)
         {
+            ReportUnexpectedFailure(exception);
             MessageBox.Show(this, viewModel.Localized["M07OperationFailed"], viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -284,8 +292,9 @@ public partial class MainWindow : Window
                     result.Succeeded ? MessageBoxImage.Information : MessageBoxImage.Warning);
         }
         catch (OperationCanceledException) { }
-        catch
+        catch (Exception exception)
         {
+            ReportUnexpectedFailure(exception);
             MessageBox.Show(this, viewModel.Localized["M07OperationFailed"], viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -299,8 +308,9 @@ public partial class MainWindow : Window
             MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (OperationCanceledException) { }
-        catch
+        catch (Exception exception)
         {
+            ReportUnexpectedFailure(exception);
             MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -325,8 +335,9 @@ public partial class MainWindow : Window
             }
         }
         catch (OperationCanceledException) { }
-        catch
+        catch (Exception exception)
         {
+            ReportUnexpectedFailure(exception);
             MessageBox.Show(this, viewModel.M07OperationStatus, viewModel.Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
@@ -415,18 +426,41 @@ public partial class MainWindow : Window
 
     private void OnMainTabsSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (sender is not TabControl || mainTabs.SelectedItem is not TabItem selected) return;
-        var key = mainTabs.Items.IndexOf(selected) switch
-        {
-             0 => "catalogue",
-             1 => "gestion-export",
-             2 => "settings",
-             3 => "commandes",
-             4 => "caisse",
-             5 => "archive",
-             _ => "settings"
-         };
+        if (sender is not TabControl tabs || !ReferenceEquals(tabs, mainTabs) || mainTabs.SelectedItem is not TabItem selected)
+            return;
+
+        if (selected.Tag is not string key)
+            return;
+
+        if (key == "data")
+            SelectAvailableDataTab();
+
         PerformanceTrace.Log($"tab.selected.{key}");
+    }
+
+    private void OnDataToolsTabsSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not TabControl tabs || !ReferenceEquals(tabs, dataToolsTabs))
+            return;
+
+        e.Handled = true;
+        if (dataToolsTabs.SelectedItem is TabItem selected && selected.Tag is string key)
+            PerformanceTrace.Log($"tab.selected.data.{key}");
+    }
+
+    private void SelectAvailableDataTab()
+    {
+        if (DataContext is not ShellViewModel shell || !shell.IsDataToolsAvailable)
+            return;
+
+        if (dataToolsTabs.SelectedItem is TabItem selected &&
+            selected.Visibility == Visibility.Visible &&
+            selected.IsEnabled)
+        {
+            return;
+        }
+
+        dataToolsTabs.SelectedItem = shell.IsGestionExportAvailable ? gestionExportTab : archiveAccessTab;
     }
 
     private void ResizeCommandesColumns(DataGrid grid, double? targetWidth = null)
@@ -519,8 +553,9 @@ public partial class MainWindow : Window
                 MessageBoxImage.Information);
         }
         catch (OperationCanceledException) { }
-        catch (Exception)
+        catch (Exception exception)
         {
+            ReportUnexpectedFailure(exception);
             MessageBox.Show(this,
                 LocalizedText(this, "CatalogueExportFailed", "Catalogue export failed."),
                 viewModel.Title,
@@ -589,8 +624,9 @@ public partial class MainWindow : Window
             preview = await workflow.PreviewFromPathAsync(source, mode, Path.GetFileName(source));
         }
         catch (OperationCanceledException) { return; }
-        catch (Exception)
+        catch (Exception exception)
         {
+            ReportUnexpectedFailure(exception);
             MessageBox.Show(this,
                 LocalizedText(this, "CatalogueImportFailed", "Catalogue import could not be opened."),
                 viewModel.Title,
@@ -629,7 +665,7 @@ public partial class MainWindow : Window
                 if (dialog.ShowDialog() == true) entry.AddConfiguredLine(product, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
             }
         }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception exception) { ReportUnexpectedFailure(exception); MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
         finally { orderProductAddInProgress = false; }
     }
 
@@ -637,7 +673,7 @@ public partial class MainWindow : Window
     {
         if (DataContext is not ShellViewModel { Entry: { } entry }) return;
         try { await entry.StartHiboutikImportAsync(); }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception exception) { ReportUnexpectedFailure(exception); MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private void OnResetHiboutikImport(object sender, RoutedEventArgs e)
@@ -664,7 +700,7 @@ public partial class MainWindow : Window
             if (entry.HiboutikLines.SingleOrDefault(item => item.SourceLineNumber == line.SourceLineNumber) is { IsOptionReviewPending: true } pending && pending.State.Product is { } product)
                 await ConfigureHiboutikOptionsAsync(entry, pending, product);
         }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception exception) { ReportUnexpectedFailure(exception); MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private void OnIgnoreHiboutikLine(object sender, RoutedEventArgs e)
@@ -677,7 +713,7 @@ public partial class MainWindow : Window
     {
         if (DataContext is not ShellViewModel { Entry: { } entry } || (sender as Button)?.Tag is not HiboutikImportLineViewModel line || line.State.Product is not { } product) return;
         try { await ConfigureHiboutikOptionsAsync(entry, line, product); }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception exception) { ReportUnexpectedFailure(exception); MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private async Task ConfigureHiboutikOptionsAsync(OrderEntryShellViewModel entry, HiboutikImportLineViewModel line, OrderEntryProduct product)
@@ -716,7 +752,7 @@ public partial class MainWindow : Window
             if (dialog.RemoveRequested) entry.RemoveLine(line);
             else if (result == true) entry.UpdateConfiguredLine(line, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
         }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception exception) { ReportUnexpectedFailure(exception); MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private void OnDecreaseOrderQuantity(object sender, RoutedEventArgs e)
@@ -745,7 +781,7 @@ public partial class MainWindow : Window
     {
         if (DataContext is not ShellViewModel { Entry: { } entry }) return;
         try { await entry.ConfirmAsync(); }
-        catch (Exception exception) { MessageBox.Show(this, exception.Message, "Sushi81 POS", MessageBoxButton.OK, MessageBoxImage.Error); }
+        catch (Exception exception) { ReportUnexpectedFailure(exception); MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
     }
 
     private void OnNewOrder(object sender, RoutedEventArgs e)
@@ -934,8 +970,14 @@ public partial class MainWindow : Window
 
     private void OnFilterRefreshFailed(object? sender, EventArgs e)
     {
-        MessageBox.Show(this, LocalizedText(this, "ValidationGeneric", "The operation failed."),
+        MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."),
             LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error);
+    }
+
+    private void ReportUnexpectedFailure(Exception exception, [CallerMemberName] string operation = "")
+    {
+        if (DataContext is ShellViewModel viewModel)
+            viewModel.ReportUnexpectedFailure($"main-window.{operation}", exception);
     }
 
     private async void OnNewProduct(object sender, RoutedEventArgs e)
@@ -990,8 +1032,9 @@ public partial class MainWindow : Window
         {
             return;
         }
-        catch
+        catch (Exception exception)
         {
+            ReportUnexpectedFailure(exception);
             ShowResultError(OperationResult.Failure(new ValidationIssue("products", "The catalogue could not be refreshed.")));
             return;
         }
@@ -1037,10 +1080,78 @@ public partial class MainWindow : Window
     {
         if (DataContext is ShellViewModel { Admin: { } admin })
         {
-            try { await admin.LoadSettingsAsync(); admin.SetSettingsValidationMessage(string.Empty); } catch { }
+            try { await admin.LoadSettingsAsync(); admin.SetSettingsValidationMessage(string.Empty); }
+            catch (Exception exception) { ReportUnexpectedFailure(exception); }
         }
         if (DataContext is ShellViewModel { PrinterSetup: { } printerSetup })
             await printerSetup.RefreshAsync();
+    }
+
+    private async void OnResetBusinessData(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel viewModel
+            || !viewModel.CanResetBusinessData
+            || viewModel.BusinessDataResetService is not { } resetService)
+            return;
+
+        BusinessDataResetPreview preview;
+        try
+        {
+            preview = await resetService.PreviewAsync();
+        }
+        catch (Exception exception)
+        {
+            ReportUnexpectedFailure(exception);
+            ShowBusinessDataResetMessage(
+                viewModel,
+                "BusinessDataResetPreviewFailed",
+                MessageBoxImage.Error);
+            return;
+        }
+
+        var dialog = new BusinessDataResetConfirmationDialog(this, viewModel.Localized, preview);
+        if (dialog.ShowDialog() != true)
+            return;
+
+        BusinessDataResetExecutionResult result;
+        try
+        {
+            result = await viewModel.ResetBusinessDataAsync(dialog.ConfirmationToken, finalConfirmation: true);
+        }
+        catch (Exception exception)
+        {
+            ReportUnexpectedFailure(exception);
+            ShowBusinessDataResetMessage(
+                viewModel,
+                "BusinessDataResetUnknownFailure",
+                MessageBoxImage.Error);
+            return;
+        }
+
+        var (key, icon) = result.Status switch
+        {
+            BusinessDataResetStatus.Reset => ("BusinessDataResetSuccess", MessageBoxImage.Information),
+            BusinessDataResetStatus.AlreadyEmpty => ("BusinessDataResetAlreadyEmpty", MessageBoxImage.Information),
+            BusinessDataResetStatus.FailedWithoutMutation => ("BusinessDataResetFailure", MessageBoxImage.Error),
+            BusinessDataResetStatus.FailedAndRestored => ("BusinessDataResetRestored", MessageBoxImage.Warning),
+            BusinessDataResetStatus.RecoveryRequired => ("BusinessDataResetRecoveryRequired", MessageBoxImage.Error),
+            BusinessDataResetStatus.ResetCommittedRecoveryNotificationFailed => ("BusinessDataResetRecoveryNotificationFailed", MessageBoxImage.Error),
+            _ => ("BusinessDataResetUnknownFailure", MessageBoxImage.Error)
+        };
+
+        ShowBusinessDataResetMessage(viewModel, key, icon, result.BackupId);
+    }
+
+    private void ShowBusinessDataResetMessage(
+        ShellViewModel viewModel,
+        string key,
+        MessageBoxImage icon,
+        string? backupId = null)
+    {
+        var message = viewModel.Localized.TryGetValue(key, out var localized)
+            ? backupId is null ? localized : string.Format(CultureInfo.CurrentCulture, localized, backupId)
+            : LocalizedText(this, "OperationFailed", "Opération impossible.");
+        MessageBox.Show(this, message, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, icon);
     }
 
     private async void OnRefreshPrinters(object sender, RoutedEventArgs e)
@@ -1061,7 +1172,7 @@ public partial class MainWindow : Window
         var result = await admin.SaveSettingsAsync();
         if (!result.Succeeded)
         {
-            admin.SetSettingsValidationMessage(M03Presentation.FormatIssues(result, admin is not null ? ((ShellViewModel)DataContext).Localized : new Dictionary<string, string>()));
+            admin.SetSettingsValidationIssues(result.Issues);
             ShowResultError(result);
         }
         else { admin.SetSettingsValidationMessage(string.Empty); MessageBox.Show(this, LocalizedText(this, "Saved", "Saved."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Information); }
@@ -1075,7 +1186,7 @@ public partial class MainWindow : Window
     private void ShowResultError(OperationResult result)
     {
         var localized = (DataContext as ShellViewModel)?.Localized ?? new Dictionary<string, string>();
-        MessageBox.Show(this, result.Issues.Count == 0 ? LocalizedText(this, "ValidationGeneric", "The operation failed.") : M03Presentation.FormatIssues(result, localized), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error);
+        MessageBox.Show(this, result.Issues.Count == 0 ? LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.") : M03Presentation.FormatIssues(result, localized), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private sealed class OptionSelectionDialog : Window
@@ -1498,7 +1609,12 @@ public partial class MainWindow : Window
                 if (!result.Succeeded) { validation.Text = M03Presentation.FormatIssues(result, ((ShellViewModel)Owner.DataContext).Localized); return; }
                 await admin.RefreshAsync(); edit.CompleteSave(); name.Clear(); shortCode.Clear(); validation.Text = string.Empty; list.Focus();
             }
-            catch (Exception exception) { validation.Text = exception.Message; }
+            catch (Exception exception)
+            {
+                if (Owner.DataContext is ShellViewModel viewModel)
+                    viewModel.ReportUnexpectedFailure("main-window.category-editor-save", exception);
+                validation.Text = LocalizedText(Owner, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
+            }
             finally { saveInProgress = false; UpdateButtons(); }
         }
     }

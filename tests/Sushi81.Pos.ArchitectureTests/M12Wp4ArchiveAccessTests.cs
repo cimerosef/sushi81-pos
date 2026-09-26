@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Xml.Linq;
 using Sushi81.Pos.Application.Archive;
@@ -80,13 +81,23 @@ public sealed class M12Wp4ArchiveAccessTests
     {
         var access = new ControlledArchiveAccess([Archive(2026)]);
         var printer = new RecordingArchivedPrintService();
-        var viewModel = new AnnualArchiveAccessViewModel(access, printer);
+        using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, archiveAccess: access, archivedOrderPrintService: printer);
+        var viewModel = shell.ArchiveAccess!;
 
         Assert.IsFalse(viewModel.CanReprint);
         await viewModel.ReprintSelectedAsync(PrintDocumentKind.Kitchen);
         Assert.AreEqual(0, printer.Calls);
 
         await viewModel.RefreshAsync();
+        var frenchAvailability = string.Format(CultureInfo.CurrentCulture, shell.Localized["ArchiveAvailable"], access.Archives.Count);
+        Assert.AreEqual(frenchAvailability, viewModel.StatusMessage);
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"));
+        var chineseAvailability = string.Format(CultureInfo.CurrentCulture, shell.Localized["ArchiveAvailable"], access.Archives.Count);
+        Assert.AreEqual(chineseAvailability, viewModel.StatusMessage);
+        Assert.AreNotEqual(frenchAvailability, chineseAvailability);
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR"));
+        Assert.AreEqual(frenchAvailability, viewModel.StatusMessage);
+
         viewModel.SelectedArchive = access.Archives[0];
         var originalRow = Row(Guid.Parse("52700000-0000-0000-0000-000000000021"));
         viewModel.Orders.Add(originalRow);
@@ -118,6 +129,14 @@ public sealed class M12Wp4ArchiveAccessTests
 
         Assert.AreEqual(replacementRow.Id, viewModel.SelectedOrder!.Id);
         Assert.AreEqual(string.Empty, viewModel.PrintStatusMessage, "A late print result must not be presented as the outcome for the newly selected order.");
+        var currentPrint = viewModel.ReprintSelectedAsync(PrintDocumentKind.Customer);
+        await currentPrint;
+        var frenchPrintSuccess = viewModel.PrintStatusMessage;
+        Assert.AreEqual(shell.Localized["OrderPrintSuccess"], frenchPrintSuccess);
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"));
+        var chinesePrintSuccess = viewModel.PrintStatusMessage;
+        Assert.AreEqual(shell.Localized["OrderPrintSuccess"], chinesePrintSuccess);
+        Assert.AreNotEqual(frenchPrintSuccess, chinesePrintSuccess);
     }
 
     [TestMethod]
@@ -190,6 +209,7 @@ public sealed class M12Wp4ArchiveAccessTests
         var viewModel = new AnnualArchiveAccessViewModel(access);
         await viewModel.RefreshAsync();
 
+
         viewModel.SelectedArchive = access.Archives[0];
         viewModel.SelectedArchive = access.Archives[1];
         Assert.HasCount(2, access.Searches);
@@ -212,6 +232,8 @@ public sealed class M12Wp4ArchiveAccessTests
         var access = new ControlledArchiveAccess([Archive(2026)], holdDetails: true);
         var viewModel = new AnnualArchiveAccessViewModel(access);
         await viewModel.RefreshAsync();
+
+
         viewModel.SelectedArchive = access.Archives[0];
 
         var staleRow = Row(Guid.Parse("52700000-0000-0000-0000-000000000011"));

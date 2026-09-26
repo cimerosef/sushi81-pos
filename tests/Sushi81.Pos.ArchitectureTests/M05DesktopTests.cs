@@ -1779,19 +1779,101 @@ public sealed class M05DesktopTests
         var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountMinTotalTtc = Money.Zero });
         var store = new ReferenceOrderStore("20260831-001");
         using var service = new OrderEntryService(new SingleEntryCatalogue(product), settings, store, new ThrowingDispatcher(), new DeterministicIds(), new FixedClock());
-        using var viewModel = new OrderEntryShellViewModel(service);
+        using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, orderEntryService: service);
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"));
+        var viewModel = shell.Entry!;
         viewModel.AddConfiguredLine(product, [], [], 1);
         viewModel.SelectedFulfilment = FulfilmentMode.Retrait;
         viewModel.SelectedPlannedHour = 11;
         viewModel.SelectedPlannedMinute = 0;
+        viewModel.Telephone = "0612345678";
+        viewModel.Comment = "owner-note-remains-as-entered";
         await viewModel.RepriceAsync(clearManualOverride: true);
 
         var result = await viewModel.ConfirmAsync();
 
         Assert.IsTrue(result!.Succeeded);
         Assert.IsTrue(result.HasOutputFailure);
-        Assert.IsTrue(viewModel.CommittedMessage.Contains("20260831-001", StringComparison.Ordinal));
-        Assert.IsFalse(viewModel.CommittedMessage.Contains(result.CommittedOrder!.Id.ToString(), StringComparison.Ordinal), "The normal output-failure path must not expose the technical GUID when a human reference is available.");
+        var reference = "20260831-001";
+        Assert.AreEqual(string.Format(CultureInfo.CurrentCulture, shell.Localized["OrderSavedOutputFailed"], reference), viewModel.CommittedMessage);
+        Assert.IsFalse(viewModel.CommittedMessage.Contains(result.CommittedOrder!.Id.ToString(), StringComparison.Ordinal), "The output-failure path must not expose a technical GUID when a human reference is available.");
+        var stored = store.Snapshot!;
+        var storedTelephone = stored.Telephone;
+        Assert.IsFalse(string.IsNullOrWhiteSpace(storedTelephone));
+        Assert.AreEqual("owner-note-remains-as-entered", stored.Comment);
+        Assert.AreEqual("Plat", stored.Items.Single().ProductName);
+        var chineseWarning = shell.Localized["OperationFailed"];
+        Assert.AreEqual(chineseWarning, viewModel.ValidationMessage, "The unresolved print warning must remain visible.");
+
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR"));
+        Assert.AreEqual(string.Format(CultureInfo.CurrentCulture, shell.Localized["OrderSavedOutputFailed"], reference), viewModel.CommittedMessage);
+        Assert.AreNotEqual(chineseWarning, viewModel.ValidationMessage, "The unresolved print warning must re-render in French.");
+        Assert.IsFalse(string.IsNullOrWhiteSpace(viewModel.ValidationMessage));
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"));
+        Assert.AreEqual(string.Format(CultureInfo.CurrentCulture, shell.Localized["OrderSavedOutputFailed"], reference), viewModel.CommittedMessage);
+        Assert.AreEqual(chineseWarning, viewModel.ValidationMessage, "The warning must re-render back to Chinese without being cleared.");
+        Assert.AreEqual(storedTelephone, store.Snapshot!.Telephone, "Language switching must not mutate the stored telephone.");
+        Assert.AreEqual(stored, store.Snapshot, "Language switching must not mutate the committed order snapshot.");
+    }
+
+    [TestMethod]
+    public async Task M13SettingsValidationRetainsIssuesAndFieldLabelAcrossLanguageChanges()
+    {
+        var catalogue = new CatalogueService(new EmptyCatalogueStore());
+        var settings = new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow)));
+        using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, catalogue, settings);
+        var admin = shell.Admin!;
+        var issue = new ValidationIssue("settings", "Synthetic invalid settings.", ValidationCodes.SettingsRange);
+        admin.SetSettingsValidationIssues([issue]);
+        var french = admin.SettingsValidationMessage;
+        Assert.AreEqual(M03Presentation.FormatIssues(OperationResult.Failure(issue), shell.Localized), french);
+
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"));
+        var chinese = admin.SettingsValidationMessage;
+        Assert.AreEqual(M03Presentation.FormatIssues(OperationResult.Failure(issue), shell.Localized), chinese);
+        Assert.AreNotEqual(french, chinese);
+        Assert.IsTrue(chinese.StartsWith(shell.Localized["Settings"] + ": ", StringComparison.Ordinal), "The field label and actionable validation must remain visible.");
+
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR"));
+        Assert.AreEqual(french, admin.SettingsValidationMessage);
+    }
+
+    [TestMethod]
+    public async Task M13CaisseSuccessfulCommitRelocalizesReferenceAndPreservesStoredText()
+    {
+        var categoryId = Guid.NewGuid();
+        var product = new OrderEntryProduct(new ProductAggregate(
+            new Product(Guid.NewGuid(), "P", "Stored product name", categoryId, Money.FromCents(1000), 10m, true, true, false, default, default), [], new Dictionary<Guid, IReadOnlyList<ProductOption>>()), "Stored category name");
+        var settings = new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow) with { PickupDiscountMinTotalTtc = Money.Zero });
+        var store = new ReferenceOrderStore("20260831-002");
+        using var service = new OrderEntryService(new SingleEntryCatalogue(product), settings, store, new NoopDispatcher(), new DeterministicIds(), new FixedClock());
+        using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, orderEntryService: service);
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR"));
+        var entry = shell.Entry!;
+        entry.AddConfiguredLine(product, [], [], 1);
+        entry.SelectedFulfilment = FulfilmentMode.Retrait;
+        entry.SelectedPlannedHour = 11;
+        entry.SelectedPlannedMinute = 0;
+        entry.Telephone = "0612345678";
+        entry.DeliveryAddress = "Stored address";
+        entry.Comment = "Stored comment";
+        await entry.RepriceAsync(clearManualOverride: true);
+        var result = await entry.ConfirmAsync();
+        Assert.IsTrue(result!.Succeeded);
+        Assert.IsFalse(result.HasOutputFailure);
+        var reference = "20260831-002";
+        Assert.AreEqual(string.Format(CultureInfo.CurrentCulture, shell.Localized["OrderSaved"], reference), entry.CommittedMessage);
+        var stored = store.Snapshot!;
+
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"));
+        Assert.AreEqual(string.Format(CultureInfo.CurrentCulture, shell.Localized["OrderSaved"], reference), entry.CommittedMessage);
+        Assert.AreEqual("Stored product name", stored.Items.Single().ProductName);
+        Assert.AreEqual("Stored category name", stored.Items.Single().CategoryName);
+        Assert.AreEqual("Stored comment", stored.Comment);
+        Assert.AreEqual("Stored address", stored.DeliveryAddress);
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR"));
+        Assert.AreEqual(string.Format(CultureInfo.CurrentCulture, shell.Localized["OrderSaved"], reference), entry.CommittedMessage);
+        Assert.AreEqual(stored, store.Snapshot, "The language switch must not alter stored business data.");
     }
 
     [TestMethod]
@@ -1802,6 +1884,7 @@ public sealed class M05DesktopTests
             var order = Snapshot(new DateOnly(2026, 9, 2));
             var store = new LifecycleStore(order);
             using var lifecycleService = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock());
+            var printService = new AmbiguousPrintService();
             using var shell = new ShellViewModel(
                 new InMemorySelectedCultureStore(),
                 true,
@@ -1809,7 +1892,7 @@ public sealed class M05DesktopTests
                 new BusinessSettingsService(new SettingsStore(BusinessSettings.Defaults(DateTimeOffset.UtcNow))),
                 orderLifecycleService: lifecycleService,
                 authorityGuard: new FixedAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly),
-                printService: new AmbiguousPrintService());
+                printService: printService);
             var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
             window.Show();
             try
@@ -1837,7 +1920,27 @@ public sealed class M05DesktopTests
                 reprint.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
 
-                Assert.AreEqual(shell.Localized["OrderPrintAmbiguous"], lifecycle.PrintStatusMessage);
+                var chinese = shell.Languages.Single(language => language.CultureName == "zh-CN");
+                var french = shell.Languages.Single(language => language.CultureName == "fr-FR");
+                var frenchWarning = lifecycle.PrintStatusMessage;
+                Assert.AreEqual(shell.Localized["OrderPrintAmbiguous"], frenchWarning);
+                shell.ChangeLanguageAsync(chinese).GetAwaiter().GetResult();
+                var chineseWarning = lifecycle.PrintStatusMessage;
+                Assert.AreEqual(shell.Localized["OrderPrintAmbiguous"], chineseWarning);
+                Assert.AreNotEqual(frenchWarning, chineseWarning, "The unresolved print warning must re-render, not clear, on a culture switch.");
+                Assert.IsTrue(lifecycle.CanReprintKitchen, "Relocalizing the warning must preserve the available retry action.");
+                shell.ChangeLanguageAsync(french).GetAwaiter().GetResult();
+                Assert.AreEqual(frenchWarning, lifecycle.PrintStatusMessage);
+
+                printService.ReturnSuccess = true;
+                lifecycle.ReprintAsync(PrintDocumentKind.Kitchen).GetAwaiter().GetResult();
+                var frenchSuccess = lifecycle.PrintStatusMessage;
+                Assert.AreEqual(shell.Localized["OrderPrintSuccess"], frenchSuccess);
+                shell.ChangeLanguageAsync(chinese).GetAwaiter().GetResult();
+                var chineseSuccess = lifecycle.PrintStatusMessage;
+                Assert.AreEqual(shell.Localized["OrderPrintSuccess"], chineseSuccess);
+                Assert.AreNotEqual(frenchSuccess, chineseSuccess, "Print success must re-render from its resource key.");
+                Assert.AreEqual(order, store.Snapshot, "Changing presentation culture must not mutate the stored order.");
             }
             finally { window.Close(); }
         });
@@ -1988,6 +2091,13 @@ public sealed class M05DesktopTests
                 window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
 
                 Assert.AreEqual(2, queueCatalog.CallCount, "The manual refresh action must remain available after automatic startup hydration.");
+                Assert.AreEqual(shell.Localized["PrinterRefreshSucceeded"], printerSetup.StatusMessage);
+                var chinese = shell.Languages.Single(language => language.CultureName == "zh-CN");
+                var french = shell.Languages.Single(language => language.CultureName == "fr-FR");
+                shell.ChangeLanguageAsync(chinese).GetAwaiter().GetResult();
+                Assert.AreEqual(shell.Localized["PrinterRefreshSucceeded"], printerSetup.StatusMessage);
+                shell.ChangeLanguageAsync(french).GetAwaiter().GetResult();
+                Assert.AreEqual(shell.Localized["PrinterRefreshSucceeded"], printerSetup.StatusMessage);
                 Assert.AreEqual("kitchen-queue", ((PrintQueueInfo)selectors[0].SelectedItem!).Id);
                 Assert.AreEqual("customer-queue", ((PrintQueueInfo)selectors[1].SelectedItem!).Id);
                 Assert.AreEqual(initial, configurationService.Current, "Refreshing queues must not rewrite saved local configuration.");
@@ -2026,6 +2136,11 @@ public sealed class M05DesktopTests
                 Assert.AreEqual("missing-kitchen", printerSetup.KitchenQueueId);
                 Assert.AreEqual("Missing Kitchen", printerSetup.KitchenQueueName);
                 Assert.AreEqual(shell.Localized["PrinterQueueUnavailable"], printerSetup.StatusMessage);
+                var chinese = shell.Languages.Single(language => language.CultureName == "zh-CN");
+                shell.ChangeLanguageAsync(chinese).GetAwaiter().GetResult();
+                Assert.AreEqual(shell.Localized["PrinterQueueUnavailable"], printerSetup.StatusMessage, "The actionable unavailable-queue state must remain visible after a language switch.");
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
+                Assert.AreEqual(shell.Localized["PrinterQueueUnavailable"], printerSetup.StatusMessage);
                 Assert.AreEqual(initial, configurationService.Current, "Unavailable startup discovery must not erase the saved queue selection.");
             }
             finally { window.Close(); }
@@ -2057,6 +2172,10 @@ public sealed class M05DesktopTests
             {
                 window.Dispatcher.Invoke(DispatcherPriority.ApplicationIdle, new Action(() => { }));
 
+                Assert.AreEqual(shell.Localized["PrinterRefreshFailed"], printerSetup.StatusMessage);
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN")).GetAwaiter().GetResult();
+                Assert.AreEqual(shell.Localized["PrinterRefreshFailed"], printerSetup.StatusMessage, "Queue-discovery failure must remain visible after a language switch.");
+                shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR")).GetAwaiter().GetResult();
                 Assert.AreEqual(shell.Localized["PrinterRefreshFailed"], printerSetup.StatusMessage);
                 Assert.AreEqual(initial, configurationService.Current, "A discovery failure must not rewrite local or M07 configuration.");
                 Assert.IsTrue(window.IsLoaded, "Printer discovery failure must not prevent the normal window from loading.");
@@ -2400,7 +2519,7 @@ public sealed class M05DesktopTests
     {
         var xamlPath = Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml");
         var xaml = File.ReadAllText(xamlPath);
-        var caisseStart = xaml.IndexOf("<TabItem Header=\"{Binding DataContext.Localized[Caisse]", StringComparison.Ordinal);
+        var caisseStart = xaml.IndexOf("<TabItem Tag=\"caisse\" Header=\"{Binding DataContext.Localized[Caisse]", StringComparison.Ordinal);
         var caisseEnd = xaml.IndexOf("</TabItem>", caisseStart, StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, caisseStart);
         Assert.IsGreaterThan(caisseStart, caisseEnd);
@@ -2555,12 +2674,16 @@ public sealed class M05DesktopTests
 
     private sealed class AmbiguousPrintService : IOrderPrintApplicationService
     {
+        public bool ReturnSuccess { get; set; }
+
         public Task<PrintDocumentResult> ReprintAsync(Guid orderId, PrintDocumentKind kind, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new PrintDocumentResult(
-                kind,
-                PrintOutcomeStatus.AmbiguousSubmission,
-                "The print result is uncertain.",
-                new OrderPrintDocument(kind, PrintIntent.ExplicitReprint, orderId, "synthetic", "synthetic", false, false)));
+            Task.FromResult(ReturnSuccess
+                ? PrintDocumentResult.Success(new OrderPrintDocument(kind, PrintIntent.ExplicitReprint, orderId, "synthetic", "synthetic", false, false))
+                : new PrintDocumentResult(
+                    kind,
+                    PrintOutcomeStatus.AmbiguousSubmission,
+                    "The print result is uncertain.",
+                    new OrderPrintDocument(kind, PrintIntent.ExplicitReprint, orderId, "synthetic", "synthetic", false, false)));
 
         public Task<PrintDocumentResult> RetryInitialAsync(Guid orderId, PrintDocumentKind kind, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PrintDocumentResult(kind, PrintOutcomeStatus.Unsupported, "Initial retry is not available in this synthetic UI test."));

@@ -65,7 +65,7 @@ public sealed class ClosedXmlCatalogueWorkbookGateway : ICatalogueWorkbookGatewa
         }
 
         sheet.Column(5).Style.NumberFormat.Format = "0.00";
-        sheet.Column(6).Style.NumberFormat.Format = "0.00";
+        sheet.Column(6).Style.NumberFormat.Format = "0.###############";
         FinishVisibleSheet(sheet, row - 1, 9, 11);
     }
 

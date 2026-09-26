@@ -21,6 +21,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     private readonly CatalogueService catalogue;
     private readonly BusinessSettingsService settings;
     private readonly IWriteAuthorityGuard? authorityGuard;
+    private readonly DesktopOperationDiagnostics? diagnostics;
     private ProductSummary? selectedProduct;
     private CategorySummary? selectedCategory;
     private Guid selectedCategoryId;
@@ -33,6 +34,8 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     private string activateLabel = "Activate";
     private string deactivateLabel = "Deactivate";
     private string settingsValidationMessage = string.Empty;
+    private IReadOnlyList<ValidationIssue>? settingsValidationIssues;
+    private IReadOnlyDictionary<string, string> settingsLocalized = new Dictionary<string, string>(StringComparer.Ordinal);
     private readonly object filterRefreshLock = new();
     private CancellationTokenSource? filterRefreshCancellation;
     private Task filterRefreshTask = Task.CompletedTask;
@@ -41,11 +44,12 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
 
     private static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(250);
 
-    public M03ShellViewModel(CatalogueService catalogue, BusinessSettingsService settings, IWriteAuthorityGuard? authorityGuard = null)
+    public M03ShellViewModel(CatalogueService catalogue, BusinessSettingsService settings, IWriteAuthorityGuard? authorityGuard = null, DesktopOperationDiagnostics? diagnostics = null)
     {
         this.catalogue = catalogue ?? throw new ArgumentNullException(nameof(catalogue));
         this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
         this.authorityGuard = authorityGuard;
+        this.diagnostics = diagnostics;
         Categories = new ObservableCollection<CategorySummary>();
         Products = new ObservableCollection<ProductSummary>();
         CategoryFilters = new ObservableCollection<CategorySummary>();
@@ -229,12 +233,27 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
     public string DeliveryMinText { get; set; } = "30.00";
     public bool DeliveryFeeEnabled { get; set; }
     public string DeliveryFeeAmountText { get; set; } = "0.00";
-    public string SettingsValidationMessage { get => settingsValidationMessage; private set { settingsValidationMessage = value ?? string.Empty; OnPropertyChanged(); } }
+    public string SettingsValidationMessage => settingsValidationIssues is { Count: > 0 }
+        ? M03Presentation.FormatIssues(OperationResult.Failure(settingsValidationIssues.ToArray()), settingsLocalized)
+        : settingsValidationMessage;
 
-    public void SetSettingsValidationMessage(string? message) => SettingsValidationMessage = message ?? string.Empty;
-
-    public void ApplyLocalization(string all, string active, string inactive, string? activate = null, string? deactivate = null)
+    public void SetSettingsValidationMessage(string? message)
     {
+        settingsValidationIssues = null;
+        settingsValidationMessage = message ?? string.Empty;
+        OnPropertyChanged(nameof(SettingsValidationMessage));
+    }
+
+    public void SetSettingsValidationIssues(IReadOnlyList<ValidationIssue> issues)
+    {
+        settingsValidationIssues = issues.ToArray();
+        settingsValidationMessage = string.Empty;
+        OnPropertyChanged(nameof(SettingsValidationMessage));
+    }
+
+    public void ApplyLocalization(string all, string active, string inactive, string? activate = null, string? deactivate = null, IReadOnlyDictionary<string, string>? localized = null)
+    {
+        if (localized is not null) settingsLocalized = localized;
         var categoryId = selectedCategoryId;
         var statusKey = ActiveFilter;
         activateLabel = string.IsNullOrWhiteSpace(activate) ? "Activate" : activate;
@@ -259,6 +278,7 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         }
         OnPropertyChanged(nameof(AllCategoryLabel));
         OnPropertyChanged(nameof(ToggleProductActionLabel));
+        OnPropertyChanged(nameof(SettingsValidationMessage));
     }
 
     public Task RefreshAsync(CancellationToken cancellationToken = default)
@@ -367,10 +387,11 @@ public sealed class M03ShellViewModel : INotifyPropertyChanged
         {
             // A newer filter request superseded this one. It must not report an error.
         }
-        catch
+        catch (Exception exception)
         {
             if (IsCurrentRequest(request))
             {
+                diagnostics?.ReportUnexpectedFailure("catalogue.filter-refresh", exception);
                 // Do not leave an older result actionable after a failed filter query.
                 Products.Clear();
                 NotifyProductFilterProperties();
