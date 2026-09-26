@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sushi81.Pos.PreProductionCutoverReset;
+using Sushi81.Pos.Infrastructure.Recovery;
 
 namespace Sushi81.Pos.PreProductionCutoverReset.Tests;
 
@@ -29,6 +30,50 @@ public sealed class PreProductionCutoverTests
         Assert.IsTrue(DictionaryEqual(configAndSystem, fixture.HashConfigurationAndSystem()));
         Assert.IsTrue(DictionaryEqual(archive, fixture.HashArchive()));
         Assert.IsFalse(Directory.Exists(Path.Combine(fixture.Root, "CutoverBackups")));
+    }
+
+    [TestMethod]
+    public void AuthorityBusinessRevisionAheadOfDatabaseRefusesBeforeCreatingBackups()
+    {
+        using var fixture = new CutoverFixture(authorityBusinessRevision: 42);
+        var databaseHash = fixture.HashDatabase();
+        var authorityHash = fixture.HashAuthorityState();
+        var archive = fixture.HashArchive();
+
+        Assert.Throws<InvalidDataException>(() => fixture.Execute());
+
+        Assert.AreEqual(databaseHash, fixture.HashDatabase());
+        Assert.AreEqual(authorityHash, fixture.HashAuthorityState());
+        Assert.IsTrue(DictionaryEqual(archive, fixture.HashArchive()));
+        Assert.IsFalse(Directory.Exists(Path.Combine(fixture.Root, "CutoverBackups")));
+    }
+
+    [TestMethod]
+    public async Task LaggingAuthorityBusinessRevisionSynchronizesToCutoverDatabaseRevisionBeforeRestart()
+    {
+        using var fixture = new CutoverFixture(authorityProtocolRevision: 12, authorityBusinessRevision: 40);
+        var before = fixture.ReadAuthorityProtocol();
+
+        var result = fixture.Execute();
+        var after = fixture.ReadAuthorityProtocol();
+        var productionSeedRevision = await SqliteBusinessRevisionStore.ReadFromDatabaseAsync(fixture.DatabasePath);
+
+        Assert.AreEqual(41L, result.BusinessDataRevisionBefore);
+        Assert.AreEqual(42L, result.BusinessDataRevisionAfter);
+        Assert.AreEqual(12L, result.AuthorityProtocolRevisionBefore);
+        Assert.AreEqual(13L, result.AuthorityProtocolRevisionAfter);
+        Assert.AreEqual(40L, result.AuthorityBusinessRevisionBefore);
+        Assert.AreEqual(42L, result.AuthorityBusinessRevisionAfter);
+        Assert.AreEqual(before.Revision + 1, after.Revision);
+        Assert.AreEqual(42L, after.BusinessRevision);
+        Assert.AreEqual(productionSeedRevision, after.BusinessRevision,
+            "M07 startup must seed its business revision from the synchronized production database contract.");
+        Assert.AreEqual(before.DeviceId, after.DeviceId);
+        Assert.AreEqual(before.DisplayName, after.DisplayName);
+        Assert.AreEqual(before.LineageId, after.LineageId);
+        Assert.AreEqual(before.Generation, after.Generation);
+        Assert.AreEqual(before.HandoffVersion, after.HandoffVersion);
+        Assert.AreEqual(before.Phase, after.Phase);
     }
 
     [TestMethod]
@@ -145,13 +190,19 @@ public sealed class PreProductionCutoverTests
     }
 
     [TestMethod]
-    public void PopulatedSyntheticSchemaIsClearedInOneRevisionWhilePreservingSettingsMigrationsAndIdentity()
+    public async Task PopulatedSyntheticSchemaIsClearedInOneRevisionWhilePreservingSettingsMigrationsAndIdentity()
     {
         using var fixture = new CutoverFixture();
         var settingsLinesBefore = fixture.ReadOnlyStateSnapshot().Split('\n').Where(line => line.StartsWith("settings:", StringComparison.Ordinal)).ToArray();
         var migrationLinesBefore = fixture.ReadOnlyStateSnapshot().Split('\n').Where(line => line.StartsWith("migration:", StringComparison.Ordinal)).ToArray();
-        var configAndSystemBefore = fixture.HashConfigurationAndSystem();
+        var configAndSystemBefore = fixture.HashConfigurationAndSystem()
+            .Where(pair => !string.Equals(pair.Key, Path.GetFullPath(fixture.AuthorityStatePath), StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        var authorityBefore = fixture.ReadAuthorityProtocol();
+        var authorityHashBefore = fixture.HashAuthorityState();
         var result = fixture.Execute();
+        var authorityAfter = fixture.ReadAuthorityProtocol();
+        var m07SeedRevision = await SqliteBusinessRevisionStore.ReadFromDatabaseAsync(fixture.DatabasePath);
 
         Assert.IsTrue(result.Changed);
         Assert.AreEqual(41L, result.BusinessDataRevisionBefore);
@@ -163,7 +214,12 @@ public sealed class PreProductionCutoverTests
         foreach (var table in CutoverTables.All) Assert.IsTrue(snapshotAfter.Contains(table + "=0"), table + " should be empty.");
         CollectionAssert.AreEqual(settingsLinesBefore, snapshotAfter.Where(line => line.StartsWith("settings:", StringComparison.Ordinal)).ToArray());
         CollectionAssert.AreEqual(migrationLinesBefore, snapshotAfter.Where(line => line.StartsWith("migration:", StringComparison.Ordinal)).ToArray());
-        Assert.IsTrue(DictionaryEqual(configAndSystemBefore, fixture.HashConfigurationAndSystem()));
+        Assert.IsTrue(DictionaryEqual(configAndSystemBefore, fixture.HashConfigurationAndSystem()
+            .Where(pair => !string.Equals(pair.Key, Path.GetFullPath(fixture.AuthorityStatePath), StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase)));
+        Assert.AreEqual(authorityBefore.Revision + 1, authorityAfter.Revision);
+        Assert.AreEqual(42L, authorityAfter.BusinessRevision);
+        Assert.AreEqual(m07SeedRevision, authorityAfter.BusinessRevision);
         Assert.AreEqual(0, Directory.EnumerateFiles(fixture.Archive, "*", SearchOption.AllDirectories).Count());
         Assert.IsTrue(Directory.Exists(fixture.Archive));
 
@@ -174,9 +230,21 @@ public sealed class PreProductionCutoverTests
         Assert.IsTrue(File.Exists(Path.Combine(backupArchive, "2025.json")));
         Assert.IsTrue(File.Exists(Path.Combine(backupArchive, "nested", "2024.json")));
         Assert.AreEqual(HashFile(backupDb), result.LiveDatabaseBackupSha256);
+        var backupAuthority = Path.Combine(result.BackupDirectory!, "authority-state.json");
+        Assert.IsTrue(File.Exists(backupAuthority));
+        Assert.AreEqual(result.AuthorityStateBackupSha256, HashFile(backupAuthority));
         using var manifest = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(result.BackupDirectory!, "manifest.json")));
         Assert.AreEqual("Complete", manifest.RootElement.GetProperty("state").GetString());
         Assert.AreEqual(result.LiveDatabaseBackupSha256, manifest.RootElement.GetProperty("liveDatabaseBackupSha256").GetString());
+        Assert.AreEqual("authority-state.json", manifest.RootElement.GetProperty("authorityStateBackupFileName").GetString());
+        Assert.AreEqual(result.AuthorityStateBackupSha256, manifest.RootElement.GetProperty("authorityStateBackupSha256").GetString());
+        Assert.AreEqual(authorityHashBefore, manifest.RootElement.GetProperty("authorityStateBeforeSha256").GetString());
+        Assert.AreEqual(fixture.HashAuthorityState(), manifest.RootElement.GetProperty("authorityStateAfterSha256").GetString());
+        Assert.AreEqual(8L, manifest.RootElement.GetProperty("authorityProtocolRevisionBefore").GetInt64());
+        Assert.AreEqual(9L, manifest.RootElement.GetProperty("authorityProtocolRevisionAfter").GetInt64());
+        Assert.AreEqual(41L, manifest.RootElement.GetProperty("authorityBusinessRevisionBefore").GetInt64());
+        Assert.AreEqual(42L, manifest.RootElement.GetProperty("authorityBusinessRevisionAfter").GetInt64());
+        Assert.IsFalse(string.IsNullOrWhiteSpace(manifest.RootElement.GetProperty("rollbackProvenance").GetString()));
         using var backupConnection = new SqliteConnection($"Data Source={backupDb};Mode=ReadOnly;Pooling=False");
         backupConnection.Open();
         using var integrity = backupConnection.CreateCommand();
@@ -241,6 +309,64 @@ public sealed class PreProductionCutoverTests
     }
 
     [TestMethod]
+    public void FailuresAtAuthorityReplacementAndReadbackBoundariesRestoreExactDatabaseArchiveAndAuthority()
+    {
+        foreach (var checkpoint in new[]
+        {
+            CutoverCheckpoint.BeforeAuthorityReplacement,
+            CutoverCheckpoint.AfterAuthorityReplacement,
+            CutoverCheckpoint.BeforeAuthorityReadBack,
+            CutoverCheckpoint.AfterAuthorityReadBack
+        })
+        {
+            using var fixture = new CutoverFixture();
+            var databaseHash = fixture.HashDatabase();
+            var authorityBytes = File.ReadAllBytes(fixture.AuthorityStatePath);
+            var authorityHash = fixture.HashAuthorityState();
+            var archive = fixture.HashArchive();
+            fixture.Host.ThrowAt = checkpoint;
+
+            Assert.Throws<InvalidOperationException>(() => fixture.Execute(), checkpoint.ToString());
+
+            Assert.AreEqual(databaseHash, fixture.HashDatabase(), checkpoint + " should restore exact live.db bytes.");
+            CollectionAssert.AreEqual(authorityBytes, File.ReadAllBytes(fixture.AuthorityStatePath), checkpoint + " should restore exact authority bytes.");
+            Assert.AreEqual(authorityHash, fixture.HashAuthorityState(), checkpoint + " should restore authority hash.");
+            Assert.IsTrue(DictionaryEqual(archive, fixture.HashArchive()), checkpoint + " should restore the Archive set and hashes.");
+            Assert.AreEqual(41L, fixture.ReadRevision());
+            var manifest = ReadOnlyLatestManifest(fixture.Root);
+            Assert.AreEqual("RolledBack", manifest.GetProperty("state").GetString());
+            Assert.AreEqual(authorityHash, manifest.GetProperty("authorityStateAfterSha256").GetString());
+            Assert.AreEqual(authorityHash, manifest.GetProperty("authorityStateBeforeSha256").GetString());
+            Assert.AreEqual(8L, manifest.GetProperty("authorityProtocolRevisionAfter").GetInt64());
+            Assert.AreEqual(41L, manifest.GetProperty("authorityBusinessRevisionAfter").GetInt64());
+            Assert.IsFalse(string.IsNullOrWhiteSpace(manifest.GetProperty("rollbackProvenance").GetString()));
+        }
+    }
+
+    [TestMethod]
+    public void CorruptAuthorityReadbackRestoresExactPreCutoverState()
+    {
+        using var fixture = new CutoverFixture();
+        var databaseHash = fixture.HashDatabase();
+        var authorityBytes = File.ReadAllBytes(fixture.AuthorityStatePath);
+        var authorityHash = fixture.HashAuthorityState();
+        var archive = fixture.HashArchive();
+        fixture.Host.OnCheckpoint = checkpoint =>
+        {
+            if (checkpoint == CutoverCheckpoint.BeforeAuthorityReadBack)
+                File.WriteAllText(fixture.AuthorityStatePath, "{\"tampered\":true}");
+        };
+
+        Assert.Throws<InvalidOperationException>(() => fixture.Execute());
+
+        Assert.AreEqual(databaseHash, fixture.HashDatabase());
+        CollectionAssert.AreEqual(authorityBytes, File.ReadAllBytes(fixture.AuthorityStatePath));
+        Assert.AreEqual(authorityHash, fixture.HashAuthorityState());
+        Assert.IsTrue(DictionaryEqual(archive, fixture.HashArchive()));
+        Assert.AreEqual("RolledBack", ReadOnlyLatestManifest(fixture.Root).GetProperty("state").GetString());
+    }
+
+    [TestMethod]
     public void MissingBusinessDataRevisionRefusesWithoutMutation()
     {
         using var fixture = new CutoverFixture();
@@ -291,6 +417,13 @@ public sealed class PreProductionCutoverTests
     private static bool DictionaryEqual(IReadOnlyDictionary<string, string> left, IReadOnlyDictionary<string, string> right)
         => left.Count == right.Count && left.All(pair => right.TryGetValue(pair.Key, out var value)
             && string.Equals(pair.Value, value, StringComparison.OrdinalIgnoreCase));
+
+    private static JsonElement ReadOnlyLatestManifest(string root)
+    {
+        var backupDirectory = Directory.EnumerateDirectories(Path.Combine(root, "CutoverBackups"), "m13-preproduction-cutover-*", SearchOption.TopDirectoryOnly).Single();
+        using var document = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(backupDirectory, "manifest.json")));
+        return document.RootElement.Clone();
+    }
 
     private static string HashFile(string path)
     {

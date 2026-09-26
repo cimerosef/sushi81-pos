@@ -8,5 +8,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Sushi81.Pos.PreProductionCutoverReset/Sushi81.Pos.PreProductionCutoverReset.csproj" />
+    <ProjectReference Include="../../src/Sushi81.Pos.Infrastructure/Sushi81.Pos.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

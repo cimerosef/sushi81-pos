@@ -17,6 +17,8 @@ public sealed record CutoverPreflightReport(
     string ApplicationVersion,
     int AuthoritySchemaVersion,
     string AuthorityPhase,
+    long AuthorityProtocolRevision,
+    long AuthorityBusinessRevision,
     int DatabaseSchemaVersion,
     string DatabaseIntegrity,
     int ForeignKeyViolationCount,
@@ -34,7 +36,12 @@ public sealed record CutoverRunResult(
     string? LiveDatabaseBackupSha256,
     long BusinessDataRevisionBefore,
     long BusinessDataRevisionAfter,
-    string Message);
+    string Message,
+    long AuthorityProtocolRevisionBefore,
+    long AuthorityProtocolRevisionAfter,
+    long AuthorityBusinessRevisionBefore,
+    long AuthorityBusinessRevisionAfter,
+    string? AuthorityStateBackupSha256);
 
 public sealed record InstalledApplicationProvenance(
     string ProductName,
@@ -51,7 +58,11 @@ public enum CutoverCheckpoint
     BeforeArchiveStaging,
     AfterArchiveStaging,
     DuringDatabaseTransaction,
-    BeforeDatabaseCommit
+    BeforeDatabaseCommit,
+    BeforeAuthorityReplacement,
+    AfterAuthorityReplacement,
+    BeforeAuthorityReadBack,
+    AfterAuthorityReadBack
 }
 
 public interface ICutoverHost

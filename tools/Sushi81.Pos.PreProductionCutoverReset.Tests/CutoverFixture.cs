@@ -7,8 +7,13 @@ namespace Sushi81.Pos.PreProductionCutoverReset.Tests;
 
 internal sealed class CutoverFixture : IDisposable
 {
-    public CutoverFixture(int authorityPhase = 3)
+    private readonly long initialAuthorityProtocolRevision;
+    private readonly long initialAuthorityBusinessRevision;
+
+    public CutoverFixture(int authorityPhase = 3, long authorityProtocolRevision = 8, long authorityBusinessRevision = 41)
     {
+        initialAuthorityProtocolRevision = authorityProtocolRevision;
+        initialAuthorityBusinessRevision = authorityBusinessRevision;
         Root = Path.Combine(Path.GetTempPath(), "Sushi81.Pos.Cutover.Tests", Guid.NewGuid().ToString("N"));
         Data = Path.Combine(Root, "Data");
         Config = Path.Combine(Root, "Config");
@@ -40,6 +45,7 @@ internal sealed class CutoverFixture : IDisposable
     public string Archive { get; }
     public string OneDriveRoot { get; }
     public string DatabasePath { get; }
+    public string AuthorityStatePath => Path.Combine(Config, "authority-state.json");
     public Guid DeviceId { get; }
     public Guid LineageId { get; }
     public TestCutoverHost Host { get; }
@@ -94,6 +100,22 @@ internal sealed class CutoverFixture : IDisposable
     }
 
     public string HashDatabase() => HashFile(DatabasePath);
+    public string HashAuthorityState() => HashFile(AuthorityStatePath);
+
+    public (long Revision, long BusinessRevision, Guid DeviceId, string DisplayName, Guid? LineageId, long Generation, long HandoffVersion, int Phase) ReadAuthorityProtocol()
+    {
+        using var document = JsonDocument.Parse(File.ReadAllBytes(AuthorityStatePath));
+        var protocol = document.RootElement.GetProperty("protocol");
+        return (
+            protocol.GetProperty("revision").GetInt64(),
+            protocol.GetProperty("businessRevision").GetInt64(),
+            protocol.GetProperty("deviceId").GetGuid(),
+            protocol.GetProperty("displayName").GetString()!,
+            protocol.GetProperty("lineageId").GetGuid(),
+            protocol.GetProperty("generation").GetInt64(),
+            protocol.GetProperty("handoffVersion").GetInt64(),
+            protocol.GetProperty("phase").GetInt32());
+    }
 
     public IReadOnlyDictionary<string, string> HashArchive()
         => Directory.EnumerateFiles(Archive, "*", SearchOption.AllDirectories)
@@ -102,9 +124,11 @@ internal sealed class CutoverFixture : IDisposable
     public CutoverRunResult Execute()
         => Service.Run(new(true, PreProductionCutoverService.ConfirmationToken, Root));
 
-    public void RewriteAuthority(int phase = 3, object? transfer = null, object? recovery = null)
+    public void RewriteAuthority(int phase = 3, object? transfer = null, object? recovery = null,
+        long? protocolRevision = null, long? businessRevision = null)
     {
-        WriteAuthority(phase, transfer, recovery);
+        WriteAuthority(phase, transfer, recovery, protocolRevision ?? initialAuthorityProtocolRevision,
+            businessRevision ?? initialAuthorityBusinessRevision);
         Service = new PreProductionCutoverService(Root, Host);
     }
 
@@ -177,7 +201,8 @@ internal sealed class CutoverFixture : IDisposable
         }
     }
 
-    private void WriteAuthority(int phase, object? transfer, object? recovery)
+    private void WriteAuthority(int phase, object? transfer, object? recovery,
+        long? protocolRevision = null, long? businessRevision = null)
     {
         var state = new
         {
@@ -185,13 +210,13 @@ internal sealed class CutoverFixture : IDisposable
             updatedAtUtc = "2026-09-25T00:00:00+00:00",
             protocol = new
             {
-                revision = 8,
+                revision = protocolRevision ?? initialAuthorityProtocolRevision,
                 deviceId = DeviceId,
                 displayName = "Synthetic A",
                 lineageId = LineageId,
                 generation = 1,
                 handoffVersion = 4,
-                businessRevision = 41,
+                businessRevision = businessRevision ?? initialAuthorityBusinessRevision,
                 phase,
                 transfer,
                 recovery,
@@ -278,6 +303,7 @@ internal sealed class TestCutoverHost : ICutoverHost
     public CutoverCheckpoint? DesktopStartsAt { get; set; }
     public bool WrongProvenance { get; set; }
     public CutoverCheckpoint? ThrowAt { get; set; }
+    public Action<CutoverCheckpoint>? OnCheckpoint { get; set; }
     public DateTimeOffset UtcNow => new(2026, 9, 25, 20, 0, 0, TimeSpan.Zero);
     public bool IsDesktopRunning() => DesktopRunning;
 
@@ -292,6 +318,7 @@ internal sealed class TestCutoverHost : ICutoverHost
     public void Checkpoint(CutoverCheckpoint checkpoint)
     {
         if (DesktopStartsAt == checkpoint) DesktopRunning = true;
+        OnCheckpoint?.Invoke(checkpoint);
         if (ThrowAt == checkpoint) throw new IOException("Synthetic failure at " + checkpoint);
     }
 }
