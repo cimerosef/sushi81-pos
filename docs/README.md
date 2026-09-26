@@ -4,13 +4,13 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M11 are Passed/merged. M12 Annual archive and historical access is controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722` under the explicit owner waiver; real populated-archive operational verification remains deferred and is not claimed Passed. M13 WP1–WP5 are controller-accepted on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. WP6 has prepared the final-candidate documentation and owner-acceptance package; exact-head verification and artifact provenance are recorded in its matching `CODEX_DONE`. Owner acceptance remains pending; PR #26 remains unmerged.**
+**Phase 6 implementation active: M01–M11 are Passed/merged. M12 Annual archive and historical access is controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722` under the explicit owner waiver; real populated-archive operational verification remains DEFERRED-NOT-M13, not Passed. M13 is closure-ready on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26: owner A–G evidence is PASS, final controller review and separate owner merge approval remain, and PR #26 is OPEN/unmerged. Accepted production source `469c8761061b0ecf488e06386a97b9e10652a916`, exact-head CI #912 / run `36253271385` (932/932 tests), installer artifact `10909188508` / `Sushi81-POS-production-installer-win-x64-1.0.0-469c876`.**
 
 M12 final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3` passed exact-head CI #862 / run `36021889765` with 881/881 tests and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test also succeeded.
 
 M13 includes the Approved Gestion export ledger retention/compaction amendment, full FR/zh-CN localization completion, self-contained win-x64 packaging, per-user Inno Setup installer, upgrade/reinstall data preservation, diagnostics/performance/repository-security hardening, final production-target regression, release provenance and the user operating guide.
 
-The owner confirmed on 2026-09-24 that the source repository's public visibility is intentional and is not an M13 blocker. WP1–WP5 accepted heads and exact-head CI are recorded in the root README and the M13 PR mailbox. WP6 does not claim owner acceptance, M13 Passed, merge or release; the matching WP6 `CODEX_DONE` comment is the authoritative source for the final source SHA and installer artifact identity. M12's real populated-archive verification remains deferred under its existing owner waiver.
+The owner confirmed on 2026-09-24 that the source repository's public visibility is intentional and is not an M13 blocker. Owner acceptance covers A–G, the protected in-app reset, guide-led B setup, normal A→B production cutover and B catalogue VAT repair. B is authoritative/writable; A is read-only. Genuine Excel-percent formatting and only the approved plain-number compatibility values `0.055→5.5`, `0.1→10`, `0.2→20` normalize to canonical VAT points; other plain fractions remain literal. The owner committed and visually checked B's 5.5/10/20 values, then saw zero changes on a second export/reimport preview. M12's real populated-archive verification remains deferred under its existing owner waiver. A docs-only CI artifact after this reconciliation does not replace the accepted production candidate.
 
 ## V1 documentation baseline
 
@@ -145,7 +145,7 @@ Current M13 control package:
 - [English operating guide](operating-guide.md) — equivalent English reference.
 - branch `codex/m13-installer-final-acceptance-authorized`;
 - Draft PR #26 — active M13 durable mailbox;
-- Issue #4 — sole execution gate, OPEN for M13-FINAL-OPERATING-GUIDE-ZHCN-ONBOARDING-09.
+- Issue #4 — sole execution gate and active-PR pointer; it was OPEN only for this final documentation handoff. Normal post-package expectation is no active implementation gate until a new authorized task.
 
 ## Decision records
 

@@ -1,8 +1,8 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-25
-**Current state:** M01 through M11 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current authoritative `main` is M12 merge commit `f59663c6b47ab21114c24360544e4e25094f4722`. M12 is controller-accepted and merged under the explicit owner waiver; real populated-archive operational verification remains deferred and is not claimed Passed. M13 WP1–WP5 are controller-accepted on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. WP6 has prepared the final-candidate documentation, operating guide and owner-acceptance package; exact final SHA and artifact evidence are recorded in the matching `CODEX_DONE`. Owner acceptance and M13 Passed/merge/release status remain pending.
+**Last updated:** 2026-09-26
+**Current state:** M01 through M11 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current authoritative `main` is M12 merge commit `f59663c6b47ab21114c24360544e4e25094f4722`. M12 is controller-accepted and merged under the explicit owner waiver; real populated-archive operational verification remains DEFERRED-NOT-M13, not Passed. M13 is closure-ready on `codex/m13-installer-final-acceptance-authorized` / OPEN Draft PR #26: owner A–G evidence is PASS; final controller review and separate owner merge approval remain. Accepted production source is `469c8761061b0ecf488e06386a97b9e10652a916`, exact-head CI #912 / run `36253271385` (932/932 tests), installer artifact `10909188508` / `Sushi81-POS-production-installer-win-x64-1.0.0-469c876`. PR #26 is unmerged; `main` has not advanced to M13.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -39,7 +39,7 @@
 | M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
 | M11 — Gestion intermediate export | Passed | PR #24 CLOSED/MERGED at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831, 0 failed, 0 skipped and Release build 0 warnings/errors. |
 | M12 — Annual archive/historical access | Accepted under waiver / merged | PR #25 CLOSED/MERGED at `f59663c6b47ab21114c24360544e4e25094f4722`. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3`; exact-head CI #862 / run `36021889765` succeeded with 881/881, 0 failed/skipped and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test succeeded. Real populated-archive operational verification remains explicitly deferred under the owner waiver and is not claimed Passed. |
-| M13 — Installer and final acceptance | Final candidate prepared / owner acceptance pending | WP1–WP5 are controller-accepted. Accepted heads and exact-head CI are listed below. WP6 prepared the final-candidate documentation, operating guide and owner checklist. Exact final SHA, CI and artifact identity are recorded in the matching WP6 `CODEX_DONE` comment; no M13 Passed, owner acceptance, merge or release is claimed. |
+| M13 — Installer and final acceptance | Closure-ready / owner A–G PASS | Accepted production head `469c8761061b0ecf488e06386a97b9e10652a916`; CI #912 / `36253271385`, 932/932 tests; installer artifact `10909188508`. Final controller review and separate owner merge approval remain. PR #26 OPEN/Draft/unmerged; no M13 merge or release is claimed. |
 
 ## 3. Current merged baseline
 
@@ -144,8 +144,8 @@ M13 current control line:
 - worklog: `implementation/milestone-13-worklog.md`;
 - Approved retention decision: `decisions/m13-gestion-export-ledger-retention-compaction.md`;
 - matching acceptance amendment: `acceptance-criteria-amendment-m13-gestion-export-retention.md`;
-- Issue #4 was OPEN when the WP6 handoff was authorized;
-- WP6 handoff: `M13-WP6-FINAL-CANDIDATE-OPERATING-GUIDE-06` on PR #26; matching completion and review state are in the PR mailbox;
+- Issue #4 was OPEN for the final documentation reconciliation handoff `M13-FINAL-STATUS-RECONCILIATION-20`; normal post-package expectation is no active implementation gate until a new authorized task;
+- accepted production application head `469c8761061b0ecf488e06386a97b9e10652a916`, CI #912 / run `36253271385`, artifact ID `10909188508`;
 - PR #26 remains unmerged.
 
 ### M13 work-package sequence
@@ -171,7 +171,18 @@ The owner explicitly confirmed on 2026-09-24 that the source repository's public
 | WP4 — production publish/installer | `0f73cee0311a1c76e8b4cafd7413720c252be27c` | #880 / `36114601424` — success; artifact `10854348679` |
 | WP5 — diagnostics/performance/security hardening | `aa734cc94bb6500be42cbaa00407e8fc8ec7a1fd` | #882 / `36124050769` — success; artifact `10859146322` |
 
-WP6 is documentation/candidate preparation only. It does not change production code, schema, business rules, installer identity, localization behavior or workflow behavior. Owner manual sections A–F, interactive Windows acceptance and final M13 closure remain pending. The first safe M12 real populated-archive verification remains an authoritative startup on or after 2027-02-01 with real 2026 rows and is not part of M13 acceptance.
+### M13 owner acceptance and remaining control
+
+- A/B installer identity, launch and profile preservation: PASS on owner evidence and controlled B installation;
+- C authoritative business smoke: PASS;
+- D FR/zh-CN runtime switching and final navigation/layout: PASS after the earlier candidate failure was repaired;
+- E retained Gestion export behavior: PASS for available real-profile evidence; PREPARED/30-day edges remain deterministic automated evidence, not invented owner observations;
+- F operating guide: PASS after the owner followed the revised Chinese guide through B installation/configuration, Credential Manager GitHub test, OneDrive local availability, printers and normal exact-target A→B handoff; the earlier guide failure remains historical;
+- G protected in-app full business-data reset: PASS. Owner evidence covers preview, cancel/no mutation, typed `RESET` and final confirmation, private `MaintenanceBackups`, cleared business views and preserved settings, authority and technical configuration. The subsequent A→B transfer proved pairing/target reuse. Do not repeat the reset;
+- A→B production cutover succeeded: B is authoritative/writable, A read-only; real production catalogue transferred to B;
+- catalogue VAT compatibility: genuine Excel-percent formats normalize, and only plain numbers `0.055→5.5`, `0.1→10`, `0.2→20` receive legacy normalization. Other plain fractions remain literal. B bound-record export/reimport committed canonical 5.5/10/20, owner visually verified representative rows, and a second preview showed zero changes. Handoff 19 owner acceptance: PASS.
+
+The first safe M12 real populated-archive verification remains an authoritative startup on or after 2027-02-01 with real 2026 rows: **DEFERRED-NOT-M13**. PR #26 remains OPEN/Draft/unmerged pending final controller review and separate owner merge approval. This docs-only reconciliation does not change the accepted production application head; a generated installer from its CI run is evidence-only.
 
 ## 6. Evidence preservation
 
