@@ -19,6 +19,7 @@ public sealed class PreProductionCutoverTests
 
         Assert.IsFalse(result.Changed);
         Assert.AreEqual("DRY RUN", result.Preflight.Mode);
+        Assert.AreEqual("ClosedRetainedAuthority", result.Preflight.AuthorityPhase);
         Assert.AreEqual(11, result.Preflight.DatabaseSchemaVersion);
         Assert.AreEqual(0, result.Preflight.ForeignKeyViolationCount);
         Assert.IsTrue(result.Preflight.OrdersByStatusAndSource.Any(row => row.Status == "OPEN" && row.SourceType == "POS" && row.Count == 1));
@@ -64,14 +65,34 @@ public sealed class PreProductionCutoverTests
     }
 
     [TestMethod]
-    public void UnsafeAuthorityPhaseRefusesExecution()
+    public void ReadOnlyAndTransitioningAuthorityPhasesRefuseExecutionWithoutMutation()
     {
-        using var fixture = new CutoverFixture();
-        fixture.RewriteAuthority(phase: 2);
-        var hash = fixture.HashDatabase();
-        Assert.Throws<InvalidDataException>(() => fixture.Execute());
-        Assert.AreEqual(hash, fixture.HashDatabase());
+        foreach (var phase in new[] { 0, 1, 4, 5, 6, 7, 8, 9, 10, 11, 12 })
+        {
+            using var fixture = new CutoverFixture(authorityPhase: phase);
+            var hash = fixture.HashDatabase();
+            Assert.Throws<InvalidDataException>(() => fixture.Execute());
+            Assert.AreEqual(hash, fixture.HashDatabase());
+            Assert.AreEqual(41L, fixture.ReadRevision());
+        }
+    }
+
+    [TestMethod]
+    public void ActualAuthoritativeCloseRetainPhaseSupportsDryRunAndExecute()
+    {
+        using var fixture = new CutoverFixture(authorityPhase: 2);
+        var dryRun = fixture.Service.Run(new(false, null, null));
+
+        Assert.IsFalse(dryRun.Changed);
+        Assert.AreEqual("Authoritative", dryRun.Preflight.AuthorityPhase);
         Assert.AreEqual(41L, fixture.ReadRevision());
+
+        var result = fixture.Execute();
+
+        Assert.IsTrue(result.Changed);
+        Assert.AreEqual("Authoritative", result.Preflight.AuthorityPhase);
+        Assert.AreEqual(42L, fixture.ReadRevision());
+        Assert.AreEqual(0, result.Preflight.ForeignKeyViolationCount);
     }
 
     [TestMethod]

@@ -12,7 +12,7 @@ This temporary owner utility performs the one-time pre-production removal of the
 
 ## Dry run
 
-Run `Sushi81.Pos.PreProductionCutoverReset.exe` with no arguments. It is read-only. It prints the resolved data root, validates the accepted installed application and closed retained authority state, checks the database/schema/integrity, and reports counts without exposing order contents. No backup is created and no database or archive content is changed.
+Run `Sushi81.Pos.PreProductionCutoverReset.exe` with no arguments. It is read-only. It prints the resolved data root, validates the accepted installed application and settled retained authority (`Authoritative` or `ClosedRetainedAuthority`, with the desktop closed), checks the database/schema/integrity, and reports counts without exposing order contents. The report shows the actual accepted authority phase. No backup is created and no database or archive content is changed.
 
 Stop if any preflight check fails. Do not repair authority files or the database manually to make the utility proceed.
 
@@ -27,7 +27,7 @@ Read the exact resolved data-root path printed by the dry run. Copy that full pa
   --confirm-root "<exact data root printed by the dry run>"
 ```
 
-The utility repeats all preflight checks. It refuses to mutate unless the installed application provenance is version 1.0.0 from accepted source head `9f4521627b21f44c2dc5452f03db840a143e1ee4`, canonical authority state is schema 2 in `ClosedRetainedAuthority` with matching OneDrive lineage/device membership and no active transfer/recovery evidence, `live.db` is valid at schema migration 11, and a non-empty test dataset remains.
+The utility repeats all preflight checks. It refuses to mutate unless the installed application provenance is version 1.0.0 from accepted source head `9f4521627b21f44c2dc5452f03db840a143e1ee4`, canonical authority state is schema 2 in settled retained authority (`Authoritative` or `ClosedRetainedAuthority`, with the desktop closed) with matching OneDrive lineage/device membership and no active transfer/recovery evidence, `live.db` is valid at schema migration 11, and a non-empty test dataset remains. The current close-and-retain flow leaves phase 2 (`Authoritative`) persisted; the utility does not claim the UI writes phase 3.
 
 Before the single SQLite transaction, it creates an owner-visible timestamped folder under `%LOCALAPPDATA%\Sushi81 POS\CutoverBackups`. The folder contains a SQLite-consistent `live.db` backup, its SHA-256, and the local Archive files with SHA-256 values. Keep this folder private and retain it until the owner/controller confirms the new production recovery/handoff state is established.
 

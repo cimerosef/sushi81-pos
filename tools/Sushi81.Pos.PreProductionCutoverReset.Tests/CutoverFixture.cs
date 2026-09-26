@@ -7,7 +7,7 @@ namespace Sushi81.Pos.PreProductionCutoverReset.Tests;
 
 internal sealed class CutoverFixture : IDisposable
 {
-    public CutoverFixture()
+    public CutoverFixture(int authorityPhase = 3)
     {
         Root = Path.Combine(Path.GetTempPath(), "Sushi81.Pos.Cutover.Tests", Guid.NewGuid().ToString("N"));
         Data = Path.Combine(Root, "Data");
@@ -21,7 +21,7 @@ internal sealed class CutoverFixture : IDisposable
         Directory.CreateDirectory(OneDriveRoot);
         DeviceId = Guid.NewGuid();
         LineageId = Guid.NewGuid();
-        WriteAuthority(phase: 3, transfer: null, recovery: null);
+        WriteAuthority(phase: authorityPhase, transfer: null, recovery: null);
         WriteSystemIdentity();
         File.WriteAllText(Path.Combine(Config, "local-settings.json"), JsonSerializer.Serialize(new { oneDriveRoot = OneDriveRoot }));
         File.WriteAllText(Path.Combine(Config, "preserved-config.txt"), "synthetic-configuration");

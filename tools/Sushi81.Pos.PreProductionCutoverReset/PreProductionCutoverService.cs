@@ -11,6 +11,7 @@ public sealed class PreProductionCutoverService
     public const string ConfirmationToken = "DELETE-ALL-TEST-BUSINESS-DATA";
     private const int RequiredDatabaseSchemaVersion = 11;
     private const int CanonicalAuthoritySchemaVersion = 2;
+    private const int AuthoritativeEnumValue = 2;
     private const int ClosedRetainedAuthorityEnumValue = 3;
     private const string AcceptedOneDriveProtocol = "M07";
     private const string CutoverBackupDirectoryName = "CutoverBackups";
@@ -62,7 +63,7 @@ public sealed class PreProductionCutoverService
         var database = ReadAndValidateDatabase();
         var report = new CutoverPreflightReport(
             root, request.Execute ? "EXECUTE" : "DRY RUN", application.SourceHeadSha, application.ProductVersion,
-            authority.SchemaVersion, "ClosedRetainedAuthority", database.SchemaVersion, database.Integrity,
+            authority.SchemaVersion, authority.PhaseName, database.SchemaVersion, database.Integrity,
             database.ForeignKeyViolationCount, database.OrdersByStatusAndSource, database.TableCounts,
             database.BusinessSettings.Count, database.BusinessDataRevision, archiveFiles.Count,
             configurationHashes.Keys.Order(StringComparer.OrdinalIgnoreCase).ToArray());
@@ -129,9 +130,17 @@ public sealed class PreProductionCutoverService
             || ReadInt(authorityRoot, "schemaVersion") != CanonicalAuthoritySchemaVersion)
             throw new InvalidDataException("Authority state must use canonical schema 2 without a competing coarse state field.");
         var protocol = authorityRoot.GetProperty("protocol");
-        if (protocol.ValueKind != JsonValueKind.Object || ReadInt(protocol, "phase") != ClosedRetainedAuthorityEnumValue
+        var phase = protocol.ValueKind == JsonValueKind.Object ? ReadInt(protocol, "phase") : -1;
+        if (protocol.ValueKind != JsonValueKind.Object
+            || phase != AuthoritativeEnumValue && phase != ClosedRetainedAuthorityEnumValue
             || !IsNullOrMissing(protocol, "transfer") || !IsNullOrMissing(protocol, "recovery"))
-            throw new InvalidDataException("Authority must be exactly ClosedRetainedAuthority with no active Transfer or Recovery evidence.");
+            throw new InvalidDataException("Authority must be settled retained authority (Authoritative/ClosedRetainedAuthority with desktop closed) with no active Transfer or Recovery evidence.");
+        var phaseName = phase switch
+        {
+            AuthoritativeEnumValue => "Authoritative",
+            ClosedRetainedAuthorityEnumValue => "ClosedRetainedAuthority",
+            _ => throw new InvalidDataException("The retained authority phase is not supported.")
+        };
 
         var deviceId = ReadGuid(protocol, "deviceId");
         var lineageId = ReadGuid(protocol, "lineageId");
@@ -170,7 +179,7 @@ public sealed class PreProductionCutoverService
             || ReadGuid(device, "deviceId") != deviceId || ReadGuid(device, "lineageId") != lineageId
             || ReadLong(device, "generation") != generation)
             throw new InvalidDataException("OneDrive System device membership does not match the established local authority identity.");
-        return new(2, lineagePath, devicePath);
+        return new(2, phaseName, lineagePath, devicePath);
     }
 
     private DatabaseSnapshot ReadAndValidateDatabase()
@@ -804,7 +813,7 @@ public sealed class PreProductionCutoverService
     private static bool IsNullOrMissing(JsonElement element, string property)
         => !element.TryGetProperty(property, out var value) || value.ValueKind == JsonValueKind.Null;
 
-    private sealed record ValidatedAuthority(int SchemaVersion, string LineagePath, string DevicePath)
+    private sealed record ValidatedAuthority(int SchemaVersion, string PhaseName, string LineagePath, string DevicePath)
     {
         public IReadOnlyList<string> SystemIdentityPaths => [LineagePath, DevicePath];
     }
