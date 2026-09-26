@@ -5,6 +5,7 @@ using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Domain;
 using Sushi81.Pos.Infrastructure.Catalogue;
 using Sushi81.Pos.Infrastructure.Migrations;
@@ -231,9 +232,214 @@ public sealed class CatalogueWorkbookIntegrationTests
         Assert.IsTrue(vatValues.Contains(10m));
         Assert.IsTrue(vatValues.Contains(20m));
         foreach (var row in vatRows)
-            Assert.AreEqual("0.00", products.Cell(row, 6).Style.NumberFormat.Format);
+            Assert.AreEqual("0.###############", products.Cell(row, 6).Style.NumberFormat.Format);
+        Assert.AreEqual(5.5m, products.Cell(vatRows.Single(row => products.Cell(row, 1).GetString() == "P-55"), 6).GetValue<decimal>());
+        var roundTrip = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(new MemoryStream(bytes));
+        Assert.AreEqual(5.5m, roundTrip.Products.Single(product => product.ProductCode == "P-55").VatRate);
         Assert.AreEqual(XLWorksheetVisibility.VeryHidden, workbook.Worksheet("__Sushi81Meta").Visibility);
         Assert.IsTrue(workbook.Worksheet("__Sushi81Meta").Protection.IsProtected);
+    }
+
+    [TestMethod]
+    public async Task VatImportNormalizesPercentageFormatsAndOnlyApprovedLegacyPlainValues()
+    {
+        using var workbook = new XLWorkbook(new MemoryStream(await WriteAsync(new CatalogueWorkbookExport([], Guid.NewGuid()))));
+        var sheet = workbook.Worksheet("Products");
+        var cases = new (string Code, decimal Raw, string? Format, decimal Expected)[]
+        {
+            ("PLAIN-55", 5.5m, null, 5.5m),
+            ("PLAIN-10", 10m, null, 10m),
+            ("PLAIN-20", 20m, null, 20m),
+            ("PERCENT-55", 0.055m, "0.0%", 5.5m),
+            ("PERCENT-10", 0.10m, "0%", 10m),
+            ("PERCENT-20", 0.20m, "0.00%", 20m),
+            ("LEGACY-55", 0.055m, "0.000", 5.5m),
+            ("LEGACY-10", 0.10m, "0.00", 10m),
+            ("LEGACY-20", 0.20m, "0.00", 20m),
+            ("LITERAL-PERCENT", 0.055m, "0.000\"%\"", 5.5m),
+            ("ESCAPED-PERCENT", 0.055m, "0.000\\%", 5.5m),
+            ("OTHER-015", 0.15m, "0.00", 0.15m),
+            ("OTHER-05", 0.5m, "0.0", 0.5m),
+            ("OTHER-0075", 0.075m, "0.000", 0.075m),
+        };
+        for (var index = 0; index < cases.Length; index++)
+        {
+            var (code, raw, format, _) = cases[index];
+            var row = index + 2;
+            SetProductBusinessRow(sheet, row, code, code, "Plats", "PL");
+            sheet.Cell(row, 9).Value = false;
+            sheet.Cell(row, 6).Value = raw;
+            if (format is not null) sheet.Cell(row, 6).Style.NumberFormat.Format = format;
+        }
+        var builtInRow = cases.Length + 2;
+        SetProductBusinessRow(sheet, builtInRow, "BUILTIN-PERCENT", "Builtin", "Plats", "PL");
+        sheet.Cell(builtInRow, 9).Value = false;
+        sheet.Cell(builtInRow, 6).Value = 0.055m;
+        sheet.Cell(builtInRow, 6).Style.NumberFormat.NumberFormatId = 9;
+
+        await using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        stream.Position = 0;
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(stream);
+        Assert.IsFalse(parsed.HasErrors, string.Join(";", parsed.Issues.Select(issue => $"{issue.Code}:{issue.Message}")));
+        foreach (var (code, _, _, expected) in cases)
+            Assert.AreEqual(expected, parsed.Products.Single(product => product.ProductCode == code).VatRate, code);
+        Assert.AreEqual(5.5m, parsed.Products.Single(product => product.ProductCode == "BUILTIN-PERCENT").VatRate);
+        var planned = new CatalogueImportPlanner().Plan(CatalogueImportMode.AddOnly, parsed, CatalogueImportBaseline.Empty);
+        Assert.AreEqual(0, planned.Preview.ErrorCount, string.Join(";", planned.Preview.Issues.Select(issue => issue.Code)));
+    }
+
+    [TestMethod]
+    public async Task VatAboveRangeAfterPercentageNormalizationBlocksImport()
+    {
+        using var workbook = new XLWorkbook(new MemoryStream(await WriteAsync(new CatalogueWorkbookExport([], Guid.NewGuid()))));
+        var sheet = workbook.Worksheet("Products");
+        SetProductBusinessRow(sheet, 2, "P-101", "Invalid VAT", "Plats", "PL");
+        sheet.Cell(2, 9).Value = false;
+        sheet.Cell(2, 6).Value = 1.01m;
+        sheet.Cell(2, 6).Style.NumberFormat.Format = "0%";
+        await using var stream = new MemoryStream(); workbook.SaveAs(stream); stream.Position = 0;
+
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(stream);
+        Assert.AreEqual(101m, parsed.Products.Single().VatRate);
+        var planned = new CatalogueImportPlanner().Plan(CatalogueImportMode.AddOnly, parsed, CatalogueImportBaseline.Empty);
+        CollectionAssert.Contains(planned.Preview.Issues.Select(issue => issue.Code).ToArray(), "vat-range");
+        Assert.IsNull(planned.Plan);
+    }
+
+    [TestMethod]
+    public async Task PercentageFormattedVatCommitsAndPricesAtFivePointFivePercent()
+    {
+        using var paths = new TempPaths();
+        var factory = new SqliteConnectionFactory(paths);
+        var clock = new FixedClock();
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        using var workbook = new XLWorkbook(new MemoryStream(await WriteAsync(new CatalogueWorkbookExport([], Guid.NewGuid()))));
+        var sheet = workbook.Worksheet("Products");
+        SetProductBusinessRow(sheet, 2, "P-55", "Five point five", "Plats", "PL");
+        sheet.Cell(2, 9).Value = false;
+        sheet.Cell(2, 6).Value = 0.055m;
+        sheet.Cell(2, 6).Style.NumberFormat.Format = "0.0%";
+        await using var stream = new MemoryStream(); workbook.SaveAs(stream); stream.Position = 0;
+
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(stream);
+        var baseline = await store.ReadCatalogueImportBaselineAsync();
+        var planned = new CatalogueImportPlanner().Plan(CatalogueImportMode.AddOnly, parsed, baseline);
+        Assert.AreEqual(0, planned.Preview.ErrorCount, string.Join(";", planned.Preview.Issues.Select(issue => issue.Code)));
+        Assert.IsNotNull(planned.Plan);
+        var committed = await store.CommitAsync(new CatalogueImportCommitRequest(planned.Plan!, baseline));
+        Assert.IsTrue(committed.Succeeded, string.Join(";", committed.Issues.Select(issue => issue.Code)));
+        var persisted = (await store.ListProductsAsync()).Single();
+        Assert.AreEqual(5.5m, persisted.VatRate);
+
+        var selected = await new OrderEntryCatalogueService(store).GetActiveProductAsync(persisted.Id);
+        Assert.IsNotNull(selected);
+        var draft = new NewOrderDraft(
+            [new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [], 1, selected.CategoryName)],
+            FulfilmentMode.Retrait, clock.BusinessDate, new TimeOnly(12, 0), null, null, null, false);
+        var priced = OrderPricingService.Calculate(draft, BusinessSettings.Defaults(clock.UtcNow));
+        Assert.IsTrue(priced.IsValid, string.Join(";", priced.ValidationErrors));
+        Assert.AreEqual(5.5m, priced.TaxBreakdown.Single().VatRate);
+    }
+
+    [TestMethod]
+    public async Task BoundCurrentCatalogueExportRepairsOnlyLegacyVatOnTheSameProducts()
+    {
+        using var paths = new TempPaths();
+        var factory = new SqliteConnectionFactory(paths);
+        var clock = new FixedClock();
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var catalogue = new CatalogueService(store);
+        var category = (await catalogue.CreateCategoryWithCodeAsync("Plats", "PL")).Value!;
+        var cases = new (string Code, decimal Stored, decimal Expected)[]
+        {
+            ("LEGACY-55", 0.055m, 5.5m),
+            ("LEGACY-10", 0.1m, 10m),
+            ("LEGACY-20", 0.2m, 20m),
+            ("OTHER-015", 0.15m, 0.15m),
+            ("CANONICAL-55", 5.5m, 5.5m),
+        };
+        var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
+        foreach (var (code, stored, _) in cases)
+        {
+            var groups = code == "LEGACY-55"
+                ? new[] { new OptionGroupDraft(Guid.Empty, "Extras", SelectionMode.Multi, false, 0, 1, 0,
+                    [new OptionDraft(Guid.Empty, "Sauce", Money.FromCents(25), true, 0)]) }
+                : [];
+            var created = await catalogue.CreateProductAsync(new ProductDraft(
+                Guid.Empty, code, code, category.Id, Money.FromCents(100), stored, true, false, groups.Length > 0, groups));
+            Assert.IsTrue(created.Succeeded, created.ErrorMessage);
+            ids.Add(code, created.Value!);
+        }
+
+        var before = await store.ReadCatalogueWorkbookSnapshotAsync();
+        var originalGroupId = before.Single(value => value.Code == "LEGACY-55").OptionGroups.Single().OptionGroupId;
+        var originalOptionId = before.Single(value => value.Code == "LEGACY-55").OptionGroups.Single().Options.Single().OptionId;
+        await using var exported = new MemoryStream();
+        await new CatalogueWorkbookService(store, new ClosedXmlCatalogueWorkbookGateway()).ExportAsync(exported);
+        var bytes = exported.ToArray();
+        using (var workbook = new XLWorkbook(new MemoryStream(bytes)))
+        {
+            var sheet = workbook.Worksheet("Products");
+            foreach (var (code, stored, _) in cases)
+            {
+                var row = sheet.RowsUsed().Single(value => value.Cell(1).GetString() == code);
+                Assert.AreEqual(stored, row.Cell(6).GetValue<decimal>(), code);
+                Assert.AreEqual(ids[code].ToString("D"), row.Cell(11).GetString(), code);
+            }
+        }
+
+        var importer = new CatalogueImportService(
+            new ClosedXmlCatalogueWorkbookImportGateway(), store, store,
+            Sushi81.Pos.Application.Foundation.TestOnlyAuthoritativeGuard.Instance,
+            Sushi81.Pos.Application.Foundation.TestOnlyDurableChangeNotifier.Instance);
+        var preview = await importer.PreviewAsync(new MemoryStream(bytes), CatalogueImportMode.Update);
+        Assert.AreEqual(0, preview.Preview.ErrorCount, string.Join(";", preview.Preview.Issues.Select(issue => issue.Code)));
+        Assert.AreEqual(3, preview.Preview.ProductModifyCount);
+        Assert.AreEqual(0, preview.Preview.ProductCreateCount);
+        Assert.AreEqual(0, preview.Preview.NewCategoryCount);
+        Assert.AreEqual(0, preview.Preview.OptionGroupModifyCount);
+        Assert.AreEqual(0, preview.Preview.OptionModifyCount);
+        Assert.IsNotNull(preview.Plan);
+        Assert.HasCount(3, preview.Plan.Operations);
+        foreach (var (code, _, expected) in cases.Take(3))
+        {
+            var operation = preview.Plan.Operations.Single(value => value.EntityId == ids[code]);
+            Assert.AreEqual(CatalogueImportEntityType.Product, operation.EntityType);
+            Assert.AreEqual(CatalogueImportOperationKind.Modify, operation.Kind);
+            Assert.AreEqual(expected.ToString(System.Globalization.CultureInfo.InvariantCulture), operation.Values["vatRate"]);
+        }
+
+        var committed = await importer.CommitAsync(preview);
+        Assert.IsTrue(committed.Succeeded, string.Join(";", committed.Issues.Select(issue => issue.Code)));
+        Assert.IsTrue(committed.Changed);
+        var after = await store.ReadCatalogueWorkbookSnapshotAsync();
+        Assert.HasCount(before.Count, after);
+        foreach (var (code, _, expected) in cases)
+        {
+            var product = after.Single(value => value.Code == code);
+            Assert.AreEqual(ids[code], product.ProductId);
+            Assert.AreEqual(category.Name, product.CategoryName);
+            Assert.AreEqual(expected, product.VatRate, code);
+            Assert.HasCount(before.Single(value => value.Code == code).OptionGroups.Count, product.OptionGroups);
+        }
+        Assert.AreEqual(originalGroupId, after.Single(value => value.Code == "LEGACY-55").OptionGroups.Single().OptionGroupId);
+        Assert.AreEqual(originalOptionId, after.Single(value => value.Code == "LEGACY-55").OptionGroups.Single().Options.Single().OptionId);
+        Assert.HasCount(1, await store.ListCategoriesAsync());
+
+        foreach (var (code, _, expected) in cases.Take(3))
+        {
+            var selected = await new OrderEntryCatalogueService(store).GetActiveProductAsync(ids[code]);
+            Assert.IsNotNull(selected);
+            var draft = new NewOrderDraft(
+                [new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [], 1, selected.CategoryName)],
+                FulfilmentMode.Retrait, clock.BusinessDate, new TimeOnly(12, 0), null, null, null, false);
+            var priced = OrderPricingService.Calculate(draft, BusinessSettings.Defaults(clock.UtcNow));
+            Assert.IsTrue(priced.IsValid, string.Join(";", priced.ValidationErrors));
+            Assert.AreEqual(expected, priced.TaxBreakdown.Single().VatRate, code);
+        }
     }
 
     [TestMethod]
@@ -568,10 +774,13 @@ public sealed class CatalogueWorkbookIntegrationTests
         var model = new CatalogueWorkbookExport([new CatalogueWorkbookProduct(Guid.NewGuid(), "P-1", "Product", "Plats", null, Money.FromCents(100), 20m, true, false, false, [])], Guid.NewGuid());
         using var workbook = new XLWorkbook(new MemoryStream(await WriteAsync(model)));
         workbook.Worksheet("Products").Cell(2, 5).FormulaA1 = "=1+1";
+        workbook.Worksheet("Products").Cell(2, 6).FormulaA1 = "=0.055";
+        workbook.Worksheet("Products").Cell(2, 6).Style.NumberFormat.Format = "0.0%";
         await using var stream = new MemoryStream(); workbook.SaveAs(stream); stream.Position = 0;
         var gateway = new ClosedXmlCatalogueWorkbookImportGateway();
         var formula = await gateway.ReadAsync(stream);
         Assert.IsTrue(formula.Issues.Any(issue => issue.Code == "formula-not-allowed"));
+        Assert.IsTrue(formula.Issues.Any(issue => issue.Code == "formula-not-allowed" && issue.FieldKey == "vat_rate"));
         var corrupt = await gateway.ReadAsync(new MemoryStream(System.Text.Encoding.UTF8.GetBytes("not an xlsx")));
         Assert.IsTrue(corrupt.HasErrors);
         Assert.IsTrue(corrupt.Issues.Any(issue => issue.Code == "unreadable-workbook"));

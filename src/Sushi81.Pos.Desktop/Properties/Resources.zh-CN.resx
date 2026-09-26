@@ -126,6 +126,7 @@
   <data name="EnterValidValues" xml:space="preserve"><value>请输入有效值。</value></data>
   <data name="Saved" xml:space="preserve"><value>已保存。</value></data>
   <data name="ValidationGeneric" xml:space="preserve"><value>输入无效。</value></data>
+  <data name="OperationFailed" xml:space="preserve"><value>操作未能完成。请查看诊断信息后重试。</value></data>
   <data name="ValidationAuthorityBlocked" xml:space="preserve"><value>写入已禁止：此实例没有本地权威状态。</value></data>
   <data name="ValidationRequired" xml:space="preserve"><value>此字段为必填项。</value></data>
   <data name="ValidationCategoryDuplicate" xml:space="preserve"><value>已存在同名分类。</value></data>
@@ -472,4 +473,23 @@
   <data name="ArchiveInvalidDateRange" xml:space="preserve"><value>历史日期范围无效。</value></data>
   <data name="ArchiveCopySucceeded" xml:space="preserve"><value>归档已复制到 {0}。</value></data>
   <data name="ArchiveCopyFailed" xml:space="preserve"><value>无法复制选定的归档。</value></data>
+  <data name="DataTools" xml:space="preserve"><value>数据</value></data>
+  <data name="BusinessDataResetSection" xml:space="preserve"><value>数据维护</value></data>
+  <data name="BusinessDataResetAction" xml:space="preserve"><value>重置业务数据</value></data>
+  <data name="BusinessDataResetDescription" xml:space="preserve"><value>删除当前订单、商品目录、Gestion 导出和本地年度归档。保留设置、设备配对、权威状态及恢复副本。重置前会创建并保留私有备份。</value></data>
+  <data name="BusinessDataResetPreviewTitle" xml:space="preserve"><value>重置前预览</value></data>
+  <data name="BusinessDataResetPreviewSummary" xml:space="preserve"><value>订单：{0}&#10;商品 / 类别 / 选项组 / 选项：{1} / {2} / {3} / {4}&#10;Gestion 批次（含 PREPARED）：{5}（{6}）&#10;年度归档记录：{7}&#10;活动归档年份 / 文件：{8} / {9}&#10;订单编号序列：{10}</value></data>
+  <data name="BusinessDataResetPreserved" xml:space="preserve"><value>保留：设备配对与权威状态、谱系/代次、技术配置、打印机、语言、业务设置和恢复副本。此预览不会显示订单自由文本。</value></data>
+  <data name="BusinessDataResetTypePrompt" xml:space="preserve"><value>请准确输入大写 RESET，然后在下一步确认。</value></data>
+  <data name="BusinessDataResetProceed" xml:space="preserve"><value>继续到最终确认</value></data>
+  <data name="BusinessDataResetFinalConfirm" xml:space="preserve"><value>此操作会删除上方显示的运营数据，应用内无法撤销。是否继续？</value></data>
+  <data name="BusinessDataResetSuccess" xml:space="preserve"><value>业务数据已重置。私有备份保留在 %LOCALAPPDATA%\Sushi81 POS\MaintenanceBackups\{0}。</value></data>
+  <data name="BusinessDataResetAlreadyEmpty" xml:space="preserve"><value>没有可重置的活动业务数据，未增加数据版本。</value></data>
+  <data name="BusinessDataResetFailure" xml:space="preserve"><value>重置在修改前失败，活动数据未改变。预备备份：%LOCALAPPDATA%\Sushi81 POS\MaintenanceBackups\{0}。</value></data>
+  <data name="BusinessDataResetRestored" xml:space="preserve"><value>重置失败，数据库和归档已恢复。私有备份保留在 %LOCALAPPDATA%\Sushi81 POS\MaintenanceBackups\{0}。</value></data>
+  <data name="BusinessDataResetRecoveryRequired" xml:space="preserve"><value>自动恢复未完成。请停止使用业务界面并请求人工指导恢复。私有备份保留在 %LOCALAPPDATA%\Sushi81 POS\MaintenanceBackups\{0}。</value></data>
+  <data name="BusinessDataResetConfirmAndReset" xml:space="preserve"><value>确认并重置</value></data>
+  <data name="BusinessDataResetPreviewFailed" xml:space="preserve"><value>无法读取重置预览，未执行任何修改。</value></data>
+  <data name="BusinessDataResetRecoveryNotificationFailed" xml:space="preserve"><value>重置已提交，但发布新的恢复状态失败。业务界面仍保持锁定。请停止使用并请求人工指导恢复。私有备份：%LOCALAPPDATA%\Sushi81 POS\MaintenanceBackups\{0}。</value></data>
+  <data name="BusinessDataResetUnknownFailure" xml:space="preserve"><value>重置结果无法确定。请停止使用业务界面并请求人工指导恢复。</value></data>
 </root>

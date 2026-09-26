@@ -15,6 +15,7 @@ using Sushi81.Pos.Infrastructure.Authority;
 using Sushi81.Pos.Infrastructure.Configuration;
 using Sushi81.Pos.Application.Export;
 using Sushi81.Pos.Application.Archive;
+using Sushi81.Pos.Application.Maintenance;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -83,12 +84,15 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private LocalConfiguration _configuration;
     private readonly M07ConfigurationSetupService? _m07Setup;
     private AuthorityPhase? _authorityPhase;
+    private readonly DesktopOperationDiagnostics? diagnostics;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, CatalogueWorkbookService? catalogueWorkbookService = null, CatalogueImportService? catalogueImportService = null, GestionExportWorkflowViewModel? gestionExportWorkflow = null, IAnnualArchiveAccess? archiveAccess = null, IArchivedOrderPrintApplicationService? archivedOrderPrintService = null)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, CatalogueWorkbookService? catalogueWorkbookService = null, CatalogueImportService? catalogueImportService = null, GestionExportWorkflowViewModel? gestionExportWorkflow = null, IAnnualArchiveAccess? archiveAccess = null, IArchivedOrderPrintApplicationService? archivedOrderPrintService = null, DesktopOperationDiagnostics? diagnostics = null, BusinessDataResetService? businessDataResetService = null)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
         _configuration = configuration ?? new LocalConfiguration();
         _m07Setup = m07Setup;
+        this.diagnostics = diagnostics;
+        BusinessDataResetService = businessDataResetService;
         _culture = Normalize(_cultureStore.Load());
         StartupSucceeded = startupSucceeded;
         AuthorityState = authorityGuard?.State ?? authorityState;
@@ -107,24 +111,27 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
                 () => _businessPresentationRefreshBlocked,
                 RefreshAfterCatalogueImportAsync);
         }
-        Admin = startupSucceeded && catalogueService is not null && settingsService is not null ? new M03ShellViewModel(catalogueService, settingsService, authorityGuard) : null;
-        Entry = startupSucceeded && orderEntryService is not null ? new OrderEntryShellViewModel(orderEntryService, authorityGuard, hiboutikImportOrchestrator) : null;
+        Admin = startupSucceeded && catalogueService is not null && settingsService is not null ? new M03ShellViewModel(catalogueService, settingsService, authorityGuard, diagnostics) : null;
+        Entry = startupSucceeded && orderEntryService is not null ? new OrderEntryShellViewModel(orderEntryService, authorityGuard, hiboutikImportOrchestrator, diagnostics) : null;
         PrintService = printService;
         PrinterSetup = printerSetup;
-        Lifecycle = startupSucceeded && orderLifecycleService is not null ? new OrderLifecycleShellViewModel(orderLifecycleService, authorityGuard, printService) : null;
-        Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
+        Lifecycle = startupSucceeded && orderLifecycleService is not null ? new OrderLifecycleShellViewModel(orderLifecycleService, authorityGuard, printService, diagnostics) : null;
+        Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"], Localized);
         Entry?.ApplyLocalization(Localized["All"], Localized["FulfilmentUnselected"], Localized["Retrait"], Localized["Livraison"], Localized["ManualTotalActive"], Localized["NewOrder"], Localized["Quantity"], Localized);
         Lifecycle?.ApplyLocalization(Localized);
         PrinterSetup?.ApplyLocalization(Localized);
         CatalogueWorkflow?.ApplyLocalization(Localized);
         GestionExportWorkflow = gestionExportWorkflow;
         GestionExportWorkflow?.ApplyLocalization(Localized);
-        ArchiveAccess = startupSucceeded && archiveAccess is not null ? new AnnualArchiveAccessViewModel(archiveAccess, archivedOrderPrintService) : null;
+        ArchiveAccess = startupSucceeded && archiveAccess is not null ? new AnnualArchiveAccessViewModel(archiveAccess, archivedOrderPrintService, diagnostics) : null;
         ArchiveAccess?.ApplyLocalization(Localized);
         if (Admin is not null) Admin.SettingsSaved += OnSettingsSaved;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    internal void ReportUnexpectedFailure(string operation, Exception exception) =>
+        diagnostics?.ReportUnexpectedFailure(operation, exception);
 
     public ObservableCollection<LanguageOption> Languages { get; }
 
@@ -208,9 +215,18 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public AnnualArchiveAccessViewModel? ArchiveAccess { get; }
 
+    public BusinessDataResetService? BusinessDataResetService { get; }
+
     public bool IsGestionExportAvailable => GestionExportWorkflow is not null;
 
     public bool IsArchiveAccessAvailable => ArchiveAccess is not null;
+
+    public bool IsDataToolsAvailable => IsGestionExportAvailable || IsArchiveAccessAvailable;
+
+    public bool CanResetBusinessData => BusinessDataResetService is not null
+        && CanWrite
+        && !_m07OperationInProgress
+        && CurrentAuthorityPhase == AuthorityPhase.Authoritative;
 
     public bool IsM03Available => Admin is not null;
 
@@ -267,7 +283,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
             _culture = requestedCulture;
             RefreshResources();
-            Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"]);
+            Admin?.ApplyLocalization(Localized["All"], Localized["Active"], Localized["Inactive"], Localized["Activate"], Localized["Deactivate"], Localized);
             Entry?.ApplyLocalization(Localized["All"], Localized["FulfilmentUnselected"], Localized["Retrait"], Localized["Livraison"], Localized["ManualTotalActive"], Localized["NewOrder"], Localized["Quantity"], Localized);
             Lifecycle?.ApplyLocalization(Localized);
             PrinterSetup?.ApplyLocalization(Localized);
@@ -330,7 +346,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         Languages.Add(new LanguageOption("fr-FR", Read("FrenchLanguage")));
         Languages.Add(new LanguageOption("zh-CN", Read("ChineseLanguage")));
         _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
-        var keys = new[] { "ShellTitle", "Catalogue", "Settings", "Caisse", "Commandes", "Products", "Search", "OrderSearch", "Category", "All", "Active", "Inactive", "NewProduct", "Edit", "Save", "Cancel", "Add", "Confirm", "ReloadOrder", "Activate", "Deactivate", "Create", "Modify", "BulkActivate", "BulkDeactivate", "BulkConfirm", "BulkNoChange", "BulkSuccess", "DeletePermanently", "ManageCategories", "CategoryShortCode", "CategoryShortCodeTooltip", "Code", "Name", "PriceTtc", "Vat", "DiscountEligible", "OptionsEnabled", "OptionGroups", "Options", "SelectionMode", "Required", "Optional", "Single", "Multi", "Minimum", "Maximum", "AdjustmentTtc", "MoveUp", "MoveDown", "PickupDiscount", "PickupMinimum", "DeliveryMinimum", "DeliveryFee", "DeliveryFeeEnabled", "Fulfilment", "FulfilmentUnselected", "Retrait", "Livraison", "PlannedDate", "PlannedTime", "TimeHour", "TimeMinute", "TimeUnset", "Telephone", "DeliveryAddress", "Comment", "PickupDiscountRequest", "Cart", "TotalTtc", "Quantity", "CustomAdjustments", "AddAdjustment", "AdjustmentLabel", "AdjustmentAmount", "NewOrder", "ManualTotalActive", "ReloadOrderTooltip", "ReloadedOrder", "OrderBrowser", "BrowseDate", "Browse", "OrderBrowserTime", "OrderBrowserMode", "OrderBrowserStatus", "OrderBrowserTotal", "OrderBrowserTelephone", "OrderBrowserEmptyTelephone", "OrderId", "OrderStatus", "OrderStatusOpen", "OrderStatusClosed", "OrderStatusCancelled", "OrderLines", "Unit", "PickupDiscountApplied", "TaxSnapshot", "InvalidOrderId", "OrderNotFound", "OrderSaved", "OrderSavedOutputFailed", "ProductInactive", "InvalidPlannedTime", "InvalidManualTotal", "ValidationFulfilmentRequired", "ValidationPlannedDateRequired", "ValidationPlannedDatePast", "ValidationPlannedTimeRequired", "ValidationPlannedTimeInvalid", "ValidationCartRequired", "ValidationDeliveryMinimum", "ValidationPickupDiscount", "InvalidQuantity", "InvalidOptions", "InvalidAdjustment", "EmptyCatalogue", "DeleteConfirm", "M03StartupFailure", "DeliveryFeeVatFixed", "CreateCategory", "CreateCategoryFirst", "RenameCategory", "Close", "EnterValidValues", "Saved", "ValidationGeneric", "ValidationAuthorityBlocked", "ValidationRequired", "ValidationCategoryDuplicate", "ValidationCategoryShortCodeDuplicate", "ValidationCategoryShortCodeTooLong", "ValidationCategoryMissing", "ValidationProductMissing", "ValidationProductDuplicateCode", "ValidationPriceNegative", "ValidationVatRange", "ValidationRequiredChoices", "ValidationSettingsRange", "ValidationInvalidNumber", "ValidationBusy", "ValidationGroupStructure", "ValidationOptionStructure", "ValidationConflict", "ValidationField", "CategoryEdit", "CategoryCreateSave", "CategoryRenameSave", "DirtyEditorClose", "Discard", "KeepEditing", "OptionName", "OptionActive", "OrderReference", "OrderCard", "OrderCash", "OrderPaid", "OrderDifference", "OrderSearchLive", "OrderModify", "OrderAbandon", "OrderCancel", "OrderNewFromDetails", "OrderClose", "OrderEffectiveDate", "OrderEffectiveDateEdit", "OrderEffectiveDateHint", "OrderBrowseByDate", "OrderSave", "OrderReadOnly", "OrderEdit", "OrderAdvance", "OrderSearchHint", "OrderNoSelection", "DashboardTurnover", "DashboardReceived", "DashboardReceivedCard", "DashboardReceivedCash", "DashboardHiboutikCard", "DashboardHiboutikCash", "DashboardFuture", "DashboardDueToday", "DashboardOverdue", "DashboardRefresh", "AuthorityReadOnly", "AuthorityTransitioning", "AuthorityRecoveryRequired" };
+        var keys = new[] { "ShellTitle", "Catalogue", "Settings", "Caisse", "Commandes", "Products", "Search", "OrderSearch", "Category", "All", "Active", "Inactive", "NewProduct", "Edit", "Save", "Cancel", "Add", "Confirm", "ReloadOrder", "Activate", "Deactivate", "Create", "Modify", "BulkActivate", "BulkDeactivate", "BulkConfirm", "BulkNoChange", "BulkSuccess", "DeletePermanently", "ManageCategories", "CategoryShortCode", "CategoryShortCodeTooltip", "Code", "Name", "PriceTtc", "Vat", "DiscountEligible", "OptionsEnabled", "OptionGroups", "Options", "SelectionMode", "Required", "Optional", "Single", "Multi", "Minimum", "Maximum", "AdjustmentTtc", "MoveUp", "MoveDown", "PickupDiscount", "PickupMinimum", "DeliveryMinimum", "DeliveryFee", "DeliveryFeeEnabled", "Fulfilment", "FulfilmentUnselected", "Retrait", "Livraison", "PlannedDate", "PlannedTime", "TimeHour", "TimeMinute", "TimeUnset", "Telephone", "DeliveryAddress", "Comment", "PickupDiscountRequest", "Cart", "TotalTtc", "Quantity", "CustomAdjustments", "AddAdjustment", "AdjustmentLabel", "AdjustmentAmount", "NewOrder", "ManualTotalActive", "ReloadOrderTooltip", "ReloadedOrder", "OrderBrowser", "BrowseDate", "Browse", "OrderBrowserTime", "OrderBrowserMode", "OrderBrowserStatus", "OrderBrowserTotal", "OrderBrowserTelephone", "OrderBrowserEmptyTelephone", "OrderId", "OrderStatus", "OrderStatusOpen", "OrderStatusClosed", "OrderStatusCancelled", "OrderLines", "Unit", "PickupDiscountApplied", "TaxSnapshot", "InvalidOrderId", "OrderNotFound", "OrderSaved", "OrderSavedOutputFailed", "ProductInactive", "InvalidPlannedTime", "InvalidManualTotal", "ValidationFulfilmentRequired", "ValidationPlannedDateRequired", "ValidationPlannedDatePast", "ValidationPlannedTimeRequired", "ValidationPlannedTimeInvalid", "ValidationCartRequired", "ValidationDeliveryMinimum", "ValidationPickupDiscount", "InvalidQuantity", "InvalidOptions", "InvalidAdjustment", "EmptyCatalogue", "DeleteConfirm", "M03StartupFailure", "DeliveryFeeVatFixed", "CreateCategory", "CreateCategoryFirst", "RenameCategory", "Close", "EnterValidValues", "Saved", "ValidationGeneric", "OperationFailed", "ValidationAuthorityBlocked", "ValidationRequired", "ValidationCategoryDuplicate", "ValidationCategoryShortCodeDuplicate", "ValidationCategoryShortCodeTooLong", "ValidationCategoryMissing", "ValidationProductMissing", "ValidationProductDuplicateCode", "ValidationPriceNegative", "ValidationVatRange", "ValidationRequiredChoices", "ValidationSettingsRange", "ValidationInvalidNumber", "ValidationBusy", "ValidationGroupStructure", "ValidationOptionStructure", "ValidationConflict", "ValidationField", "CategoryEdit", "CategoryCreateSave", "CategoryRenameSave", "DirtyEditorClose", "Discard", "KeepEditing", "OptionName", "OptionActive", "OrderReference", "OrderCard", "OrderCash", "OrderPaid", "OrderDifference", "OrderSearchLive", "OrderModify", "OrderAbandon", "OrderCancel", "OrderNewFromDetails", "OrderClose", "OrderEffectiveDate", "OrderEffectiveDateEdit", "OrderEffectiveDateHint", "OrderBrowseByDate", "OrderSave", "OrderReadOnly", "OrderEdit", "OrderAdvance", "OrderSearchHint", "OrderNoSelection", "DashboardTurnover", "DashboardReceived", "DashboardReceivedCard", "DashboardReceivedCash", "DashboardHiboutikCard", "DashboardHiboutikCash", "DashboardFuture", "DashboardDueToday", "DashboardOverdue", "DashboardRefresh", "AuthorityReadOnly", "AuthorityTransitioning", "AuthorityRecoveryRequired" };
         keys = keys.Append("ValidationPaymentNegative").Append("OrderCloseEligible")
             .Append("AuthorityCloseTitle").Append("AuthorityClosePrompt").Append("AuthorityTargetLabel")
             .Append("AuthorityCloseRetain").Append("AuthorityTransferClose").Append("AuthorityCloseCancel")
@@ -435,10 +451,17 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("GestionExportDiagnosticSettlementDateUnavailable")
               .Append("GestionExportSuccessStatus").Append("GestionExportRegenerateBusy").Append("GestionExportRegenerated")
              .Append("GestionExportRegenerateFailure").Append("GestionExportHistoryFailure")
-             .Append("ArchiveAccess").Append("ArchiveYear").Append("ArchiveSearchHint").Append("ArchiveSearch")
+             .Append("DataTools").Append("ArchiveAccess").Append("ArchiveYear").Append("ArchiveSearchHint").Append("ArchiveSearch")
              .Append("ArchiveFromDate").Append("ArchiveToDate").Append("ArchiveCopy").Append("ArchiveReadOnlyNotice")
              .Append("ArchiveStatusAll").Append("ArchiveNoArchives").Append("ArchiveAvailable")
              .Append("ArchiveAccessFailed").Append("ArchiveInvalidDateRange").Append("ArchiveCopySucceeded").Append("ArchiveCopyFailed")
+             .Append("BusinessDataResetSection").Append("BusinessDataResetAction").Append("BusinessDataResetDescription")
+             .Append("BusinessDataResetPreviewTitle").Append("BusinessDataResetPreviewSummary").Append("BusinessDataResetPreserved")
+             .Append("BusinessDataResetTypePrompt").Append("BusinessDataResetProceed").Append("BusinessDataResetFinalConfirm")
+             .Append("BusinessDataResetSuccess").Append("BusinessDataResetAlreadyEmpty").Append("BusinessDataResetFailure")
+             .Append("BusinessDataResetRestored").Append("BusinessDataResetRecoveryRequired")
+             .Append("BusinessDataResetConfirmAndReset").Append("BusinessDataResetPreviewFailed")
+             .Append("BusinessDataResetRecoveryNotificationFailed").Append("BusinessDataResetUnknownFailure")
              .ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         CatalogueWorkflow?.ApplyLocalization(Localized);
@@ -593,6 +616,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             }
             catch (Exception exception)
             {
+                ReportUnexpectedFailure("authority.acquire-post-transition-refresh", exception);
                 // The durable authority transition has already succeeded. Keep every
                 // business surface fail-closed until a later explicit refresh/restart.
                 SetM07Operation("M07AcquireRefreshFailed");
@@ -699,6 +723,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
                 catch (OperationCanceledException) { throw; }
                 catch (Exception exception)
                 {
+                    ReportUnexpectedFailure("disaster-recovery.post-activation-refresh", exception);
                     SetM07Operation("M07AcquireRefreshFailed");
                     RefreshResources();
                     return DisasterRecoveryResult.Failure($"Business presentation refresh failed after Disaster Recovery: {exception.Message}", result.Candidate);
@@ -738,6 +763,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
                 catch (OperationCanceledException) { throw; }
                 catch (Exception exception)
                 {
+                    ReportUnexpectedFailure("disaster-recovery.retry-post-activation-refresh", exception);
                     SetM07Operation("M07AcquireRefreshFailed");
                     RefreshResources();
                     return DisasterRecoveryResult.Failure($"Business presentation refresh failed after Disaster Recovery retry: {exception.Message}", result.Candidate);
@@ -777,6 +803,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
                 catch (OperationCanceledException) { throw; }
                 catch (Exception exception)
                 {
+                    ReportUnexpectedFailure("disaster-recovery.reinitialize-post-activation-refresh", exception);
                     SetM07Operation("M07AcquireRefreshFailed");
                     RefreshResources();
                     return DisasterRecoveryResult.Failure($"Business presentation refresh failed after stale-generation reinitialization: {exception.Message}", result.Candidate);
@@ -867,6 +894,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             if (GestionExportWorkflow is { } gestionExportWorkflow)
                 await gestionExportWorkflow.RefreshAfterLiveDatabaseReplacementAsync(cancellationToken);
 
+            if (ArchiveAccess is { } archiveAccess)
+                await archiveAccess.RefreshAsync(cancellationToken);
+
             SetBusinessPresentationRefreshBlocked(false);
             RefreshResources();
         }
@@ -874,6 +904,38 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         {
             // A refresh failure after durable authority acquisition is not reversible here.
             // Leave the barrier engaged so no stale business surface remains actionable.
+            RefreshChildAuthorityCommands();
+            RefreshResources();
+            throw;
+        }
+    }
+
+    public async Task<BusinessDataResetExecutionResult> ResetBusinessDataAsync(
+        string? confirmation,
+        bool finalConfirmation,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CanResetBusinessData || BusinessDataResetService is not { } service)
+            throw new WriteAuthorityException(AuthorityState);
+
+        SetBusinessPresentationRefreshBlocked(true);
+        try
+        {
+            var result = await service.ExecuteAsync(confirmation, finalConfirmation, cancellationToken);
+            if (result.Status is BusinessDataResetStatus.RecoveryRequired
+                or BusinessDataResetStatus.ResetCommittedRecoveryNotificationFailed)
+                return result;
+
+            if (result.Succeeded)
+                await RefreshBusinessPresentationAfterDatabaseReplacementAsync(cancellationToken);
+            else
+                SetBusinessPresentationRefreshBlocked(false);
+            OnPropertyChanged(nameof(CanResetBusinessData));
+            return result;
+        }
+        catch
+        {
+            // Any uncertain result keeps every business-facing write control blocked until recovery/restart.
             RefreshChildAuthorityCommands();
             RefreshResources();
             throw;
@@ -937,6 +999,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         _businessPresentationRefreshBlocked = blocked;
         OnPropertyChanged(nameof(CanWrite));
         OnPropertyChanged(nameof(IsAuthorityWarningVisible));
+        OnPropertyChanged(nameof(CanResetBusinessData));
         RefreshM07CommandState();
         CatalogueWorkflow?.RefreshPresentationState();
         GestionExportWorkflow?.SetBusinessPresentationRefreshBlocked(blocked);
@@ -947,6 +1010,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     private void RefreshM07CommandState()
     {
+        OnPropertyChanged(nameof(CanResetBusinessData));
         OnPropertyChanged(nameof(CanJoinExistingLineage));
         OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
         OnPropertyChanged(nameof(CanResumePendingTransfer));

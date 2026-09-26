@@ -4,21 +4,13 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M11 are Passed/merged. M12 Annual archive and historical access is owner-authorized on branch `codex/m12-annual-archive-authorized` / Draft PR #25; execution is package-gated by the exact live Issue #4 handoff. M13 remains unauthorized.**
+**Phase 6 implementation active: M01–M11 are Passed/merged. M12 Annual archive and historical access is controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722` under the explicit owner waiver; real populated-archive operational verification remains deferred and is not claimed Passed. M13 WP1–WP5 are controller-accepted on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. WP6 has prepared the final-candidate documentation and owner-acceptance package; exact-head verification and artifact provenance are recorded in its matching `CODEX_DONE`. Owner acceptance remains pending; PR #26 remains unmerged.**
 
-M08 — Printing and reprinting — Passed project-owner Windows/WPF/physical-print acceptance and was merged through PR #14 to `main` at merge commit `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`. Accepted production candidate: `86d19cbc3aa127c836b1b13f91292ddcb54d08bd`; final pass-record head: `5f8c92c29116e17a3365ecd8801f7e13f107269c`; final exact-head CI #675 succeeded.
+M12 final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3` passed exact-head CI #862 / run `36021889765` with 881/881 tests and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test also succeeded.
 
-M09 implementation, automated evidence and owner Windows/WPF manual acceptance are complete and merged through PR #17 at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`. The accepted production candidate remains `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`, with accepted EXE/ZIP hashes recorded in `implementation/milestone-09-final-manual-acceptance.md`.
+M13 includes the Approved Gestion export ledger retention/compaction amendment, full FR/zh-CN localization completion, self-contained win-x64 packaging, per-user Inno Setup installer, upgrade/reinstall data preservation, diagnostics/performance/repository-security hardening, final production-target regression, release provenance and the user operating guide.
 
-The independent post-M09 Hiboutik daily payment dashboard enhancement is Passed and merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`. It adds exactly two passive read-only values to the existing top Caisse dashboard and does not alter ordinary POS-originated summaries. Automated evidence and owner Windows/WPF A–F acceptance are recorded in PR #19 comments `5705723428` and `5715414940`; final controller closure was accepted on head `d55e36a244327c55b81f6fb1040c0ef46dbe154a` before merge.
-
-M10 — Catalogue `.xlsx` import/export — Passed and merged through PR #22 at `299df8b44a1959497ad46f861e44db32913b4d11`. Controller final closure is comment `5750090951`; accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`.
-
-M11 — Gestion intermediate export — is **Passed / merged** through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate: `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; final documentation head: `4eddf0a93c5a141326d76c6e67a9a9c5840e5068`; controller closure: PR #24 comment `5762784303`; merge completion: comment `5762846107`; post-merge CI #821 / run `35617254203` succeeded with 831/831 passed, 0 failed, 0 skipped and Release build 0 warnings / 0 errors.
-
-M12 — Annual archive and historical access — is owner-**Authorized** on `codex/m12-annual-archive-authorized` / Draft PR #25. The owner-approved 2026-09-21 amendment makes annual archives permanent application-managed **local** SQLite databases, removes OneDrive from annual archive publication/access, and adds an explicit archive-export action whose destination is chosen by the operator. WP1 remains the first implementation package.
-
-The V1 Specification remains frozen-and-amended. The formal freeze record is `v1-specification-freeze.md`; the primary implementation acceptance contract is `acceptance-criteria.md` together with approved acceptance amendments; the approved implementation sequence is `implementation-plan.md`; the living current control state is `implementation-status.md`.
+The owner confirmed on 2026-09-24 that the source repository's public visibility is intentional and is not an M13 blocker. WP1–WP5 accepted heads and exact-head CI are recorded in the root README and the M13 PR mailbox. WP6 does not claim owner acceptance, M13 Passed, merge or release; the matching WP6 `CODEX_DONE` comment is the authoritative source for the final source SHA and installer artifact identity. M12's real populated-archive verification remains deferred under its existing owner waiver.
 
 ## V1 documentation baseline
 
@@ -128,17 +120,32 @@ M11 completed implementation package:
 - draft preparation PR #23 / `prep/m11-gestion-export` — historical preparation line;
 - implementation PR #24 / `codex/m11-gestion-export-authorized` — historical implementation mailbox, CLOSED/MERGED.
 
-Current M12 implementation package:
+M12 completed implementation package:
 
 - `decisions/m12-local-archive-and-user-selected-export.md` — Approved M12 archive storage/export decision;
 - `acceptance-criteria-amendment-m12-local-archive.md` — matching Approved acceptance amendment;
-- `implementation/milestone-12-preparation-readiness.md` — current readiness review and OneDrive acknowledgement finding;
-- `implementation/milestone-12-annual-archive-historical-access.md` — M12 implementation contract;
-- `implementation/milestone-12-authorization.md` — AUTHORIZED;
-- `implementation/milestone-12-worklog.md` — active package/evidence ledger;
-- Draft PR #25 / `codex/m12-annual-archive-authorized` — active durable mailbox;
-- Issue #4 — sole execution switch/status pointer;
-- M13 — unauthorized.
+- `implementation/milestone-12-preparation-readiness.md`;
+- `implementation/milestone-12-annual-archive-historical-access.md`;
+- `implementation/milestone-12-authorization.md`;
+- `implementation/milestone-12-worklog.md`;
+- `implementation/milestone-12-final-manual-acceptance.md`;
+- PR #25 / `codex/m12-annual-archive-authorized` — historical mailbox, CLOSED/MERGED;
+- deferred real populated-archive operational verification remains explicit under owner waiver and is not claimed Passed.
+
+Current M13 control package:
+
+- `decisions/m13-gestion-export-ledger-retention-compaction.md` — Approved M13 retention/compaction decision;
+- `acceptance-criteria-amendment-m13-gestion-export-retention.md` — matching Approved acceptance amendment;
+- `implementation/milestone-13-preparation-readiness.md`;
+- `implementation/milestone-13-installer-localization-final-acceptance.md`;
+- `implementation/milestone-13-authorization.md`;
+- `implementation/milestone-13-worklog.md`;
+- `implementation/milestone-13-final-manual-acceptance.md`;
+- [Simplified Chinese operator guide](operating-guide.zh-CN.md) — primary practical manual for Chinese-speaking staff; start with the new-PC setup.
+- [English operating guide](operating-guide.md) — equivalent English reference.
+- branch `codex/m13-installer-final-acceptance-authorized`;
+- Draft PR #26 — active M13 durable mailbox;
+- Issue #4 — sole execution gate, OPEN for M13-FINAL-OPERATING-GUIDE-ZHCN-ONBOARDING-09.
 
 ## Decision records
 
@@ -154,7 +161,8 @@ Relevant later decisions include:
 - `decisions/m09-hiboutik-paste-operator-workflow-and-source-reference.md`;
 - `decisions/m10-category-short-code-workbook-semantics.md`;
 - `decisions/m11-export-lifecycle-and-settlement-clarifications.md`;
-- `decisions/m12-local-archive-and-user-selected-export.md`.
+- `decisions/m12-local-archive-and-user-selected-export.md`;
+- `decisions/m13-gestion-export-ledger-retention-compaction.md`.
 
 Where a later Approved decision explicitly supersedes a narrow older clause, the later decision controls until the next complete consolidation pass. A genuine unresolved contradiction still requires implementation to stop rather than guess.
 

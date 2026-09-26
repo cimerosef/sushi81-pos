@@ -27,6 +27,7 @@ using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Infrastructure.Printing;
 using Sushi81.Pos.Application.Export;
 using Sushi81.Pos.Application.Archive;
+using Sushi81.Pos.Application.Maintenance;
 using Sushi81.Pos.Infrastructure.Export;
 using Sushi81.Pos.Infrastructure.Archive;
 
@@ -46,6 +47,7 @@ public static partial class CompositionRoot
         ISelectedCultureStore cultureStore = new InMemorySelectedCultureStore();
         var startupSucceeded = false;
         ILogger? startupLogger = null;
+        DesktopOperationDiagnostics? operationDiagnostics = null;
         CatalogueService? catalogueService = null;
         BusinessSettingsService? settingsService = null;
         OrderEntryService? orderEntryService = null;
@@ -70,6 +72,7 @@ public static partial class CompositionRoot
          GestionExportWorkflowViewModel? gestionExportWorkflow = null;
         AnnualArchiveStartupCoordinator? annualArchiveStartupCoordinator = null;
         IAnnualArchiveAccess? annualArchiveAccess = null;
+        BusinessDataResetService? businessDataResetService = null;
 
         try
         {
@@ -77,6 +80,7 @@ public static partial class CompositionRoot
             loggerProvider = new RollingFileLoggerProvider(paths, TimeProvider.System);
             var logger = loggerProvider.CreateLogger(typeof(CompositionRoot).FullName!);
             startupLogger = logger;
+            operationDiagnostics = new DesktopOperationDiagnostics(logger);
             configurationService = new JsonLocalConfigurationService(paths);
             configuration = await configurationService.LoadAsync();
             authorityStateStore = new JsonAuthorityStateStore(paths);
@@ -120,6 +124,10 @@ public static partial class CompositionRoot
             }
             durableChangeNotifier = await DurableChangeNotifier.CreateAsync(paths, clock, recoveryScheduler, logger, businessRevisionReader);
             var transactionRunner = new SqliteTransactionRunner(connectionFactory);
+            businessDataResetService = new BusinessDataResetService(
+                new SqliteBusinessDataResetStore(paths, connectionFactory, transactionRunner),
+                authorityGuard,
+                durableChangeNotifier);
             var idGenerator = new GuidV7IdGenerator(TimeProvider.System);
             var catalogueStore = new SqliteCatalogueStore(connectionFactory, transactionRunner, idGenerator, clock);
             var settingsStore = new SqliteBusinessSettingsStore(connectionFactory, transactionRunner, clock);
@@ -148,6 +156,10 @@ public static partial class CompositionRoot
                  authorityGuard,
                  annualArchiveFinalizationService.FinalizeNextArchiveAsync,
                  logger);
+             var gestionExportCompactionStartupCoordinator = new GestionExportCompactionStartupCoordinator(
+                 authorityGuard,
+                 new SqliteGestionExportCompactionService(connectionFactory, transactionRunner, authorityGuard, clock),
+                 logger);
              var gestionExportService = new GestionExportService(gestionExportStore, gestionExportStore, clock, authorityGuard, durableChangeNotifier, idGenerator);
              var gestionExportWorkbookService = new GestionExportWorkbookService(
                  gestionExportService,
@@ -161,7 +173,8 @@ public static partial class CompositionRoot
                  authorityGuard,
                  typeof(CompositionRoot).Assembly.GetName().Version?.ToString() ?? "1.0.0",
                   presentationRefreshBlocked: () => false,
-                  preparedBatchReader: gestionExportStore);
+                  preparedBatchReader: gestionExportStore,
+                  diagnostics: operationDiagnostics);
              var orderCatalogueQueries = new OrderEntryCatalogueService(catalogueStore);
             hiboutikImportOrchestrator = new HiboutikImportOrchestrator(orderCatalogueQueries, settingsStore);
             orderLifecycleService = new OrderLifecycleService(orderStore, idGenerator, clock, authorityGuard, durableChangeNotifier, orderCatalogueQueries, settingsStore);
@@ -172,7 +185,7 @@ public static partial class CompositionRoot
                 clock);
             printService = new OrderPrintApplicationService(orderStore, printDispatcher);
             archivedOrderPrintService = new ArchivedOrderPrintApplicationService(printDispatcher);
-            printerSetup = new PrinterSetupViewModel(configuration, configurationService, new WindowsPrintQueueCatalog());
+            printerSetup = new PrinterSetupViewModel(configuration, configurationService, new WindowsPrintQueueCatalog(), operationDiagnostics);
             orderEntryService = new OrderEntryService(
                 orderCatalogueQueries, settingsStore, orderStore, printDispatcher, idGenerator, clock, authorityGuard, durableChangeNotifier);
             if (systemMetadata is not null)
@@ -232,6 +245,7 @@ public static partial class CompositionRoot
              }
              if (annualArchiveStartupCoordinator is not null)
                  await annualArchiveStartupCoordinator.RunAsync();
+             await gestionExportCompactionStartupCoordinator.RunAsync();
              LogFoundationStartupSucceeded(logger);
             startupSucceeded = true;
         }
@@ -264,7 +278,9 @@ public static partial class CompositionRoot
              catalogueImportService,
              gestionExportWorkflow,
              annualArchiveAccess,
-             archivedOrderPrintService);
+             archivedOrderPrintService,
+             operationDiagnostics,
+             businessDataResetService);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,

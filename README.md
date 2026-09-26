@@ -11,23 +11,29 @@ The approved V1 product, business, architecture, data, storage, paste-import, pr
 Formal freeze record: `docs/v1-specification-freeze.md`  
 Implementation acceptance contract: `docs/acceptance-criteria.md` plus approved acceptance amendments.
 
-M01 through M10 are **Passed and merged**.
+M01 through M11 are **Passed and merged**.
 
-Recent merge baselines:
+Recent final baselines:
 
-- M05 — Lifecycle, payments, search and operational dashboard — merged through PR #10 at `79499d7c6ed65a74f524097c1507ca648dc151c3`;
-- M06 — Local recovery and authoritative/read-only enforcement — merged through PR #11 at `2c5eb52740d0c12e3e837579ecceac6d0600b59e`;
-- M07 — Pairing, target-directed handoff and disaster recovery — merged through PR #13 at `9ea7d5e15bceba6932cb2caba50d0afb64ca1ff9`;
-- M08 — Printing and reprinting — merged through PR #14 at `8f246ce7fb32baa33e1dfe1d334175bf2df60c1f`;
-- M09 — Hiboutik paste-order fallback — merged through PR #17 at `d840066d8d2ffa1856c4fcd88dbfdd3c8f2a1be5`;
-- Post-M09 — Hiboutik daily CB/Espèce dashboard — Passed/merged through PR #19 at `861cfba1dfacbb3289395c0370f6d42765b6c223`;
-- M10 — Catalogue `.xlsx` import/export — Passed/merged through PR #22 at `299df8b44a1959497ad46f861e44db32913b4d11`.
+- M10 — Catalogue `.xlsx` import/export — Passed/merged through PR #22 at `299df8b44a1959497ad46f861e44db32913b4d11`;
+- M11 — Gestion intermediate export — Passed/merged through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`;
+- M12 — Annual archive and historical access — controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722` under the explicit owner waiver. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3` passed CI #862 / run `36021889765` with 881/881 tests and Release build 0 warnings/errors; post-merge CI #863 / run `36023054757` build-and-test succeeded.
 
-The accepted M09 production candidate remains `7d0144d452231fe92cf7c31e027e9b1bb6f5a43d`. The independent post-M09 dashboard accepted executable candidate remains sourced from checkout `dbab706a3f535b521a4a0fc67c318bf0c14b60bb`; PR #19 final closure head was `d55e36a244327c55b81f6fb1040c0ef46dbe154a` before merge.
+M12's remaining real populated-archive operational verification is **deferred, not Passed**. The first safe real verification point remains an authoritative startup on or after 2027-02-01 with real 2026 data; archive failure must continue to leave eligible live rows safe/retryable.
 
-M10 is Passed/merged. Controller final closure is PR #22 comment `5750090951`; the accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`.
+M13 — Installer, localization completion and final V1 acceptance — is authorized on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. WP1–WP5 are controller-accepted. WP6 has prepared the exact-head release-candidate documentation, operating guide and owner-acceptance package; its matching `CODEX_DONE` comment records final verification and artifact provenance. Owner acceptance remains pending; this status does not claim M13 Passed, merge or release.
 
-M11 — Gestion intermediate export — readiness is complete and the project owner authorized implementation on 2026-09-20. The dedicated implementation line is `codex/m11-gestion-export-authorized` / PR #24. Codex may execute only the exact active handoff named by OPEN Issue #4 and matching PR #24; WP2–WP4 do not auto-authorize. M12/M13 remain unauthorized.
+Accepted M13 package heads and exact-head CI:
+
+| Package | Accepted head | Exact-head CI |
+|---|---|---|
+| WP1 — Gestion export retention/compaction | `a3d3110b59f436bc0a9107777ea97f73df85119d` | #872 / `36057354475` — success |
+| WP2 — retention runtime/history | `97d0a6e048aedca66b1f93e9768285f49f04ac63` | #873 / `36063106606` — success |
+| WP3 — localization completion | `e40a1f882d4c0557fc0fe4e30cb88395be290c89` | #874 / `36106655435` — success |
+| WP4 — production publish/installer | `0f73cee0311a1c76e8b4cafd7413720c252be27c` | #880 / `36114601424` — success; artifact `10854348679` |
+| WP5 — diagnostics/performance/security hardening | `aa734cc94bb6500be42cbaa00407e8fc8ec7a1fd` | #882 / `36124050769` — success; artifact `10859146322` |
+
+The owner confirmed that the source repository's public visibility is intentional and is not an M13 blocker. M12's populated real-archive operational verification remains **deferred, not Passed**; its first safe real verification point remains an authoritative startup on or after 2027-02-01 with real 2026 data. The matching WP6 `CODEX_DONE` comment on PR #26 will identify the exact final source head and installer artifact; owner acceptance remains pending.
 
 Controlling M09 records:
 
@@ -57,7 +63,7 @@ M10 completed control package:
 - `docs/implementation/milestone-10-worklog.md`;
 - `docs/implementation/milestone-10-authorization.md` — AUTHORIZED; execution remains limited to the exact Issue #4 handoff.
 
-Current M11 preparation package:
+M11 completed control package:
 
 - `docs/decisions/m11-export-lifecycle-and-settlement-clarifications.md`;
 - `docs/acceptance-criteria-amendment-m11-gestion-export.md`;
@@ -68,7 +74,29 @@ Current M11 preparation package:
 - `docs/implementation/milestone-11-worklog.md`;
 - `docs/implementation/milestone-11-authorization.md` — AUTHORIZED; execution remains limited to the exact Issue #4 handoff.
 
-Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. OneDrive remains recovery/archive storage and historical diagnostic transport rather than the normal authority gate.
+M12 completed control package:
+
+- `docs/decisions/m12-local-archive-and-user-selected-export.md`;
+- `docs/acceptance-criteria-amendment-m12-local-archive.md`;
+- `docs/implementation/milestone-12-preparation-readiness.md`;
+- `docs/implementation/milestone-12-annual-archive-historical-access.md`;
+- `docs/implementation/milestone-12-final-manual-acceptance.md`;
+- `docs/implementation/milestone-12-worklog.md`;
+- `docs/implementation/milestone-12-authorization.md`;
+- PR #25 — historical mailbox, CLOSED/MERGED.
+
+M13 current control package:
+
+- `docs/decisions/m13-gestion-export-ledger-retention-compaction.md`;
+- `docs/acceptance-criteria-amendment-m13-gestion-export-retention.md`;
+- `docs/implementation/milestone-13-preparation-readiness.md`;
+- `docs/implementation/milestone-13-installer-localization-final-acceptance.md`;
+- `docs/implementation/milestone-13-final-manual-acceptance.md`;
+- `docs/operating-guide.md` — final-candidate day-to-day operator guide;
+- `docs/implementation/milestone-13-worklog.md`;
+- `docs/implementation/milestone-13-authorization.md`.
+
+Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. OneDrive remains the approved Disaster Recovery/historical diagnostic boundary, not the normal authority gate; canonical annual archives are permanent application-managed local data after the M12 amendment.
 
 ## Working model
 

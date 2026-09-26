@@ -103,6 +103,7 @@ public sealed class M01Wp3DesktopTests
     public async Task ExportKeepsBlockingSelectionDistinctFromAnEmptySelection()
     {
         using var fixture = CreateFixture(WriteAuthorityState.Authoritative);
+        using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true, gestionExportWorkflow: fixture.Workflow);
         fixture.Store.Sources.Add(BlockingSource());
 
         var path = Path.Combine(Path.GetTempPath(), $"sushi81-blocked-{Guid.NewGuid():N}.xlsx");
@@ -111,11 +112,21 @@ public sealed class M01Wp3DesktopTests
             var result = await fixture.Workflow.ExportAsync(path);
 
             Assert.IsNull(result);
-            StringAssert.Contains(fixture.Workflow.StatusMessage, "blocked");
             Assert.HasCount(1, fixture.Workflow.Diagnostics);
             Assert.AreEqual("SETTLEMENT_DATE_UNAVAILABLE", fixture.Workflow.Diagnostics[0].Code);
-            StringAssert.Contains(fixture.Workflow.Diagnostics[0].Message, "Settlement date");
-            StringAssert.Contains(fixture.Workflow.StatusMessage, "Settlement date");
+            Assert.AreEqual(shell.Localized["GestionExportDiagnosticSettlementDateUnavailable"], fixture.Workflow.Diagnostics[0].Message);
+            var frenchStatus = fixture.Workflow.StatusMessage;
+            Assert.AreEqual(string.Format(CultureInfo.CurrentCulture, shell.Localized["GestionExportBlockedAtExport"], shell.Localized["GestionExportDiagnosticSettlementDateUnavailable"]), frenchStatus);
+            var canExportWhileBlocked = fixture.Workflow.CanExport;
+            await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"));
+            var chineseStatus = string.Format(CultureInfo.CurrentCulture, shell.Localized["GestionExportBlockedAtExport"], shell.Localized["GestionExportDiagnosticSettlementDateUnavailable"]);
+            Assert.AreEqual(chineseStatus, fixture.Workflow.StatusMessage);
+            Assert.AreNotEqual(frenchStatus, chineseStatus);
+            Assert.AreEqual(canExportWhileBlocked, fixture.Workflow.CanExport);
+            Assert.IsTrue(fixture.Workflow.Preview!.IsBlocked);
+            Assert.HasCount(1, fixture.Workflow.Diagnostics);
+            await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR"));
+            Assert.AreEqual(frenchStatus, fixture.Workflow.StatusMessage);
             Assert.AreEqual(0, fixture.Store.PrepareCount);
             Assert.IsFalse(File.Exists(path));
         }
@@ -129,6 +140,7 @@ public sealed class M01Wp3DesktopTests
     public async Task AuthoritativeExportPreparesSucceedsRefreshesHistoryAndClearsPendingPreview()
     {
         using var fixture = CreateFixture(WriteAuthorityState.Authoritative);
+        using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true, gestionExportWorkflow: fixture.Workflow);
         fixture.Store.Sources.Add(ValidSource(Guid.Parse("27300000-0000-0000-0000-000000000001"), new DateOnly(2026, 9, 20), "new export"));
         var path = Path.Combine(Path.GetTempPath(), $"sushi81-success-{Guid.NewGuid():N}.xlsx");
         try
@@ -141,7 +153,14 @@ public sealed class M01Wp3DesktopTests
             Assert.HasCount(1, fixture.Workflow.History);
             Assert.IsFalse(fixture.Workflow.Preview!.IsBlocked);
             Assert.IsEmpty(fixture.Workflow.Preview.Actions);
-            StringAssert.Contains(fixture.Workflow.StatusMessage, "Export succeeded");
+            var exportFileName = Path.GetFileName(path);
+            var frenchStatus = string.Format(CultureInfo.CurrentCulture, shell.Localized["GestionExportSucceeded"], exportFileName);
+            Assert.AreEqual(frenchStatus, fixture.Workflow.StatusMessage);
+            await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"));
+            Assert.AreEqual(string.Format(CultureInfo.CurrentCulture, shell.Localized["GestionExportSucceeded"], exportFileName), fixture.Workflow.StatusMessage);
+            Assert.AreNotEqual(frenchStatus, fixture.Workflow.StatusMessage);
+            await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR"));
+            Assert.AreEqual(frenchStatus, fixture.Workflow.StatusMessage);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
@@ -228,6 +247,7 @@ public sealed class M01Wp3DesktopTests
     public async Task OrdinaryExportFailureRestoresBusyStateAndLeavesRetryablePreparedBatch()
     {
         using var fixture = CreateFixture(WriteAuthorityState.Authoritative, new ThrowingWorkbookGateway());
+        using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true, gestionExportWorkflow: fixture.Workflow);
         fixture.Store.Sources.Add(ValidSource(Guid.Parse("27300000-0000-0000-0000-000000000005"), new DateOnly(2026, 9, 20), "failure"));
         var path = Path.Combine(Path.GetTempPath(), $"sushi81-failure-{Guid.NewGuid():N}.xlsx");
 
@@ -238,6 +258,17 @@ public sealed class M01Wp3DesktopTests
         Assert.IsFalse(string.IsNullOrWhiteSpace(fixture.Workflow.FailureMessage));
         Assert.AreEqual(1, fixture.Store.PrepareCount);
         Assert.HasCount(1, fixture.Store.Prepared);
+        var frenchFailure = fixture.Workflow.FailureMessage;
+        Assert.AreEqual(frenchFailure, fixture.Workflow.StatusMessage);
+        var canRetryAfterFailure = fixture.Workflow.CanExport;
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "zh-CN"));
+        Assert.AreEqual(shell.Localized["GestionExportFailure"], fixture.Workflow.FailureMessage);
+        Assert.AreEqual(fixture.Workflow.FailureMessage, fixture.Workflow.StatusMessage);
+        Assert.AreNotEqual(frenchFailure, fixture.Workflow.FailureMessage);
+        Assert.AreEqual(canRetryAfterFailure, fixture.Workflow.CanExport);
+        Assert.HasCount(1, fixture.Store.Prepared);
+        await shell.ChangeLanguageAsync(shell.Languages.Single(language => language.CultureName == "fr-FR"));
+        Assert.AreEqual(frenchFailure, fixture.Workflow.StatusMessage);
         if (File.Exists(path)) File.Delete(path);
     }
 
@@ -382,7 +413,11 @@ public sealed class M01Wp3DesktopTests
             {
                 window.Show();
                 window.UpdateLayout();
-                var gestion = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["GestionExport"]);
+                var mainTabs = VisualDescendants<TabControl>(window).Single(tab => tab.Name == "mainTabs");
+                Assert.IsTrue(shell.IsDataToolsAvailable);
+                mainTabs.Items.OfType<TabItem>().Single(item => Equals(item.Tag, "data")).IsSelected = true;
+                window.UpdateLayout();
+                var gestion = VisualDescendants<TabItem>(window).Single(item => Equals(item.Tag, "gestion-export"));
                 gestion.IsSelected = true;
                 window.UpdateLayout();
 
@@ -432,7 +467,11 @@ public sealed class M01Wp3DesktopTests
             {
                 window.Show();
                 window.UpdateLayout();
-                var gestion = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["GestionExport"]);
+                var mainTabs = VisualDescendants<TabControl>(window).Single(tab => tab.Name == "mainTabs");
+                Assert.IsTrue(shell.IsDataToolsAvailable);
+                mainTabs.Items.OfType<TabItem>().Single(item => Equals(item.Tag, "data")).IsSelected = true;
+                window.UpdateLayout();
+                var gestion = VisualDescendants<TabItem>(window).Single(item => Equals(item.Tag, "gestion-export"));
                 gestion.IsSelected = true;
                 window.UpdateLayout();
                 var datePickers = VisualDescendants<DatePicker>(window)

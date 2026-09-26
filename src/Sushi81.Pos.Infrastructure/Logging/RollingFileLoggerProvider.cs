@@ -87,9 +87,17 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
             ArgumentNullException.ThrowIfNull(formatter);
-            if (IsEnabled(logLevel))
+            if (!IsEnabled(logLevel))
+                return;
+
+            try
             {
                 provider.Write(logLevel, eventId, category, formatter(state, exception), exception);
+            }
+            catch
+            {
+                // Logging is diagnostic only. A full disk or inaccessible log path must not
+                // replace or alter the result of the operation being diagnosed.
             }
         }
     }

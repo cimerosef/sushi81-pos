@@ -116,6 +116,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private readonly OrderLifecycleService service;
     private readonly IWriteAuthorityGuard? authorityGuard;
     private readonly IOrderPrintApplicationService? printService;
+    private readonly DesktopOperationDiagnostics? diagnostics;
     private readonly object refreshLock = new();
     private CancellationTokenSource? refreshCancellation;
     private long refreshVersion;
@@ -138,7 +139,8 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private bool editPickupDiscountRequested;
     private DateTime? effectivePaymentDate;
     private string validationMessage = string.Empty;
-    private string printStatusMessage = string.Empty;
+    private LocalizedMessageState? validationMessageState;
+    private LocalizedMessageState? printStatusMessageState;
     private IReadOnlyList<ValidationIssue>? activeValidationIssues;
     private bool renderingValidationMessage;
     private IReadOnlyDictionary<string, string> localized = new Dictionary<string, string>();
@@ -146,11 +148,12 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private OperationalOrderView? operationalView;
     private OrderOperationalSummary summary = new(Money.Zero, Money.Zero, Money.Zero, Money.Zero, 0, 0, 0, Money.Zero, Money.Zero);
 
-    public OrderLifecycleShellViewModel(OrderLifecycleService service, IWriteAuthorityGuard? authorityGuard = null, IOrderPrintApplicationService? printService = null)
+    public OrderLifecycleShellViewModel(OrderLifecycleService service, IWriteAuthorityGuard? authorityGuard = null, IOrderPrintApplicationService? printService = null, DesktopOperationDiagnostics? diagnostics = null)
     {
         this.service = service ?? throw new ArgumentNullException(nameof(service));
         this.authorityGuard = authorityGuard;
         this.printService = printService;
+        this.diagnostics = diagnostics;
         browseDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue);
         effectivePaymentDate = service.BusinessDate.ToDateTime(TimeOnly.MinValue);
         Orders = new ObservableCollection<OrderManagementRowViewModel>();
@@ -252,11 +255,15 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         private set
         {
             validationMessage = value;
-            if (!renderingValidationMessage) activeValidationIssues = null;
+            if (!renderingValidationMessage)
+            {
+                activeValidationIssues = null;
+                validationMessageState = null;
+            }
             OnPropertyChanged();
         }
     }
-    public string PrintStatusMessage { get => printStatusMessage; private set { printStatusMessage = value ?? string.Empty; OnPropertyChanged(); } }
+    public string PrintStatusMessage => printStatusMessageState?.Render(localized) ?? string.Empty;
     public bool HasSelectedOrder => SelectedOrder is not null;
     public bool IsOperationalViewActive => operationalView is not null;
     public DateOnly BusinessDate => service.BusinessDate;
@@ -353,6 +360,8 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         OnPropertyChanged(nameof(EditPlannedMinute));
         OnPropertyChanged(nameof(EditPlannedTimeValid));
         if (activeValidationIssues is { Count: > 0 }) RenderValidationIssues();
+        else if (validationMessageState is not null) RenderValidationMessage(validationMessageState.Render(localized));
+        OnPropertyChanged(nameof(PrintStatusMessage));
     }
 
     public Task RefreshAsync(CancellationToken cancellationToken = default) =>
@@ -413,7 +422,8 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         catch (Exception exception)
         {
             if (throwOnFailure) throw;
-            ValidationMessage = exception.Message;
+            diagnostics?.ReportUnexpectedFailure("order-lifecycle.refresh", exception);
+            SetLocalizedValidationMessage("OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez.");
         }
         finally { PerformanceTrace.Log("lifecycle.refresh.end"); }
     }
@@ -477,11 +487,11 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         if (SelectedOrder is null) return;
         if (!EditPlannedTimeValid)
         {
-            ValidationMessage = Text("ValidationPlannedTimeInvalid", "L’heure prévue doit utiliser un créneau autorisé de 5 minutes.");
+            SetLocalizedValidationMessage("ValidationPlannedTimeInvalid", "L’heure prévue doit utiliser un créneau autorisé de 5 minutes.");
             return;
         }
         if (!CanSave) return;
-        if (!TryParse(EditTotal, out var total) || !TryParse(EditCard, out var card) || !TryParse(EditCash, out var cash)) { ValidationMessage = Text("ValidationInvalidNumber", "Entrez un montant valide."); return; }
+        if (!TryParse(EditTotal, out var total) || !TryParse(EditCard, out var card) || !TryParse(EditCash, out var cash)) { SetLocalizedValidationMessage("ValidationInvalidNumber", "Entrez un montant valide."); return; }
         var items = DetailLines.Select(line => line.ToSnapshot()).ToArray();
         var itemsChanged = !ItemsEquivalent(SelectedOrder.Items, items);
         var manual = !itemsChanged && total != SelectedOrder.TotalTtc;
@@ -508,19 +518,19 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
         if (printService is null || SelectedOrder is null) return;
         if (IsEditing)
         {
-            PrintStatusMessage = Text("OrderPrintSaveOrAbandon", "Save or abandon the edit before printing the committed order.");
+            SetPrintStatusMessage(LocalizedMessageState.Resource("OrderPrintSaveOrAbandon", "Save or abandon the edit before printing the committed order."));
             return;
         }
 
         var result = await printService.ReprintAsync(SelectedOrder.Id, kind, cancellationToken);
-        PrintStatusMessage = result.Succeeded
-            ? Text("OrderPrintSuccess", "The requested document was accepted by the printer.")
-            : M03Presentation.Message(
+        var messageState = result.Succeeded
+            ? LocalizedMessageState.Resource("OrderPrintSuccess", "The requested document was accepted by the printer.")
+            : LocalizedMessageState.Issue(
                 new ValidationIssue(
                     kind == PrintDocumentKind.Kitchen ? "kitchen-print" : "customer-print",
                     result.OperatorMessage,
-                    result.Status == PrintOutcomeStatus.AmbiguousSubmission ? ValidationCodes.PrintAmbiguous : ValidationCodes.Generic),
-                localized);
+                    result.Status == PrintOutcomeStatus.AmbiguousSubmission ? ValidationCodes.PrintAmbiguous : ValidationCodes.Generic));
+        SetPrintStatusMessage(messageState);
     }
 
     public void AbandonModification()
@@ -535,7 +545,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     {
         if (!CanAddCurrentLine) return;
         var line = await service.CreateCurrentCatalogueLineAsync(draft, cancellationToken);
-        if (line is null) { ValidationMessage = Text("ProductInactive", "Le produit n’est plus actif ou sa configuration est invalide."); return; }
+        if (line is null) { SetLocalizedValidationMessage("ProductInactive", "Le produit n’est plus actif ou sa configuration est invalide."); return; }
         line = line with { Position = DetailLines.Count };
         var viewModel = new OrderDetailLineViewModel(line); viewModel.ApplyLocalization(localized); DetailLines.Add(viewModel);
         ValidationMessage = string.Empty;
@@ -563,7 +573,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     {
         if (!IsEditing) return;
         var replacement = await service.CreateCurrentCatalogueLineAsync(draft, cancellationToken);
-        if (replacement is null) { ValidationMessage = Text("ProductInactive", "Le produit n’est plus actif ou sa configuration est invalide."); return; }
+        if (replacement is null) { SetLocalizedValidationMessage("ProductInactive", "Le produit n’est plus actif ou sa configuration est invalide."); return; }
         var index = DetailLines.IndexOf(line);
         if (index < 0) return;
         var viewModel = new OrderDetailLineViewModel(replacement with { Id = line.Item.Id, Position = index }); viewModel.ApplyLocalization(localized); DetailLines[index] = viewModel;
@@ -590,6 +600,7 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     private string Text(string key, string fallback) => localized.TryGetValue(key, out var value) ? value : fallback;
     private void SetValidationIssues(IReadOnlyList<ValidationIssue> issues)
     {
+        validationMessageState = null;
         activeValidationIssues = issues;
         if (issues.Count == 0) ValidationMessage = string.Empty;
         else RenderValidationIssues();
@@ -598,6 +609,17 @@ public sealed class OrderLifecycleShellViewModel : INotifyPropertyChanged, IDisp
     {
         if (activeValidationIssues is not { Count: > 0 }) return;
         RenderValidationMessage(string.Join(" ", activeValidationIssues.Select(issue => M03Presentation.Message(issue, localized))));
+    }
+    private void SetLocalizedValidationMessage(string key, string fallback)
+    {
+        activeValidationIssues = null;
+        validationMessageState = LocalizedMessageState.Resource(key, fallback);
+        RenderValidationMessage(validationMessageState.Render(localized));
+    }
+    private void SetPrintStatusMessage(LocalizedMessageState? state)
+    {
+        printStatusMessageState = state;
+        OnPropertyChanged(nameof(PrintStatusMessage));
     }
     private void RenderValidationMessage(string message)
     {

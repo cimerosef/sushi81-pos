@@ -164,7 +164,7 @@ Before removing an order from `live.db`, preserve every not-yet-emitted or pendi
 
 Primary acceptance ownership: `AC-STO-011` through `AC-STO-014`, `AC-PRINT-009`, archive portion of `AC-LIFE-015`.
 
-Current disposition: WP1–WP5 are implementation-accepted on source head `e62db0003f837297b848448a28a94e30c5db64a4`. The owner explicitly deferred remaining real populated-archive operational checks under a documented risk waiver; this is not an unqualified claim that the manual checklist Passed. M12 is closure-ready for controller review/merge, subject to green exact-head documentation-delivery CI. See `implementation/milestone-12-final-manual-acceptance.md` and `implementation/milestone-12-worklog.md`.
+Current disposition: M12 is controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722` under the explicit owner waiver. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3` passed exact-head CI #862 / run `36021889765` with 881/881 tests and Release build 0 warnings/errors; post-merge CI #863 / run `36023054757` build-and-test succeeded. Remaining real populated-archive operational checks are deferred, not marked Passed. See `implementation/milestone-12-final-manual-acceptance.md` and `implementation/milestone-12-worklog.md`.
 
 ### M13 — Installer, localization completion and final V1 acceptance
 
@@ -172,7 +172,7 @@ Complete the self-contained Windows x64 release, per-user Inno Setup installer, 
 
 Primary acceptance ownership: `AC-PROD-001` through `AC-PROD-004`, `AC-ARCH-007`, `AC-NFR-001` through `AC-NFR-004`, all explicit V1 exclusions and the complete production-target acceptance gate.
 
-Approved export-ledger retention/compaction carry-forward (`OWNER_DECISION: M13-GESTION-EXPORT-LEDGER-RETENTION-COMPACTION-20260923`, PR #25 comment `5792796519`): never prune unresolved PREPARED/pending export work; retain required export state while an order remains live; after annual archival and pending-work resolution, obsolete per-order export state may be cleaned; retain immutable full successful-batch payload/exact-regeneration history for 30 days, then prune safely when dependencies allow; show only retained/rebuildable successful batches; and make compaction transactional, idempotent and failure-safe while preserving FK/authority/recovery/handoff invariants. This is an M13 requirement, not authorization to implement M13 before M12 merges. The owner has authorized M13 preparation/authorization as the final V1 milestone after M12 merge without a further owner confirmation.
+Approved export-ledger retention/compaction carry-forward (`OWNER_DECISION: M13-GESTION-EXPORT-LEDGER-RETENTION-COMPACTION-20260923`, PR #25 comment `5792796519`): never prune unresolved PREPARED/pending export work; retain required export state while an order remains live; after annual archival and pending-work resolution, obsolete per-order export state may be cleaned; retain immutable full successful-batch payload/exact-regeneration history for 30 days, then prune safely when dependencies allow; show only retained/rebuildable successful batches; and make compaction transactional, idempotent and failure-safe while preserving FK/authority/recovery/handoff invariants. This is an M13 requirement, not authorization to implement M13 before M12 merges. The owner authorized M13 preparation/authorization as the final V1 milestone after M12 merge without a further owner confirmation. That condition is now satisfied; M13 is owner-authorized in preparation on `codex/m13-installer-final-acceptance-authorized`, subject to the execution gate and current repository-safety blocker.
 
 ## 4. Mandatory milestone gate
 
@@ -200,9 +200,9 @@ A passing build without required tests and acceptance evidence is not milestone 
 
 Phase 6 planning remains Approved.
 
-Current merged baseline as of 2026-09-21:
+Current merged baseline as of 2026-09-24:
 
-- M01 through M10: Passed / merged under their recorded PRs;
+- M01 through M11: Passed / merged under their recorded PRs;
 - M11 — Gestion intermediate export: Passed / merged through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`;
 - M11 accepted runtime candidate: `77ccecf9d947462e96e74b8aa1d99ced30e3788e`;
 - M11 final documentation head: `4eddf0a93c5a141326d76c6e67a9a9c5840e5068`;
@@ -210,10 +210,11 @@ Current merged baseline as of 2026-09-21:
 - M11 merge completion: PR #24 comment `5762846107`;
 - post-merge CI #821 / run `35617254203`: success, 831/831 passed, 0 failed, 0 skipped, Release build 0 warnings / 0 errors.
 
-M12 — Annual archive and historical access — is implementation-accepted on branch `codex/m12-annual-archive-authorized` / Draft PR #25. Its control package includes `implementation/milestone-12-preparation-readiness.md`, `implementation/milestone-12-annual-archive-historical-access.md`, `implementation/milestone-12-authorization.md`, `implementation/milestone-12-worklog.md` and `implementation/milestone-12-final-manual-acceptance.md`. The owner deferred remaining real populated-archive operational verification under an explicit risk waiver; M12 is closure-ready for controller review/merge, not an unqualified full manual-acceptance pass. Accepted WP1–WP5 source candidate `e62db0003f837297b848448a28a94e30c5db64a4` passed exact-head CI #860 / workflow run `35785073179`: 881 passed, 0 failed, 0 skipped; Release build 0 warnings/errors. The exact documentation-delivery head's CI is reported in matching PR #25 `CODEX_DONE`.
+M12 — Annual archive and historical access — is controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722` under the explicit owner waiver. Its historical control package remains authoritative. Real populated-archive operational verification is partially deferred; no waived item is represented as Passed. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3` passed CI #862 / run `36021889765` with 881 passed, 0 failed, 0 skipped and Release build 0 warnings/errors; post-merge CI #863 / run `36023054757` build-and-test succeeded.
 
-WP1–WP5 have been implemented under their separately authorized handoffs. The owner has accepted proceeding with remaining populated-archive manual checks deferred until real historical rows exist; no checklist item is represented as passed solely by that waiver. Intermittent synthetic-fixture archive discovery is recorded as a deferred observation rather than a proven defect or repair authorization. Exact-head CI #860 / run `35785073179` at accepted source head `e62db0003f837297b848448a28a94e30c5db64a4` succeeded (881 passed, 0 failed/skipped; Release build 0 warnings/errors). M12 is closure-ready for controller review/merge under the waiver; the exact documentation-delivery head's CI result is recorded in matching PR #25 `CODEX_DONE`. No OneDrive annual archive publication is used, and M13 implementation remains unauthorized until M12 merge.
+The owner-approved 2026-09-21 M12 amendment keeps canonical annual archives in application-managed local storage and removes OneDrive from annual archive publication/access. The fail-safe remains unchanged: archive failure cannot silently delete eligible live orders; retaining them in `live.db` is the safe fallback.
 
-The owner-approved 2026-09-21 M12 amendment moves canonical annual archives to application-managed local storage and removes OneDrive from annual archive publication/access. WP2 therefore uses a local staged -> durable canonical promotion/reopen-validation -> live-removal boundary; no OneDrive remote acknowledgement is required. Explicit archive export is a separate operator-selected copy action and must not move/delete the canonical archive.
+M13 preparation/authorization is active on `codex/m13-installer-final-acceptance-authorized`. Its controller package is `implementation/milestone-13-preparation-readiness.md`, `implementation/milestone-13-installer-localization-final-acceptance.md`, `implementation/milestone-13-final-manual-acceptance.md`, `implementation/milestone-13-worklog.md` and `implementation/milestone-13-authorization.md`. The first implementation package is WP1 Gestion export retention/compaction core only.
 
-M13 remains unauthorized.
+GitHub currently reports the source repository as public, conflicting with the project's expected private posture. Issue #4 remains CLOSED and M13 execution is blocked until that repository-safety discrepancy is resolved.
+

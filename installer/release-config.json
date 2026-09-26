@@ -1,0 +1,13 @@
+{
+  "productName": "Sushi81 POS",
+  "productVersion": "1.0.0",
+  "fileVersion": "1.0.0.0",
+  "runtimeIdentifier": "win-x64",
+  "selfContained": true,
+  "publishSingleFile": false,
+  "innoSetupVersion": "6.7.3",
+  "innoAppId": "C7A1B9E2-1E62-4B4B-A2EA-7802814408FC",
+  "binaryInstallDirectory": "{localappdata}\\Programs\\Sushi81 POS",
+  "durableDataDirectory": "%LOCALAPPDATA%\\Sushi81 POS",
+  "artifactRetentionDays": 90
+}

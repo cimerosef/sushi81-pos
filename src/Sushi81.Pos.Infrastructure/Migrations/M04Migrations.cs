@@ -85,5 +85,5 @@ public static class M04Migrations
 
 public static class ProductionMigrations
 {
-    public static IReadOnlyList<SqliteMigration> All { get; } = M01Migrations.All.Concat(M03Migrations.All).Concat(M04Migrations.All).Concat(M05Migrations.All).Concat(M08Migrations.All).Concat(M09Migrations.All).Concat(M11Migrations.All).Concat(M12Migrations.All).ToArray();
+    public static IReadOnlyList<SqliteMigration> All { get; } = M01Migrations.All.Concat(M03Migrations.All).Concat(M04Migrations.All).Concat(M05Migrations.All).Concat(M08Migrations.All).Concat(M09Migrations.All).Concat(M11Migrations.All).Concat(M12Migrations.All).Concat(M13Migrations.All).ToArray();
 }
