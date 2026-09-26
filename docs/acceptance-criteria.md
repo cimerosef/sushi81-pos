@@ -849,6 +849,10 @@ V1 may be accepted for production preparation only when:
 4. no unresolved contradiction exists between implementation and the frozen/amended V1 specification;
 5. no test fixture or repository artifact contains unsanitized production customer/business secrets.
 
-This document is the **Approved — Phase 5 acceptance baseline for the frozen V1 Specification**, supplemented by all Approved post-freeze acceptance amendments, including the M13 Gestion export retention/compaction amendment dated 2026-09-23.
+## 14. M13 full business-data reset amendment
+
+The owner-approved reset contract is recorded in `docs/decisions/m13-full-business-data-reset.md`. Acceptance requires the authority guard, count-only preview, cancel/no-mutation path, exact `RESET` plus separate final confirmation, retained private backup, failure recovery, approved reset scope and preservation of pairing, authority, configuration, business settings, printer selections, language and recovery material. Codex automated coverage must use synthetic data; live business data must never be reset for automated validation.
+
+This document is the **Approved — Phase 5 acceptance baseline for the frozen V1 Specification**, supplemented by approved post-freeze acceptance amendments, including the M13 Gestion export retention/compaction amendment dated 2026-09-23 and the owner-approved M13 full business-data reset amendment dated 2026-09-26.
 
 Codex implementation must treat these criteria as the acceptance contract. Any future behavior change that conflicts with them requires an explicit approved specification amendment; implementation must not silently waive a criterion by reproducing legacy VBA behavior that the approved V1 specification intentionally replaced.

@@ -15,6 +15,7 @@ using Sushi81.Pos.Infrastructure.Authority;
 using Sushi81.Pos.Infrastructure.Configuration;
 using Sushi81.Pos.Application.Export;
 using Sushi81.Pos.Application.Archive;
+using Sushi81.Pos.Application.Maintenance;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -85,12 +86,13 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private AuthorityPhase? _authorityPhase;
     private readonly DesktopOperationDiagnostics? diagnostics;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, CatalogueWorkbookService? catalogueWorkbookService = null, CatalogueImportService? catalogueImportService = null, GestionExportWorkflowViewModel? gestionExportWorkflow = null, IAnnualArchiveAccess? archiveAccess = null, IArchivedOrderPrintApplicationService? archivedOrderPrintService = null, DesktopOperationDiagnostics? diagnostics = null)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, CatalogueWorkbookService? catalogueWorkbookService = null, CatalogueImportService? catalogueImportService = null, GestionExportWorkflowViewModel? gestionExportWorkflow = null, IAnnualArchiveAccess? archiveAccess = null, IArchivedOrderPrintApplicationService? archivedOrderPrintService = null, DesktopOperationDiagnostics? diagnostics = null, BusinessDataResetService? businessDataResetService = null)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
         _configuration = configuration ?? new LocalConfiguration();
         _m07Setup = m07Setup;
         this.diagnostics = diagnostics;
+        BusinessDataResetService = businessDataResetService;
         _culture = Normalize(_cultureStore.Load());
         StartupSucceeded = startupSucceeded;
         AuthorityState = authorityGuard?.State ?? authorityState;
@@ -213,11 +215,18 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public AnnualArchiveAccessViewModel? ArchiveAccess { get; }
 
+    public BusinessDataResetService? BusinessDataResetService { get; }
+
     public bool IsGestionExportAvailable => GestionExportWorkflow is not null;
 
     public bool IsArchiveAccessAvailable => ArchiveAccess is not null;
 
     public bool IsDataToolsAvailable => IsGestionExportAvailable || IsArchiveAccessAvailable;
+
+    public bool CanResetBusinessData => BusinessDataResetService is not null
+        && CanWrite
+        && !_m07OperationInProgress
+        && CurrentAuthorityPhase == AuthorityPhase.Authoritative;
 
     public bool IsM03Available => Admin is not null;
 
@@ -446,6 +455,13 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("ArchiveFromDate").Append("ArchiveToDate").Append("ArchiveCopy").Append("ArchiveReadOnlyNotice")
              .Append("ArchiveStatusAll").Append("ArchiveNoArchives").Append("ArchiveAvailable")
              .Append("ArchiveAccessFailed").Append("ArchiveInvalidDateRange").Append("ArchiveCopySucceeded").Append("ArchiveCopyFailed")
+             .Append("BusinessDataResetSection").Append("BusinessDataResetAction").Append("BusinessDataResetDescription")
+             .Append("BusinessDataResetPreviewTitle").Append("BusinessDataResetPreviewSummary").Append("BusinessDataResetPreserved")
+             .Append("BusinessDataResetTypePrompt").Append("BusinessDataResetProceed").Append("BusinessDataResetFinalConfirm")
+             .Append("BusinessDataResetSuccess").Append("BusinessDataResetAlreadyEmpty").Append("BusinessDataResetFailure")
+             .Append("BusinessDataResetRestored").Append("BusinessDataResetRecoveryRequired")
+             .Append("BusinessDataResetConfirmAndReset").Append("BusinessDataResetPreviewFailed")
+             .Append("BusinessDataResetRecoveryNotificationFailed").Append("BusinessDataResetUnknownFailure")
              .ToArray();
         Localized = keys.ToDictionary(key => key, Read, StringComparer.Ordinal);
         CatalogueWorkflow?.ApplyLocalization(Localized);
@@ -878,6 +894,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
             if (GestionExportWorkflow is { } gestionExportWorkflow)
                 await gestionExportWorkflow.RefreshAfterLiveDatabaseReplacementAsync(cancellationToken);
 
+            if (ArchiveAccess is { } archiveAccess)
+                await archiveAccess.RefreshAsync(cancellationToken);
+
             SetBusinessPresentationRefreshBlocked(false);
             RefreshResources();
         }
@@ -885,6 +904,38 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         {
             // A refresh failure after durable authority acquisition is not reversible here.
             // Leave the barrier engaged so no stale business surface remains actionable.
+            RefreshChildAuthorityCommands();
+            RefreshResources();
+            throw;
+        }
+    }
+
+    public async Task<BusinessDataResetExecutionResult> ResetBusinessDataAsync(
+        string? confirmation,
+        bool finalConfirmation,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CanResetBusinessData || BusinessDataResetService is not { } service)
+            throw new WriteAuthorityException(AuthorityState);
+
+        SetBusinessPresentationRefreshBlocked(true);
+        try
+        {
+            var result = await service.ExecuteAsync(confirmation, finalConfirmation, cancellationToken);
+            if (result.Status is BusinessDataResetStatus.RecoveryRequired
+                or BusinessDataResetStatus.ResetCommittedRecoveryNotificationFailed)
+                return result;
+
+            if (result.Succeeded)
+                await RefreshBusinessPresentationAfterDatabaseReplacementAsync(cancellationToken);
+            else
+                SetBusinessPresentationRefreshBlocked(false);
+            OnPropertyChanged(nameof(CanResetBusinessData));
+            return result;
+        }
+        catch
+        {
+            // Any uncertain result keeps every business-facing write control blocked until recovery/restart.
             RefreshChildAuthorityCommands();
             RefreshResources();
             throw;
@@ -948,6 +999,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         _businessPresentationRefreshBlocked = blocked;
         OnPropertyChanged(nameof(CanWrite));
         OnPropertyChanged(nameof(IsAuthorityWarningVisible));
+        OnPropertyChanged(nameof(CanResetBusinessData));
         RefreshM07CommandState();
         CatalogueWorkflow?.RefreshPresentationState();
         GestionExportWorkflow?.SetBusinessPresentationRefreshBlocked(blocked);
@@ -958,6 +1010,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     private void RefreshM07CommandState()
     {
+        OnPropertyChanged(nameof(CanResetBusinessData));
         OnPropertyChanged(nameof(CanJoinExistingLineage));
         OnPropertyChanged(nameof(CanAcquireTransferredAuthority));
         OnPropertyChanged(nameof(CanResumePendingTransfer));

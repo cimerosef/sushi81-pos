@@ -158,6 +158,13 @@
               <Button Content="{Binding DataContext.Localized[Save], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.PrinterSetup.CanSave, RelativeSource={RelativeSource AncestorType=Window}}" Padding="12,4" Click="OnSavePrinterSettings" />
             </WrapPanel>
             <TextBlock Text="{Binding DataContext.PrinterSetup.StatusMessage, RelativeSource={RelativeSource AncestorType=Window}}" TextWrapping="Wrap" Margin="0,8,0,0" />
+            <Border Margin="0,22,0,0" Padding="12" BorderBrush="#FF9A3412" BorderThickness="2" Background="#FFFFF7ED">
+              <StackPanel>
+                <TextBlock Text="{Binding DataContext.Localized[BusinessDataResetSection], RelativeSource={RelativeSource AncestorType=Window}}" FontWeight="Bold" FontSize="16" Foreground="#FF9A3412" />
+                <TextBlock Text="{Binding DataContext.Localized[BusinessDataResetDescription], RelativeSource={RelativeSource AncestorType=Window}}" TextWrapping="Wrap" Margin="0,6,0,10" />
+                <Button Content="{Binding DataContext.Localized[BusinessDataResetAction], RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.CanResetBusinessData, RelativeSource={RelativeSource AncestorType=Window}}" Click="OnResetBusinessData" Padding="12,5" HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
           </StackPanel>
         </ScrollViewer>
       </TabItem>

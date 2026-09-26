@@ -15,6 +15,7 @@ using Sushi81.Pos.Application.Pairing.SystemMetadata;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Application.Printing;
+using Sushi81.Pos.Application.Maintenance;
 using Sushi81.Pos.Domain;
 using Sushi81.Pos.Infrastructure.Configuration;
 using DomainSelectionMode = Sushi81.Pos.Domain.SelectionMode;
@@ -1084,6 +1085,73 @@ public partial class MainWindow : Window
         }
         if (DataContext is ShellViewModel { PrinterSetup: { } printerSetup })
             await printerSetup.RefreshAsync();
+    }
+
+    private async void OnResetBusinessData(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not ShellViewModel viewModel
+            || !viewModel.CanResetBusinessData
+            || viewModel.BusinessDataResetService is not { } resetService)
+            return;
+
+        BusinessDataResetPreview preview;
+        try
+        {
+            preview = await resetService.PreviewAsync();
+        }
+        catch (Exception exception)
+        {
+            ReportUnexpectedFailure(exception);
+            ShowBusinessDataResetMessage(
+                viewModel,
+                "BusinessDataResetPreviewFailed",
+                MessageBoxImage.Error);
+            return;
+        }
+
+        var dialog = new BusinessDataResetConfirmationDialog(this, viewModel.Localized, preview);
+        if (dialog.ShowDialog() != true)
+            return;
+
+        BusinessDataResetExecutionResult result;
+        try
+        {
+            result = await viewModel.ResetBusinessDataAsync(dialog.ConfirmationToken, finalConfirmation: true);
+        }
+        catch (Exception exception)
+        {
+            ReportUnexpectedFailure(exception);
+            ShowBusinessDataResetMessage(
+                viewModel,
+                "BusinessDataResetUnknownFailure",
+                MessageBoxImage.Error);
+            return;
+        }
+
+        var (key, icon) = result.Status switch
+        {
+            BusinessDataResetStatus.Reset => ("BusinessDataResetSuccess", MessageBoxImage.Information),
+            BusinessDataResetStatus.AlreadyEmpty => ("BusinessDataResetAlreadyEmpty", MessageBoxImage.Information),
+            BusinessDataResetStatus.FailedWithoutMutation => ("BusinessDataResetFailure", MessageBoxImage.Error),
+            BusinessDataResetStatus.FailedAndRestored => ("BusinessDataResetRestored", MessageBoxImage.Warning),
+            BusinessDataResetStatus.RecoveryRequired => ("BusinessDataResetRecoveryRequired", MessageBoxImage.Error),
+            BusinessDataResetStatus.ResetCommittedRecoveryNotificationFailed => ("BusinessDataResetRecoveryNotificationFailed", MessageBoxImage.Error),
+            _ => ("BusinessDataResetUnknownFailure", MessageBoxImage.Error)
+        };
+
+        ShowBusinessDataResetMessage(viewModel, key, icon, result.BackupId);
+    }
+
+    private void ShowBusinessDataResetMessage(
+        ShellViewModel viewModel,
+        string key,
+        MessageBoxImage icon,
+        string? backupId = null)
+    {
+        var message = viewModel.Localized.TryGetValue(key, out var localized)
+            ? backupId is null ? localized : string.Format(CultureInfo.CurrentCulture, localized, backupId)
+            : LocalizedText(this, "OperationFailed", "Opération impossible.");
+        MessageBox.Show(this, message, LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, icon);
     }
 
     private async void OnRefreshPrinters(object sender, RoutedEventArgs e)

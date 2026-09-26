@@ -27,6 +27,7 @@ using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Infrastructure.Printing;
 using Sushi81.Pos.Application.Export;
 using Sushi81.Pos.Application.Archive;
+using Sushi81.Pos.Application.Maintenance;
 using Sushi81.Pos.Infrastructure.Export;
 using Sushi81.Pos.Infrastructure.Archive;
 
@@ -71,6 +72,7 @@ public static partial class CompositionRoot
          GestionExportWorkflowViewModel? gestionExportWorkflow = null;
         AnnualArchiveStartupCoordinator? annualArchiveStartupCoordinator = null;
         IAnnualArchiveAccess? annualArchiveAccess = null;
+        BusinessDataResetService? businessDataResetService = null;
 
         try
         {
@@ -122,6 +124,10 @@ public static partial class CompositionRoot
             }
             durableChangeNotifier = await DurableChangeNotifier.CreateAsync(paths, clock, recoveryScheduler, logger, businessRevisionReader);
             var transactionRunner = new SqliteTransactionRunner(connectionFactory);
+            businessDataResetService = new BusinessDataResetService(
+                new SqliteBusinessDataResetStore(paths, connectionFactory, transactionRunner),
+                authorityGuard,
+                durableChangeNotifier);
             var idGenerator = new GuidV7IdGenerator(TimeProvider.System);
             var catalogueStore = new SqliteCatalogueStore(connectionFactory, transactionRunner, idGenerator, clock);
             var settingsStore = new SqliteBusinessSettingsStore(connectionFactory, transactionRunner, clock);
@@ -273,7 +279,8 @@ public static partial class CompositionRoot
              gestionExportWorkflow,
              annualArchiveAccess,
              archivedOrderPrintService,
-             operationDiagnostics);
+             operationDiagnostics,
+             businessDataResetService);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,

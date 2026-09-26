@@ -114,6 +114,10 @@ In Caisse, find products by category, code or name, add them to the cart, set qu
 
 Saving an edit updates the same order. Enter cumulative money actually received in CB and Espèce. If payment was received on another date, record its effective payment date. “Close” (Clôturer) is allowed only when CB plus cash exactly equals the order total. Underpayment or overpayment leaves the order open. Cancellation preserves the order and payment facts; it does not issue a card refund. A price-affecting edit may recalculate the total, so review it again.
 
+### Full business-data reset — owner-only maintenance
+
+This is a destructive maintenance operation, not order cancellation or troubleshooting. Use it only on the authoritative device when the owner has designated the profile for a full reset. In Paramètres, open “Maintenance des données”; review the count-only preview and the list of preserved system/device state. Close or cancel to leave all data unchanged. To proceed, type exactly `RESET`, then review and accept the separate final confirmation. The application first retains a private, validated backup, then clears the entire operational dataset and refreshes the business views. Pairing, authority, configuration, credentials, printer selections, language, business settings and recovery material remain. Never use this on a live service profile or to troubleshoot installation, startup, migrations or authority transfer. Automated tests and training must use synthetic data. See [`decisions/m13-full-business-data-reset.md`](decisions/m13-full-business-data-reset.md).
+
 ### Print and reprint
 
 Order confirmation saves the order before attempting the kitchen and customer tickets. A print failure does not roll back the saved order. Check the order, then retry or reprint the relevant output instead of creating a duplicate. A payment change may require a new customer ticket. A read-only device may print or reprint orders visible in its local data.

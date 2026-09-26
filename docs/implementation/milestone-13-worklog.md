@@ -305,3 +305,24 @@ Local verification:
 - Exact zh-CN setup labels, default business values, credential instructions, PAT repository/permission scope, fresh-join semantics, and evergreen installer wording checks: passed.
 - Application tests/build were not rerun for this docs-only repair. Exact-head CI remains required after push.
 - Owner Section F re-test remains pending after controller review. PR #26 remains OPEN, Draft, and unmerged; Issue #4 was OPEN for this handoff.
+
+## 2026-09-26 — protected in-app full business-data reset
+
+Consumed `M13-IN-APP-BUSINESS-DATA-RESET-16` from active PR #26 comment `5844833406` while Issue #4 was OPEN. The authorized branch was `codex/m13-installer-final-acceptance-authorized`, starting at `90e9f8101c06887af4889a0d367ae5ee2b692979`. This implements owner decision `M13-IN-APP-BUSINESS-DATA-RESET-20260926`; it does not execute the reset against an owner profile or real POS data.
+
+Completed within the approved package:
+
+- Added an authoritative-write-guarded Application maintenance service and SQLite store. The preview is read-only and reports the approved business counts, including orphaned order-reference sequences. Execution requires the exact case-sensitive `RESET` token and a separate final confirmation.
+- The reset takes a standalone SQLite `BackupDatabase` copy (including committed WAL state), validates schema/integrity/revision and retained hashes, stages active Archive files, clears only the approved business tables, and preserves settings, pairing/authority, local configuration, OneDrive System membership and recovery history. The normal transaction runner advances the business revision once and the durable-change notifier runs once after commit. Restore paths remain fail-closed and retain the private backup.
+- Added the localized Paramètres / 设置 maintenance UI, two-step WPF confirmation, refreshed business views, French and Simplified Chinese operator instructions, the approved decision amendment and a dedicated manual-acceptance section. Existing A–E owner records were not rewritten; reset acceptance remains pending owner/controller execution.
+- Removed the superseded temporary cutover utility and its test project from the solution/repository, and removed its dedicated artifact job. The separate production-installer lifecycle job remains in CI.
+
+Local verification on this implementation tree:
+
+- Focused reset integration tests: 10 passed, 0 failed, 0 skipped; reset WPF/localization tests: 2 passed, 0 failed, 0 skipped.
+- Full Release suite: 928 passed across six test assemblies, 0 failed, 0 skipped.
+- Full Release solution build: 0 warnings, 0 errors.
+- Repository safety scanner: 16 synthetic self-test cases passed; full tracked/non-ignored scan passed across 457 files with no findings.
+- Direct/transitive NuGet vulnerability audit: passed with no findings; `git diff --check`: passed.
+
+Exact-head GitHub CI and the production installer artifact/lifecycle evidence will be recorded in the matching `CODEX_DONE` after the authorized fast-forward push. Owner/controller review and real-device acceptance remain pending; no merge is authorized.

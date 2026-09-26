@@ -14,11 +14,19 @@ using System.Text;
 using System.Resources;
 using System.Globalization;
 using System.Text.Json;
+using System.Runtime.ExceptionServices;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Configuration;
 using Sushi81.Pos.Application.Foundation.Paths;
+using Sushi81.Pos.Application.Foundation.Recovery;
+using Sushi81.Pos.Application.Maintenance;
 using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Desktop;
+using Sushi81.Pos.Infrastructure.Authority;
 using Sushi81.Pos.Infrastructure.Configuration;
 
 namespace Sushi81.Pos.ArchitectureTests;
@@ -129,6 +137,111 @@ public sealed class LocalizationTests
         Assert.AreEqual(zh.Localized["OrderPrintAmbiguous"], M03Presentation.Message(zhIssue, zh.Localized));
         Assert.AreNotEqual(fr.Localized["OrderPrintKitchenFailure"], M03Presentation.Message(frIssue, fr.Localized));
         Assert.AreNotEqual(zh.Localized["OrderPrintCustomerFailure"], M03Presentation.Message(zhIssue, zh.Localized));
+    }
+
+    [TestMethod]
+    public async Task BusinessDataResetLabelsAndAvailabilityAreLocalizedAndFailClosedByAuthorityPhase()
+    {
+        using var authoritativeGuard = new WriteAuthorityGuard(WriteAuthorityState.Authoritative);
+        var service = new BusinessDataResetService(new EmptyBusinessDataResetStore(), authoritativeGuard, new NoOpDurableChangeNotifier());
+        var viewModel = new ShellViewModel(
+            new InMemorySelectedCultureStore(),
+            startupSucceeded: true,
+            authorityGuard: authoritativeGuard,
+            authorityPhase: AuthorityPhase.Authoritative,
+            businessDataResetService: service);
+
+        Assert.IsTrue(viewModel.CanResetBusinessData);
+        Assert.AreEqual("Maintenance des données", viewModel.Localized["BusinessDataResetSection"]);
+        Assert.AreEqual("Réinitialiser les données métier", viewModel.Localized["BusinessDataResetAction"]);
+        Assert.AreEqual("Confirmer et réinitialiser", viewModel.Localized["BusinessDataResetConfirmAndReset"]);
+        Assert.AreEqual("Les données métier ont été réinitialisées. La sauvegarde privée est conservée sous %LOCALAPPDATA%\\Sushi81 POS\\MaintenanceBackups\\{0}.", viewModel.Localized["BusinessDataResetSuccess"]);
+        Assert.AreEqual("La réinitialisation a échoué avant toute modification. Les données actives restent en place. Sauvegarde préparée : %LOCALAPPDATA%\\Sushi81 POS\\MaintenanceBackups\\{0}.", viewModel.Localized["BusinessDataResetFailure"]);
+        StringAssert.Contains(viewModel.Localized["BusinessDataResetRecoveryNotificationFailed"], "publication");
+
+        await viewModel.ChangeLanguageAsync(viewModel.Languages.Single(option => option.CultureName == "zh-CN"));
+        Assert.AreEqual("数据维护", viewModel.Localized["BusinessDataResetSection"]);
+        Assert.AreEqual("重置业务数据", viewModel.Localized["BusinessDataResetAction"]);
+        Assert.AreEqual("确认并重置", viewModel.Localized["BusinessDataResetConfirmAndReset"]);
+        Assert.AreEqual("业务数据已重置。私有备份保留在 %LOCALAPPDATA%\\Sushi81 POS\\MaintenanceBackups\\{0}。", viewModel.Localized["BusinessDataResetSuccess"]);
+        Assert.AreEqual("重置在修改前失败，活动数据未改变。预备备份：%LOCALAPPDATA%\\Sushi81 POS\\MaintenanceBackups\\{0}。", viewModel.Localized["BusinessDataResetFailure"]);
+        StringAssert.Contains(viewModel.Localized["BusinessDataResetRecoveryNotificationFailed"], "发布新的恢复状态失败");
+
+        foreach (var phase in Enum.GetValues<AuthorityPhase>().Where(phase => phase != AuthorityPhase.Authoritative))
+        {
+            var phaseViewModel = new ShellViewModel(
+                new InMemorySelectedCultureStore(),
+                startupSucceeded: true,
+                authorityGuard: authoritativeGuard,
+                authorityPhase: phase,
+                businessDataResetService: service);
+            Assert.IsFalse(phaseViewModel.CanResetBusinessData, $"Authority phase {phase} must disable the reset action.");
+        }
+
+        using var readOnlyGuard = new WriteAuthorityGuard(WriteAuthorityState.NonAuthoritativeReadOnly);
+        var readOnlyViewModel = new ShellViewModel(
+            new InMemorySelectedCultureStore(),
+            startupSucceeded: true,
+            authorityGuard: readOnlyGuard,
+            authorityPhase: AuthorityPhase.NonAuthoritativeReadOnly,
+            businessDataResetService: new BusinessDataResetService(new EmptyBusinessDataResetStore(), readOnlyGuard, new NoOpDurableChangeNotifier()));
+        Assert.IsFalse(readOnlyViewModel.CanResetBusinessData, "A non-authoritative device must disable the reset action.");
+
+        var unavailableViewModel = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: false);
+        Assert.IsFalse(unavailableViewModel.CanResetBusinessData, "A failed startup must disable the reset action.");
+
+        var mainWindowMarkup = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "MainWindow.xaml"));
+        StringAssert.Contains(mainWindowMarkup, "Click=\"OnResetBusinessData\"");
+    }
+
+    [TestMethod]
+    public void BusinessDataResetWpfDialogRequiresExactTokenAndSeparateFinalConfirmation()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var viewModel = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+                var owner = new Window();
+                owner.Show();
+                var dialog = new BusinessDataResetConfirmationDialog(
+                    owner,
+                    viewModel.Localized,
+                    new BusinessDataResetPreview(3, 1, 1, 1, 1, 2, 1, 2, 1, 2));
+
+                Assert.IsFalse(dialog.ContinueButton.IsEnabled);
+                dialog.ConfirmationTokenInput.Text = "reset";
+                Assert.IsFalse(dialog.ContinueButton.IsEnabled, "The locale-independent confirmation token is case-sensitive.");
+                dialog.ConfirmationTokenInput.Text = "RESET";
+                Assert.IsTrue(dialog.ContinueButton.IsEnabled);
+                dialog.ContinueButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.IsTrue(dialog.IsFinalStep, "The exact token advances only to a separate final confirmation.");
+                Assert.IsFalse(dialog.IsResetConfirmed);
+                Assert.AreEqual("Confirmer et réinitialiser", dialog.FinalResetButton.Content);
+                dialog.FinalResetButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.IsTrue(dialog.IsResetConfirmed);
+
+                var cancelled = new BusinessDataResetConfirmationDialog(
+                    owner,
+                    viewModel.Localized,
+                    new BusinessDataResetPreview(3, 1, 1, 1, 1, 2, 1, 2, 1, 2));
+                cancelled.ConfirmationTokenInput.Text = "RESET";
+                cancelled.ContinueButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                cancelled.CancelButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.IsFalse(cancelled.IsResetConfirmed, "Cancel must leave the dialog unconfirmed.");
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(15)), "The WPF confirmation test thread should complete promptly.");
+        if (failure is not null)
+            ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
     [TestMethod]
@@ -439,6 +552,15 @@ public sealed class LocalizationTests
 
         public Task SaveAsync(CultureInfo selectedCulture, CancellationToken cancellationToken = default) =>
             throw new AssertFailedException("The test does not switch culture.");
+    }
+
+    private sealed class EmptyBusinessDataResetStore : IBusinessDataResetStore
+    {
+        public Task<BusinessDataResetPreview> PreviewAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new BusinessDataResetPreview(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+
+        public Task<BusinessDataResetStoreResult> ResetAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new BusinessDataResetStoreResult(BusinessDataResetStatus.AlreadyEmpty));
     }
 
     private sealed class YieldingCultureStore : ISelectedCultureStore

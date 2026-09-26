@@ -474,4 +474,22 @@ Changements effectifs : {2}</value></data>
   <data name="ArchiveCopySucceeded" xml:space="preserve"><value>Archive copiée vers {0}.</value></data>
   <data name="ArchiveCopyFailed" xml:space="preserve"><value>L’archive sélectionnée n’a pas pu être copiée.</value></data>
   <data name="DataTools" xml:space="preserve"><value>Données</value></data>
+  <data name="BusinessDataResetSection" xml:space="preserve"><value>Maintenance des données</value></data>
+  <data name="BusinessDataResetAction" xml:space="preserve"><value>Réinitialiser les données métier</value></data>
+  <data name="BusinessDataResetDescription" xml:space="preserve"><value>Supprime les commandes, le catalogue, les exports Gestion et les archives locales actifs. Les paramètres, l’appairage, l’autorité et les copies de récupération sont conservés. Une sauvegarde privée est gardée avant le reset.</value></data>
+  <data name="BusinessDataResetPreviewTitle" xml:space="preserve"><value>Aperçu avant réinitialisation</value></data>
+  <data name="BusinessDataResetPreviewSummary" xml:space="preserve"><value>Commandes : {0}&#10;Produits / catégories / groupes / options : {1} / {2} / {3} / {4}&#10;Lots Gestion (dont PREPARED) : {5} ({6})&#10;Archives annuelles enregistrées : {7}&#10;Années / fichiers d’archive actifs : {8} / {9}&#10;Compteurs de référence de commande : {10}</value></data>
+  <data name="BusinessDataResetPreserved" xml:space="preserve"><value>Conservés : appairage et autorité des appareils, lignée/génération, configuration, imprimantes, langue, paramètres métier et sauvegardes de récupération. Aucun texte libre de commande n’est affiché ici.</value></data>
+  <data name="BusinessDataResetTypePrompt" xml:space="preserve"><value>Tapez exactement RESET (majuscules), puis confirmez dans la fenêtre suivante.</value></data>
+  <data name="BusinessDataResetProceed" xml:space="preserve"><value>Continuer vers la confirmation finale</value></data>
+  <data name="BusinessDataResetFinalConfirm" xml:space="preserve"><value>Cette action supprime les données opérationnelles affichées et ne peut pas être annulée depuis l’application. Continuer ?</value></data>
+  <data name="BusinessDataResetSuccess" xml:space="preserve"><value>Les données métier ont été réinitialisées. La sauvegarde privée est conservée sous %LOCALAPPDATA%\Sushi81 POS\MaintenanceBackups\{0}.</value></data>
+  <data name="BusinessDataResetAlreadyEmpty" xml:space="preserve"><value>Aucune donnée métier active à réinitialiser. Aucune révision n’a été créée.</value></data>
+  <data name="BusinessDataResetFailure" xml:space="preserve"><value>La réinitialisation a échoué avant toute modification. Les données actives restent en place. Sauvegarde préparée : %LOCALAPPDATA%\Sushi81 POS\MaintenanceBackups\{0}.</value></data>
+  <data name="BusinessDataResetRestored" xml:space="preserve"><value>La réinitialisation a échoué. La base et les archives ont été restaurées; la sauvegarde privée est conservée sous %LOCALAPPDATA%\Sushi81 POS\MaintenanceBackups\{0}.</value></data>
+  <data name="BusinessDataResetRecoveryRequired" xml:space="preserve"><value>La restauration automatique est incomplète. N’utilisez plus les écrans métier et demandez une récupération guidée. La sauvegarde privée est conservée sous %LOCALAPPDATA%\Sushi81 POS\MaintenanceBackups\{0}.</value></data>
+  <data name="BusinessDataResetConfirmAndReset" xml:space="preserve"><value>Confirmer et réinitialiser</value></data>
+  <data name="BusinessDataResetPreviewFailed" xml:space="preserve"><value>L’aperçu du reset n’a pas pu être lu. Aucune modification n’a été effectuée.</value></data>
+  <data name="BusinessDataResetRecoveryNotificationFailed" xml:space="preserve"><value>Le reset est validé, mais la publication du nouvel état de récupération a échoué. Les écrans métier restent bloqués. Arrêtez l’utilisation et demandez une récupération guidée. Sauvegarde privée : %LOCALAPPDATA%\Sushi81 POS\MaintenanceBackups\{0}.</value></data>
+  <data name="BusinessDataResetUnknownFailure" xml:space="preserve"><value>Le résultat du reset est incertain. N’utilisez plus les écrans métier et demandez une récupération guidée.</value></data>
 </root>

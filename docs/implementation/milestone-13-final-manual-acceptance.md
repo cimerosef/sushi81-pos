@@ -95,6 +95,10 @@ Open both the primary Simplified Chinese guide at [../operating-guide.zh-CN.md](
 
 The first safe real populated-archive verification remains deferred under the existing M12 owner waiver. At the first safe authoritative startup on or after **2027-02-01** with real 2026 rows, separately verify real archive discovery, selection, detail/search, user-selected copy, reprint and read-only behavior. Record it as **DEFERRED-NOT-M13** until performed. Do not use M13 to relabel it Passed.
 
-## 6. Acceptance record
+## 6. G — full business-data reset
 
-After performing the checks, the owner records PASS / FAIL / DEFERRED-NOT-M13 and concise evidence for A–F, with date and the exact candidate SHA/artifact. Do not pre-fill or infer owner results from hosted CI. Final V1 acceptance and any merge decision remain separate explicit owner/controller actions.
+The owner-approved reset is documented in [`../decisions/m13-full-business-data-reset.md`](../decisions/m13-full-business-data-reset.md). Codex must never execute it against a real business profile. Automated evidence must use synthetic data only and cover the authority guard, preview, cancel/no-mutation behavior, typed `RESET` plus final confirmation, private backup retention, failure recovery and preserved pairing/authority/settings/recovery state. Owner review is separate and must identify the exact candidate.
+
+## 7. Acceptance record
+
+After performing the checks, the owner records PASS / FAIL / DEFERRED-NOT-M13 and concise evidence for A–G, with date and the exact candidate SHA/artifact. Do not pre-fill or infer owner results from hosted CI. Final V1 acceptance and any merge decision remain separate explicit owner/controller actions.
