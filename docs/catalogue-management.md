@@ -1,7 +1,7 @@
 # Catalogue management
 
-**Status:** Approved — Phase 2 baseline, amended 2026-09-17  
-**Last updated:** 2026-09-17  
+**Status:** Approved — Phase 2 baseline, amended through 2026-09-26  
+**Last updated:** 2026-09-26  
 **Product:** Sushi81 POS  
 **Purpose:** Freeze the V1 current catalogue, category, product-option and Excel batch-maintenance behavior before implementation.
 
@@ -321,7 +321,7 @@ The workbook is both:
 
 Exact localized visible header wording and purely technical helper-column names may be chosen during implementation, but their business meaning must preserve this specification.
 
-In the `Products` sheet, VAT is stored in percentage points: enter plain numeric `5.5`, `10` or `20` for 5.5%, 10% or 20%. A genuinely percentage-formatted numeric Excel cell is also accepted: Excel's stored `0.055` displayed as `5.5%` is normalized to the same `5.5` percentage-point rate on import. The number format, not the value's size, determines this conversion; an unformatted `0.055` remains `0.055` percentage points. Export writes the canonical percentage-point number with a display format that preserves its precision. Formula cells remain unsupported, and the normal 0–100 percentage-point validation still applies after normalization.
+In the `Products` sheet, VAT is stored in percentage points: enter plain numeric `5.5`, `10` or `20` for 5.5%, 10% or 20%. A genuinely percentage-formatted numeric Excel cell is also accepted: for example, Excel's stored `0.055` displayed as `5.5%` is normalized to the same canonical `5.5` percentage-point rate on import. In addition, the importer provides a narrowly bounded compatibility rule for the known legacy Sushi81 plain-numeric encodings: plain `0.055` is normalized to `5.5`, plain `0.1` / `0.10` to `10`, and plain `0.2` / `0.20` to `20`. This is a closed compatibility allowlist, not a general magnitude heuristic: every other plain fractional numeric value remains literal percentage points (for example `0.15`, `0.5` and `0.075` remain `0.15`, `0.5` and `0.075`). Canonical plain `5.5`, `10` and `20` remain unchanged. Export writes the canonical percentage-point number with a display format that preserves its precision. Formula cells remain unsupported, and the normal 0–100 percentage-point validation still applies after normalization.
 
 ### 9.2 Category representation in the workbook — V1 consistency rule
 
