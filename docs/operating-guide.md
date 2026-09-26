@@ -126,6 +126,8 @@ Order confirmation saves the order before attempting the kitchen and customer ti
 
 In Catalogue, maintain products, categories, prices, VAT, active status, Retrait-discount eligibility and product options. Deactivate temporarily unavailable products; historical order snapshots remain. For XLSX batch import, review the preview and resolve blocking validation errors before committing. Do not change technical internal IDs. Export a fresh workbook when you need a current template. The workbook is for catalogue maintenance, not order editing or the separate Gestion export.
 
+In the XLSX `Products` sheet, VAT means percentage points: a plain number `5.5` means 5.5% (likewise `10` and `20`). Excel percentage-formatted numeric cells displaying `5.5%`, `10%` or `20%` are also accepted and converted to the same rates. Check representative VAT rows in the import preview before confirming, especially when importing a workbook prepared outside Sushi81 POS; a plain `0.055` is interpreted literally as 0.055%, not 5.5%.
+
 ### Hiboutik paste fallback
 
 If Hiboutik server-side printing is unavailable, copy the complete product-detail block from the Hiboutik order email. In Caisse expand “Commande Hiboutik”, paste it and choose “Analyser la commande Hiboutik”. Resolve unknown lines using current catalogue product codes, enter the normal fulfilment details and review the POS price/options before confirmation.

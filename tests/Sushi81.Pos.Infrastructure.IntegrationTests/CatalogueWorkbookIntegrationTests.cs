@@ -5,6 +5,7 @@ using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Catalogue;
+using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Domain;
 using Sushi81.Pos.Infrastructure.Catalogue;
 using Sushi81.Pos.Infrastructure.Migrations;
@@ -231,9 +232,109 @@ public sealed class CatalogueWorkbookIntegrationTests
         Assert.IsTrue(vatValues.Contains(10m));
         Assert.IsTrue(vatValues.Contains(20m));
         foreach (var row in vatRows)
-            Assert.AreEqual("0.00", products.Cell(row, 6).Style.NumberFormat.Format);
+            Assert.AreEqual("0.###############", products.Cell(row, 6).Style.NumberFormat.Format);
+        Assert.AreEqual(5.5m, products.Cell(vatRows.Single(row => products.Cell(row, 1).GetString() == "P-55"), 6).GetValue<decimal>());
+        var roundTrip = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(new MemoryStream(bytes));
+        Assert.AreEqual(5.5m, roundTrip.Products.Single(product => product.ProductCode == "P-55").VatRate);
         Assert.AreEqual(XLWorksheetVisibility.VeryHidden, workbook.Worksheet("__Sushi81Meta").Visibility);
         Assert.IsTrue(workbook.Worksheet("__Sushi81Meta").Protection.IsProtected);
+    }
+
+    [TestMethod]
+    public async Task VatImportNormalizesOnlyNumericCellsWithRealPercentageFormats()
+    {
+        using var workbook = new XLWorkbook(new MemoryStream(await WriteAsync(new CatalogueWorkbookExport([], Guid.NewGuid()))));
+        var sheet = workbook.Worksheet("Products");
+        var cases = new (string Code, decimal Raw, string? Format, decimal Expected)[]
+        {
+            ("PLAIN-55", 5.5m, null, 5.5m),
+            ("PLAIN-10", 10m, null, 10m),
+            ("PLAIN-20", 20m, null, 20m),
+            ("PERCENT-55", 0.055m, "0.0%", 5.5m),
+            ("PERCENT-10", 0.10m, "0%", 10m),
+            ("PERCENT-20", 0.20m, "0.00%", 20m),
+            ("PLAIN-FRACTION", 0.055m, "0.000", 0.055m),
+            ("LITERAL-PERCENT", 0.055m, "0.000\"%\"", 0.055m),
+            ("ESCAPED-PERCENT", 0.055m, "0.000\\%", 0.055m),
+        };
+        for (var index = 0; index < cases.Length; index++)
+        {
+            var (code, raw, format, _) = cases[index];
+            var row = index + 2;
+            SetProductBusinessRow(sheet, row, code, code, "Plats", "PL");
+            sheet.Cell(row, 9).Value = false;
+            sheet.Cell(row, 6).Value = raw;
+            if (format is not null) sheet.Cell(row, 6).Style.NumberFormat.Format = format;
+        }
+        SetProductBusinessRow(sheet, 11, "BUILTIN-PERCENT", "Builtin", "Plats", "PL");
+        sheet.Cell(11, 9).Value = false;
+        sheet.Cell(11, 6).Value = 0.055m;
+        sheet.Cell(11, 6).Style.NumberFormat.NumberFormatId = 9;
+
+        await using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        stream.Position = 0;
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(stream);
+        Assert.IsFalse(parsed.HasErrors, string.Join(";", parsed.Issues.Select(issue => $"{issue.Code}:{issue.Message}")));
+        foreach (var (code, _, _, expected) in cases)
+            Assert.AreEqual(expected, parsed.Products.Single(product => product.ProductCode == code).VatRate, code);
+        Assert.AreEqual(5.5m, parsed.Products.Single(product => product.ProductCode == "BUILTIN-PERCENT").VatRate);
+        var planned = new CatalogueImportPlanner().Plan(CatalogueImportMode.AddOnly, parsed, CatalogueImportBaseline.Empty);
+        Assert.AreEqual(0, planned.Preview.ErrorCount, string.Join(";", planned.Preview.Issues.Select(issue => issue.Code)));
+    }
+
+    [TestMethod]
+    public async Task VatAboveRangeAfterPercentageNormalizationBlocksImport()
+    {
+        using var workbook = new XLWorkbook(new MemoryStream(await WriteAsync(new CatalogueWorkbookExport([], Guid.NewGuid()))));
+        var sheet = workbook.Worksheet("Products");
+        SetProductBusinessRow(sheet, 2, "P-101", "Invalid VAT", "Plats", "PL");
+        sheet.Cell(2, 9).Value = false;
+        sheet.Cell(2, 6).Value = 1.01m;
+        sheet.Cell(2, 6).Style.NumberFormat.Format = "0%";
+        await using var stream = new MemoryStream(); workbook.SaveAs(stream); stream.Position = 0;
+
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(stream);
+        Assert.AreEqual(101m, parsed.Products.Single().VatRate);
+        var planned = new CatalogueImportPlanner().Plan(CatalogueImportMode.AddOnly, parsed, CatalogueImportBaseline.Empty);
+        CollectionAssert.Contains(planned.Preview.Issues.Select(issue => issue.Code).ToArray(), "vat-range");
+        Assert.IsNull(planned.Plan);
+    }
+
+    [TestMethod]
+    public async Task PercentageFormattedVatCommitsAndPricesAtFivePointFivePercent()
+    {
+        using var paths = new TempPaths();
+        var factory = new SqliteConnectionFactory(paths);
+        var clock = new FixedClock();
+        await new SqliteMigrationRunner(factory, ProductionMigrations.All, clock).InitializeAsync();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        using var workbook = new XLWorkbook(new MemoryStream(await WriteAsync(new CatalogueWorkbookExport([], Guid.NewGuid()))));
+        var sheet = workbook.Worksheet("Products");
+        SetProductBusinessRow(sheet, 2, "P-55", "Five point five", "Plats", "PL");
+        sheet.Cell(2, 9).Value = false;
+        sheet.Cell(2, 6).Value = 0.055m;
+        sheet.Cell(2, 6).Style.NumberFormat.Format = "0.0%";
+        await using var stream = new MemoryStream(); workbook.SaveAs(stream); stream.Position = 0;
+
+        var parsed = await new ClosedXmlCatalogueWorkbookImportGateway().ReadAsync(stream);
+        var baseline = await store.ReadCatalogueImportBaselineAsync();
+        var planned = new CatalogueImportPlanner().Plan(CatalogueImportMode.AddOnly, parsed, baseline);
+        Assert.AreEqual(0, planned.Preview.ErrorCount, string.Join(";", planned.Preview.Issues.Select(issue => issue.Code)));
+        Assert.IsNotNull(planned.Plan);
+        var committed = await store.CommitAsync(new CatalogueImportCommitRequest(planned.Plan!, baseline));
+        Assert.IsTrue(committed.Succeeded, string.Join(";", committed.Issues.Select(issue => issue.Code)));
+        var persisted = (await store.ListProductsAsync()).Single();
+        Assert.AreEqual(5.5m, persisted.VatRate);
+
+        var selected = await new OrderEntryCatalogueService(store).GetActiveProductAsync(persisted.Id);
+        Assert.IsNotNull(selected);
+        var draft = new NewOrderDraft(
+            [new OrderLineDraft(Guid.Empty, selected.Aggregate, [], [], 1, selected.CategoryName)],
+            FulfilmentMode.Retrait, clock.BusinessDate, new TimeOnly(12, 0), null, null, null, false);
+        var priced = OrderPricingService.Calculate(draft, BusinessSettings.Defaults(clock.UtcNow));
+        Assert.IsTrue(priced.IsValid, string.Join(";", priced.ValidationErrors));
+        Assert.AreEqual(5.5m, priced.TaxBreakdown.Single().VatRate);
     }
 
     [TestMethod]
@@ -568,10 +669,13 @@ public sealed class CatalogueWorkbookIntegrationTests
         var model = new CatalogueWorkbookExport([new CatalogueWorkbookProduct(Guid.NewGuid(), "P-1", "Product", "Plats", null, Money.FromCents(100), 20m, true, false, false, [])], Guid.NewGuid());
         using var workbook = new XLWorkbook(new MemoryStream(await WriteAsync(model)));
         workbook.Worksheet("Products").Cell(2, 5).FormulaA1 = "=1+1";
+        workbook.Worksheet("Products").Cell(2, 6).FormulaA1 = "=0.055";
+        workbook.Worksheet("Products").Cell(2, 6).Style.NumberFormat.Format = "0.0%";
         await using var stream = new MemoryStream(); workbook.SaveAs(stream); stream.Position = 0;
         var gateway = new ClosedXmlCatalogueWorkbookImportGateway();
         var formula = await gateway.ReadAsync(stream);
         Assert.IsTrue(formula.Issues.Any(issue => issue.Code == "formula-not-allowed"));
+        Assert.IsTrue(formula.Issues.Any(issue => issue.Code == "formula-not-allowed" && issue.FieldKey == "vat_rate"));
         var corrupt = await gateway.ReadAsync(new MemoryStream(System.Text.Encoding.UTF8.GetBytes("not an xlsx")));
         Assert.IsTrue(corrupt.HasErrors);
         Assert.IsTrue(corrupt.Issues.Any(issue => issue.Code == "unreadable-workbook"));

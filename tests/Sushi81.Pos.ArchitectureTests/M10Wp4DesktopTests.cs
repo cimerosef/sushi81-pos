@@ -890,6 +890,7 @@ public sealed class M10Wp4DesktopTests
             CollectionAssert.Contains(beforeRows.Select(row => row.EntityType).ToArray(), shell.Localized["OptionGroup"]);
             CollectionAssert.Contains(beforeRows.Select(row => row.EntityType).ToArray(), shell.Localized["Option"]);
             StringAssert.Contains(beforeRows.Single(row => row.EntityType == shell.Localized["Product"]).Actions, shell.Localized["Create"]);
+            StringAssert.Contains(beforeRows.Single(row => row.EntityType == shell.Localized["Product"]).Actions, $"{shell.Localized["Vat"]} 20%");
             var plan = before.Plan;
             var baseline = before.PreviewBaseline;
             var counts = (before.Preview.ProductCreateCount, before.Preview.OptionGroupCreateCount, before.Preview.OptionCreateCount, before.Preview.NewCategoryCount);
@@ -904,6 +905,7 @@ public sealed class M10Wp4DesktopTests
             Assert.AreEqual(counts, (after.Preview.ProductCreateCount, after.Preview.OptionGroupCreateCount, after.Preview.OptionCreateCount, after.Preview.NewCategoryCount));
             CollectionAssert.AreEqual(beforeRows.Select(row => (row.Worksheet, row.ExcelRow)).ToArray(), afterRows.Select(row => (row.Worksheet, row.ExcelRow)).ToArray());
             Assert.IsTrue(afterRows.Any(row => row.EntityType == shell.Localized["Product"]));
+            StringAssert.Contains(afterRows.Single(row => row.EntityType == shell.Localized["Product"]).Actions, $"{shell.Localized["Vat"]} 20%");
             Assert.IsTrue(afterRows.Any(row => row.EntityType == shell.Localized["OptionGroup"]));
             Assert.IsTrue(afterRows.Any(row => row.EntityType == shell.Localized["Option"]));
             Assert.IsFalse(afterRows.Any(row => row.EntityType is "Product" or "OptionGroup" or "Option" || row.Actions.Contains("Create", StringComparison.Ordinal) || row.Actions.Contains("Modify", StringComparison.Ordinal)));

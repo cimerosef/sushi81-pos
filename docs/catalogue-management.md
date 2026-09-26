@@ -321,6 +321,8 @@ The workbook is both:
 
 Exact localized visible header wording and purely technical helper-column names may be chosen during implementation, but their business meaning must preserve this specification.
 
+In the `Products` sheet, VAT is stored in percentage points: enter plain numeric `5.5`, `10` or `20` for 5.5%, 10% or 20%. A genuinely percentage-formatted numeric Excel cell is also accepted: Excel's stored `0.055` displayed as `5.5%` is normalized to the same `5.5` percentage-point rate on import. The number format, not the value's size, determines this conversion; an unformatted `0.055` remains `0.055` percentage points. Export writes the canonical percentage-point number with a display format that preserves its precision. Formula cells remain unsupported, and the normal 0–100 percentage-point validation still applies after normalization.
+
 ### 9.2 Category representation in the workbook — V1 consistency rule
 
 V1 does **not** require a separate `Categories` worksheet.

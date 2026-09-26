@@ -163,7 +163,7 @@ public sealed class ClosedXmlCatalogueWorkbookImportGateway : ICatalogueWorkbook
             result.Add(new(row,
                 ReadText(sheet.Cell(row, 1), issues, sheet.Name, row, "product_code"), ReadText(sheet.Cell(row, 2), issues, sheet.Name, row, "product_name"),
                 ReadText(sheet.Cell(row, 3), issues, sheet.Name, row, "category_name"), ReadText(sheet.Cell(row, 4), issues, sheet.Name, row, "category_short_code"),
-                ReadMoney(sheet.Cell(row, 5), issues, sheet.Name, row, "price_ttc"), ReadDecimal(sheet.Cell(row, 6), issues, sheet.Name, row, "vat_rate"),
+                ReadMoney(sheet.Cell(row, 5), issues, sheet.Name, row, "price_ttc"), ReadVatRate(sheet.Cell(row, 6), issues, sheet.Name, row),
                 ReadBool(sheet.Cell(row, 7), issues, sheet.Name, row, "is_active"), ReadBool(sheet.Cell(row, 8), issues, sheet.Name, row, "discount_eligible"), ReadBool(sheet.Cell(row, 9), issues, sheet.Name, row, "options_enabled"),
                 ReadText(sheet.Cell(row, 10), issues, sheet.Name, row, "product_row_key"), ReadText(sheet.Cell(row, 11), issues, sheet.Name, row, "product_id")));
         }
@@ -283,6 +283,30 @@ public sealed class ClosedXmlCatalogueWorkbookImportGateway : ICatalogueWorkbook
         if (cell.HasFormula) { AddError(issues, "formula-not-allowed", "Formula cells are not supported in the import contract.", worksheet, row, field); return null; }
         try { return cell.IsEmpty() ? null : cell.GetValue<decimal>(); }
         catch { AddError(issues, "invalid-scalar", "Numeric value is invalid.", worksheet, row, field); return null; }
+    }
+    private static decimal? ReadVatRate(IXLCell cell, List<CatalogueImportIssue> issues, string worksheet, int row)
+    {
+        var value = ReadDecimal(cell, issues, worksheet, row, "vat_rate");
+        if (value is null || cell.DataType != XLDataType.Number || !HasPercentageNumberFormat(cell)) return value;
+        try { return checked(value.Value * 100m); }
+        catch (OverflowException) { AddError(issues, "invalid-scalar", "VAT percentage value is invalid.", worksheet, row, "vat_rate"); return null; }
+    }
+
+    private static bool HasPercentageNumberFormat(IXLCell cell)
+    {
+        var numberFormat = cell.Style.NumberFormat;
+        if (numberFormat.NumberFormatId is 9 or 10) return true; // Excel's built-in 0% and 0.00% formats.
+        var format = numberFormat.Format;
+        var quoted = false;
+        for (var index = 0; index < format.Length; index++)
+        {
+            var character = format[index];
+            if (character == '"') { quoted = !quoted; continue; }
+            if (quoted) continue;
+            if (character is '\\' or '_' or '*') { index++; continue; } // Literal or spacing/fill character.
+            if (character == '%') return true;
+        }
+        return false;
     }
     private static Money? ReadMoney(IXLCell cell, List<CatalogueImportIssue> issues, string worksheet, int row, string field)
     {
