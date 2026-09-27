@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - codex/m13-installer-final-acceptance-authorized
+      - codex/m14-preprod-foundation-authorized
 
 permissions:
   contents: read
@@ -135,3 +136,72 @@ jobs:
             "Artifact ID: ${{ steps.upload-installer.outputs.artifact-id }}",
             'Retention: 90 days'
           ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+  m14-wp2-dual-installer:
+    if: >-
+      (github.event_name == 'pull_request' && github.head_ref == 'codex/m14-preprod-foundation-authorized') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/codex/m14-preprod-foundation-authorized')
+    needs: build-and-test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout the exact M14 source head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify exact source head
+        id: source
+        shell: pwsh
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -ne $env:EXPECTED_SOURCE_SHA) { throw "Expected exact source head $env:EXPECTED_SOURCE_SHA but checked out $actual." }
+          $short = $actual.Substring(0, 7).ToLowerInvariant()
+          "head=$actual" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "short=$short" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "Exact source head: $actual" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Install pinned Inno Setup compiler
+        id: inno
+        shell: pwsh
+        run: |
+          $version = '6.7.3'
+          $installer = Join-Path $env:RUNNER_TEMP "innosetup-$version.exe"
+          $uri = "https://github.com/jrsoftware/issrc/releases/download/is-$($version.Replace('.', '_'))/innosetup-$version.exe"
+          Invoke-WebRequest -Uri $uri -OutFile $installer
+          $signature = Get-AuthenticodeSignature -FilePath $installer
+          if ($signature.Status -ne 'Valid') { throw "Inno Setup Authenticode status is $($signature.Status)." }
+          $publisher = [string]$signature.SignerCertificate.Subject
+          if ($publisher -notmatch '(?i)Pyrsys B\.V\.') { throw "Unexpected Inno Setup signer '$publisher'." }
+          $install = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') -PassThru -Wait
+          if ($install.ExitCode -ne 0) { throw "Inno Setup installation failed: $($install.ExitCode)." }
+          $candidates = @(
+            (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
+            (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe')
+          )
+          $iscc = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $iscc) { throw 'ISCC.exe was not installed.' }
+          "path=$iscc" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "Pinned Inno Setup package: $version; signed publisher: $publisher" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+      - name: Build and verify both installers
+        shell: pwsh
+        env:
+          EXPECTED_SOURCE_SHA: ${{ steps.source.outputs.head }}
+          INNO_COMPILER_PATH: ${{ steps.inno.outputs.path }}
+        run: |
+          $artifactDirectory = Join-Path $env:GITHUB_WORKSPACE 'artifacts/m14-wp2'
+          & .\installer\scripts\Run-M14-WP2-CI.ps1 `
+            -ExpectedSourceSha $env:EXPECTED_SOURCE_SHA `
+            -CompilerPath $env:INNO_COMPILER_PATH `
+            -ArtifactDirectory $artifactDirectory
+          if ($LASTEXITCODE -ne 0) { throw 'M14 WP2 dual-installer verification failed.' }
+      - name: Upload exact-head M14 WP2 installer evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: Sushi81-POS-M14-WP2-dual-installers-1.0.1-${{ steps.source.outputs.short }}
+          path: artifacts/m14-wp2/*
+          if-no-files-found: error
+          retention-days: 90

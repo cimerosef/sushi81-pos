@@ -3,6 +3,11 @@
 #define SourceShort GetEnv("SUSHI81_SOURCE_SHORT")
 #define PublishDir GetEnv("SUSHI81_PUBLISH_DIR")
 #define PackageDir GetEnv("SUSHI81_PACKAGE_OUT_DIR")
+#define DeploymentProfile GetEnv("SUSHI81_PROFILE")
+#define ProfileAppId GetEnv("SUSHI81_APP_ID")
+#define ProfileAppName GetEnv("SUSHI81_APP_NAME")
+#define ProfileInstallDirectory GetEnv("SUSHI81_INSTALL_DIRECTORY")
+#define ProfileOutputBaseName GetEnv("SUSHI81_OUTPUT_BASE_NAME")
 
 ; Inno Setup's ISCC.exe has no useful Windows file-version resource. Ver is
 ; the compiler engine version, encoded as major/minor/revision/build bytes.
@@ -22,16 +27,30 @@
 #if PackageDir == ""
   #error SUSHI81_PACKAGE_OUT_DIR is required.
 #endif
-
+#if DeploymentProfile != "prod" && DeploymentProfile != "preprod"
+  #error SUSHI81_PROFILE must be exactly prod or preprod.
+#endif
+#if ProfileAppId == ""
+  #error SUSHI81_APP_ID is required.
+#endif
+#if ProfileAppName == ""
+  #error SUSHI81_APP_NAME is required.
+#endif
+#if ProfileInstallDirectory == ""
+  #error SUSHI81_INSTALL_DIRECTORY is required.
+#endif
+#if ProfileOutputBaseName == ""
+  #error SUSHI81_OUTPUT_BASE_NAME is required.
+#endif
 [Setup]
-AppId={{C7A1B9E2-1E62-4B4B-A2EA-7802814408FC}
-AppName=Sushi81 POS
+AppId={{#ProfileAppId}}
+AppName={#ProfileAppName}
 AppVersion={#ProductVersion}
-AppVerName=Sushi81 POS {#ProductVersion}
+AppVerName={#ProfileAppName} {#ProductVersion}
 AppPublisher=Sushi81
 AppPublisherURL=https://github.com/cimerosef/sushi81-pos
-DefaultDirName={localappdata}\Programs\Sushi81 POS
-DefaultGroupName=Sushi81 POS
+DefaultDirName={localappdata}\Programs\{#ProfileInstallDirectory}
+DefaultGroupName={#ProfileAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
@@ -39,21 +58,21 @@ ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
 RestartApplications=no
 Uninstallable=yes
-UninstallDisplayName=Sushi81 POS
+UninstallDisplayName={#ProfileAppName}
 OutputDir={#PackageDir}
-OutputBaseFilename=Sushi81POS-Setup-{#ProductVersion}-{#SourceShort}
+OutputBaseFilename={#ProfileOutputBaseName}
 SetupLogging=yes
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 VersionInfoVersion={#ProductFileVersion}
 VersionInfoCompany=Sushi81
-VersionInfoDescription=Sushi81 POS per-user installer
-VersionInfoProductName=Sushi81 POS
+VersionInfoDescription=Sushi81 POS per-user {#DeploymentProfile} installer
+VersionInfoProductName={#ProfileAppName}
 VersionInfoProductVersion={#ProductVersion}
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\Sushi81 POS"; Filename: "{app}\Sushi81.Pos.Desktop.exe"; WorkingDir: "{app}"
+Name: "{autoprograms}\{#ProfileAppName}"; Filename: "{app}\Sushi81.Pos.Desktop.exe"; WorkingDir: "{app}"

@@ -19,17 +19,24 @@ public sealed class M13Wp4InstallerTests
         Assert.IsFalse(root.GetProperty("publishSingleFile").GetBoolean());
         Assert.AreEqual("6.7.3", root.GetProperty("innoSetupVersion").GetString());
         Assert.AreEqual("C7A1B9E2-1E62-4B4B-A2EA-7802814408FC", root.GetProperty("innoAppId").GetString());
+        Assert.AreEqual("Sushi81 POS PREPROD", root.GetProperty("preprodProductName").GetString());
+        Assert.AreEqual("67FB6B75-3C5E-44A5-98AD-305EA4C62D95", root.GetProperty("preprodInnoAppId").GetString());
+        Assert.AreEqual("{localappdata}\\Programs\\Sushi81 POS", root.GetProperty("binaryInstallDirectory").GetString());
+        Assert.AreEqual("{localappdata}\\Programs\\Sushi81 POS PREPROD", root.GetProperty("preprodBinaryInstallDirectory").GetString());
+        Assert.AreEqual("%LOCALAPPDATA%\\Sushi81 POS", root.GetProperty("durableDataDirectory").GetString());
+        Assert.AreEqual("%LOCALAPPDATA%\\Sushi81 POS PREPROD", root.GetProperty("preprodDurableDataDirectory").GetString());
         Assert.AreEqual(90, root.GetProperty("artifactRetentionDays").GetInt32());
 
         var setup = File.ReadAllText(LocateRepositoryFile("installer", "sushi81-pos.iss"));
         StringAssert.Contains(setup, "#if Ver != (6 * 16777216 + 7 * 65536 + 3 * 256)");
-        StringAssert.Contains(setup, "AppId={{C7A1B9E2-1E62-4B4B-A2EA-7802814408FC}");
+        StringAssert.Contains(setup, "AppId={{#ProfileAppId}}");
+        StringAssert.Contains(setup, "#if DeploymentProfile != \"prod\" && DeploymentProfile != \"preprod\"");
         StringAssert.Contains(setup, "AppVersion={#ProductVersion}");
         Assert.IsFalse(setup.Contains("UninstallDisplayVersion", StringComparison.Ordinal));
         StringAssert.Contains(setup, "PrivilegesRequired=lowest");
         StringAssert.Contains(setup, "ArchitecturesAllowed=x64compatible");
         StringAssert.Contains(setup, "ArchitecturesInstallIn64BitMode=x64compatible");
-        StringAssert.Contains(setup, "DefaultDirName={localappdata}\\Programs\\Sushi81 POS");
+        StringAssert.Contains(setup, "DefaultDirName={localappdata}\\Programs\\{#ProfileInstallDirectory}");
         StringAssert.Contains(setup, "CloseApplications=yes");
         StringAssert.Contains(setup, "recursesubdirs createallsubdirs");
         Assert.IsFalse(setup.Contains("live.db", StringComparison.OrdinalIgnoreCase));
@@ -38,6 +45,52 @@ public sealed class M13Wp4InstallerTests
         Assert.IsFalse(setup.Contains("[Run]", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(setup.Contains("[UninstallRun]", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(setup.Contains("[Registry]", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void M14PackagingPublishesOnceAndVerifiesDualProfilePayloadAndLifecycle()
+    {
+        var build = File.ReadAllText(LocateRepositoryFile("installer", "scripts", "Build-InstallerPackage.ps1"));
+        Assert.AreEqual(1, CountOccurrences(build, "'publish', $project"));
+        StringAssert.Contains(build, "IncludePreProduction");
+        StringAssert.Contains(build, "profilePayloadRoot");
+        StringAssert.Contains(build, "application-payload-manifest.json");
+        StringAssert.Contains(build, "Every common application file is byte-identical");
+        StringAssert.Contains(build, "excludedPackagingOnlyFiles = @('deployment-profile.txt')");
+        StringAssert.Contains(build, "67FB6B75-3C5E-44A5-98AD-305EA4C62D95");
+
+        var lifecycle = File.ReadAllText(LocateRepositoryFile("installer", "scripts", "Verify-InstallerLifecycle.ps1"));
+        foreach (var required in new[]
+        {
+            "PreProductionInstaller", "same-version Prod repair/reinstall", "same-version PreProd repair/reinstall",
+            "PreProd uninstall", "Prod uninstall", "deployment-profile.txt", "Assert-DurableTreesUnchanged",
+            "Get-ProfileUninstallEntry", "Sushi81 POS PREPROD", "Get-ScheduledTask"
+        }) {
+            StringAssert.Contains(lifecycle, required);
+        }
+
+        var workflow = File.ReadAllText(LocateRepositoryFile(".github", "workflows", "ci.yml"));
+        StringAssert.Contains(workflow, "m14-wp2-dual-installer");
+        StringAssert.Contains(workflow, "codex/m14-preprod-foundation-authorized");
+        StringAssert.Contains(workflow, "windows-latest");
+        StringAssert.Contains(workflow, "Sushi81-POS-M14-WP2-dual-installers-1.0.1");
+
+        var runner = File.ReadAllText(LocateRepositoryFile("installer", "scripts", "Run-M14-WP2-CI.ps1"));
+        StringAssert.Contains(runner, "-ProductVersion '1.0.1'");
+        StringAssert.Contains(runner, "-IncludePreProduction");
+        StringAssert.Contains(runner, "Verify-InstallerLifecycle.ps1");
+    }
+
+    private static int CountOccurrences(string value, string substring)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = value.IndexOf(substring, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += substring.Length;
+        }
+        return count;
     }
 
     [TestMethod]
