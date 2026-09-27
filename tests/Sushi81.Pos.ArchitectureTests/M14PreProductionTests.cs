@@ -1,5 +1,6 @@
 using System.IO;
 using System.Globalization;
+using System.Resources;
 using Sushi81.Pos.Application.Foundation;
 using Sushi81.Pos.Desktop;
 
@@ -8,6 +9,29 @@ namespace Sushi81.Pos.ArchitectureTests;
 [TestClass]
 public sealed class M14PreProductionTests
 {
+    [TestMethod]
+    public void InitialSeedOperatorMessagesExistInFrenchAndChinese()
+    {
+        var resources = new ResourceManager("Sushi81.Pos.Desktop.Properties.Resources", typeof(CompositionRoot).Assembly);
+        var keys = new[]
+        {
+            "PreProductionSeedTitle", "PreProductionSeedOffer", "PreProductionSeedConfirm", "PreProductionSeedSuccess",
+            "PreProductionSeedFailure", "PreProductionSeedFailureProcess", "PreProductionSeedFailureTarget",
+            "PreProductionSeedFailureSourceMissing", "PreProductionSeedFailureSourceInvalid",
+            "PreProductionSeedFailureMigration", "PreProductionSeedFailureInstall"
+        };
+
+        foreach (var cultureName in new[] { "fr-FR", "zh-CN" })
+        {
+            var culture = CultureInfo.GetCultureInfo(cultureName);
+            foreach (var key in keys)
+                Assert.IsFalse(string.IsNullOrWhiteSpace(resources.GetString(key, culture)), $"Missing {cultureName} resource {key}.");
+        }
+
+        StringAssert.Contains(resources.GetString("PreProductionSeedOffer", CultureInfo.GetCultureInfo("fr-FR"))!, "PROD");
+        StringAssert.Contains(resources.GetString("PreProductionSeedOffer", CultureInfo.GetCultureInfo("zh-CN"))!, "PROD");
+    }
+
     [TestMethod]
     public async Task PreProductionShellHasDistinctIdentityAndLocalizedPersistentMarker()
     {

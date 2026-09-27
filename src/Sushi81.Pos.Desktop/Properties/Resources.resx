@@ -6,6 +6,17 @@
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <data name="ShellTitle" xml:space="preserve"><value>Sushi81 POS</value></data>
   <data name="PreProductionEnvironmentMarker" xml:space="preserve"><value>PREPROD — DONNÉES DE TEST</value></data>
+  <data name="PreProductionSeedTitle" xml:space="preserve"><value>Initialisation PREPROD</value></data>
+  <data name="PreProductionSeedOffer" xml:space="preserve"><value>PREPROD est vierge. Oui : préparer son seed initial avec une capture SQLite de PROD ; Non : démarrer PREPROD sans seed ; Annuler : quitter. Fermez Sushi81 POS en production avant de continuer.</value></data>
+  <data name="PreProductionSeedConfirm" xml:space="preserve"><value>Confirmez-vous la création du seed initial PREPROD à partir d’une capture SQLite en lecture seule de PROD ? Si vous répondez Non, PREPROD ne démarrera pas et restera disponible pour réessayer.</value></data>
+  <data name="PreProductionSeedSuccess" xml:space="preserve"><value>Le seed initial est terminé. Les données métier ont été installées dans PREPROD ; son identité technique sera créée séparément. PROD a été lu via SQLite en mode lecture seule et n’a pas été modifié.</value></data>
+  <data name="PreProductionSeedFailure" xml:space="preserve"><value>Le seed n’a pas été installé ({0}). La base PREPROD existante n’a pas été remplacée. Corrigez la situation indiquée puis réessayez.</value></data>
+  <data name="PreProductionSeedFailureProcess" xml:space="preserve"><value>le processus PROD est ouvert ou n’a pas pu être vérifié</value></data>
+  <data name="PreProductionSeedFailureTarget" xml:space="preserve"><value>la cible PREPROD n’est plus vierge</value></data>
+  <data name="PreProductionSeedFailureSourceMissing" xml:space="preserve"><value>la base PROD est absente ou vide</value></data>
+  <data name="PreProductionSeedFailureSourceInvalid" xml:space="preserve"><value>la base PROD ne passe pas la validation</value></data>
+  <data name="PreProductionSeedFailureMigration" xml:space="preserve"><value>la migration de la copie de travail a échoué</value></data>
+  <data name="PreProductionSeedFailureInstall" xml:space="preserve"><value>l’installation atomique a échoué</value></data>
   <data name="FoundationReady" xml:space="preserve"><value>Fondation prête.</value></data>
   <data name="StartupFailure" xml:space="preserve"><value>Le démarrage a échoué. Consultez les diagnostics.</value></data>
   <data name="AuthorityReadOnly" xml:space="preserve"><value>Mode lecture seule : cette instance n’est pas l’autorité locale. Les données affichées localement peuvent être obsolètes. Les recherches et consultations restent disponibles.</value></data>
