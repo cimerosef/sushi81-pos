@@ -173,7 +173,9 @@ Where a later Approved decision explicitly supersedes a narrow older clause, the
 - `acceptance-criteria-amendment-m14-preprod-foundation.md` — Approved acceptance amendment;
 - `implementation/milestone-14-preparation-readiness.md` — readiness frozen;
 - `implementation/milestone-14-preprod-foundation.md` — owner-authorized implementation contract;
-- `implementation/milestone-14-final-manual-acceptance.md` — prepared owner checklist.
+- `implementation/milestone-14-final-manual-acceptance.md` — prepared owner checklist;
+- `implementation/milestone-14-worklog.md` — package/evidence ledger;
+- `implementation/milestone-14-authorization.md` — owner authorization.
 
 M14 does not include post-launch business bug fixes. Those begin only after the isolated PreProd foundation is accepted.
 
