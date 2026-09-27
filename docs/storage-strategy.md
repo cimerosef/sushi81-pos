@@ -1,11 +1,11 @@
 # Storage strategy
 
-**Status:** Approved — Phase 3 baseline, amended through 2026-09-21
-**Last updated:** 2026-09-21
+**Status:** Approved — Phase 3 baseline, amended through 2026-09-27
+**Last updated:** 2026-09-27
 **Product:** Sushi81 POS
 **Purpose:** Define how live data, local recovery snapshots, GitHub handoff snapshots, disaster-recovery checkpoints and annual archives are stored and transferred safely across paired Windows devices without silent divergence.
 
-**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` supersedes generic competitive handoff acquisition and automatic authority release on every normal application exit. `docs/decisions/github-handoff-transport.md` supersedes OneDrive desktop publication/synchronization as the normal handoff transport and acknowledgement path. `docs/decisions/m12-local-archive-and-user-selected-export.md` moves canonical annual archives to application-managed local storage and removes OneDrive from annual-archive publication/access while preserving OneDrive Disaster Recovery.
+**Approved amendments:** `docs/decisions/target-directed-authority-handoff.md` supersedes generic competitive handoff acquisition and automatic authority release on every normal application exit. `docs/decisions/github-handoff-transport.md` supersedes OneDrive desktop publication/synchronization as the normal handoff transport and acknowledgement path. `docs/decisions/m12-local-archive-and-user-selected-export.md` moves canonical annual archives to application-managed local storage and removes OneDrive from annual-archive publication/access while preserving OneDrive Disaster Recovery. `docs/decisions/m14-preprod-environment-isolation-and-promotion.md` adds a permanently isolated PreProd storage/runtime identity and immutable accepted-payload promotion.
 
 ## 1. Core storage principle
 
@@ -548,3 +548,24 @@ This document remains the **Approved — Phase 3 baseline**, amended on 2026-08-
 The storage architecture is local SQLite per paired device, N-device single-writer authority, **target-directed source-arbitrated normal handoff**, application-managed local recovery, change-triggered recovery-only cloud checkpoints, explicit generation-changing Disaster Recovery, non-authoritative read-only access, five-version rolling technical protection and independent permanent **local** February natural-year archives with optional operator-selected export copies.
 
 Low-level filenames, coordination serialization and similar pure implementation details may be selected during implementation only if every invariant above remains true.
+
+## 19. M14 environment-isolation amendment
+
+The local storage tree in section 2 remains the production tree. PreProd uses a second fixed non-overlapping tree:
+
+```text
+%LOCALAPPDATA%\Sushi81 POS PREPROD\
+    Data\live.db
+    Recovery\
+    Archive\
+    Cache\
+    Logs\
+    Config\
+    Temp\
+```
+
+Prod and PreProd must not share any of these directories or authority/configuration artifacts. Each environment has its own lineage, generation and device membership.
+
+PreProd additionally uses an independent OneDrive System/DisasterRecovery root and independent private GitHub handoff repository. Equal or nested Prod/PreProd OneDrive roots, the same GitHub handoff repository, or the same Credential Manager target are invalid configuration and must be rejected before persistence.
+
+M14 permits one initial pristine PreProd seed from the same machine's production `Data\live.db`. The production source is read-only and a SQLite-safe backup/snapshot plus integrity validation is required. The seed copies business database content only; production authority state, device/lineage/pairing identity, remote configuration, recovery/cache/log/temp material and canonical annual Archive databases are excluded. Real production database bytes may not be published to the source repository or source-repository CI artifacts.
