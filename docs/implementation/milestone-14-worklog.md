@@ -30,7 +30,7 @@
 - Implemented the fixed `prod` / `preprod` profiles and the `deployment-profile.txt` evidence seam. The file contains exactly one ASCII profile value (`prod` or `preprod`), optionally followed by one line ending. The fixed installed production and PreProd directories require matching evidence; missing, malformed, unknown or identity-conflicting evidence stops startup before business or authority data is opened. Unpackaged developer/test runs without evidence retain the historical `prod` default.
 - Production durable data remains `%LOCALAPPDATA%\Sushi81 POS`; PreProd derives all `IAppPaths` locations from `%LOCALAPPDATA%\Sushi81 POS PREPROD`.
 - Added the permanent PreProd window identity/banner, kitchen/customer initial-print and reprint marker, and `PREPROD_` prefix to all default Gestion export filenames. Production title, paths, print content and filename defaults remain unmarked.
-- Verification: Release solution tests passed, 946 passed / 0 failed / 0 skipped; Release solution build passed with 0 warnings / 0 errors; `git diff --check` passed. Exact-head CI is pending after push.
+- Verification: Release solution tests passed, 946 passed / 0 failed / 0 skipped; Release solution build passed with 0 warnings / 0 errors; `git diff --check` passed. Exact-head CI #921 / run `36346595631` succeeded on implementation commit `11304c80841fd50998e215e5c584b08931c7d9ba`.
 - No real production database or business data was used. WP1 remains pending controller review/acceptance; this entry does not mark it accepted.
 
 ## Rules
