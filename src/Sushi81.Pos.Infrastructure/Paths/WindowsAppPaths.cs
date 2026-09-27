@@ -1,15 +1,25 @@
 using Sushi81.Pos.Application.Foundation.Paths;
+using Sushi81.Pos.Application.Foundation;
 
 namespace Sushi81.Pos.Infrastructure.Paths;
 
-/// <summary>Production paths rooted in the non-disposable local application-data area.</summary>
+/// <summary>Runtime paths rooted in the selected fixed non-disposable local application-data area.</summary>
 public sealed class WindowsAppPaths : IAppPaths
 {
-    public WindowsAppPaths()
+    public WindowsAppPaths() : this(DeploymentProfile.Production)
     {
-        RootDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Sushi81 POS");
+    }
+
+    public WindowsAppPaths(DeploymentProfile profile)
+        : this(profile, Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData))
+    {
+    }
+
+    internal WindowsAppPaths(DeploymentProfile profile, string localAppDataDirectory)
+    {
+        Profile = profile ?? throw new ArgumentNullException(nameof(profile));
+        ArgumentException.ThrowIfNullOrWhiteSpace(localAppDataDirectory);
+        RootDirectory = Path.Combine(Path.GetFullPath(localAppDataDirectory), profile.DataRootName);
         DataDirectory = Path.Combine(RootDirectory, "Data");
         RecoveryDirectory = Path.Combine(RootDirectory, "Recovery");
         CacheDirectory = Path.Combine(RootDirectory, "Cache");
@@ -19,6 +29,8 @@ public sealed class WindowsAppPaths : IAppPaths
         ArchiveDirectory = Path.Combine(RootDirectory, "Archive");
         LiveDatabasePath = Path.Combine(DataDirectory, "live.db");
     }
+
+    public DeploymentProfile Profile { get; }
 
     public string RootDirectory { get; }
 

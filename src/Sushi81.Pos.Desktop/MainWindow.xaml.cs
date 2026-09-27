@@ -581,7 +581,7 @@ public partial class MainWindow : Window
     private async void OnExportGestionExport(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { GestionExportWorkflow: { CanExport: true } workflow } viewModel) return;
-        var suggested = $"Sushi81_POS_Export_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+        var suggested = GestionExportFileNames.NewExport(DateTime.Now, viewModel.DeploymentProfile);
         var target = fileDialogs.ShowSave(this, suggested, LocalizedText(this, "CatalogueFileFilter", "Excel workbook (*.xlsx)|*.xlsx"));
         if (string.IsNullOrWhiteSpace(target)) return;
         var result = await workflow.ExportAsync(target);
@@ -592,7 +592,7 @@ public partial class MainWindow : Window
     private async void OnRegenerateGestionExport(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { GestionExportWorkflow: { CanRegenerate: true, SelectedHistory: { } selected } workflow } viewModel) return;
-        var suggested = $"Sushi81_POS_Export_{selected.GeneratedAt.ToLocalTime():yyyyMMdd_HHmmss}_{selected.BatchId:D}.xlsx";
+        var suggested = GestionExportFileNames.Regenerate(selected.GeneratedAt, selected.BatchId, viewModel.DeploymentProfile);
         var target = fileDialogs.ShowSave(this, suggested, LocalizedText(this, "CatalogueFileFilter", "Excel workbook (*.xlsx)|*.xlsx"));
         if (string.IsNullOrWhiteSpace(target)) return;
         var result = await workflow.RegenerateAsync(target);
@@ -603,7 +603,7 @@ public partial class MainWindow : Window
     private async void OnRetryPreparedGestionExport(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { GestionExportWorkflow: { CanRetryPrepared: true, SelectedPreparedBatch: { } selected } workflow } viewModel) return;
-        var suggested = $"Sushi81_POS_Export_Retry_{selected.PreparedAt.ToLocalTime():yyyyMMdd_HHmmss}_{selected.BatchId:D}.xlsx";
+        var suggested = GestionExportFileNames.Retry(selected.PreparedAt, selected.BatchId, viewModel.DeploymentProfile);
         var target = fileDialogs.ShowSave(this, suggested, LocalizedText(this, "CatalogueFileFilter", "Excel workbook (*.xlsx)|*.xlsx"));
         if (string.IsNullOrWhiteSpace(target)) return;
         var result = await workflow.RetryPreparedAsync(target);

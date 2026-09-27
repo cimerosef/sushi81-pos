@@ -28,6 +28,7 @@ using Sushi81.Pos.Infrastructure.Printing;
 using Sushi81.Pos.Application.Export;
 using Sushi81.Pos.Application.Archive;
 using Sushi81.Pos.Application.Maintenance;
+using Sushi81.Pos.Application.Foundation;
 using Sushi81.Pos.Infrastructure.Export;
 using Sushi81.Pos.Infrastructure.Archive;
 
@@ -37,7 +38,27 @@ public static partial class CompositionRoot
 {
     private static RollingFileLoggerProvider? loggerProvider;
 
-    public static Task StartAsync(System.Windows.Application application) => StartAsync(application, new WindowsAppPaths());
+    public static Task StartAsync(System.Windows.Application application)
+    {
+        ArgumentNullException.ThrowIfNull(application);
+        DeploymentProfile profile;
+        try
+        {
+            profile = DeploymentProfileResolver.ResolveForCurrentProcess();
+        }
+        catch (DeploymentProfileResolutionException exception)
+        {
+            System.Windows.MessageBox.Show(
+                exception.Message,
+                "Sushi81 POS",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
+            application.Shutdown(-1);
+            return Task.CompletedTask;
+        }
+
+        return StartAsync(application, new WindowsAppPaths(profile));
+    }
 
     internal static async Task StartAsync(System.Windows.Application application, IAppPaths paths)
     {
@@ -182,7 +203,8 @@ public static partial class CompositionRoot
                 settingsStore,
                 configurationService,
                 new WindowsPrintDocumentSubmitter(),
-                clock);
+                clock,
+                paths.Profile);
             printService = new OrderPrintApplicationService(orderStore, printDispatcher);
             archivedOrderPrintService = new ArchivedOrderPrintApplicationService(printDispatcher);
             printerSetup = new PrinterSetupViewModel(configuration, configurationService, new WindowsPrintQueueCatalog(), operationDiagnostics);
@@ -280,7 +302,8 @@ public static partial class CompositionRoot
              annualArchiveAccess,
              archivedOrderPrintService,
              operationDiagnostics,
-             businessDataResetService);
+             businessDataResetService,
+             paths.Profile);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,

@@ -1,7 +1,11 @@
 namespace Sushi81.Pos.Application.Foundation.Paths;
 
+using Sushi81.Pos.Application.Foundation;
+
 public interface IAppPaths
 {
+    DeploymentProfile Profile => DeploymentProfile.Production;
+
     string RootDirectory { get; }
 
     string DataDirectory { get; }
