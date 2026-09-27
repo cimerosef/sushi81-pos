@@ -76,7 +76,9 @@ Controlling records:
 - `acceptance-criteria-amendment-m14-preprod-foundation.md`;
 - `implementation/milestone-14-preparation-readiness.md`;
 - `implementation/milestone-14-preprod-foundation.md`;
-- `implementation/milestone-14-final-manual-acceptance.md`.
+- `implementation/milestone-14-final-manual-acceptance.md`;
+- `implementation/milestone-14-worklog.md`;
+- `implementation/milestone-14-authorization.md`.
 
 ## 4. M11 historical implementation/acceptance record
 
