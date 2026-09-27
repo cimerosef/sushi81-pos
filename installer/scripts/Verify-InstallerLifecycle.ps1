@@ -258,7 +258,6 @@ if (-not [string]::IsNullOrWhiteSpace($PreProductionInstaller)) {
         if ($updaters.Count -gt 0) { throw "A background updater component was found under '$($profile.Key)'." }
     }
     $steps.Add('no installer writes to either durable data root; no service, scheduled task or background updater introduced')
-    $steps.Add('interactive WPF launch smoke: deferred; final launch/UI acceptance remains owner-controlled')
     Assert-DurableTreesUnchanged 'final verification'
 
     $dualSummary = [ordered]@{

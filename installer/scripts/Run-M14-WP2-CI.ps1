@@ -87,7 +87,7 @@ $lifecycle = Get-Content -LiteralPath $lifecycleSummary -Raw | ConvertFrom-Json
     "Prod installer SHA-256: $($prod.installerSha256)",
     "PreProd installer SHA-256: $($preprod.installerSha256)",
     "Common application payload: $($package.payloadEquality.commonApplicationFileCount) byte-identical files; only deployment-profile.txt excluded; tree SHA-256 $($package.applicationPayloadTreeSha256)",
-    "Lifecycle steps passed: $($lifecycle.steps.Count)",
+    "Lifecycle verification checks passed: $($lifecycle.steps.Count)",
     'Both durable roots were populated with synthetic fixtures and remained byte-identical through install, repair, uninstall and reinstall.',
     'No real production/customer/order/payment data was used.',
     'Interactive WPF launch smoke: deferred to owner acceptance; no headless UI acceptance claimed.'
