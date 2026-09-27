@@ -4,13 +4,13 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M11 are Passed/merged. M12 Annual archive and historical access is controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722` under the explicit owner waiver; real populated-archive operational verification remains DEFERRED-NOT-M13, not Passed. M13 is closure-ready on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26: owner A–G evidence is PASS, final controller review and separate owner merge approval remain, and PR #26 is OPEN/unmerged. Accepted production source `469c8761061b0ecf488e06386a97b9e10652a916`, exact-head CI #912 / run `36253271385` (932/932 tests), installer artifact `10909188508` / `Sushi81-POS-production-installer-win-x64-1.0.0-469c876`.**
+**Phase 6 implementation active: M01–M13 are Passed/merged. Current authoritative `main` is M13 merge commit `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. M12 real populated-archive operational verification remains DEFERRED-NOT-M13. M14 PreProd Foundation and immutable release promotion is owner-approved/frozen on 2026-09-27 and implementation is package-gated on `codex/m14-preprod-foundation-authorized`.**
 
 M12 final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3` passed exact-head CI #862 / run `36021889765` with 881/881 tests and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test also succeeded.
 
 M13 includes the Approved Gestion export ledger retention/compaction amendment, full FR/zh-CN localization completion, self-contained win-x64 packaging, per-user Inno Setup installer, upgrade/reinstall data preservation, diagnostics/performance/repository-security hardening, final production-target regression, release provenance and the user operating guide.
 
-The owner confirmed on 2026-09-24 that the source repository's public visibility is intentional and is not an M13 blocker. Owner acceptance covers A–G, the protected in-app reset, guide-led B setup, normal A→B production cutover and B catalogue VAT repair. B is authoritative/writable; A is read-only. Genuine Excel-percent formatting and only the approved plain-number compatibility values `0.055→5.5`, `0.1→10`, `0.2→20` normalize to canonical VAT points; other plain fractions remain literal. The owner committed and visually checked B's 5.5/10/20 values, then saw zero changes on a second export/reimport preview. M12's real populated-archive verification remains deferred under its existing owner waiver. A docs-only CI artifact after this reconciliation does not replace the accepted production candidate.
+Owner acceptance covers A–G, the protected in-app reset, guide-led B setup, normal A→B production cutover and B catalogue VAT repair. B is authoritative/writable; A is read-only. Genuine Excel-percent formatting and only the approved plain-number compatibility values `0.055→5.5`, `0.1→10`, `0.2→20` normalize to canonical VAT points; other plain fractions remain literal. The owner committed and visually checked B's 5.5/10/20 values, then saw zero changes on a second export/reimport preview. M12's real populated-archive verification remains deferred under its existing owner waiver. A docs-only CI artifact after this reconciliation does not replace the accepted production candidate.
 
 ## V1 documentation baseline
 
@@ -51,6 +51,7 @@ M08 owner-selected visual/identity detail is frozen in `decisions/m08-print-layo
 - `acceptance-criteria-amendment-m10-category-short-code-workbook.md` — Approved 2026-09-17 clarification of AC-CAT-008 through AC-CAT-011 for Category short-code workbook behavior.
 - `acceptance-criteria-amendment-m11-gestion-export.md` — Approved 2026-09-20 M11 export clarification.
 - `acceptance-criteria-amendment-m12-local-archive.md` — Approved 2026-09-21 M12 local archive/user-selected export amendment.
+- `acceptance-criteria-amendment-m14-preprod-foundation.md` — Approved 2026-09-27 M14 PreProd environment/release acceptance amendment.
 - `v1-specification-freeze.md` — Approved — Phase 5 baseline, amended through approved post-freeze decisions.
 
 ### Phase 6 — Implementation planning and controlled execution
@@ -132,7 +133,7 @@ M12 completed implementation package:
 - PR #25 / `codex/m12-annual-archive-authorized` — historical mailbox, CLOSED/MERGED;
 - deferred real populated-archive operational verification remains explicit under owner waiver and is not claimed Passed.
 
-Current M13 control package:
+M13 completed control package:
 
 - `decisions/m13-gestion-export-ledger-retention-compaction.md` — Approved M13 retention/compaction decision;
 - `acceptance-criteria-amendment-m13-gestion-export-retention.md` — matching Approved acceptance amendment;
@@ -165,6 +166,16 @@ Relevant later decisions include:
 - `decisions/m13-gestion-export-ledger-retention-compaction.md`.
 
 Where a later Approved decision explicitly supersedes a narrow older clause, the later decision controls until the next complete consolidation pass. A genuine unresolved contradiction still requires implementation to stop rather than guess.
+
+## M14 current control package
+
+- `decisions/m14-preprod-environment-isolation-and-promotion.md` — Approved deployment/storage/release decision;
+- `acceptance-criteria-amendment-m14-preprod-foundation.md` — Approved acceptance amendment;
+- `implementation/milestone-14-preparation-readiness.md` — readiness frozen;
+- `implementation/milestone-14-preprod-foundation.md` — owner-authorized implementation contract;
+- `implementation/milestone-14-final-manual-acceptance.md` — prepared owner checklist.
+
+M14 does not include post-launch business bug fixes. Those begin only after the isolated PreProd foundation is accepted.
 
 ## Implementation authority rule
 
