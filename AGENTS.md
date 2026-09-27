@@ -111,6 +111,16 @@ The active GitHub implementation pull request is the durable inter-agent mailbox
 - A Codex run must not remain alive merely to poll a ChatGPT browser tab.
 - Ending one Codex run must not be interpreted as cancelling the recurring relay automation.
 
+### Controller-managed execution-gate standing authorization
+
+The project owner grants ChatGPT/controller standing authorization to manage Issue #4 without asking for a separate owner confirmation on each open/close transition.
+
+When a complete executable `CODEX_HANDOFF_READY` task has been durably published and all controller-side preparation that can be done while paused is complete, ChatGPT/controller may reopen Issue #4 to allow Codex execution.
+
+When Codex publishes the matching durable `CODEX_DONE`, ChatGPT/controller may close Issue #4 before review/next-task preparation so that no additional queued work starts unintentionally. If the completed package is accepted and the next package is already within the owner-authorized milestone scope, ChatGPT/controller may publish the next handoff and reopen Issue #4 without another owner approval.
+
+This standing authorization applies only to the execution gate. It does not authorize merge, production deployment, new business scope, destructive data operations or any action that otherwise requires explicit owner approval.
+
 ### Codex Execution Gate — daily master switch
 
 GitHub issue **#4 — `Codex execution gate — Sushi81 POS`** is the single daily execution switch for the recurring Codex mailbox automation.
