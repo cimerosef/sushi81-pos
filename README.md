@@ -104,7 +104,9 @@ M14 current control package:
 - `docs/acceptance-criteria-amendment-m14-preprod-foundation.md` — Approved acceptance amendment;
 - `docs/implementation/milestone-14-preparation-readiness.md` — READY after execution-gate reopening;
 - `docs/implementation/milestone-14-preprod-foundation.md` — owner-authorized implementation contract;
-- `docs/implementation/milestone-14-final-manual-acceptance.md` — owner acceptance checklist.
+- `docs/implementation/milestone-14-final-manual-acceptance.md` — owner acceptance checklist;
+- `docs/implementation/milestone-14-worklog.md` — package/evidence ledger;
+- `docs/implementation/milestone-14-authorization.md` — owner authorization record.
 
 Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. OneDrive remains the approved Disaster Recovery/historical diagnostic boundary, not the normal authority gate; canonical annual archives are permanent application-managed local data after the M12 amendment.
 
