@@ -11,7 +11,7 @@ The approved V1 product, business, architecture, data, storage, paste-import, pr
 Formal freeze record: `docs/v1-specification-freeze.md`  
 Implementation acceptance contract: `docs/acceptance-criteria.md` plus approved acceptance amendments.
 
-M01 through M11 are **Passed and merged**.
+M01 through M13 are **Passed and merged**.
 
 Recent final baselines:
 
@@ -21,7 +21,9 @@ Recent final baselines:
 
 M12's remaining real populated-archive operational verification is **deferred, not Passed**. The first safe real verification point remains an authoritative startup on or after 2027-02-01 with real 2026 data; archive failure must continue to leave eligible live rows safe/retryable.
 
-M13 — Installer, localization completion and final V1 acceptance — is closure-ready on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. Owner evidence records A–G PASS, including the protected in-app business-data reset, revised operating guide, controlled A→B production cutover and bound-record catalogue VAT repair. B is authoritative/writable and A is read-only. Final controller review and separate owner merge approval remain; PR #26 is OPEN and unmerged. The accepted production application candidate is `469c8761061b0ecf488e06386a97b9e10652a916`, exact-head CI #912 / run `36253271385` (932/932 tests), installer artifact `10909188508` / `Sushi81-POS-production-installer-win-x64-1.0.0-469c876`.
+M13 — Installer, localization completion and final V1 acceptance — is **Passed and merged** through PR #26. Current authoritative `main` is merge commit `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. The accepted production application candidate remains source `469c8761061b0ecf488e06386a97b9e10652a916`, exact-head CI #912 / run `36253271385` (932/932 tests), installer artifact `10909188508` / `Sushi81-POS-production-installer-win-x64-1.0.0-469c876`. B is authoritative/writable and A is paired read-only.
+
+M14 — PreProd Foundation and immutable release promotion — was owner-approved and frozen on 2026-09-27. It establishes permanent Prod/PreProd isolation, a one-time safe production-data seed into a pristine PreProd profile, independent PreProd GitHub/OneDrive/credential infrastructure, coexisting installers, immutable GitHub candidates, and production promotion from the exact owner-accepted application payload without rebuilding it. M14 implementation is package-gated; post-launch business bug fixes are explicitly outside M14.
 
 Accepted M13 package heads and exact-head CI:
 
@@ -33,7 +35,7 @@ Accepted M13 package heads and exact-head CI:
 | WP4 — production publish/installer | `0f73cee0311a1c76e8b4cafd7413720c252be27c` | #880 / `36114601424` — success; artifact `10854348679` |
 | WP5 — diagnostics/performance/security hardening | `aa734cc94bb6500be42cbaa00407e8fc8ec7a1fd` | #882 / `36124050769` — success; artifact `10859146322` |
 
-The owner confirmed that the source repository's public visibility is intentional and is not an M13 blocker. M12's populated real-archive operational verification remains **DEFERRED-NOT-M13, not Passed**; its first safe real verification point remains an authoritative startup on or after 2027-02-01 with real 2026 data. M13's accepted VAT import semantics normalize genuine Excel percentage-formatted cells and only the approved plain-numeric legacy values `0.055→5.5`, `0.1→10`, `0.2→20`; unrelated plain fractions remain literal. Owner evidence on B confirms committed 5.5/10/20 values and a second export/reimport preview with zero changes. A docs-only CI artifact after this reconciliation does not replace the accepted production application candidate above.
+M12's populated real-archive operational verification remains **DEFERRED-NOT-M13, not Passed**; its first safe real verification point remains an authoritative startup on or after 2027-02-01 with real 2026 data. M13's accepted VAT import semantics normalize genuine Excel percentage-formatted cells and only the approved plain-numeric legacy values `0.055→5.5`, `0.1→10`, `0.2→20`; unrelated plain fractions remain literal. Owner evidence on B confirms committed 5.5/10/20 values and a second export/reimport preview with zero changes. A docs-only CI artifact after this reconciliation does not replace the accepted production application candidate above.
 
 Controlling M09 records:
 
@@ -85,7 +87,7 @@ M12 completed control package:
 - `docs/implementation/milestone-12-authorization.md`;
 - PR #25 — historical mailbox, CLOSED/MERGED.
 
-M13 current control package:
+M13 completed control package:
 
 - `docs/decisions/m13-gestion-export-ledger-retention-compaction.md`;
 - `docs/acceptance-criteria-amendment-m13-gestion-export-retention.md`;
@@ -95,6 +97,14 @@ M13 current control package:
 - `docs/operating-guide.md` — final-candidate day-to-day operator guide;
 - `docs/implementation/milestone-13-worklog.md`;
 - `docs/implementation/milestone-13-authorization.md`.
+
+M14 current control package:
+
+- `docs/decisions/m14-preprod-environment-isolation-and-promotion.md` — Approved owner decision;
+- `docs/acceptance-criteria-amendment-m14-preprod-foundation.md` — Approved acceptance amendment;
+- `docs/implementation/milestone-14-preparation-readiness.md` — READY after execution-gate reopening;
+- `docs/implementation/milestone-14-preprod-foundation.md` — owner-authorized implementation contract;
+- `docs/implementation/milestone-14-final-manual-acceptance.md` — owner acceptance checklist.
 
 Normal target-directed authority handoff uses a dedicated private GitHub Release Asset repository and strict server receipts. OneDrive remains the approved Disaster Recovery/historical diagnostic boundary, not the normal authority gate; canonical annual archives are permanent application-managed local data after the M12 amendment.
 
