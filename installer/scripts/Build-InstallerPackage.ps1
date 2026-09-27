@@ -255,7 +255,6 @@ foreach ($spec in $profileSpecs) {
     $env:SUSHI81_PUBLISH_DIR = $staging
     $env:SUSHI81_PACKAGE_OUT_DIR = $installerOutputDirectory
     $env:SUSHI81_PROFILE = $spec.profile
-    $env:SUSHI81_APP_ID = $spec.appId
     $env:SUSHI81_APP_NAME = $spec.appName
     $env:SUSHI81_INSTALL_DIRECTORY = $spec.installDirectory
     $env:SUSHI81_OUTPUT_BASE_NAME = $outputBaseName

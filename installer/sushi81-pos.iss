@@ -4,7 +4,6 @@
 #define PublishDir GetEnv("SUSHI81_PUBLISH_DIR")
 #define PackageDir GetEnv("SUSHI81_PACKAGE_OUT_DIR")
 #define DeploymentProfile GetEnv("SUSHI81_PROFILE")
-#define ProfileAppId GetEnv("SUSHI81_APP_ID")
 #define ProfileAppName GetEnv("SUSHI81_APP_NAME")
 #define ProfileInstallDirectory GetEnv("SUSHI81_INSTALL_DIRECTORY")
 #define ProfileOutputBaseName GetEnv("SUSHI81_OUTPUT_BASE_NAME")
@@ -30,9 +29,6 @@
 #if DeploymentProfile != "prod" && DeploymentProfile != "preprod"
   #error SUSHI81_PROFILE must be exactly prod or preprod.
 #endif
-#if ProfileAppId == ""
-  #error SUSHI81_APP_ID is required.
-#endif
 #if ProfileAppName == ""
   #error SUSHI81_APP_NAME is required.
 #endif
@@ -43,7 +39,11 @@
   #error SUSHI81_OUTPUT_BASE_NAME is required.
 #endif
 [Setup]
-AppId={{#ProfileAppId}
+#if DeploymentProfile == "prod"
+AppId={{C7A1B9E2-1E62-4B4B-A2EA-7802814408FC}
+#else
+AppId={{67FB6B75-3C5E-44A5-98AD-305EA4C62D95}
+#endif
 AppName={#ProfileAppName}
 AppVersion={#ProductVersion}
 AppVerName={#ProfileAppName} {#ProductVersion}

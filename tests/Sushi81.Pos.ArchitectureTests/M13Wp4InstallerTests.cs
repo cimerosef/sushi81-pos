@@ -29,8 +29,10 @@ public sealed class M13Wp4InstallerTests
 
         var setup = File.ReadAllText(LocateRepositoryFile("installer", "sushi81-pos.iss"));
         StringAssert.Contains(setup, "#if Ver != (6 * 16777216 + 7 * 65536 + 3 * 256)");
-        StringAssert.Contains(setup, "AppId={{#ProfileAppId}");
         StringAssert.Contains(setup, "#if DeploymentProfile != \"prod\" && DeploymentProfile != \"preprod\"");
+        StringAssert.Contains(setup, "#if DeploymentProfile == \"prod\"");
+        StringAssert.Contains(setup, "AppId={{C7A1B9E2-1E62-4B4B-A2EA-7802814408FC}");
+        StringAssert.Contains(setup, "AppId={{67FB6B75-3C5E-44A5-98AD-305EA4C62D95}");
         StringAssert.Contains(setup, "AppVersion={#ProductVersion}");
         Assert.IsFalse(setup.Contains("UninstallDisplayVersion", StringComparison.Ordinal));
         StringAssert.Contains(setup, "PrivilegesRequired=lowest");
@@ -58,6 +60,7 @@ public sealed class M13Wp4InstallerTests
         StringAssert.Contains(build, "Every common application file is byte-identical");
         StringAssert.Contains(build, "excludedPackagingOnlyFiles = @('deployment-profile.txt')");
         StringAssert.Contains(build, "67FB6B75-3C5E-44A5-98AD-305EA4C62D95");
+        StringAssert.Contains(build, "C7A1B9E2-1E62-4B4B-A2EA-7802814408FC");
 
         var lifecycle = File.ReadAllText(LocateRepositoryFile("installer", "scripts", "Verify-InstallerLifecycle.ps1"));
         foreach (var required in new[]
