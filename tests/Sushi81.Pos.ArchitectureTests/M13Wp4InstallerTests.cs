@@ -29,7 +29,7 @@ public sealed class M13Wp4InstallerTests
 
         var setup = File.ReadAllText(LocateRepositoryFile("installer", "sushi81-pos.iss"));
         StringAssert.Contains(setup, "#if Ver != (6 * 16777216 + 7 * 65536 + 3 * 256)");
-        StringAssert.Contains(setup, "AppId={{#ProfileAppId}}");
+        StringAssert.Contains(setup, "AppId={{#ProfileAppId}");
         StringAssert.Contains(setup, "#if DeploymentProfile != \"prod\" && DeploymentProfile != \"preprod\"");
         StringAssert.Contains(setup, "AppVersion={#ProductVersion}");
         Assert.IsFalse(setup.Contains("UninstallDisplayVersion", StringComparison.Ordinal));

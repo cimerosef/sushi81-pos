@@ -43,7 +43,7 @@
   #error SUSHI81_OUTPUT_BASE_NAME is required.
 #endif
 [Setup]
-AppId={{#ProfileAppId}}
+AppId={{#ProfileAppId}
 AppName={#ProfileAppName}
 AppVersion={#ProductVersion}
 AppVerName={#ProfileAppName} {#ProductVersion}
