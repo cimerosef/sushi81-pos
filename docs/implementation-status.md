@@ -1,8 +1,8 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-26
-**Current state:** M01 through M11 and the independent post-M09 Hiboutik daily CB/Espèce dashboard enhancement are Passed and merged. Current authoritative `main` is M12 merge commit `f59663c6b47ab21114c24360544e4e25094f4722`. M12 is controller-accepted and merged under the explicit owner waiver; real populated-archive operational verification remains DEFERRED-NOT-M13, not Passed. M13 is closure-ready on `codex/m13-installer-final-acceptance-authorized` / OPEN Draft PR #26: owner A–G evidence is PASS; final controller review and separate owner merge approval remain. Accepted production source is `469c8761061b0ecf488e06386a97b9e10652a916`, exact-head CI #912 / run `36253271385` (932/932 tests), installer artifact `10909188508` / `Sushi81-POS-production-installer-win-x64-1.0.0-469c876`. PR #26 is unmerged; `main` has not advanced to M13.
+**Last updated:** 2026-09-27
+**Current state:** M01 through M13 and the independent post-M09 dashboard enhancement are Passed and merged. Current authoritative `main` is M13 merge commit `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. M12 real populated-archive verification remains DEFERRED-NOT-M13. M14 — PreProd Foundation and immutable release promotion — is owner-authorized/frozen on 2026-09-27 on branch `codex/m14-preprod-foundation-authorized`; implementation is package-gated and Issue #4 remains CLOSED until the prepared first handoff is explicitly released for execution.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -39,15 +39,16 @@
 | M10 — Catalogue `.xlsx` | Passed | Controller final closure PR #22 comment `5750090951`; PR #22 CLOSED/MERGED at `299df8b44a1959497ad46f861e44db32913b4d11`. Accepted runtime candidate remains `34e61c67785aa6c8c0ca84a545e31de30b17ac39`. |
 | M11 — Gestion intermediate export | Passed | PR #24 CLOSED/MERGED at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831, 0 failed, 0 skipped and Release build 0 warnings/errors. |
 | M12 — Annual archive/historical access | Accepted under waiver / merged | PR #25 CLOSED/MERGED at `f59663c6b47ab21114c24360544e4e25094f4722`. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3`; exact-head CI #862 / run `36021889765` succeeded with 881/881, 0 failed/skipped and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test succeeded. Real populated-archive operational verification remains explicitly deferred under the owner waiver and is not claimed Passed. |
-| M13 — Installer and final acceptance | Closure-ready / owner A–G PASS | Accepted production head `469c8761061b0ecf488e06386a97b9e10652a916`; CI #912 / `36253271385`, 932/932 tests; installer artifact `10909188508`. Final controller review and separate owner merge approval remain. PR #26 OPEN/Draft/unmerged; no M13 merge or release is claimed. |
+| M13 — Installer and final acceptance | Passed / merged | PR #26 CLOSED/MERGED at `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. Accepted production application remains source `469c8761061b0ecf488e06386a97b9e10652a916`; CI #912 / `36253271385`, 932/932 tests; installer artifact `10909188508`. |
+| M14 — PreProd Foundation and immutable release promotion | Authorized / preparation complete | Owner-approved/frozen 2026-09-27. Branch `codex/m14-preprod-foundation-authorized`; execution package-gated. Business bug fixes excluded until foundation acceptance. |
 
 ## 3. Current merged baseline
 
 Current authoritative `main`:
 
-`f59663c6b47ab21114c24360544e4e25094f4722`
+`6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`
 
-This is PR #25's M12 merge commit.
+This is PR #26's M13 merge commit.
 
 M12 closure facts:
 
@@ -59,6 +60,23 @@ M12 closure facts:
 - owner waiver/deferred real populated-archive verification remains in force and is not rewritten as Passed;
 - first safe real verification point remains an authoritative startup on or after 2027-02-01 with real 2026 rows;
 - archive failure must continue to fail safe without silent eligible-live-row deletion.
+
+## 3.1 M14 current authorization record
+
+- owner approval/freeze: 2026-09-27;
+- start baseline: `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`;
+- implementation branch: `codex/m14-preprod-foundation-authorized`;
+- scope: permanent Prod/PreProd isolation, safe initial seed, independent runtime transport/DR configuration, dual installers, immutable GitHub candidate payload and no-rebuild production promotion;
+- explicitly excluded: post-launch business bug fixes, repeated automatic Prod→PreProd refresh, automatic production deployment, M12 deferred populated-archive verification;
+- execution remains controlled by the active M14 PR mailbox and Issue #4.
+
+Controlling records:
+
+- `decisions/m14-preprod-environment-isolation-and-promotion.md`;
+- `acceptance-criteria-amendment-m14-preprod-foundation.md`;
+- `implementation/milestone-14-preparation-readiness.md`;
+- `implementation/milestone-14-preprod-foundation.md`;
+- `implementation/milestone-14-final-manual-acceptance.md`.
 
 ## 4. M11 historical implementation/acceptance record
 
