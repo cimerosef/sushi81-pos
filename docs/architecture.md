@@ -1,7 +1,7 @@
 # Architecture
 
-**Status:** Approved — Phase 3 baseline, amended 2026-08-28  
-**Last updated:** 2026-08-28  
+**Status:** Approved — Phase 3 baseline, amended through 2026-09-27  
+**Last updated:** 2026-09-27  
 **Product:** Sushi81 POS  
 **Purpose:** Define the implementation architecture that preserves the approved product, lifecycle and data-model semantics while prioritizing reliability, simplicity and maintainability.
 
@@ -271,3 +271,17 @@ This document remains the **Approved — Phase 3 baseline**, amended on 2026-08-
 Implementation must preserve the approved local-first WPF/SQLite architecture and may not silently replace it with a server, web application, live OneDrive database, simultaneous multi-writer design, fixed two-computer protocol or generic file-claim election.
 
 Pure implementation details that do not change approved business behavior may continue to be selected during implementation according to the project priority order: reliability > simplicity > maintainability > operational clarity > novelty.
+
+## 14. M14 amendment — deployment profiles and immutable promotion
+
+The approved runtime now has two fixed deployment identities: `prod` and `preprod`. They share the same application code and business behavior but never share durable runtime state.
+
+- Production durable root remains `%LOCALAPPDATA%\Sushi81 POS`.
+- PreProd durable root is `%LOCALAPPDATA%\Sushi81 POS PREPROD`.
+- Production and PreProd use different stable installer AppIds, program directories, shortcuts and uninstall identities.
+- Deployment profile is packaging-installed and validated before business database/authority initialization; arbitrary user-configured data roots are not introduced.
+- PreProd has independent lineage/device/authority identity, OneDrive System/DR root, GitHub handoff repository and Credential Manager target.
+- A one-time pristine PreProd seed may copy production business database content through a read-only SQLite-safe snapshot, but never production authority/device/lineage/pairing/remote-configuration state.
+- For one candidate, application binaries are published once. PreProd packaging and later production promotion consume the same immutable payload. Production promotion must not rebuild the application and must verify file-level SHA-256 equivalence against the owner-accepted candidate manifest.
+
+The detailed approved decision is `docs/decisions/m14-preprod-environment-isolation-and-promotion.md`.
