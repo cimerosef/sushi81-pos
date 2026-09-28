@@ -84,6 +84,41 @@ public sealed class M13Wp4InstallerTests
         StringAssert.Contains(runner, "Verify-InstallerLifecycle.ps1");
     }
 
+    [TestMethod]
+    public void M14PreProductionCandidatePipelinePublishesOneImmutablePayloadFromExactSource()
+    {
+        var build = File.ReadAllText(LocateRepositoryFile("installer", "scripts", "Build-M14-Candidate.ps1"));
+        Assert.AreEqual(1, CountOccurrences(build, "'publish', $project"));
+        StringAssert.Contains(build, "rev-parse HEAD");
+        StringAssert.Contains(build, "ExpectedSourceSha");
+        StringAssert.Contains(build, "New-M14PayloadManifest");
+        StringAssert.Contains(build, "Test-M14PayloadArchive");
+        StringAssert.Contains(build, "Verify-PreProdCandidateLifecycle.ps1");
+
+        var package = File.ReadAllText(LocateRepositoryFile("installer", "scripts", "Package-PreProdFromPayload.ps1"));
+        Assert.IsFalse(package.Contains("dotnet publish", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(package.Contains("dotnet build", StringComparison.OrdinalIgnoreCase));
+        StringAssert.Contains(package, "New-M14PreProdStagingPayload");
+
+        var workflow = File.ReadAllText(LocateRepositoryFile(".github", "workflows", "m14-preprod-candidate.yml"));
+        StringAssert.Contains(workflow, "workflow_dispatch:");
+        StringAssert.Contains(workflow, "contents: read");
+        StringAssert.Contains(workflow, "contents: write");
+        StringAssert.Contains(workflow, "refs/heads/codex/m14-preprod-foundation-authorized");
+        StringAssert.Contains(workflow, "github.sha");
+        StringAssert.Contains(workflow, "Build-M14-Candidate.ps1");
+
+        var publisher = File.ReadAllText(LocateRepositoryFile("installer", "scripts", "Publish-M14-Candidate.ps1"));
+        StringAssert.Contains(publisher, "Assert-M14CandidateNotPublished");
+        StringAssert.Contains(publisher, "/immutable-releases");
+        StringAssert.Contains(publisher, "--latest=false");
+        Assert.IsFalse(publisher.Contains("--clobber", StringComparison.Ordinal));
+
+        var ordinaryCi = File.ReadAllText(LocateRepositoryFile(".github", "workflows", "ci.yml"));
+        StringAssert.Contains(ordinaryCi, "Test M14 immutable candidate pipeline");
+        StringAssert.Contains(ordinaryCi, "m14-wp2-dual-installer");
+    }
+
     private static int CountOccurrences(string value, string substring)
     {
         var count = 0;

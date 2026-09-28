@@ -20,7 +20,7 @@
 | WP2 — dual installer coexistence | Passed | Accepted head `43adce6a9a59b235c8083ab750be9c393e303a31`; controller comment `5860094105`; exact-head CI #933 / run `36352059967` SUCCESS; artifact `10942766694` |
 | WP3 — initial PROD→PREPROD seed | Passed | Accepted head `c1fefff86acc4b9e23c1f2020b09486a1300997a`; controller comment `5860855082`; exact-head CI #939 / run `36358293220` SUCCESS |
 | WP4 — remote environment isolation | Passed | Accepted head `260569d245b348d3a0eb4d92eaf0543f31510cc5`; controller comment `5861273369`; exact-head CI #945 / run `36361546258` SUCCESS |
-| WP5 — immutable GitHub candidate pipeline | Not started | — |
+| WP5 — immutable GitHub candidate pipeline | Implemented; exact-head Actions/C01 publication and controller acceptance pending | — |
 | WP6 — production promotion pipeline | Not started | — |
 | WP7 — owner two-PC acceptance/closure | Not started | — |
 
@@ -65,6 +65,14 @@
 - Focused WP4 isolation tests: 10 passed / 0 failed / 0 skipped. Focused M06/M07 authority, pairing, handoff, acquisition, Recovery and DR regressions: 112 passed / 0 failed / 0 skipped. Desktop M06/M07 startup/setup and WP2/WP3 architecture regressions: 26 passed / 0 failed / 0 skipped.
 - Full Release solution tests: 971 passed / 0 failed / 0 skipped, including WP2 installer lifecycle and WP3 initial-seed regressions. Full Release solution build: 0 warnings / 0 errors. git diff --check: passed. Exact-head Windows CI status is recorded in the matching CODEX_DONE after push.
 - No real Production database, customer/order/payment data, token, Credential Manager secret, OneDrive content, or runtime handoff snapshot was used. Controller accepted WP4 in PR #30 comment `5861273369` at exact implementation head `260569d245b348d3a0eb4d92eaf0543f31510cc5`; exact-head CI #945 / run `36361546258` succeeded, including the retained dual-installer lifecycle job and artifact `10946450007`. No manual device acceptance was performed. WP5+ and merge were not started.
+
+## WP5 — immutable GitHub PREPROD candidate pipeline
+
+- Handoff: `M14-WP5-IMMUTABLE-CANDIDATE-05R1` (PR #30 comment `5861302735`); authorized start head `7ce5bca4a1c972798a67c8dd22ff6dca2d9f6721`.
+- Added a stable single-use C01 identity for `v1.0.1-preprod-c01`, exact-source verification, a deterministic case-sensitive ordinal payload manifest/tree hash, path/reparse-point/case-collision guards, and an application payload ZIP with fixed entry timestamps and round-trip verification. PREPROD packaging verifies the manifest, copies that exact payload, adds only the seven-byte `deployment-profile.txt=preprod` packaging marker, scans forbidden content, and invokes Inno Setup without another `dotnet publish`.
+- Added a one-publish exact-head candidate builder, hosted synthetic PREPROD install/repair/uninstall/reinstall lifecycle checks, five-asset summary/provenance, a fail-closed single-use release publisher, and a manually dispatched candidate workflow with a read-only build job and contents-write publication job. Ordinary CI now runs the candidate safeguards and retains the WP2/WP3/WP4 regressions.
+- Repository release immutability was enabled for the required immutable C01. Local verification: Release solution build passed with 0 warnings / 0 errors; full Release tests passed, 972 passed / 0 failed / 0 skipped; candidate pipeline self-test and repository safety scan passed; all new PowerShell files parsed; exact `win-x64` publish assets restored; `git diff --check` passed.
+- Exact-head ordinary CI, hosted Windows installer lifecycle, candidate C01 publication, final tag/assets/digest verification, and controller acceptance remain pending. Owner interactive WPF acceptance is not claimed. Only synthetic fixtures are used; no production business data, credentials, OneDrive content, or runtime handoff snapshot enters the candidate. WP6, merge, and production promotion remain unstarted.
 
 ## Rules
 

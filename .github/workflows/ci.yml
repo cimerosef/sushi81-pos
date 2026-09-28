@@ -37,6 +37,9 @@ jobs:
       - name: Scan tracked and non-ignored repository files
         shell: pwsh
         run: '& .github/scripts/Test-RepositorySafety.ps1'
+      - name: Test M14 immutable candidate pipeline
+        shell: pwsh
+        run: '& .\installer\scripts\Test-M14-CandidatePipeline.ps1 -SelfTest'
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
