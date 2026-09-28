@@ -31,13 +31,18 @@ $prodInstallRoot = Join-Path $localAppData 'Programs\Sushi81 POS'
 $prodDataRoot = Join-Path $localAppData 'Sushi81 POS'
 $shortcut = Join-Path $appData 'Microsoft\Windows\Start Menu\Programs\Sushi81 POS PREPROD.lnk'
 $uninstallRoot = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall'
-foreach ($path in @($installRoot,$dataRoot,$shortcut,$prodInstallRoot,$prodDataRoot)) {
+# Production paths may legitimately exist on a hosted image; this test never traverses or modifies them.
+foreach ($path in @($installRoot,$dataRoot,$shortcut)) {
     if (Test-Path -LiteralPath $path) { throw "Refusing candidate lifecycle test because target already exists: '$path'." }
 }
 if (-not $installRoot.StartsWith($localAppData,[StringComparison]::OrdinalIgnoreCase) -or
     -not $dataRoot.StartsWith($localAppData,[StringComparison]::OrdinalIgnoreCase) -or
     -not $localAppData.StartsWith($userProfile,[StringComparison]::OrdinalIgnoreCase) -or
-    $installRoot -eq $dataRoot) { throw 'PreProd program and durable roots are not isolated per-user paths.' }
+    $installRoot -eq $dataRoot -or
+    [string]::Equals($installRoot,$prodInstallRoot,[StringComparison]::OrdinalIgnoreCase) -or
+    [string]::Equals($dataRoot,$prodDataRoot,[StringComparison]::OrdinalIgnoreCase)) {
+    throw 'PreProd program and durable roots are not isolated from the production profile.'
+}
 $existingUninstall = @(Get-ChildItem -LiteralPath $uninstallRoot -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '67FB6B75-3C5E-44A5-98AD-305EA4C62D95' })
 if ($existingUninstall.Count -gt 0) { throw 'Refusing candidate lifecycle test because the PreProd uninstall identity already exists.' }
 

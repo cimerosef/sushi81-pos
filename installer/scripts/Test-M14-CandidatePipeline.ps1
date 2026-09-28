@@ -105,6 +105,7 @@ try {
     $buildScript = Get-Content -LiteralPath (Join-Path $scriptRoot 'Build-M14-Candidate.ps1') -Raw
     $packageScript = Get-Content -LiteralPath (Join-Path $scriptRoot 'Package-PreProdFromPayload.ps1') -Raw
     $publisherScript = Get-Content -LiteralPath (Join-Path $scriptRoot 'Publish-M14-Candidate.ps1') -Raw
+    $lifecycleScript = Get-Content -LiteralPath (Join-Path $scriptRoot 'Verify-PreProdCandidateLifecycle.ps1') -Raw
     $workflow = Get-Content -LiteralPath (Join-Path $repoRoot '.github\workflows\m14-preprod-candidate.yml') -Raw
     Assert-Condition ([regex]::Matches($buildScript,'(?m)^\s*''publish'',\s*\$project,').Count -eq 1) 'the candidate build helper must contain exactly one application publish command.'
     Assert-Condition ($buildScript.Contains('& dotnet @publishArgs')) 'the one publish command must be invoked by the candidate build helper.'
@@ -117,6 +118,9 @@ try {
     Assert-Condition ($publisherScript.IndexOf('Assert-DraftReleaseAssets') -lt $publisherScript.IndexOf('draft=false')) 'assets must be verified while the release is still draft before prerelease visibility.'
     Assert-Condition ($publisherScript.Contains('Assert-M14CandidateNotPublished') -and -not $publisherScript.Contains('--clobber')) 'the release publisher must fail closed on an existing identity and never replace assets.'
     Assert-Condition ($publisherScript.Contains('/immutable-releases') -and $publisherScript.Contains('immutable')) 'publication must require and verify GitHub release immutability.'
+    Assert-Condition ($lifecycleScript.Contains('foreach ($path in @($installRoot,$dataRoot,$shortcut))') -and
+        $lifecycleScript.Contains('[string]::Equals($installRoot,$prodInstallRoot') -and
+        $lifecycleScript.Contains('[string]::Equals($dataRoot,$prodDataRoot')) 'hosted lifecycle checks must isolate PREPROD targets without requiring production folders to be absent.'
     Assert-Condition ($workflow.Contains('m14-wp2-dual-installer') -or (Get-Content -LiteralPath (Join-Path $repoRoot '.github\workflows\ci.yml') -Raw).Contains('m14-wp2-dual-installer')) 'ordinary exact-head CI must retain the WP2 lifecycle regression.'
     Assert-Condition ((Test-Path -LiteralPath (Join-Path $repoRoot 'tests\Sushi81.Pos.Infrastructure.IntegrationTests\M14InitialProductionSeedTests.cs')) -and
         (Test-Path -LiteralPath (Join-Path $repoRoot 'tests\Sushi81.Pos.Infrastructure.IntegrationTests\M14PreProductionIsolationTests.cs'))) 'the retained WP3/WP4 regression suites must remain in the solution.'
