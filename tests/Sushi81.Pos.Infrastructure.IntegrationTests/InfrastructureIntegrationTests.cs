@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Sushi81.Pos.Application.Foundation;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Recovery;
@@ -1155,8 +1156,9 @@ internal static class InterlockedExtensions
 
 internal sealed class TestAppPaths : IAppPaths, IDisposable
 {
-    public TestAppPaths()
+    public TestAppPaths(DeploymentProfile? profile = null)
     {
+        Profile = profile ?? DeploymentProfile.Production;
         RootDirectory = Path.Combine(Path.GetTempPath(), "Sushi81.Pos.Tests", Guid.NewGuid().ToString("N"));
         DataDirectory = Path.Combine(RootDirectory, "Data");
         RecoveryDirectory = Path.Combine(RootDirectory, "Recovery");
@@ -1168,6 +1170,7 @@ internal sealed class TestAppPaths : IAppPaths, IDisposable
         LiveDatabasePath = Path.Combine(DataDirectory, "live.db");
     }
 
+    public DeploymentProfile Profile { get; }
     public string RootDirectory { get; }
     public string DataDirectory { get; }
     public string RecoveryDirectory { get; }

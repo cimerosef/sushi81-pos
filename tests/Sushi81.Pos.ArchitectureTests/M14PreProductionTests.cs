@@ -86,6 +86,76 @@ public sealed class M14PreProductionTests
         StringAssert.Contains(xaml, "Visibility=\"{Binding IsPreProduction, Converter={StaticResource BoolToVisibility}}\"");
     }
 
+    [TestMethod]
+    public void PreProductionM07GuidanceAndCollisionDiagnosticsExistInBothLanguages()
+    {
+        var resources = new ResourceManager("Sushi81.Pos.Desktop.Properties.Resources", typeof(CompositionRoot).Assembly);
+        var keys = new[]
+        {
+            "M07SetupPreprodGuidance",
+            "M07SetupOneDriveCollision",
+            "M07SetupOneDriveIsolationUnproven",
+            "M07SetupGitHubCollision",
+            "M07SetupCredentialCollision",
+            "M07SetupProductionSettingsUnavailable"
+        };
+
+        foreach (var cultureName in new[] { "fr-FR", "zh-CN" })
+        {
+            var culture = CultureInfo.GetCultureInfo(cultureName);
+            foreach (var key in keys)
+                Assert.IsFalse(string.IsNullOrWhiteSpace(resources.GetString(key, culture)), $"Missing {cultureName} resource {key}.");
+        }
+
+        StringAssert.Contains(resources.GetString("M07SetupPreprodGuidance", CultureInfo.GetCultureInfo("fr-FR"))!, "sushi81-pos-handoff-preprod");
+        StringAssert.Contains(resources.GetString("M07SetupPreprodGuidance", CultureInfo.GetCultureInfo("zh-CN"))!, "Sushi81POS-PREPROD-GitHub-Handoff");
+    }
+
+    [TestMethod]
+    public void CompositionRootBuildsRemoteAndRecoveryServicesFromResolvedLocalProfileConfiguration()
+    {
+        var composition = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src", "Sushi81.Pos.Desktop", "CompositionRoot.cs"));
+
+        StringAssert.Contains(composition, "new JsonLocalConfigurationService(paths)");
+        StringAssert.Contains(composition, "configuration = await configurationService.LoadAsync();");
+        StringAssert.Contains(composition, "new M07ConfigurationSetupService(configurationService, authorityStateStore, paths)");
+        StringAssert.Contains(composition, "new JsonAuthorityStateStore(paths)");
+        StringAssert.Contains(composition, "new JsonSystemMetadataStore(configuration.OneDriveRoot!");
+        StringAssert.Contains(composition, "new OneDriveRecoveryCheckpointPublisher(");
+        StringAssert.Contains(composition, "configuration.OneDriveRoot!, authorityStateStore");
+        StringAssert.Contains(composition, "new GitHubHandoffRepositoryOptions(");
+        StringAssert.Contains(composition, "configuration.GitHubOwner!");
+        StringAssert.Contains(composition, "configuration.GitHubRepository!");
+        StringAssert.Contains(composition, "configuration.GitHubReleaseTag");
+        StringAssert.Contains(composition, "configuration.GitHubReleaseName");
+        StringAssert.Contains(composition, "new WindowsCredentialManagerGitHubCredentialProvider(configuration.GitHubCredentialTarget!)");
+        StringAssert.Contains(composition, "new GitHubReleaseAssetTransport(options, credentialProvider)");
+        StringAssert.Contains(composition, "new NormalHandoffService(");
+        StringAssert.Contains(composition, "new TargetAcquisitionService(");
+        StringAssert.Contains(composition, "new RecoveryCandidateDiscovery(paths, transport, configuration.OneDriveRoot)");
+        StringAssert.Contains(composition, "new DisasterRecoveryService(");
+    }
+
+    [TestMethod]
+    public void CollisionGuardOnlyReadsProductionNonSecretConfigurationAndNeverReadsCredentials()
+    {
+        var guard = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "Sushi81.Pos.Infrastructure",
+            "Configuration",
+            "PreProductionRemoteIsolationGuard.cs"));
+
+        StringAssert.Contains(guard, "FileAccess.Read");
+        StringAssert.Contains(guard, "oneDriveRoot");
+        StringAssert.Contains(guard, "githubOwner");
+        StringAssert.Contains(guard, "githubRepository");
+        StringAssert.Contains(guard, "githubCredentialTarget");
+        Assert.IsFalse(guard.Contains("WindowsCredentialManagerGitHubCredentialProvider", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(guard.Contains("GetGenericCredential", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(guard.Contains("CredentialSecret", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

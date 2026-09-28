@@ -108,7 +108,7 @@ public static partial class CompositionRoot
             configurationService = new JsonLocalConfigurationService(paths);
             configuration = await configurationService.LoadAsync();
             authorityStateStore = new JsonAuthorityStateStore(paths);
-            m07Setup = new M07ConfigurationSetupService(configurationService, authorityStateStore);
+            m07Setup = new M07ConfigurationSetupService(configurationService, authorityStateStore, paths);
             _ = CultureInfo.GetCultureInfo(configuration.UiCulture);
             cultureStore = new ConfigurationSelectedCultureStore(configuration, configurationService);
 

@@ -72,6 +72,12 @@
   <data name="M07SetupGitHubReleaseName" xml:space="preserve"><value>GitHub release 名称</value></data>
   <data name="M07SetupGitHubCredentialTarget" xml:space="preserve"><value>受保护 GitHub 凭据目标名称</value></data>
   <data name="M07SetupGitHubHelp" xml:space="preserve"><value>这里只填写 Credential Manager 目标名称。绝不要在这里填写 PAT。</value></data>
+  <data name="M07SetupPreprodGuidance" xml:space="preserve"><value>PreProd 必须使用独立的 OneDrive 根目录（例如“Sushi81 POS PREPROD”）、专用私有 GitHub 交接仓库（建议：cimerosef/sushi81-pos-handoff-preprod）和独立的 Credential Manager 目标（建议：Sushi81POS-PREPROD-GitHub-Handoff）。不得将源代码仓库用作运行时仓库。</value></data>
+  <data name="M07SetupOneDriveCollision" xml:space="preserve"><value>PreProd OneDrive 根目录必须独立，不能与 Production 根目录相同、互相包含或位于其内部。</value></data>
+  <data name="M07SetupOneDriveIsolationUnproven" xml:space="preserve"><value>无法确认两个 OneDrive 根目录彼此独立。请移除符号链接或重解析点后重试。</value></data>
+  <data name="M07SetupGitHubCollision" xml:space="preserve"><value>PreProd GitHub 运行时交接仓库必须不同于 Production 仓库和 Sushi81 POS 源代码仓库。</value></data>
+  <data name="M07SetupCredentialCollision" xml:space="preserve"><value>PreProd Credential Manager 目标必须与 Production 目标不同。</value></data>
+  <data name="M07SetupProductionSettingsUnavailable" xml:space="preserve"><value>Production 本地配置存在，但无法无歧义地读取。PreProd 配置未保存。</value></data>
   <data name="M07SetupSave" xml:space="preserve"><value>验证并要求重启</value></data>
   <data name="M07SetupRestartRequired" xml:space="preserve"><value>配置已保存。请重启 Sushi81 POS，以组合 M07 服务并启用配对。</value></data>
   <data name="M07SetupRootRequired" xml:space="preserve"><value>必须填写 OneDrive 共享文件夹。</value></data>

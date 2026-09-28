@@ -374,6 +374,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("AuthorityTargetTitle").Append("AuthorityTargetPrompt").Append("AuthorityTargetConfirm")
              .Append("AuthorityTransferUnavailable")
              .Append("M07Setup").Append("M07SetupTitle").Append("M07SetupPrompt")
+             .Append("M07SetupPreprodGuidance")
              .Append("M07SetupOneDriveRoot").Append("M07SetupBrowse")
              .Append("M07SetupGitHubOwner").Append("M07SetupGitHubRepository")
              .Append("M07SetupGitHubReleaseTag").Append("M07SetupGitHubReleaseName")
@@ -383,7 +384,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("M07SetupRootUnavailable").Append("M07SetupLineageUnavailable")
              .Append("M07SetupLineageInvalid").Append("M07SetupLineageRequired")
              .Append("M07SetupPhaseLocked").Append("M07SetupAuthorityStateUnavailable")
-             .Append("M07SetupPersistenceFailed")
+             .Append("M07SetupOneDriveCollision").Append("M07SetupOneDriveIsolationUnproven")
+             .Append("M07SetupGitHubCollision").Append("M07SetupCredentialCollision")
+             .Append("M07SetupProductionSettingsUnavailable").Append("M07SetupPersistenceFailed")
              .Append("M07DisasterRecovery").Append("M07DisasterRecoveryPending")
              .Append("M07DisasterRecoveryNoCandidate").Append("M07DisasterRecoveryFailed")
              .Append("M07DisasterRecoverySucceeded").Append("M07DisasterRecoveryLostToWinner")
@@ -563,6 +566,11 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
                     M07ConfigurationSetupFailureKind.LineageRequired => "M07SetupLineageRequired",
                     M07ConfigurationSetupFailureKind.AuthorityPhaseUnsafe => "M07SetupPhaseLocked",
                     M07ConfigurationSetupFailureKind.AuthorityStateUnavailable => "M07SetupAuthorityStateUnavailable",
+                    M07ConfigurationSetupFailureKind.OneDriveRootCollision => "M07SetupOneDriveCollision",
+                    M07ConfigurationSetupFailureKind.OneDriveIsolationUnproven => "M07SetupOneDriveIsolationUnproven",
+                    M07ConfigurationSetupFailureKind.GitHubRepositoryCollision => "M07SetupGitHubCollision",
+                    M07ConfigurationSetupFailureKind.CredentialTargetCollision => "M07SetupCredentialCollision",
+                    M07ConfigurationSetupFailureKind.ProductionSettingsUnavailable => "M07SetupProductionSettingsUnavailable",
                     M07ConfigurationSetupFailureKind.PersistenceFailed => "M07SetupPersistenceFailed",
                     _ => "M07SetupPersistenceFailed"
                 });

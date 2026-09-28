@@ -72,6 +72,12 @@
   <data name="M07SetupGitHubReleaseName" xml:space="preserve"><value>Nom de release GitHub</value></data>
   <data name="M07SetupGitHubCredentialTarget" xml:space="preserve"><value>Nom de justificatif protégé GitHub</value></data>
   <data name="M07SetupGitHubHelp" xml:space="preserve"><value>Saisissez uniquement le nom de cible Credential Manager. Ne saisissez jamais le PAT ici.</value></data>
+  <data name="M07SetupPreprodGuidance" xml:space="preserve"><value>Préproduction : utilisez une racine OneDrive indépendante (par exemple « Sushi81 POS PREPROD »), un dépôt GitHub privé dédié (recommandé : cimerosef/sushi81-pos-handoff-preprod) et une cible Credential Manager distincte (recommandée : Sushi81POS-PREPROD-GitHub-Handoff). N’y placez jamais le dépôt source.</value></data>
+  <data name="M07SetupOneDriveCollision" xml:space="preserve"><value>La racine OneDrive PreProd doit être distincte et ne peut contenir la racine Production ni se trouver dedans.</value></data>
+  <data name="M07SetupOneDriveIsolationUnproven" xml:space="preserve"><value>L’indépendance des racines OneDrive ne peut pas être vérifiée. Retirez les liens symboliques ou points de réanalyse puis réessayez.</value></data>
+  <data name="M07SetupGitHubCollision" xml:space="preserve"><value>Le dépôt GitHub de transfert PreProd doit être différent du dépôt Production et du dépôt source Sushi81 POS.</value></data>
+  <data name="M07SetupCredentialCollision" xml:space="preserve"><value>La cible Credential Manager PreProd doit être différente de la cible Production.</value></data>
+  <data name="M07SetupProductionSettingsUnavailable" xml:space="preserve"><value>Les paramètres locaux Production existent mais ne peuvent pas être lus sans ambiguïté. La configuration PreProd n’a pas été enregistrée.</value></data>
   <data name="M07SetupSave" xml:space="preserve"><value>Valider et demander le redémarrage</value></data>
   <data name="M07SetupRestartRequired" xml:space="preserve"><value>Configuration enregistrée. Redémarrez Sushi81 POS pour composer les services M07 et rendre l’appairage disponible.</value></data>
   <data name="M07SetupRootRequired" xml:space="preserve"><value>Le dossier OneDrive partagé est obligatoire.</value></data>
