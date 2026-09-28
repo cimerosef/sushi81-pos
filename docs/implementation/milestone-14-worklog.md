@@ -81,6 +81,13 @@
 - The five-asset publisher, immutable-release preflight, exactly one application publish, zero installer-side republish and synthetic hosted lifecycle remain in place. The earlier C01 build-only artifact is historical evidence and will not be published as the final candidate. Final source CI, dispatch-tag push, fresh C01 workflow, immutable Release verification and controller acceptance are pending.
 - No real production/business data, OneDrive runtime content, credentials, tokens or runtime handoff snapshots are used. WP6, production promotion, real two-PC handoff and merge remain outside this package.
 
+### WP5 C01 draft-ID publication repair — R5 implementation
+
+- Handoff: `M14-WP5-DRAFT-ID-PUBLISH-05R5` (PR #30 comment `5878546631`), start head `52698a397a0030fa64ca16b2c88c3dedc48e7d33`.
+- The candidate publisher now discovers a newly created draft through the authenticated, paginated Releases list, requires exactly one C01 draft prerelease at the exact source SHA, and re-fetches it by numeric Release ID before asset verification. Publication PATCH and final verification use the same numeric ID. The published-release tag endpoint remains only in the pre-creation single-use guard.
+- Deterministic self-tests cover zero, duplicate, wrong-tag, wrong-source, non-draft, non-prerelease and invalid-ID selections, plus the ID-based publication path and retained asset, digest, immutable, non-latest and no-overwrite guards.
+- Exact-head CI, fresh build-only C01 artifact, owner credential preflight, throwaway draft probe and final C01 publication are separate execution evidence recorded in the matching `CODEX_DONE`. The older C01 artifact remains historical and is not eligible for publication after this source change.
+
 ## Rules
 
 - Each Codex package is authorized only by its exact PR `CODEX_HANDOFF_READY` record.

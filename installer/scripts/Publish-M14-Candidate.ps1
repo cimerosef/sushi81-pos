@@ -114,8 +114,10 @@ function Assert-CandidateAssets {
     & (Join-Path $PSScriptRoot 'Test-ForbiddenContent.ps1') -Path $candidateRoot | Out-Null
     [pscustomobject]@{ Names = $requiredNames; Summary = $summary; Provenance = $provenance; ExtractionPath = $extractionPath }
 }
-function Assert-DraftReleaseAssets([object]$Release,[string[]]$Names,[string]$VerificationDirectory) {
-    if ($Release.tag_name -cne $identity.Tag -or $Release.draft -ne $true -or $Release.prerelease -ne $true) {
+function Assert-DraftReleaseAssets([object]$Release,[long]$ReleaseId,[string[]]$Names,[string]$VerificationDirectory) {
+    if ([long]$Release.id -ne $ReleaseId -or $Release.tag_name -cne $identity.Tag -or
+        $Release.target_commitish -cne $ExpectedSourceSha -or
+        $Release.draft -ne $true -or $Release.prerelease -ne $true) {
         throw 'Candidate release must remain a draft prerelease until exact tag and asset verification completes.'
     }
     $assets = @($Release.assets)
@@ -173,16 +175,25 @@ $notes = @(
 $createArgs = @('release','create',$identity.Tag,'--repo',$Repository,'--target',$ExpectedSourceSha,'--title',"Sushi81 POS PREPROD $($identity.ProductVersion) $($identity.CandidateId)",'--notes',$notes,'--draft','--prerelease','--latest=false') + $assetPaths
 $createOutput = & gh @createArgs 2>&1
 if ($LASTEXITCODE -ne 0) { throw "Draft candidate release creation/upload failed: $(($createOutput | ForEach-Object { [string]$_ }) -join [Environment]::NewLine)" }
-$draftRelease = Invoke-GhJson -Arguments @('api',"repos/$Repository/releases/tags/$($identity.Tag)")
-$null = Assert-DraftReleaseAssets -Release $draftRelease -Names $verifiedAssets.Names -VerificationDirectory $verificationDirectory
+# The tag endpoint only returns published releases. An authenticated release list includes drafts.
+$releasePages = @(Invoke-GhJson -Arguments @('api',"repos/$Repository/releases?per_page=100",'--paginate','--slurp'))
+$draftId = Get-M14DraftReleaseId -ReleasePages $releasePages -CandidateTag $identity.Tag -ExpectedSourceSha $ExpectedSourceSha
+$draftRelease = Invoke-GhJson -Arguments @('api',"repos/$Repository/releases/$draftId")
+$null = Assert-DraftReleaseAssets -Release $draftRelease -ReleaseId $draftId -Names $verifiedAssets.Names -VerificationDirectory $verificationDirectory
 $tagCommit = Get-TagTargetCommit -Tag $identity.Tag
 if ($tagCommit -cne $ExpectedSourceSha) { throw "Candidate tag resolves to '$tagCommit' instead of the exact source SHA." }
 
-$published = Invoke-GhJson -Arguments @('api','--method','PATCH',"repos/$Repository/releases/$($draftRelease.id)",'-F','draft=false','-F','prerelease=true','-f','make_latest=false')
-if ($published.draft -ne $false -or $published.prerelease -ne $true -or $published.tag_name -cne $identity.Tag) {
+$published = Invoke-GhJson -Arguments @('api','--method','PATCH',"repos/$Repository/releases/$draftId",'-F','draft=false','-F','prerelease=true','-f','make_latest=false')
+if ([long]$published.id -ne $draftId -or $published.draft -ne $false -or
+    $published.prerelease -ne $true -or $published.tag_name -cne $identity.Tag -or
+    $published.target_commitish -cne $ExpectedSourceSha) {
     throw 'GitHub did not publish the fully verified candidate as a prerelease.'
 }
-$publishedAgain = Invoke-GhJson -Arguments @('api',"repos/$Repository/releases/$($draftRelease.id)")
+$publishedAgain = Invoke-GhJson -Arguments @('api',"repos/$Repository/releases/$draftId")
+if ([long]$publishedAgain.id -ne $draftId -or $publishedAgain.tag_name -cne $identity.Tag -or
+    $publishedAgain.target_commitish -cne $ExpectedSourceSha) {
+    throw 'Final candidate release identity differs from the verified draft.'
+}
 if ($publishedAgain.immutable -ne $true) {
     throw 'GitHub published the candidate but did not mark it immutable; no release/tag/asset mutation will be attempted.'
 }

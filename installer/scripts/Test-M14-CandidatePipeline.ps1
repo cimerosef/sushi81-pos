@@ -96,6 +96,22 @@ try {
     Assert-Throws { Assert-M14CandidateNotPublished -CandidateTag $candidate.Tag -TagExists } 'existing candidate tag'
     Assert-Throws { Assert-M14CandidateNotPublished -CandidateTag $candidate.Tag -ReleaseExists } 'existing candidate release'
 
+    $draft = [pscustomobject]@{ id = 12345; tag_name = $candidate.Tag; target_commitish = $sha; draft = $true; prerelease = $true }
+    Assert-Condition ((Get-M14DraftReleaseId -ReleasePages @(@($draft)) -CandidateTag $candidate.Tag -ExpectedSourceSha $sha) -eq 12345) 'the draft-aware release list must select one numeric Release ID.'
+    Assert-Throws { Get-M14DraftReleaseId -ReleasePages @() -CandidateTag $candidate.Tag -ExpectedSourceSha $sha } 'zero draft matches'
+    Assert-Throws { Get-M14DraftReleaseId -ReleasePages @(@($draft),@($draft)) -CandidateTag $candidate.Tag -ExpectedSourceSha $sha } 'duplicate draft matches across pages'
+    foreach ($change in @(
+        @{ tag_name = 'v1.0.1-preprod-c02' },
+        @{ target_commitish = ('b' * 40) },
+        @{ draft = $false },
+        @{ prerelease = $false },
+        @{ id = 0 }
+    )) {
+        $wrong = [pscustomobject]@{ id = $draft.id; tag_name = $draft.tag_name; target_commitish = $draft.target_commitish; draft = $draft.draft; prerelease = $draft.prerelease }
+        foreach ($key in $change.Keys) { $wrong.$key = $change[$key] }
+        Assert-Throws { Get-M14DraftReleaseId -ReleasePages @(@($wrong)) -CandidateTag $candidate.Tag -ExpectedSourceSha $sha } "invalid draft release $($change.Keys -join ',')"
+    }
+
     $archiveInfo = New-M14PayloadArchive -PayloadDirectory $payload -ManifestPath $manifestPath -ArchivePath $archivePath -ExpectedSourceSha $sha -ExpectedCandidateId 'C01'
     $roundTrip = Test-M14PayloadArchive -ArchivePath $archivePath -ManifestPath $manifestPath -ExtractionDirectory $extractRoot -ExpectedSourceSha $sha -ExpectedCandidateId 'C01'
     Assert-Condition ($archiveInfo.bytes -gt 0 -and $archiveInfo.sha256 -match '^[0-9a-f]{64}$' -and $roundTrip.applicationPayloadTreeSha256 -ceq $manifest.applicationPayloadTreeSha256) 'archive must independently round-trip against the manifest.'
@@ -136,6 +152,20 @@ try {
     Assert-Condition ($publisherScript.IndexOf('Assert-DraftReleaseAssets') -lt $publisherScript.IndexOf('draft=false')) 'assets must be verified while the release is still draft before prerelease visibility.'
     Assert-Condition ($publisherScript.Contains('Assert-M14CandidateNotPublished') -and -not $publisherScript.Contains('--clobber')) 'the release publisher must fail closed on an existing identity and never replace assets.'
     Assert-Condition ($publisherScript.Contains('/immutable-releases') -and $publisherScript.Contains('immutable')) 'publication must require and verify GitHub release immutability.'
+    $afterCreate = $publisherScript.Substring($publisherScript.IndexOf('$createOutput = & gh @createArgs'))
+    Assert-Condition ($afterCreate.Contains('releases?per_page=100') -and $afterCreate.Contains("'--paginate','--slurp'") -and
+        $afterCreate.Contains('Get-M14DraftReleaseId -ReleasePages $releasePages') -and
+        -not $afterCreate.Contains('releases/tags/')) 'post-create draft lookup must use the authenticated paginated list rather than the published-tag endpoint.'
+    Assert-Condition ($afterCreate.Contains('Assert-DraftReleaseAssets -Release $draftRelease -ReleaseId $draftId') -and
+        [regex]::Matches($afterCreate,'repos/\$Repository/releases/\$draftId').Count -ge 3) 'selected draft must be re-fetched, patched and finally verified by numeric Release ID.'
+    Assert-Condition ($publisherScript.Contains('exactly the five required candidate assets') -and
+        $publisherScript.Contains('uploaded asset digest differs') -and
+        $publisherScript.Contains('Get-TagTargetCommit') -and
+        $publisherScript.Contains("'draft=false'") -and
+        $publisherScript.Contains("'prerelease=true'") -and
+        $publisherScript.Contains("'make_latest=false'") -and
+        $publisherScript.Contains('immutable -ne $true') -and
+        -not [regex]::IsMatch($publisherScript,'(?i)(--clobber|release delete|git push.*--force|retry)')) 'asset, digest, tag, prerelease, non-latest, immutable and single-use guards must remain without automatic retry or overwrite.'
     Assert-Condition ($lifecycleScript.Contains('foreach ($path in @($installRoot,$dataRoot,$shortcut))') -and
         $lifecycleScript.Contains('[string]::Equals($installRoot,$prodInstallRoot') -and
         $lifecycleScript.Contains('[string]::Equals($dataRoot,$prodDataRoot')) 'hosted lifecycle checks must isolate PREPROD targets without requiring production folders to be absent.'

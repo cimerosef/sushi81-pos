@@ -275,4 +275,31 @@ function Assert-M14CandidateNotPublished {
     if ($TagExists -or $ReleaseExists) { throw "Candidate '$CandidateTag' already has a tag or release; candidate identities are single-use and cannot be overwritten." }
 }
 
-Export-ModuleMember -Function Get-M14CandidateIdentity,Get-M14DispatchTagIdentity,Assert-M14SafePayloadPath,Get-M14PayloadEntries,Get-M14PayloadTreeHash,New-M14PayloadManifest,Test-M14PayloadManifest,New-M14PayloadArchive,Test-M14PayloadArchive,New-M14PreProdStagingPayload,Assert-M14CandidateNotPublished
+function Get-M14DraftReleaseId {
+    [CmdletBinding()]
+    param(
+        [AllowEmptyCollection()][object[]]$ReleasePages,
+        [Parameter(Mandatory = $true)][string]$CandidateTag,
+        [Parameter(Mandatory = $true)][string]$ExpectedSourceSha
+    )
+    if ($ExpectedSourceSha -cnotmatch '^[0-9a-f]{40}$') { throw 'Draft release lookup requires an exact lowercase source SHA.' }
+    $matches = @(
+        foreach ($page in $ReleasePages) {
+            foreach ($release in @($page)) {
+                if ($null -ne $release -and $release.tag_name -ceq $CandidateTag) { $release }
+            }
+        }
+    )
+    if ($matches.Count -ne 1) {
+        throw "Draft release lookup found $($matches.Count) releases for '$CandidateTag'; expected exactly one."
+    }
+    $draft = $matches[0]
+    if ($draft.draft -ne $true -or $draft.prerelease -ne $true -or
+        $draft.target_commitish -cne $ExpectedSourceSha -or
+        $null -eq $draft.id -or [long]$draft.id -le 0) {
+        throw "Candidate '$CandidateTag' did not resolve to a draft prerelease at the exact source SHA."
+    }
+    [long]$draft.id
+}
+
+Export-ModuleMember -Function Get-M14CandidateIdentity,Get-M14DispatchTagIdentity,Assert-M14SafePayloadPath,Get-M14PayloadEntries,Get-M14PayloadTreeHash,New-M14PayloadManifest,Test-M14PayloadManifest,New-M14PayloadArchive,Test-M14PayloadArchive,New-M14PreProdStagingPayload,Assert-M14CandidateNotPublished,Get-M14DraftReleaseId
