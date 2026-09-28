@@ -87,6 +87,12 @@ try {
     Assert-Throws { Test-M14PayloadManifest -PayloadDirectory $payload -ManifestPath $manifestPath -ExpectedProductVersion '1.0.2' } 'wrong product version'
     Assert-Throws { Get-M14CandidateIdentity -CandidateId 'C00' } 'candidate number zero'
     Assert-Throws { Get-M14CandidateIdentity -CandidateId 'C01' -ProductVersion '2.0.0' } 'wrong product semantic version'
+    $dispatchIdentity = Get-M14DispatchTagIdentity -Ref 'refs/tags/m14-preprod-dispatch-c01'
+    Assert-Condition ($dispatchIdentity.CandidateId -ceq 'C01' -and $dispatchIdentity.Tag -ceq 'v1.0.1-preprod-c01') 'C01 dispatch tag must map exactly to the distinct release tag.'
+    Assert-Condition ((Get-M14DispatchTagIdentity -Ref 'refs/tags/m14-preprod-dispatch-c99').CandidateId -ceq 'C99') 'C99 must remain the canonical upper bound.'
+    foreach ($badDispatchRef in @('refs/tags/m14-preprod-dispatch-c00','refs/tags/m14-preprod-dispatch-c100','refs/tags/m14-preprod-dispatch-c1','refs/tags/m14-preprod-dispatch-c001','refs/tags/m14-preprod-dispatch-c0a','refs/tags/unrelated-c01','refs/heads/codex/m14-preprod-foundation-authorized','refs/tags/v1.0.1-preprod-c01')) {
+        Assert-Throws { Get-M14DispatchTagIdentity -Ref $badDispatchRef } "invalid dispatch ref $badDispatchRef"
+    }
     Assert-Throws { Assert-M14CandidateNotPublished -CandidateTag $candidate.Tag -TagExists } 'existing candidate tag'
     Assert-Throws { Assert-M14CandidateNotPublished -CandidateTag $candidate.Tag -ReleaseExists } 'existing candidate release'
 
@@ -113,6 +119,18 @@ try {
     Assert-Condition ($packageScript.Contains('New-M14PreProdStagingPayload') -and $packageScript.Contains('Test-ForbiddenContent.ps1')) 'PreProd packaging must verify profile-only addition and scan its staging tree.'
     Assert-Condition ($workflow.Contains('workflow_dispatch:') -and $workflow.Contains('github.sha') -and $workflow.Contains('contents: write')) 'candidate workflow must be explicit, exact-SHA and release-write scoped.'
     Assert-Condition ($workflow.Contains('contents: read') -and $workflow.Contains('actions/checkout@v7')) 'candidate build must use ordinary checkout permissions and a pinned source checkout.'
+    Assert-Condition ($workflow.Contains("      - 'm14-preprod-dispatch-c*'") -and $workflow.Contains("Get-M14DispatchTagIdentity -Ref `$env:GITHUB_REF")) 'the dedicated tag-push trigger must validate canonical candidate identity.'
+    Assert-Condition ($workflow.Contains("`$env:GITHUB_EVENT_NAME -ceq 'push' -and `$env:GITHUB_REF -ceq 'refs/heads/codex/m14-preprod-foundation-authorized'") -and
+        $workflow.Contains("`$publicationAllowed = 'false'") -and $workflow.Contains("`$publicationAllowed = 'true'")) 'ordinary branch push must remain build-only while explicit dispatch enables publication.'
+    Assert-Condition ($workflow.Contains("needs.build-candidate.outputs.publication_allowed == 'true'") -and
+        $workflow.Contains("github.event_name == 'workflow_dispatch'") -and
+        $workflow.Contains("github.event_name == 'push' && startsWith(github.ref, 'refs/tags/m14-preprod-dispatch-c')")) 'only validated workflow dispatch or dedicated tag push may reach the release-write job.'
+    Assert-Condition ($workflow.Contains('git cat-file -t $env:EXPECTED_SOURCE_SHA') -and
+        $workflow.Contains('git ls-remote --refs origin $env:GITHUB_REF') -and
+        $workflow.Contains('EXPECTED_SOURCE_SHA: ${{ github.sha }}') -and
+        $workflow.Contains('ref: ${{ github.sha }}')) 'tag SHA must be a commit and exact remote lightweight ref at the checked-out source.'
+    Assert-Condition ([regex]::Matches($workflow,'(?m)^      contents: write$').Count -eq 1 -and
+        [regex]::Matches($workflow,'(?m)^      contents: read$').Count -eq 1) 'write permission must be scoped to only the publish job.'
     Assert-Condition ($publisherScript.Contains('--draft') -and $publisherScript.Contains('--prerelease') -and $publisherScript.Contains('--latest=false')) 'release must be drafted, pre-release and excluded from latest.'
     Assert-Condition ($publisherScript.IndexOf('$verifiedAssets = Assert-CandidateAssets') -lt $publisherScript.IndexOf('$createOutput = & gh @createArgs')) 'all candidate assets must pass validation before a draft release is created.'
     Assert-Condition ($publisherScript.IndexOf('Assert-DraftReleaseAssets') -lt $publisherScript.IndexOf('draft=false')) 'assets must be verified while the release is still draft before prerelease visibility.'

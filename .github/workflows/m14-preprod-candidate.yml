@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - codex/m14-preprod-foundation-authorized
+    tags:
+      - 'm14-preprod-dispatch-c*'
   workflow_dispatch:
     inputs:
       candidate_number:
@@ -16,22 +18,25 @@ permissions:
   contents: read
 
 concurrency:
-  group: m14-preprod-candidate-${{ inputs.candidate_number || '1' }}
+  group: m14-preprod-candidate-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build-candidate:
-    if: github.ref == 'refs/heads/codex/m14-preprod-foundation-authorized'
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/codex/m14-preprod-foundation-authorized' || startsWith(github.ref, 'refs/tags/m14-preprod-dispatch-c'))) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/m14-preprod-foundation-authorized')
+    outputs:
+      candidate: ${{ steps.source.outputs.candidate }}
+      publication_allowed: ${{ steps.source.outputs.publication_allowed }}
     runs-on: windows-latest
     permissions:
       contents: read
     steps:
-      - name: Checkout the exact manually selected source head
+      - name: Checkout the exact event source commit
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Validate dispatch input and exact source head
+      - name: Validate event identity, lightweight dispatch tag and exact source head
         id: source
         shell: pwsh
         env:
@@ -39,17 +44,35 @@ jobs:
           CANDIDATE_NUMBER: ${{ inputs.candidate_number || '1' }}
         run: |
           $actual = (git rev-parse HEAD).Trim()
-          if ($actual -cne $env:EXPECTED_SOURCE_SHA) { throw "Expected dispatch SHA $($env:EXPECTED_SOURCE_SHA) but checked out $actual." }
-          if ($env:CANDIDATE_NUMBER -notmatch '^[1-9][0-9]?$') { throw 'candidate_number must be an integer from 1 through 99.' }
-          $number = [int]$env:CANDIDATE_NUMBER
-          if ($number -gt 99) { throw 'candidate_number must be an integer from 1 through 99.' }
-          $candidate = 'C{0:D2}' -f $number
+          if ($actual -cne $env:EXPECTED_SOURCE_SHA) { throw "Expected event SHA $($env:EXPECTED_SOURCE_SHA) but checked out $actual." }
+          $objectType = (git cat-file -t $env:EXPECTED_SOURCE_SHA).Trim()
+          if ($LASTEXITCODE -ne 0 -or $objectType -cne 'commit') { throw 'Event SHA must identify a commit, not an annotated tag object.' }
+          $publicationAllowed = 'false'
+          if ($env:GITHUB_EVENT_NAME -ceq 'push' -and $env:GITHUB_REF -ceq 'refs/heads/codex/m14-preprod-foundation-authorized') {
+            $candidate = 'C01'
+          } elseif ($env:GITHUB_EVENT_NAME -ceq 'workflow_dispatch' -and $env:GITHUB_REF -ceq 'refs/heads/codex/m14-preprod-foundation-authorized') {
+            if ($env:CANDIDATE_NUMBER -cnotmatch '^[1-9][0-9]?$') { throw 'candidate_number must be an integer from 1 through 99.' }
+            $candidate = 'C{0:D2}' -f [int]$env:CANDIDATE_NUMBER
+            $publicationAllowed = 'true'
+          } elseif ($env:GITHUB_EVENT_NAME -ceq 'push') {
+            Import-Module .\installer\scripts\M14-CandidatePipeline.psm1 -Force
+            $identity = Get-M14DispatchTagIdentity -Ref $env:GITHUB_REF
+            $candidate = $identity.CandidateId
+            $remote = @(git ls-remote --refs origin $env:GITHUB_REF)
+            if ($LASTEXITCODE -ne 0 -or $remote.Count -ne 1 -or $remote[0] -cne "$($env:EXPECTED_SOURCE_SHA)`t$($env:GITHUB_REF)") {
+              throw 'Dispatch tag must be a lightweight ref targeting the exact checked-out event commit.'
+            }
+            $publicationAllowed = 'true'
+          } else {
+            throw 'This event/ref is not authorized for candidate build or publication.'
+          }
           $short = $actual.Substring(0, 7).ToLowerInvariant()
           "head=$actual" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "short=$short" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "candidate=$candidate" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "publication_allowed=$publicationAllowed" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "Exact source SHA: $actual" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-          "Candidate identity: $candidate" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Candidate identity: $candidate; publication allowed: $publicationAllowed" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
       - name: Test repository safety scanner
         shell: pwsh
         run: '& .github/scripts/Test-RepositorySafety.ps1 -SelfTest'
@@ -116,12 +139,12 @@ jobs:
 
   publish-candidate:
     needs: build-candidate
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/m14-preprod-foundation-authorized'
+    if: needs.build-candidate.outputs.publication_allowed == 'true' && ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/m14-preprod-foundation-authorized') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/m14-preprod-dispatch-c')))
     runs-on: windows-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout the exact manually selected source head
+      - name: Checkout the exact event source commit
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
@@ -136,18 +159,28 @@ jobs:
         shell: pwsh
         env:
           EXPECTED_SOURCE_SHA: ${{ github.sha }}
+          CANDIDATE_ID: ${{ needs.build-candidate.outputs.candidate }}
         run: |
           $actual = (git rev-parse HEAD).Trim()
           if ($actual -cne $env:EXPECTED_SOURCE_SHA) { throw "Expected exact publication source $($env:EXPECTED_SOURCE_SHA), found $actual." }
+          $objectType = (git cat-file -t $env:EXPECTED_SOURCE_SHA).Trim()
+          if ($LASTEXITCODE -ne 0 -or $objectType -cne 'commit') { throw 'Publication source must be a commit, not an annotated tag object.' }
+          if ($env:GITHUB_EVENT_NAME -ceq 'push') {
+            Import-Module .\installer\scripts\M14-CandidatePipeline.psm1 -Force
+            $identity = Get-M14DispatchTagIdentity -Ref $env:GITHUB_REF
+            if ($identity.CandidateId -cne $env:CANDIDATE_ID) { throw 'Dispatch tag and built candidate identity disagree.' }
+            $remote = @(git ls-remote --refs origin $env:GITHUB_REF)
+            if ($LASTEXITCODE -ne 0 -or $remote.Count -ne 1 -or $remote[0] -cne "$($env:EXPECTED_SOURCE_SHA)`t$($env:GITHUB_REF)") {
+              throw 'Dispatch tag is not a lightweight ref at the exact publication source.'
+            }
+          }
       - name: Publish immutable PREPROD candidate only after asset validation
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_SOURCE_SHA: ${{ github.sha }}
-          CANDIDATE_NUMBER: ${{ inputs.candidate_number }}
+          CANDIDATE_ID: ${{ needs.build-candidate.outputs.candidate }}
           REPOSITORY: ${{ github.repository }}
         run: |
-          $number = [int]$env:CANDIDATE_NUMBER
-          $candidate = 'C{0:D2}' -f $number
-          & .\installer\scripts\Publish-M14-Candidate.ps1 -ExpectedSourceSha $env:EXPECTED_SOURCE_SHA -CandidateId $candidate -Repository $env:REPOSITORY -CandidateDirectory (Join-Path $env:GITHUB_WORKSPACE 'artifacts/m14-candidate')
+          & .\installer\scripts\Publish-M14-Candidate.ps1 -ExpectedSourceSha $env:EXPECTED_SOURCE_SHA -CandidateId $env:CANDIDATE_ID -Repository $env:REPOSITORY -CandidateDirectory (Join-Path $env:GITHUB_WORKSPACE 'artifacts/m14-candidate')
           if ($LASTEXITCODE -ne 0) { throw 'M14 candidate preflight, immutable draft verification or publication failed.' }

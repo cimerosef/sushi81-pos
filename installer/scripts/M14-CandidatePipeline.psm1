@@ -16,6 +16,20 @@ function Get-M14CandidateIdentity {
     [pscustomobject]@{ CandidateId = "C$suffix"; ProductVersion = $ProductVersion; Tag = "v$ProductVersion-preprod-c$suffix" }
 }
 
+function Get-M14DispatchTagIdentity {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Ref)
+    if ($Ref -cnotmatch '^refs/tags/m14-preprod-dispatch-c(0[1-9]|[1-9][0-9])$') {
+        throw "Dispatch ref '$Ref' must use the canonical m14-preprod-dispatch-c01 through c99 namespace."
+    }
+    $candidateId = "C$($Matches[1])"
+    $identity = Get-M14CandidateIdentity -CandidateId $candidateId
+    if ($identity.Tag -cne "v1.0.1-preprod-c$($Matches[1])") {
+        throw "Dispatch ref '$Ref' does not map exactly to the candidate release identity."
+    }
+    $identity
+}
+
 function Assert-M14SafePayloadPath {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -261,4 +275,4 @@ function Assert-M14CandidateNotPublished {
     if ($TagExists -or $ReleaseExists) { throw "Candidate '$CandidateTag' already has a tag or release; candidate identities are single-use and cannot be overwritten." }
 }
 
-Export-ModuleMember -Function Get-M14CandidateIdentity,Assert-M14SafePayloadPath,Get-M14PayloadEntries,Get-M14PayloadTreeHash,New-M14PayloadManifest,Test-M14PayloadManifest,New-M14PayloadArchive,Test-M14PayloadArchive,New-M14PreProdStagingPayload,Assert-M14CandidateNotPublished
+Export-ModuleMember -Function Get-M14CandidateIdentity,Get-M14DispatchTagIdentity,Assert-M14SafePayloadPath,Get-M14PayloadEntries,Get-M14PayloadTreeHash,New-M14PayloadManifest,Test-M14PayloadManifest,New-M14PayloadArchive,Test-M14PayloadArchive,New-M14PreProdStagingPayload,Assert-M14CandidateNotPublished

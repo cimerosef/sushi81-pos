@@ -102,11 +102,17 @@ public sealed class M13Wp4InstallerTests
 
         var workflow = File.ReadAllText(LocateRepositoryFile(".github", "workflows", "m14-preprod-candidate.yml"));
         StringAssert.Contains(workflow, "workflow_dispatch:");
+        StringAssert.Contains(workflow, "m14-preprod-dispatch-c*");
+        StringAssert.Contains(workflow, "Get-M14DispatchTagIdentity -Ref $env:GITHUB_REF");
+        StringAssert.Contains(workflow, "needs.build-candidate.outputs.publication_allowed == 'true'");
+        StringAssert.Contains(workflow, "git ls-remote --refs origin $env:GITHUB_REF");
+        StringAssert.Contains(workflow, "git cat-file -t $env:EXPECTED_SOURCE_SHA");
         StringAssert.Contains(workflow, "contents: read");
         StringAssert.Contains(workflow, "contents: write");
         StringAssert.Contains(workflow, "refs/heads/codex/m14-preprod-foundation-authorized");
         StringAssert.Contains(workflow, "github.sha");
         StringAssert.Contains(workflow, "Build-M14-Candidate.ps1");
+        StringAssert.Contains(workflow, "CANDIDATE_ID: ${{ needs.build-candidate.outputs.candidate }}");
 
         var publisher = File.ReadAllText(LocateRepositoryFile("installer", "scripts", "Publish-M14-Candidate.ps1"));
         StringAssert.Contains(publisher, "Assert-M14CandidateNotPublished");

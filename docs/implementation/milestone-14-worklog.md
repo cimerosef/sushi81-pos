@@ -74,6 +74,13 @@
 - Repository release immutability was enabled for the required immutable C01. Local verification: Release solution build passed with 0 warnings / 0 errors; full Release tests passed, 972 passed / 0 failed / 0 skipped; candidate pipeline self-test and repository safety scan passed; all new PowerShell files parsed; exact `win-x64` publish assets restored; `git diff --check` passed.
 - Exact-head ordinary CI, hosted Windows installer lifecycle, candidate C01 publication, final tag/assets/digest verification, and controller acceptance remain pending. Owner interactive WPF acceptance is not claimed. Only synthetic fixtures are used; no production business data, credentials, OneDrive content, or runtime handoff snapshot enters the candidate. WP6, merge, and production promotion remain unstarted.
 
+### WP5 C01 publication remediation — pending final-source CI and release
+
+- Handoff: `M14-WP5-C01-PUBLICATION-05R2` (PR #30 comment `5863213362`), start head `c346d7e32cb85740fc2415d7e29170ca0f489323`. The controller accepted the one-publish candidate design but requested actual C01 publication before WP5 can pass.
+- The candidate workflow now retains ordinary branch-push build-only CI and future `workflow_dispatch`, and adds a dedicated `m14-preprod-dispatch-cNN` tag-push path. The dispatch tag is separate from the final `v1.0.1-preprod-c01` release tag. Canonical C01–C99 mapping, exact commit checkout, lightweight remote tag target and publication authorization are checked before the write-scoped job; the publish job checks the tag and source again.
+- The five-asset publisher, immutable-release preflight, exactly one application publish, zero installer-side republish and synthetic hosted lifecycle remain in place. The earlier C01 build-only artifact is historical evidence and will not be published as the final candidate. Final source CI, dispatch-tag push, fresh C01 workflow, immutable Release verification and controller acceptance are pending.
+- No real production/business data, OneDrive runtime content, credentials, tokens or runtime handoff snapshots are used. WP6, production promotion, real two-PC handoff and merge remain outside this package.
+
 ## Rules
 
 - Each Codex package is authorized only by its exact PR `CODEX_HANDOFF_READY` record.
