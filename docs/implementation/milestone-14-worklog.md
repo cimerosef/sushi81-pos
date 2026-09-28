@@ -18,8 +18,8 @@
 |---|---|---|
 | WP1 — runtime deployment-profile isolation | Passed | Accepted head `c8ebb4638caac75f2e80715b52e97079fc6288a3`; controller comment `5859507909`; exact-head CI #922 / run `36346911287` SUCCESS |
 | WP2 — dual installer coexistence | Passed | Accepted head `43adce6a9a59b235c8083ab750be9c393e303a31`; controller comment `5860094105`; exact-head CI #933 / run `36352059967` SUCCESS; artifact `10942766694` |
-| WP3 — initial PROD→PREPROD seed | Implementation complete; controller review pending | Synthetic/local evidence below; exact-head CI is reported in the matching `CODEX_DONE` |
-| WP4 — remote environment isolation | Implementation complete; controller review pending | Local Release tests/build; exact-head Windows CI recorded in matching CODEX_DONE |
+| WP3 — initial PROD→PREPROD seed | Passed | Accepted head `c1fefff86acc4b9e23c1f2020b09486a1300997a`; controller comment `5860855082`; exact-head CI #939 / run `36358293220` SUCCESS |
+| WP4 — remote environment isolation | Passed | Accepted head `260569d245b348d3a0eb4d92eaf0543f31510cc5`; controller comment `5861273369`; exact-head CI #945 / run `36361546258` SUCCESS |
 | WP5 — immutable GitHub candidate pipeline | Not started | — |
 | WP6 — production promotion pipeline | Not started | — |
 | WP7 — owner two-PC acceptance/closure | Not started | — |
@@ -64,7 +64,7 @@
 - Automated evidence covers Production/PreProd defaults and preservation of custom values; same, nested and sibling roots; case/trailing-separator normalization and segment-safe prefixes; repository/source-repository and Credential target collisions; malformed, duplicate, wrong-typed, unreadable and absent Production settings; read-only Production file access; unchanged PreProd state on rejected saves; Production setup compatibility; bilingual UI resources; runtime composition; and absence of Credential Manager secret reads. All filesystem/configuration fixtures are synthetic.
 - Focused WP4 isolation tests: 10 passed / 0 failed / 0 skipped. Focused M06/M07 authority, pairing, handoff, acquisition, Recovery and DR regressions: 112 passed / 0 failed / 0 skipped. Desktop M06/M07 startup/setup and WP2/WP3 architecture regressions: 26 passed / 0 failed / 0 skipped.
 - Full Release solution tests: 971 passed / 0 failed / 0 skipped, including WP2 installer lifecycle and WP3 initial-seed regressions. Full Release solution build: 0 warnings / 0 errors. git diff --check: passed. Exact-head Windows CI status is recorded in the matching CODEX_DONE after push.
-- No real Production database, customer/order/payment data, token, Credential Manager secret, OneDrive content, or runtime handoff snapshot was used. No manual device acceptance was performed. WP4 awaits controller review; WP5+ and merge were not started.
+- No real Production database, customer/order/payment data, token, Credential Manager secret, OneDrive content, or runtime handoff snapshot was used. Controller accepted WP4 in PR #30 comment `5861273369` at exact implementation head `260569d245b348d3a0eb4d92eaf0543f31510cc5`; exact-head CI #945 / run `36361546258` succeeded, including the retained dual-installer lifecycle job and artifact `10946450007`. No manual device acceptance was performed. WP5+ and merge were not started.
 
 ## Rules
 
