@@ -129,8 +129,8 @@ try {
         $workflow.Contains('git ls-remote --refs origin $env:GITHUB_REF') -and
         $workflow.Contains('EXPECTED_SOURCE_SHA: ${{ github.sha }}') -and
         $workflow.Contains('ref: ${{ github.sha }}')) 'tag SHA must be a commit and exact remote lightweight ref at the checked-out source.'
-    Assert-Condition ([regex]::Matches($workflow,'(?m)^      contents: write$').Count -eq 1 -and
-        [regex]::Matches($workflow,'(?m)^      contents: read$').Count -eq 1) 'write permission must be scoped to only the publish job.'
+    Assert-Condition ([regex]::Matches($workflow,'(?m)^      contents: write\r?$').Count -eq 1 -and
+        [regex]::Matches($workflow,'(?m)^      contents: read\r?$').Count -eq 1) 'write permission must be scoped to only the publish job.'
     Assert-Condition ($publisherScript.Contains('--draft') -and $publisherScript.Contains('--prerelease') -and $publisherScript.Contains('--latest=false')) 'release must be drafted, pre-release and excluded from latest.'
     Assert-Condition ($publisherScript.IndexOf('$verifiedAssets = Assert-CandidateAssets') -lt $publisherScript.IndexOf('$createOutput = & gh @createArgs')) 'all candidate assets must pass validation before a draft release is created.'
     Assert-Condition ($publisherScript.IndexOf('Assert-DraftReleaseAssets') -lt $publisherScript.IndexOf('draft=false')) 'assets must be verified while the release is still draft before prerelease visibility.'
