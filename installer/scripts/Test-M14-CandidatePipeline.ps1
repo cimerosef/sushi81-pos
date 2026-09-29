@@ -97,6 +97,12 @@ try {
     Assert-Throws { Assert-M14CandidateNotPublished -CandidateTag $candidate.Tag -ReleaseExists } 'existing candidate release'
 
     $draft = [pscustomobject]@{ id = 12345; tag_name = $candidate.Tag; target_commitish = $sha; draft = $true; prerelease = $true }
+    Assert-M14NoExistingRelease -ReleasePages @() -CandidateTag $candidate.Tag
+    Assert-M14NoExistingRelease -ReleasePages @(@([pscustomobject]@{ id = 88; tag_name = 'other-tag'; draft = $true; prerelease = $true })) -CandidateTag $candidate.Tag
+    Assert-Throws { Assert-M14NoExistingRelease -ReleasePages @(@($draft)) -CandidateTag $candidate.Tag } 'existing matching draft even with no Git ref or published tag'
+    Assert-Throws { Assert-M14NoExistingRelease -ReleasePages @(@($draft),@($draft)) -CandidateTag $candidate.Tag } 'duplicate matching drafts'
+    Assert-Throws { Assert-M14NoExistingRelease -ReleasePages @($null) -CandidateTag $candidate.Tag } 'malformed null release page'
+    Assert-Throws { Assert-M14NoExistingRelease -ReleasePages @(@([pscustomobject]@{ tag_name = $candidate.Tag })) -CandidateTag $candidate.Tag } 'malformed release entry'
     Assert-Condition ((Get-M14DraftReleaseId -ReleasePages @(@($draft)) -CandidateTag $candidate.Tag -ExpectedSourceSha $sha) -eq 12345) 'the draft-aware release list must select one numeric Release ID.'
     Assert-Throws { Get-M14DraftReleaseId -ReleasePages @() -CandidateTag $candidate.Tag -ExpectedSourceSha $sha } 'zero draft matches'
     Assert-Throws { Get-M14DraftReleaseId -ReleasePages @(@($draft),@($draft)) -CandidateTag $candidate.Tag -ExpectedSourceSha $sha } 'duplicate draft matches across pages'
@@ -111,6 +117,26 @@ try {
         foreach ($key in $change.Keys) { $wrong.$key = $change[$key] }
         Assert-Throws { Get-M14DraftReleaseId -ReleasePages @(@($wrong)) -CandidateTag $candidate.Tag -ExpectedSourceSha $sha } "invalid draft release $($change.Keys -join ',')"
     }
+    $assetNames = @('one','two','three','four','five')
+    $draftAssets = @(for ($index = 0; $index -lt 5; $index++) { [pscustomobject]@{ id = 100 + $index; name = $assetNames[$index]; size = 1000 + $index; digest = 'sha256:' + ('a' * 64) } })
+    $publishedAssets = @($draftAssets | ForEach-Object { [pscustomobject]@{ id = $_.id; name = $_.name; size = $_.size; digest = $_.digest } })
+    Assert-M14ReleaseAssetsUnchanged -DraftAssets $draftAssets -PublishedAssets $publishedAssets -ExpectedNames $assetNames
+    $publishedAssets[0].id = 999
+    Assert-Throws { Assert-M14ReleaseAssetsUnchanged -DraftAssets $draftAssets -PublishedAssets $publishedAssets -ExpectedNames $assetNames } 'changed published asset ID'
+    $publishedAssets[0].id = $draftAssets[0].id
+    $publishedAssets[0].digest = 'sha256:' + ('b' * 64)
+    Assert-Throws { Assert-M14ReleaseAssetsUnchanged -DraftAssets $draftAssets -PublishedAssets $publishedAssets -ExpectedNames $assetNames } 'changed published asset digest'
+    $publishedAssets[0].digest = $draftAssets[0].digest
+    $publishedAssets[0].name = 'wrong-name'
+    Assert-Throws { Assert-M14ReleaseAssetsUnchanged -DraftAssets $draftAssets -PublishedAssets $publishedAssets -ExpectedNames $assetNames } 'changed published asset name'
+    $publishedAssets[0].name = $draftAssets[0].name
+    $publishedAssets[0].size = 9999
+    Assert-Throws { Assert-M14ReleaseAssetsUnchanged -DraftAssets $draftAssets -PublishedAssets $publishedAssets -ExpectedNames $assetNames } 'changed published asset size'
+    $publishedAssets[0].size = $draftAssets[0].size
+    Assert-Throws { Assert-M14ReleaseAssetsUnchanged -DraftAssets $draftAssets -PublishedAssets $publishedAssets[0..3] -ExpectedNames $assetNames } 'missing published asset'
+    Assert-M14PublishedTagTarget -TagCommit $sha -ExpectedSourceSha $sha
+    Assert-Throws { Assert-M14PublishedTagTarget -TagCommit $null -ExpectedSourceSha $sha } 'missing published tag target'
+    Assert-Throws { Assert-M14PublishedTagTarget -TagCommit ('b' * 40) -ExpectedSourceSha $sha } 'wrong published tag target'
 
     $archiveInfo = New-M14PayloadArchive -PayloadDirectory $payload -ManifestPath $manifestPath -ArchivePath $archivePath -ExpectedSourceSha $sha -ExpectedCandidateId 'C01'
     $roundTrip = Test-M14PayloadArchive -ArchivePath $archivePath -ManifestPath $manifestPath -ExtractionDirectory $extractRoot -ExpectedSourceSha $sha -ExpectedCandidateId 'C01'
@@ -152,12 +178,21 @@ try {
     Assert-Condition ($publisherScript.IndexOf('Assert-DraftReleaseAssets') -lt $publisherScript.IndexOf('draft=false')) 'assets must be verified while the release is still draft before prerelease visibility.'
     Assert-Condition ($publisherScript.Contains('Assert-M14CandidateNotPublished') -and -not $publisherScript.Contains('--clobber')) 'the release publisher must fail closed on an existing identity and never replace assets.'
     Assert-Condition ($publisherScript.Contains('/immutable-releases') -and $publisherScript.Contains('immutable')) 'publication must require and verify GitHub release immutability.'
+    $beforeCreate = $publisherScript.Substring(0,$publisherScript.IndexOf('$createOutput = & gh @createArgs'))
+    Assert-Condition ($beforeCreate.Contains('Assert-M14CandidateNotPublished') -and
+        $beforeCreate.Contains('$preflightReleasePages = @(Invoke-GhJson') -and
+        $beforeCreate.Contains('Assert-M14NoExistingRelease -ReleasePages $preflightReleasePages')) 'pre-creation single-use guard must include authenticated draft-aware Release enumeration.'
     $afterCreate = $publisherScript.Substring($publisherScript.IndexOf('$createOutput = & gh @createArgs'))
     Assert-Condition ($afterCreate.Contains('releases?per_page=100') -and $afterCreate.Contains("'--paginate','--slurp'") -and
         $afterCreate.Contains('Get-M14DraftReleaseId -ReleasePages $releasePages') -and
         -not $afterCreate.Contains('releases/tags/')) 'post-create draft lookup must use the authenticated paginated list rather than the published-tag endpoint.'
     Assert-Condition ($afterCreate.Contains('Assert-DraftReleaseAssets -Release $draftRelease -ReleaseId $draftId') -and
         [regex]::Matches($afterCreate,'repos/\$Repository/releases/\$draftId').Count -ge 3) 'selected draft must be re-fetched, patched and finally verified by numeric Release ID.'
+    Assert-Condition ($afterCreate.IndexOf('Assert-DraftReleaseAssets -Release $draftRelease -ReleaseId $draftId') -lt $afterCreate.IndexOf("'draft=false'") -and
+        $afterCreate.IndexOf('$publishedAgain = Invoke-GhJson') -lt $afterCreate.IndexOf('$tagCommit = Get-TagTargetCommit') -and
+        $afterCreate.IndexOf('if ($publishedAgain.immutable -ne $true)') -lt $afterCreate.IndexOf('$tagCommit = Get-TagTargetCommit') -and
+        $afterCreate.IndexOf('Assert-M14ReleaseAssetsUnchanged') -lt $afterCreate.IndexOf('$tagCommit = Get-TagTargetCommit') -and
+        $afterCreate.Contains('Assert-M14PublishedTagTarget -TagCommit $tagCommit')) 'an absent draft Git ref must be tolerated before PATCH; exact tag target and five asset identities must be verified only after publication.'
     Assert-Condition ($publisherScript.Contains('exactly the five required candidate assets') -and
         $publisherScript.Contains('uploaded asset digest differs') -and
         $publisherScript.Contains('Get-TagTargetCommit') -and

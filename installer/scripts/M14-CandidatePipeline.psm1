@@ -275,6 +275,38 @@ function Assert-M14CandidateNotPublished {
     if ($TagExists -or $ReleaseExists) { throw "Candidate '$CandidateTag' already has a tag or release; candidate identities are single-use and cannot be overwritten." }
 }
 
+function Get-M14CandidateReleaseMatches {
+    [CmdletBinding()]
+    param([AllowEmptyCollection()][object[]]$ReleasePages,[Parameter(Mandatory = $true)][string]$CandidateTag)
+    foreach ($page in $ReleasePages) {
+        if ($null -eq $page) { throw 'Authenticated release list contains a null page.' }
+        foreach ($release in @($page)) {
+            if ($null -eq $release -or $null -eq $release.PSObject.Properties['tag_name'] -or
+                $null -eq $release.PSObject.Properties['id'] -or
+                $null -eq $release.PSObject.Properties['draft'] -or
+                $null -eq $release.PSObject.Properties['prerelease'] -or
+                $release.tag_name -isnot [string] -or [string]::IsNullOrWhiteSpace($release.tag_name) -or
+                $release.draft -isnot [bool] -or $release.prerelease -isnot [bool]) {
+                throw 'Authenticated release list contains a malformed release.'
+            }
+            $releaseId = [long]0
+            if (-not [long]::TryParse([string]$release.id,[ref]$releaseId) -or $releaseId -le 0) {
+                throw 'Authenticated release list contains an invalid Release ID.'
+            }
+            if ($release.tag_name -ceq $CandidateTag) { $release }
+        }
+    }
+}
+
+function Assert-M14NoExistingRelease {
+    [CmdletBinding()]
+    param([AllowEmptyCollection()][object[]]$ReleasePages,[Parameter(Mandatory = $true)][string]$CandidateTag)
+    $matches = @(Get-M14CandidateReleaseMatches -ReleasePages $ReleasePages -CandidateTag $CandidateTag)
+    if ($matches.Count -ne 0) {
+        throw "Candidate '$CandidateTag' already has $($matches.Count) draft or published Releases; refusing another draft."
+    }
+}
+
 function Get-M14DraftReleaseId {
     [CmdletBinding()]
     param(
@@ -283,13 +315,7 @@ function Get-M14DraftReleaseId {
         [Parameter(Mandatory = $true)][string]$ExpectedSourceSha
     )
     if ($ExpectedSourceSha -cnotmatch '^[0-9a-f]{40}$') { throw 'Draft release lookup requires an exact lowercase source SHA.' }
-    $matches = @(
-        foreach ($page in $ReleasePages) {
-            foreach ($release in @($page)) {
-                if ($null -ne $release -and $release.tag_name -ceq $CandidateTag) { $release }
-            }
-        }
-    )
+    $matches = @(Get-M14CandidateReleaseMatches -ReleasePages $ReleasePages -CandidateTag $CandidateTag)
     if ($matches.Count -ne 1) {
         throw "Draft release lookup found $($matches.Count) releases for '$CandidateTag'; expected exactly one."
     }
@@ -302,4 +328,32 @@ function Get-M14DraftReleaseId {
     [long]$draft.id
 }
 
-Export-ModuleMember -Function Get-M14CandidateIdentity,Get-M14DispatchTagIdentity,Assert-M14SafePayloadPath,Get-M14PayloadEntries,Get-M14PayloadTreeHash,New-M14PayloadManifest,Test-M14PayloadManifest,New-M14PayloadArchive,Test-M14PayloadArchive,New-M14PreProdStagingPayload,Assert-M14CandidateNotPublished,Get-M14DraftReleaseId
+function Assert-M14ReleaseAssetsUnchanged {
+    [CmdletBinding()]
+    param([object[]]$DraftAssets,[object[]]$PublishedAssets,[string[]]$ExpectedNames)
+    if ($DraftAssets.Count -ne $ExpectedNames.Count -or $PublishedAssets.Count -ne $ExpectedNames.Count) {
+        throw 'Published release asset count differs from the verified draft.'
+    }
+    $names = @($ExpectedNames | Sort-Object -Culture en-US -CaseSensitive)
+    $draft = @($DraftAssets | Sort-Object -Property name -Culture en-US -CaseSensitive)
+    $published = @($PublishedAssets | Sort-Object -Property name -Culture en-US -CaseSensitive)
+    for ($index = 0; $index -lt $names.Count; $index++) {
+        if ($draft[$index].name -cne $names[$index] -or $published[$index].name -cne $names[$index] -or
+            [long]$draft[$index].id -le 0 -or [long]$published[$index].id -ne [long]$draft[$index].id -or
+            [long]$draft[$index].size -le 0 -or [long]$published[$index].size -ne [long]$draft[$index].size -or
+            [string]$draft[$index].digest -cnotmatch '^sha256:[0-9a-f]{64}$' -or
+            [string]$published[$index].digest -cne [string]$draft[$index].digest) {
+            throw "Published release asset identity differs from the verified draft for '$($names[$index])'."
+        }
+    }
+}
+
+function Assert-M14PublishedTagTarget {
+    [CmdletBinding()]
+    param([string]$TagCommit,[Parameter(Mandatory = $true)][string]$ExpectedSourceSha)
+    if ($TagCommit -cnotmatch '^[0-9a-f]{40}$' -or $TagCommit -cne $ExpectedSourceSha) {
+        throw 'Published candidate Git tag does not resolve to the exact source SHA.'
+    }
+}
+
+Export-ModuleMember -Function Get-M14CandidateIdentity,Get-M14DispatchTagIdentity,Assert-M14SafePayloadPath,Get-M14PayloadEntries,Get-M14PayloadTreeHash,New-M14PayloadManifest,Test-M14PayloadManifest,New-M14PayloadArchive,Test-M14PayloadArchive,New-M14PreProdStagingPayload,Assert-M14CandidateNotPublished,Get-M14CandidateReleaseMatches,Assert-M14NoExistingRelease,Get-M14DraftReleaseId,Assert-M14ReleaseAssetsUnchanged,Assert-M14PublishedTagTarget

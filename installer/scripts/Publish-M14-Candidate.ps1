@@ -159,7 +159,8 @@ if ($null -eq $immutableSetting -or $immutableSetting.enabled -ne $true) {
 $ref = Invoke-GhJson -Arguments @('api',"repos/$Repository/git/ref/tags/$($identity.Tag)") -AllowNotFound
 $existingRelease = Invoke-GhJson -Arguments @('api',"repos/$Repository/releases/tags/$($identity.Tag)") -AllowNotFound
 Assert-M14CandidateNotPublished -CandidateTag $identity.Tag -TagExists:($null -ne $ref) -ReleaseExists:($null -ne $existingRelease)
-if ($null -ne $ref -or $null -ne $existingRelease) { throw 'Candidate identity preflight was not clear; refusing publication.' }
+$preflightReleasePages = @(Invoke-GhJson -Arguments @('api',"repos/$Repository/releases?per_page=100",'--paginate','--slurp'))
+Assert-M14NoExistingRelease -ReleasePages $preflightReleasePages -CandidateTag $identity.Tag
 
 $assetPaths = @($verifiedAssets.Names | ForEach-Object { Join-Path $candidateRoot $_ })
 $notes = @(
@@ -180,8 +181,6 @@ $releasePages = @(Invoke-GhJson -Arguments @('api',"repos/$Repository/releases?p
 $draftId = Get-M14DraftReleaseId -ReleasePages $releasePages -CandidateTag $identity.Tag -ExpectedSourceSha $ExpectedSourceSha
 $draftRelease = Invoke-GhJson -Arguments @('api',"repos/$Repository/releases/$draftId")
 $null = Assert-DraftReleaseAssets -Release $draftRelease -ReleaseId $draftId -Names $verifiedAssets.Names -VerificationDirectory $verificationDirectory
-$tagCommit = Get-TagTargetCommit -Tag $identity.Tag
-if ($tagCommit -cne $ExpectedSourceSha) { throw "Candidate tag resolves to '$tagCommit' instead of the exact source SHA." }
 
 $published = Invoke-GhJson -Arguments @('api','--method','PATCH',"repos/$Repository/releases/$draftId",'-F','draft=false','-F','prerelease=true','-f','make_latest=false')
 if ([long]$published.id -ne $draftId -or $published.draft -ne $false -or
@@ -197,6 +196,9 @@ if ([long]$publishedAgain.id -ne $draftId -or $publishedAgain.tag_name -cne $ide
 if ($publishedAgain.immutable -ne $true) {
     throw 'GitHub published the candidate but did not mark it immutable; no release/tag/asset mutation will be attempted.'
 }
+$null = Assert-M14ReleaseAssetsUnchanged -DraftAssets @($draftRelease.assets) -PublishedAssets @($publishedAgain.assets) -ExpectedNames $verifiedAssets.Names
+$tagCommit = Get-TagTargetCommit -Tag $identity.Tag
+Assert-M14PublishedTagTarget -TagCommit $tagCommit -ExpectedSourceSha $ExpectedSourceSha
 $latestRelease = Invoke-GhJson -Arguments @('api',"repos/$Repository/releases/latest") -AllowNotFound
 $isLatest = $null -ne $latestRelease -and [long]$latestRelease.id -eq [long]$publishedAgain.id
 if ($publishedAgain.draft -ne $false -or $publishedAgain.prerelease -ne $true -or $isLatest) {

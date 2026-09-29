@@ -88,6 +88,13 @@
 - Deterministic self-tests cover zero, duplicate, wrong-tag, wrong-source, non-draft, non-prerelease and invalid-ID selections, plus the ID-based publication path and retained asset, digest, immutable, non-latest and no-overwrite guards.
 - Exact-head CI, fresh build-only C01 artifact, owner credential preflight, throwaway draft probe and final C01 publication are separate execution evidence recorded in the matching `CODEX_DONE`. The older C01 artifact remains historical and is not eligible for publication after this source change.
 
+### WP5 C01 draft/tag recovery — R6 implementation
+
+- Handoff: `M14-WP5-DRAFT-TAG-PUBLISH-RECOVERY-05R6` (PR #30 comment `5879243186`), start head `3f168196189c413a91be4f1bd66d265992beb373`.
+- The exact unpublished R5 partial draft Release ID `398641742` was reverified against its tag, source, draft/prerelease/mutable/unpublished state and all five asset IDs, names, bytes and digests, then deleted under this handoff's explicit recovery authorization. Numeric Release, published tag and Git ref returned 404 afterward; the authenticated Releases list contained zero C01 entries. No tag was deleted.
+- The publisher now guards against an existing draft or published Release using the authenticated paginated list before creation, and fails closed on malformed or duplicate list entries. A newly created draft is verified by numeric ID and five assets without requiring a Git ref. After PATCH and numeric re-fetch confirm an immutable prerelease with unchanged asset IDs/names/bytes/digests, the Git tag must resolve to the exact source SHA. Non-latest and single-use guards remain.
+- Deterministic self-tests cover the draft-aware preflight, duplicate/malformed states, missing or wrong post-publication tag target, unchanged asset identities and the required verification order. Fresh exact-head CI, candidate artifact and final publication evidence are recorded in the matching `CODEX_DONE`; older artifacts are historical only.
+
 ## Rules
 
 - Each Codex package is authorized only by its exact PR `CODEX_HANDOFF_READY` record.
