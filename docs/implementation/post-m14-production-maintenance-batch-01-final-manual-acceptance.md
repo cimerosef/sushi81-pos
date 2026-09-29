@@ -40,7 +40,7 @@ Also confirm letter-suffixed codes remain sensible, for example `R4, R4a, R4b, R
 
 **Owner result:** NOT RUN.
 
-## D — customer-ticket discount
+## D — printing improvements
 
 Create or use a PREPROD Retrait order where the Retrait discount is actually applied.
 
@@ -58,6 +58,13 @@ Then settle the same PREPROD test order and explicitly reprint the customer tick
 - confirm `DUPLICATA` and `*** PREPROD ***` remain visible.
 
 A no-discount order must not display a false discount line.
+
+Then inspect kitchen output:
+
+- print an ordinary PREPROD kitchen ticket and confirm the area after the final `TOTAL` contains approximately three blank writable lines before the paper ends;
+- explicitly reprint the kitchen ticket and confirm the same handwriting space remains together with `RÉIMPRESSION`;
+- confirm `*** PREPROD ***` remains visible;
+- confirm the customer ticket has not gained this kitchen-only blank writing area.
 
 **Owner result:** NOT RUN.
 
