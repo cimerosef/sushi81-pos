@@ -61,3 +61,10 @@ Handoff: `POST-M14-PM01-WP3-NATURAL-PRODUCT-CODE-ORDER-03`, starting at controll
 Unit regressions cover the approved R/ML/R4a code families, mixed case, multi-run codes, leading-zero/equal-natural-value ties, exact ties and digit runs beyond Int64. Synthetic SQLite integration checks unfiltered, active/inactive, category, name search and code search results, Catalogue/Caisse service agreement, and preservation of product values and IDs. Focused/full Release tests, build, diff check and exact-head CI are recorded in the matching PR `CODEX_DONE`.
 
 WP4–WP5, real Production data, Production deployment and merge remain outside this package.
+
+
+## 2026-09-29 — owner-approved WP4 printing scope extension
+
+While WP3 was executing, the owner added one small printing optimization to the same batch: kitchen tickets should leave approximately three writable blank lines after the final `TOTAL` so staff can handwrite information after printing.
+
+Controller classification: this is a protected business-facing printing-layout change, so it is recorded explicitly in the Approved decision, acceptance amendment, implementation contract, authorization and final PREPROD checklist before WP4 execution. It is grouped into WP4 with the already-approved customer-ticket Retrait discount line. Customer tickets do not receive the kitchen handwriting spacer. The change remains computer-A PREPROD acceptance only and does not touch pairing/authority/handoff/DR or the M14/M12 deferred obligations.
