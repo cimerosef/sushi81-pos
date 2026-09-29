@@ -20,7 +20,7 @@
 | WP2 — dual installer coexistence | Passed | Accepted head `43adce6a9a59b235c8083ab750be9c393e303a31`; controller comment `5860094105`; exact-head CI #933 / run `36352059967` SUCCESS; artifact `10942766694` |
 | WP3 — initial PROD→PREPROD seed | Passed | Accepted head `c1fefff86acc4b9e23c1f2020b09486a1300997a`; controller comment `5860855082`; exact-head CI #939 / run `36358293220` SUCCESS |
 | WP4 — remote environment isolation | Passed | Accepted head `260569d245b348d3a0eb4d92eaf0543f31510cc5`; controller comment `5861273369`; exact-head CI #945 / run `36361546258` SUCCESS |
-| WP5 — immutable GitHub candidate pipeline | Implemented; exact-head Actions/C01 publication and controller acceptance pending | — |
+| WP5 — immutable GitHub candidate pipeline | Passed | Accepted source/release head `95e2ead7d95af5fb47f6b162fde4d22d8ea47d82`; controller comment `5886517441`; push CI #958 / PR CI #959 SUCCESS; immutable C01 Release `398945249` / tag `v1.0.1-preprod-c01` |
 | WP6 — production promotion pipeline | Not started | — |
 | WP7 — owner two-PC acceptance/closure | Not started | — |
 
@@ -94,6 +94,8 @@
 - The exact unpublished R5 partial draft Release ID `398641742` was reverified against its tag, source, draft/prerelease/mutable/unpublished state and all five asset IDs, names, bytes and digests, then deleted under this handoff's explicit recovery authorization. Numeric Release, published tag and Git ref returned 404 afterward; the authenticated Releases list contained zero C01 entries. No tag was deleted.
 - The publisher now guards against an existing draft or published Release using the authenticated paginated list before creation, and fails closed on malformed or duplicate list entries. A newly created draft is verified by numeric ID and five assets without requiring a Git ref. After PATCH and numeric re-fetch confirm an immutable prerelease with unchanged asset IDs/names/bytes/digests, the Git tag must resolve to the exact source SHA. Non-latest and single-use guards remain.
 - Deterministic self-tests cover the draft-aware preflight, duplicate/malformed states, missing or wrong post-publication tag target, unchanged asset identities and the required verification order. Fresh exact-head CI, candidate artifact and final publication evidence are recorded in the matching `CODEX_DONE`; older artifacts are historical only.
+
+- Controller accepted WP5 after independent live verification in PR #30 comment `5886517441`. Final immutable C01 Release ID `398945249`, tag `v1.0.1-preprod-c01`, points directly to source `95e2ead7d95af5fb47f6b162fde4d22d8ea47d82`; draft=false, prerelease=true, immutable=true, and all five release-asset IDs/digests match the fresh exact-head candidate evidence. WP5 is Passed; WP6 may consume only this immutable accepted candidate/payload for promotion.
 
 ## Rules
 
