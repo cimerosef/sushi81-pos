@@ -2,7 +2,7 @@
 
 **Status:** Active implementation control document  
 **Last updated:** 2026-09-29
-**Current state:** M01 through M13 and the independent post-M09 dashboard enhancement are Passed and merged. Current authoritative `main` is M13 merge commit `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. M12 real populated-archive verification remains DEFERRED-NOT-M13. M14 — PreProd Foundation and immutable release promotion — is **Accepted under waiver / closure-ready** on Draft PR #30: owner manual acceptance on computer A and controller acceptance of WP1–WP6 are recorded; the real two-PC PREPROD pairing/handoff remains deferred under the Approved 2026-09-29 single-PC waiver, not Passed. Final controller closure and any separate merge approval remain pending. No stable Release or Production deployment has occurred.
+**Current state:** M01 through M13 and the independent post-M09 dashboard enhancement are Passed/merged. M14 — PreProd Foundation and immutable release promotion — is **Accepted under waiver / merged** through PR #30 at `71024888a9cfd08109496ad076002be96e708c1a`. The real two-PC PREPROD pairing/handoff/acquisition remains DEFERRED UNDER OWNER WAIVER — NOT PASSED; PREPROD remains computer-A-only and computer B remains Production-only. M12 real populated-archive verification remains separately deferred. Post-M14 Production Maintenance Batch 01 is OWNER-AUTHORIZED on Draft PR #31; WP1 duplicate-add repair is the first executable package and no Production deployment or merge is authorized.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -40,15 +40,16 @@
 | M11 — Gestion intermediate export | Passed | PR #24 CLOSED/MERGED at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831, 0 failed, 0 skipped and Release build 0 warnings/errors. |
 | M12 — Annual archive/historical access | Accepted under waiver / merged | PR #25 CLOSED/MERGED at `f59663c6b47ab21114c24360544e4e25094f4722`. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3`; exact-head CI #862 / run `36021889765` succeeded with 881/881, 0 failed/skipped and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test succeeded. Real populated-archive operational verification remains explicitly deferred under the owner waiver and is not claimed Passed. |
 | M13 — Installer and final acceptance | Passed / merged | PR #26 CLOSED/MERGED at `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. Accepted production application remains source `469c8761061b0ecf488e06386a97b9e10652a916`; CI #912 / `36253271385`, 932/932 tests; installer artifact `10909188508`. |
-| M14 — PreProd Foundation and immutable release promotion | Accepted under waiver / closure-ready; PR open/unmerged | Owner A-only manual evidence accepted; WP1–WP6 controller-accepted. Immutable C01 Release `398945249` remains the PREPROD candidate; WP6 exact-head `1c73999c323dba593e3279f47c54a6174638b23d`, CI #963 / run `36546336521`, promotion artifact `11022832475` are evidence only. Two-PC PREPROD pairing/handoff is deferred under the 2026-09-29 owner waiver, not Passed. Final controller closure and merge approval remain separate. |
+| M14 — PreProd Foundation and immutable release promotion | Accepted under waiver / merged | PR #30 CLOSED/MERGED at `71024888a9cfd08109496ad076002be96e708c1a`. Immutable C01 Release `398945249` and WP6 exact-head `1c73999c323dba593e3279f47c54a6174638b23d`, CI #963 / run `36546336521`, promotion artifact `11022832475` remain accepted evidence. Two-PC PREPROD pairing/handoff/acquisition remains deferred under owner waiver, not Passed. |
+| Post-M14 Production Maintenance Batch 01 | Authorized / PR open | Draft PR #31 on `codex/post-m14-production-maintenance-batch-01`; owner-approved scope is duplicate-add repair, cart auto-reveal, natural code order, customer-ticket Retrait discount line, then integrated PREPROD candidate. WP1 first; Issue #4 controls execution. |
 
 ## 3. Current merged baseline
 
 Current authoritative `main`:
 
-`6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`
+`71024888a9cfd08109496ad076002be96e708c1a`
 
-This is PR #26's M13 merge commit.
+This is PR #30's M14 merge commit.
 
 M12 closure facts:
 
@@ -61,16 +62,16 @@ M12 closure facts:
 - first safe real verification point remains an authoritative startup on or after 2027-02-01 with real 2026 rows;
 - archive failure must continue to fail safe without silent eligible-live-row deletion.
 
-## 3.1 M14 current authorization record
+## 3.1 M14 final merged state
 
 - owner approval/freeze: 2026-09-27;
 - start baseline: `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`;
 - implementation branch: `codex/m14-preprod-foundation-authorized`;
 - scope: permanent Prod/PreProd isolation, safe initial seed, independent runtime transport/DR configuration, dual installers, immutable GitHub candidate payload and no-rebuild production promotion;
 - explicitly excluded: post-launch business bug fixes, repeated automatic Prod→PreProd refresh, automatic production deployment, M12 deferred populated-archive verification;
-- execution remains controlled by the active M14 PR mailbox and Issue #4.
+- PR #30 is CLOSED/MERGED at `71024888a9cfd08109496ad076002be96e708c1a`; Issue #4 is no longer an M14 execution pointer.
 
-Current M14 closure line: WP7 owner checklist A, B, C, D and F passed on PREPROD computer A; G was controller-accepted with WP6 evidence. Checklist E, the real second-PREPROD-device pairing and A→B target-directed handoff, is **DEFERRED UNDER OWNER WAIVER**. PREPROD currently exists only on A; B remains Production-only. The deferred verification is mandatory before a second PREPROD device is introduced or before accepting material multi-device pairing/authority-handoff/target-acquisition/DR/OneDrive/GitHub coordination changes. The waiver changes acceptance practice, not M07 runtime semantics. See the Approved M14 decision amendment, acceptance amendment and final manual acceptance record. M12 populated real annual-archive verification remains a separate deferred obligation.
+Current M14 closure line: M14 is **Accepted under waiver / merged**. WP7 owner checklist A, B, C, D and F passed on PREPROD computer A; G was controller-accepted with WP6 evidence. Checklist E, the real second-PREPROD-device pairing and A→B target-directed handoff/acquisition, is **DEFERRED UNDER OWNER WAIVER — NOT PASSED**. PREPROD currently exists only on A; B remains Production-only. The deferred verification is mandatory before a second PREPROD device is introduced or before accepting material multi-device pairing/authority-handoff/target-acquisition/DR/OneDrive/GitHub coordination changes. The waiver changes acceptance practice, not M07 runtime semantics. M12 populated real annual-archive verification remains a separate deferred obligation.
 
 Controlling records:
 
@@ -81,6 +82,27 @@ Controlling records:
 - `implementation/milestone-14-final-manual-acceptance.md`;
 - `implementation/milestone-14-worklog.md`;
 - `implementation/milestone-14-authorization.md`.
+
+## 3.2 Post-M14 Production Maintenance Batch 01
+
+- owner authorization: granted 2026-09-29;
+- baseline: `71024888a9cfd08109496ad076002be96e708c1a`;
+- branch: `codex/post-m14-production-maintenance-batch-01`;
+- Draft PR/mailbox: #31;
+- WP order: duplicate-add repair -> cart auto-reveal -> natural product-code ordering -> customer-ticket Retrait discount -> integration/candidate;
+- owner acceptance target: computer A PREPROD only;
+- computer B remains Production-only;
+- M14 deferred two-PC PREPROD verification and M12 populated real archive verification remain unchanged;
+- no Production deployment or PR merge is authorized.
+
+Controlling records:
+
+- `decisions/post-m14-production-maintenance-batch-01.md`;
+- `acceptance-criteria-amendment-post-m14-production-maintenance-batch-01.md`;
+- `implementation/post-m14-production-maintenance-batch-01.md`;
+- `implementation/post-m14-production-maintenance-batch-01-worklog.md`;
+- `implementation/post-m14-production-maintenance-batch-01-final-manual-acceptance.md`;
+- `implementation/post-m14-production-maintenance-batch-01-authorization.md`.
 
 ## 4. M11 historical implementation/acceptance record
 
