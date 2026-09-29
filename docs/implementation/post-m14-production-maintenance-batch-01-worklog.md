@@ -49,3 +49,15 @@ Handoff: `POST-M14-PM01-WP2-CART-AUTO-REVEAL-02`, starting at controller-accepte
 The new STA regression opens a real Caisse window with a small cart viewport and enough lines to overflow. Before implementation it failed because a newly inserted line was not realized in the viewport. After implementation it checks two consecutive new lines are each visible by their realized `ListBoxItem` bounds, then verifies quantity change, reconfiguration, reprice and removal leave a manually restored top scroll offset unchanged; clearing the cart leaves no pending reveal or selected item. Final focused/full Release tests, build, diff check and exact-head CI are recorded in the matching PR `CODEX_DONE`.
 
 WP3–WP5, real Production data, Production deployment and merge remain outside this package.
+
+## 2026-09-29 — WP3 natural current-product code ordering
+
+Handoff: `POST-M14-PM01-WP3-NATURAL-PRODUCT-CODE-ORDER-03`, starting at controller-accepted WP2 head `499084f3cbdbbde4b3f635a678093e6048253e80`. WP1's owner-observed intermittent Production extra-add symptom remains pending computer-A PREPROD empirical verification.
+
+`NaturalProductCodeComparer` in the Application Catalogue layer compares ASCII digit runs by significant length and digits, without parsing them into bounded numeric types. Other characters compare with invariant case folding. Equal natural keys use ordinal-ignore-case raw code, then ordinal raw code as deterministic tie-breakers; for example `R001 < R01 < R1 < r1`. Exact code ties are resolved by `ProductId` in the current-product query.
+
+`SqliteCatalogueStore.ListProductsAsync` applies the comparer after its existing category, active and code/name search filters. Both `CatalogueService.ListProductsAsync` and `OrderEntryCatalogueService.ListActiveProductsAsync` consume that query; their Desktop view models copy the returned product order without re-sorting. Category order, the separate workbook snapshot/export query and import identity rules are unchanged. This is a current-product read-order change only; it does not modify rows or historical snapshots.
+
+Unit regressions cover the approved R/ML/R4a code families, mixed case, multi-run codes, leading-zero/equal-natural-value ties, exact ties and digit runs beyond Int64. Synthetic SQLite integration checks unfiltered, active/inactive, category, name search and code search results, Catalogue/Caisse service agreement, and preservation of product values and IDs. Focused/full Release tests, build, diff check and exact-head CI are recorded in the matching PR `CODEX_DONE`.
+
+WP4–WP5, real Production data, Production deployment and merge remain outside this package.

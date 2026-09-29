@@ -3,6 +3,7 @@ using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Ids;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Time;
+using Sushi81.Pos.Application.OrderEntry;
 using Sushi81.Pos.Infrastructure.Catalogue;
 using Sushi81.Pos.Infrastructure.Ids;
 using Sushi81.Pos.Infrastructure.Migrations;
@@ -152,6 +153,56 @@ public sealed class M03CatalogueIntegrationTests
         Assert.IsTrue((await service.DeleteProductAsync(productId)).Succeeded); Assert.IsNull(await service.GetProductForEditAsync(productId));
         var reused = await service.CreateProductAsync(draft with { Code = "F2", Groups = [] }); Assert.IsTrue(reused.Succeeded); Assert.AreNotEqual(productId, reused.Value);
         Assert.AreEqual(1L, await ScalarAsync(factory, "SELECT COUNT(*) FROM categories;"));
+    }
+
+    [TestMethod]
+    public async Task CurrentProductListsKeepNaturalOrderAcrossFiltersAndCaisse()
+    {
+        using var paths = new TempPaths();
+        var factory = await InitializeAsync(paths);
+        var clock = new FixedClock();
+        var store = new SqliteCatalogueStore(factory, new SqliteTransactionRunner(factory), new DeterministicIds(), clock);
+        var catalogue = new CatalogueService(store);
+        var entry = new OrderEntryCatalogueService(store);
+        var plats = (await catalogue.CreateCategoryAsync("Plats")).Value!;
+        var boissons = (await catalogue.CreateCategoryAsync("Boissons")).Value!;
+        var rows = new (string Code, string Name, Guid CategoryId, bool Active)[]
+        {
+            ("R10", "Search ten", plats.Id, true), ("R2", "Search two", plats.Id, true),
+            ("R1", "Search one", plats.Id, true), ("R9", "Inactive", plats.Id, false),
+            ("R4c", "Four c", plats.Id, true), ("R4", "Four", plats.Id, true),
+            ("R4b", "Four b", plats.Id, true), ("R4a", "Four a", plats.Id, true),
+            ("R5", "Five", plats.Id, true), ("R11", "Eleven", boissons.Id, true),
+            ("ML10", "ML ten", boissons.Id, true), ("ML2", "ML two", boissons.Id, true),
+            ("ML9", "ML nine", boissons.Id, true), ("ML1", "ML one", boissons.Id, true)
+        };
+        foreach (var row in rows)
+            Assert.IsTrue((await catalogue.CreateProductAsync(new ProductDraft(Guid.Empty, row.Code, row.Name, row.CategoryId,
+                Money.FromCents(123), 10m, row.Active, true, false, []))).Succeeded);
+
+        var all = await catalogue.ListProductsAsync();
+        var expectedAll = new[] { "ML1", "ML2", "ML9", "ML10", "R1", "R2", "R4", "R4a", "R4b", "R4c", "R5", "R9", "R10", "R11" };
+        CollectionAssert.AreEqual(expectedAll, all.Select(product => product.Code).ToArray());
+        var active = await catalogue.ListProductsAsync(active: true);
+        CollectionAssert.AreEqual(all.Where(product => product.IsActive).Select(product => product.Code).ToArray(),
+            active.Select(product => product.Code).ToArray());
+        var expectedInactive = new[] { "R9" };
+        CollectionAssert.AreEqual(expectedInactive, (await catalogue.ListProductsAsync(active: false)).Select(product => product.Code).ToArray());
+        var expectedPlats = new[] { "R1", "R2", "R4", "R4a", "R4b", "R4c", "R5", "R9", "R10" };
+        CollectionAssert.AreEqual(expectedPlats, (await catalogue.ListProductsAsync(categoryId: plats.Id)).Select(product => product.Code).ToArray());
+        var expectedNameSearch = new[] { "R1", "R2", "R10" };
+        CollectionAssert.AreEqual(expectedNameSearch, (await catalogue.ListProductsAsync(search: "Search")).Select(product => product.Code).ToArray());
+        var expectedCodeSearch = new[] { "ML1", "ML2", "ML9", "ML10" };
+        CollectionAssert.AreEqual(expectedCodeSearch, (await catalogue.ListProductsAsync(search: "ml", categoryId: boissons.Id, active: true)).Select(product => product.Code).ToArray());
+
+        // Catalogue and Caisse view models copy these service results without local reordering.
+        CollectionAssert.AreEqual(active.ToArray(), (await entry.ListActiveProductsAsync()).ToArray());
+        CollectionAssert.AreEqual((await catalogue.ListProductsAsync(search: "Search", categoryId: plats.Id, active: true)).ToArray(),
+            (await entry.ListActiveProductsAsync("Search", plats.Id)).ToArray());
+        CollectionAssert.AreEquivalent(rows.Select(row => row.Code).ToArray(), all.Select(product => product.Code).ToArray());
+        Assert.IsTrue(all.All(product => product.PriceTtc == Money.FromCents(123) && product.VatRate == 10m && product.DiscountEligible));
+        CollectionAssert.AreEquivalent(all.ToArray(), (await catalogue.ListProductsAsync()).ToArray(),
+            "Read-only ordering and filters must preserve every product value and ProductId.");
     }
 
     [TestMethod]
