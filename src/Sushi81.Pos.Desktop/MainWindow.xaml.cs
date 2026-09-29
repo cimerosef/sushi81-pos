@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
@@ -25,8 +26,10 @@ namespace Sushi81.Pos.Desktop;
 public partial class MainWindow : Window
 {
     private bool loaded;
+    private bool closed;
     private bool orderProductAddInProgress;
     private readonly Queue<(OrderEntryShellViewModel Entry, Guid ProductId)> orderProductAddQueue = new();
+    private readonly OrderEntryShellViewModel? observedCartEntry;
     private int commandesGridResizeInvocationCount;
     private int commandesGridWidthMutationCount;
     private IDisposable? performanceTraceProbe;
@@ -38,6 +41,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = viewModel;
+        observedCartEntry = viewModel.Entry;
         this.fileDialogs = fileDialogs ?? new NativeCatalogueWorkbookFileDialogs();
         if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
         ApplySelectedCultureToGestionExportDatePickers(viewModel);
@@ -126,6 +130,7 @@ public partial class MainWindow : Window
     {
         if (loaded || DataContext is not ShellViewModel viewModel || viewModel.Admin is null && viewModel.Entry is null && viewModel.GestionExportWorkflow is null && viewModel.ArchiveAccess is null) return;
         loaded = true;
+        if (observedCartEntry is not null) observedCartEntry.Cart.CollectionChanged += OnOrderCartChanged;
         performanceTraceProbe = PerformanceTrace.StartDispatcherGapProbe(Dispatcher);
         PerformanceTrace.Log("window.loaded");
         try
@@ -163,9 +168,24 @@ public partial class MainWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        closed = true;
+        if (observedCartEntry is not null) observedCartEntry.Cart.CollectionChanged -= OnOrderCartChanged;
         performanceTraceProbe?.Dispose();
         PerformanceTrace.Log("window.closed");
         (DataContext as ShellViewModel)?.Dispose();
+    }
+
+    private void OnOrderCartChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action != NotifyCollectionChangedAction.Add || e.NewItems is null) return;
+        foreach (var line in e.NewItems.OfType<OrderEntryCartLineViewModel>())
+        {
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
+            {
+                if (!closed && ReferenceEquals(sender, observedCartEntry?.Cart) && orderCartList.Items.Contains(line))
+                    orderCartList.ScrollIntoView(line);
+            }));
+        }
     }
 
     private async void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs e)

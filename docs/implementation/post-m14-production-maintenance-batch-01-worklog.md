@@ -39,3 +39,13 @@ The existing M04 grid test no longer forces a click count. A new focused STA reg
 The delayed-lookup A→B→C test proves that R1's former in-progress early return lost deliberate additions. It does not reproduce the owner's intermittent *extra* product symptom. The earlier claimed three-click duplicate reproduction was based on an impossible synthesized-event shape and is withdrawn. Whether the Production duplicate symptom is fully resolved remains subject to the integrated computer A PREPROD owner acceptance in this batch; no automated result is presented as that manual proof.
 
 R2 stays within WP1. Final focused/full Release tests, build, diff check, exact-head CI, and delivery status are recorded in the matching PR `CODEX_DONE`. WP2–WP5, real Production data, Production deployment, and merge remain outside this repair.
+
+## 2026-09-29 — WP2 cart auto-reveal implementation
+
+Handoff: `POST-M14-PM01-WP2-CART-AUTO-REVEAL-02`, starting at controller-accepted WP1 R2 head `e9438bd26f9d107db08ad580d06f594dceeeefc7`. The owner's intermittent Production extra-add symptom remains unresolved and is carried forward to the computer-A PREPROD empirical verification in WP5/final owner acceptance.
+
+`MainWindow` now observes `Entry.Cart.CollectionChanged` while loaded and detaches when closed. For an actual `Add`, it schedules one WPF Dispatcher Loaded-priority callback per inserted line and calls `orderCartList.ScrollIntoView(line)` only if that exact line is still in the list and the window remains open. The callback neither changes selection nor focus. Collection remove/reset, quantity updates, existing-line reconfiguration and repricing do not schedule a reveal. This is a UI-only presentation seam; cart, pricing and order semantics are unchanged.
+
+The new STA regression opens a real Caisse window with a small cart viewport and enough lines to overflow. Before implementation it failed because a newly inserted line was not realized in the viewport. After implementation it checks two consecutive new lines are each visible by their realized `ListBoxItem` bounds, then verifies quantity change, reconfiguration, reprice and removal leave a manually restored top scroll offset unchanged; clearing the cart leaves no pending reveal or selected item. Final focused/full Release tests, build, diff check and exact-head CI are recorded in the matching PR `CODEX_DONE`.
+
+WP3–WP5, real Production data, Production deployment and merge remain outside this package.

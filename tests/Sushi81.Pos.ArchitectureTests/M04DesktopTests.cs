@@ -680,6 +680,82 @@ public sealed class M04DesktopTests
     }
 
     [TestMethod]
+    public void CaisseCartRevealsOnlyNewlyInsertedLinesOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var product = SimpleProduct(Guid.NewGuid(), "CART", "Produit du panier", categoryId, "Plats");
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(new DesktopCatalogue(product, categoryId), new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 800, Height = 520 };
+            window.Show();
+            try
+            {
+                var caisse = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]);
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+                var cart = (ListBox)typeof(MainWindow).GetField("orderCartList", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var viewer = VisualDescendants<ScrollViewer>(cart).Single();
+
+                void FlushLayout()
+                {
+                    window.UpdateLayout();
+                    var frame = new System.Windows.Threading.DispatcherFrame();
+                    window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() => frame.Continue = false));
+                    System.Windows.Threading.Dispatcher.PushFrame(frame);
+                    window.UpdateLayout();
+                }
+
+                void AssertVisible(OrderEntryCartLineViewModel line)
+                {
+                    var container = (ListBoxItem?)cart.ItemContainerGenerator.ContainerFromItem(line);
+                    Assert.IsNotNull(container, "The newly inserted cart item must be realized.");
+                    var bounds = container.TransformToAncestor(viewer).TransformBounds(new Rect(container.RenderSize));
+                    Assert.IsGreaterThanOrEqualTo(-2D, bounds.Top, "The inserted item must enter the cart viewport.");
+                    Assert.IsLessThanOrEqualTo(viewer.ActualHeight + 2D, bounds.Bottom, "The inserted item must fit inside the cart viewport.");
+                }
+
+                for (var index = 0; index < 12; index++) entry.AddConfiguredLine(product, [], [], 1);
+                FlushLayout();
+                Assert.IsGreaterThan(0D, viewer.ScrollableHeight, "The cart must overflow before the reveal assertions.");
+                viewer.ScrollToTop();
+                FlushLayout();
+                Assert.AreEqual(0D, viewer.VerticalOffset, 0.01D);
+
+                entry.AddConfiguredLine(product, [], [], 1);
+                var firstNew = entry.Cart[^1];
+                FlushLayout();
+                AssertVisible(firstNew);
+                Assert.IsGreaterThan(0D, viewer.VerticalOffset);
+
+                entry.AddConfiguredLine(product, [], [], 1);
+                var secondNew = entry.Cart[^1];
+                FlushLayout();
+                AssertVisible(secondNew);
+
+                viewer.ScrollToTop();
+                FlushLayout();
+                entry.ChangeQuantity(entry.Cart[0], 2);
+                entry.UpdateConfiguredLine(entry.Cart[0], [], [], quantity: 3);
+                entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
+                entry.RemoveLine(entry.Cart[1]);
+                FlushLayout();
+                Assert.AreEqual(0D, viewer.VerticalOffset, 0.01D, "Edit, quantity, reprice and removal must not force a bottom jump.");
+                Assert.IsNull(cart.SelectedItem, "Auto-reveal must not change cart selection.");
+                entry.AddConfiguredLine(product, [], [], 1);
+                entry.Cart.Clear();
+                FlushLayout();
+                Assert.AreEqual(0D, viewer.VerticalOffset, 0.01D, "Clearing the cart must not leave a pending reveal.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
     public void CaisseOptionDialogConfirmAddsOnceAndCancelAddsNoneOnSta()
     {
         RunOnSta(() =>
