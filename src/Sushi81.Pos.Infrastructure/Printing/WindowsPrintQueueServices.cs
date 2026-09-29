@@ -5,6 +5,7 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Xps;
 using Sushi81.Pos.Application.Foundation.Configuration;
+using Sushi81.Pos.Application.Foundation;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Printing;
 using Sushi81.Pos.Application.Settings;
@@ -826,12 +827,13 @@ public sealed class WindowsOrderPrintDispatcher(
     IBusinessSettingsStore settings,
     ILocalConfigurationService configuration,
     IPrintDocumentSubmitter submitter,
-    IBusinessClock clock) : IOrderPrintOutcomeDispatcher
+    IBusinessClock clock,
+    DeploymentProfile? deploymentProfile = null) : IOrderPrintOutcomeDispatcher
 {
     private readonly IBusinessSettingsStore settings = settings ?? throw new ArgumentNullException(nameof(settings));
     private readonly ILocalConfigurationService configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
     private readonly IPrintDocumentSubmitter submitter = submitter ?? throw new ArgumentNullException(nameof(submitter));
-    private readonly OrderPrintDocumentFactory factory = new(clock ?? throw new ArgumentNullException(nameof(clock)));
+    private readonly OrderPrintDocumentFactory factory = new(clock ?? throw new ArgumentNullException(nameof(clock)), deploymentProfile);
 
     public async Task DispatchAsync(OrderSnapshot committedOrder, CancellationToken cancellationToken = default) =>
         _ = await DispatchInitialAsync(committedOrder, PrintIntent.InitialAutomatic, cancellationToken);

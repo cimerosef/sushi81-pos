@@ -24,13 +24,15 @@ Key recent baselines:
 
 Historical contracts/worklogs/manual-acceptance records remain authoritative in their existing files and PRs. Do not rewrite historical evidence merely to match later project state.
 
-## Current M11/M12/M13 state
+## Recent milestone state
 
 M11 Gestion intermediate export is Passed/merged through PR #24 at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831 passed, 0 failed, 0 skipped and Release build 0 warnings / 0 errors.
 
 M12 Annual archive and historical access is controller-accepted and merged through PR #25 at `f59663c6b47ab21114c24360544e4e25094f4722`. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3`; exact-head CI #862 / run `36021889765` succeeded with 881/881, 0 failed, 0 skipped and Release build 0 warnings / 0 errors; post-merge CI #863 / run `36023054757` build-and-test succeeded. Remaining real populated historical-archive checks are explicitly deferred under the owner waiver and are not claimed Passed. The first safe real verification point remains on or after 2027-02-01 for real 2026 rows.
 
-M13 is closure-ready on `codex/m13-installer-final-acceptance-authorized` / Draft PR #26. The owner confirmed repository public visibility is intentional and is not a blocker. Owner A–G evidence is PASS, including protected in-app reset, guide-led B setup, normal A→B production cutover and B catalogue VAT repair. B is authoritative/writable; A is read-only. Accepted production source `469c8761061b0ecf488e06386a97b9e10652a916`, exact-head CI #912 / run `36253271385` (932/932 tests), installer artifact `10909188508` / `Sushi81-POS-production-installer-win-x64-1.0.0-469c876`. Final controller review and separate owner merge approval remain; PR #26 is OPEN/unmerged. M12 real populated-archive verification remains DEFERRED-NOT-M13, not Passed.
+M13 is Passed/merged through PR #26 at `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. Owner A–G evidence included protected in-app reset, guide-led B setup, normal A→B production cutover and B catalogue VAT repair. B is authoritative/writable; A is read-only. Accepted production source `469c8761061b0ecf488e06386a97b9e10652a916`, exact-head CI #912 / run `36253271385` (932/932 tests), installer artifact `10909188508` / `Sushi81-POS-production-installer-win-x64-1.0.0-469c876`. M12 real populated-archive verification remains DEFERRED-NOT-M13, not Passed.
+
+M14 is **Accepted under waiver / closure-ready** on open Draft PR #30. PREPROD owner acceptance was completed on computer A, and WP1–WP6 are controller-accepted; WP6 exact-head CI #963 / run `36546336521` and artifact `11022832475` prove immutable C01-to-Production payload promotion without deployment. The owner-approved single-PC model leaves computer B Production-only. Real two-PC PREPROD pairing/handoff remains **deferred, not Passed**, until a second PREPROD device or material multi-device change requires it. Controller closure and separate merge approval remain pending. See `milestone-14-final-manual-acceptance.md`, `milestone-14-worklog.md` and the Approved M14 decision/acceptance amendments.
 
 ## Historical M10 preparation — Catalogue `.xlsx` import/export
 

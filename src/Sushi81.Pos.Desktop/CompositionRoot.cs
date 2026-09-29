@@ -20,6 +20,8 @@ using Sushi81.Pos.Application.Foundation.Configuration;
 using Sushi81.Pos.Application.Foundation.Recovery;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
+using System.Resources;
+using System.Text.Json;
 using System.IO;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.GitHubTransport;
@@ -28,6 +30,7 @@ using Sushi81.Pos.Infrastructure.Printing;
 using Sushi81.Pos.Application.Export;
 using Sushi81.Pos.Application.Archive;
 using Sushi81.Pos.Application.Maintenance;
+using Sushi81.Pos.Application.Foundation;
 using Sushi81.Pos.Infrastructure.Export;
 using Sushi81.Pos.Infrastructure.Archive;
 
@@ -36,8 +39,29 @@ namespace Sushi81.Pos.Desktop;
 public static partial class CompositionRoot
 {
     private static RollingFileLoggerProvider? loggerProvider;
+    private static readonly ResourceManager StartupResources = new("Sushi81.Pos.Desktop.Properties.Resources", typeof(CompositionRoot).Assembly);
 
-    public static Task StartAsync(System.Windows.Application application) => StartAsync(application, new WindowsAppPaths());
+    public static Task StartAsync(System.Windows.Application application)
+    {
+        ArgumentNullException.ThrowIfNull(application);
+        DeploymentProfile profile;
+        try
+        {
+            profile = DeploymentProfileResolver.ResolveForCurrentProcess();
+        }
+        catch (DeploymentProfileResolutionException exception)
+        {
+            System.Windows.MessageBox.Show(
+                exception.Message,
+                "Sushi81 POS",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
+            application.Shutdown(-1);
+            return Task.CompletedTask;
+        }
+
+        return StartWithPreProductionSeedChoiceAsync(application, new WindowsAppPaths(profile));
+    }
 
     internal static async Task StartAsync(System.Windows.Application application, IAppPaths paths)
     {
@@ -84,7 +108,7 @@ public static partial class CompositionRoot
             configurationService = new JsonLocalConfigurationService(paths);
             configuration = await configurationService.LoadAsync();
             authorityStateStore = new JsonAuthorityStateStore(paths);
-            m07Setup = new M07ConfigurationSetupService(configurationService, authorityStateStore);
+            m07Setup = new M07ConfigurationSetupService(configurationService, authorityStateStore, paths);
             _ = CultureInfo.GetCultureInfo(configuration.UiCulture);
             cultureStore = new ConfigurationSelectedCultureStore(configuration, configurationService);
 
@@ -182,7 +206,8 @@ public static partial class CompositionRoot
                 settingsStore,
                 configurationService,
                 new WindowsPrintDocumentSubmitter(),
-                clock);
+                clock,
+                paths.Profile);
             printService = new OrderPrintApplicationService(orderStore, printDispatcher);
             archivedOrderPrintService = new ArchivedOrderPrintApplicationService(printDispatcher);
             printerSetup = new PrinterSetupViewModel(configuration, configurationService, new WindowsPrintQueueCatalog(), operationDiagnostics);
@@ -280,7 +305,8 @@ public static partial class CompositionRoot
              annualArchiveAccess,
              archivedOrderPrintService,
              operationDiagnostics,
-             businessDataResetService);
+             businessDataResetService,
+             paths.Profile);
         var window = new MainWindow(
             viewModel,
             recoverySchedulerDisposable,
@@ -297,6 +323,102 @@ public static partial class CompositionRoot
         };
         window.Show();
     }
+
+    private static async Task StartWithPreProductionSeedChoiceAsync(System.Windows.Application application, WindowsAppPaths paths)
+    {
+        if (!paths.Profile.IsPreProduction)
+        {
+            await StartAsync(application, paths);
+            return;
+        }
+
+        var seedService = new InitialProductionSeedService(paths);
+        if (!seedService.IsOfferEligible())
+        {
+            await StartAsync(application, paths);
+            return;
+        }
+
+        var culture = ReadSeedPromptCulture(paths);
+        var title = SeedText("PreProductionSeedTitle", culture);
+        var choice = System.Windows.MessageBox.Show(
+            SeedText("PreProductionSeedOffer", culture),
+            title,
+            System.Windows.MessageBoxButton.YesNoCancel,
+            System.Windows.MessageBoxImage.Question);
+        if (choice == System.Windows.MessageBoxResult.No)
+        {
+            await StartAsync(application, paths);
+            return;
+        }
+        if (choice != System.Windows.MessageBoxResult.Yes)
+        {
+            application.Shutdown(-1);
+            return;
+        }
+
+        var confirmation = System.Windows.MessageBox.Show(
+            SeedText("PreProductionSeedConfirm", culture),
+            title,
+            System.Windows.MessageBoxButton.YesNo,
+            System.Windows.MessageBoxImage.Warning);
+        if (confirmation != System.Windows.MessageBoxResult.Yes)
+        {
+            application.Shutdown(-1);
+            return;
+        }
+
+        var result = await seedService.SeedAsync();
+        if (!result.Succeeded)
+        {
+            var reasonKey = result.Status switch
+            {
+                InitialProductionSeedStatus.ProductionRunningOrUnknown => "PreProductionSeedFailureProcess",
+                InitialProductionSeedStatus.TargetNotPristine => "PreProductionSeedFailureTarget",
+                InitialProductionSeedStatus.SourceMissing => "PreProductionSeedFailureSourceMissing",
+                InitialProductionSeedStatus.MigrationFailed => "PreProductionSeedFailureMigration",
+                InitialProductionSeedStatus.InstallFailed => "PreProductionSeedFailureInstall",
+                _ => "PreProductionSeedFailureSourceInvalid"
+            };
+            var reason = SeedText(reasonKey, culture);
+            System.Windows.MessageBox.Show(
+                string.Format(culture, SeedText("PreProductionSeedFailure", culture), reason),
+                title,
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Error);
+            application.Shutdown(-1);
+            return;
+        }
+
+        System.Windows.MessageBox.Show(SeedText("PreProductionSeedSuccess", culture), title, System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+        await StartAsync(application, paths);
+    }
+
+    private static CultureInfo ReadSeedPromptCulture(WindowsAppPaths paths)
+    {
+        var cultureName = "fr-FR";
+        var settingsPath = Path.Combine(paths.ConfigDirectory, "local-settings.json");
+        try
+        {
+            if (File.Exists(settingsPath))
+            {
+                using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
+                if (document.RootElement.TryGetProperty("uiCulture", out var cultureElement)
+                    && cultureElement.ValueKind == JsonValueKind.String
+                    && string.Equals(cultureElement.GetString(), "zh-CN", StringComparison.OrdinalIgnoreCase))
+                    cultureName = "zh-CN";
+            }
+        }
+        catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
+        {
+            // Eligibility already fails closed for unreadable local configuration.
+        }
+        return CultureInfo.GetCultureInfo(cultureName);
+    }
+
+    private static string SeedText(string key, CultureInfo culture)
+        => StartupResources.GetString(key, culture)
+            ?? throw new InvalidOperationException($"Missing startup resource '{key}'.");
 
     [LoggerMessage(EventId = 1100, Level = LogLevel.Information, Message = "Foundation startup completed.")]
     private static partial void LogFoundationStartupSucceeded(ILogger logger);

@@ -167,9 +167,16 @@ public interface IPrintQueueCatalog
     Task<IReadOnlyList<PrintQueueInfo>> ListAsync(CancellationToken cancellationToken = default);
 }
 
-public sealed class OrderPrintDocumentFactory(IBusinessClock clock)
+public sealed class OrderPrintDocumentFactory
 {
-    private readonly IBusinessClock clock = clock ?? throw new ArgumentNullException(nameof(clock));
+    private readonly IBusinessClock clock;
+    private readonly DeploymentProfile deploymentProfile;
+
+    public OrderPrintDocumentFactory(IBusinessClock clock, DeploymentProfile? deploymentProfile = null)
+    {
+        this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        this.deploymentProfile = deploymentProfile ?? DeploymentProfile.Production;
+    }
 
     public OrderPrintDocument Create(OrderSnapshot order, ReceiptIdentity identity, PrintDocumentKind kind, PrintIntent intent)
     {
@@ -265,8 +272,9 @@ public sealed class OrderPrintDocumentFactory(IBusinessClock clock)
         return new(blocks);
     }
 
-    private static void AddMarkings(List<PrintReceiptBlock> blocks, OrderSnapshot order, PrintDocumentKind kind, PrintIntent intent)
+    private void AddMarkings(List<PrintReceiptBlock> blocks, OrderSnapshot order, PrintDocumentKind kind, PrintIntent intent)
     {
+        if (deploymentProfile.IsPreProduction) blocks.Add(new(PrintReceiptBlockKind.Marker, "*** PREPROD ***"));
         if (order.Status == OrderStatus.Cancelled) blocks.Add(new(PrintReceiptBlockKind.Marker, "ANNULÉ"));
         if (intent == PrintIntent.ExplicitReprint)
             blocks.Add(new(PrintReceiptBlockKind.Marker, kind == PrintDocumentKind.Kitchen ? "RÉIMPRESSION" : "DUPLICATA"));

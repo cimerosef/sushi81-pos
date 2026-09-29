@@ -72,6 +72,9 @@
       <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding Title}" />
     </DockPanel>
     <StackPanel Grid.Row="1" Margin="0,0,0,8">
+      <Border Background="#FFFFE0" BorderBrush="#FF9B0000" BorderThickness="2" Padding="8" Margin="0,0,0,6" Visibility="{Binding IsPreProduction, Converter={StaticResource BoolToVisibility}}">
+        <TextBlock Text="{Binding EnvironmentBanner}" FontWeight="Bold" Foreground="#FF7A0000" TextWrapping="Wrap" />
+      </Border>
       <TextBlock Text="{Binding Status}" TextWrapping="Wrap" VerticalAlignment="Center" />
       <Border Background="#FFFFE0" BorderBrush="#FFD08A" BorderThickness="1" Padding="8" Margin="0,6,0,0" Visibility="{Binding IsAuthorityWarningVisible, Converter={StaticResource BoolToVisibility}}">
         <StackPanel>

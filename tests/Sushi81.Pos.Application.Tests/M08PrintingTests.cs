@@ -1,4 +1,5 @@
 using Sushi81.Pos.Application.Foundation.Time;
+using Sushi81.Pos.Application.Foundation;
 using Sushi81.Pos.Application.Archive;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.OrderEntry;
@@ -66,6 +67,24 @@ public sealed class M08PrintingTests
         Assert.IsTrue(customer.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "ANNULÉ"));
         Assert.IsTrue(customer.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "DUPLICATA"));
         Assert.AreEqual(1, customer.Content.Blocks.Count(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "ANNULÉ"));
+    }
+
+    [TestMethod]
+    public void PreProductionPrintsAndReprintsAreMarkedWhileProductionOutputStaysUnmarked()
+    {
+        var order = CreateOrder(BusinessDate, OrderStatus.Open);
+        var productionFactory = new OrderPrintDocumentFactory(new FixedClock(), DeploymentProfile.Production);
+        var preProductionFactory = new OrderPrintDocumentFactory(new FixedClock(), DeploymentProfile.PreProduction);
+
+        foreach (var kind in new[] { PrintDocumentKind.Kitchen, PrintDocumentKind.Customer })
+        foreach (var intent in new[] { PrintIntent.InitialAutomatic, PrintIntent.ExplicitReprint })
+        {
+            var production = productionFactory.Create(order, ReceiptIdentity.Default, kind, intent);
+            var preProduction = preProductionFactory.Create(order, ReceiptIdentity.Default, kind, intent);
+
+            Assert.IsFalse(production.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "*** PREPROD ***"));
+            Assert.IsTrue(preProduction.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "*** PREPROD ***"));
+        }
     }
 
     [TestMethod]

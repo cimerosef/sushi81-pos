@@ -5,6 +5,18 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <data name="ShellTitle" xml:space="preserve"><value>Sushi81 POS</value></data>
+  <data name="PreProductionEnvironmentMarker" xml:space="preserve"><value>PREPROD — 测试数据</value></data>
+  <data name="PreProductionSeedTitle" xml:space="preserve"><value>初始化 PREPROD</value></data>
+  <data name="PreProductionSeedOffer" xml:space="preserve"><value>PREPROD 当前为空。是：使用 PROD 的 SQLite 快照创建初始 seed；否：不导入 seed，直接启动 PREPROD；取消：退出。继续前请关闭 PROD 版 Sushi81 POS。</value></data>
+  <data name="PreProductionSeedConfirm" xml:space="preserve"><value>确认从 PROD 的只读 SQLite 快照创建初始 PREPROD seed 吗？如果选择“否”，PREPROD 不会启动，之后仍可重试。</value></data>
+  <data name="PreProductionSeedSuccess" xml:space="preserve"><value>初始 seed 已完成。业务数据已安装到 PREPROD，其技术身份将独立创建。PROD 通过 SQLite 只读方式读取，未被修改。</value></data>
+  <data name="PreProductionSeedFailure" xml:space="preserve"><value>Seed 未安装（{0}）。现有 PREPROD 数据库未被替换。请处理上述情况后重试。</value></data>
+  <data name="PreProductionSeedFailureProcess" xml:space="preserve"><value>PROD 进程仍在运行，或无法确认其状态</value></data>
+  <data name="PreProductionSeedFailureTarget" xml:space="preserve"><value>PREPROD 目标已不再是空白状态</value></data>
+  <data name="PreProductionSeedFailureSourceMissing" xml:space="preserve"><value>PROD 数据库不存在或为空</value></data>
+  <data name="PreProductionSeedFailureSourceInvalid" xml:space="preserve"><value>PROD 数据库未通过验证</value></data>
+  <data name="PreProductionSeedFailureMigration" xml:space="preserve"><value>工作副本迁移失败</value></data>
+  <data name="PreProductionSeedFailureInstall" xml:space="preserve"><value>原子安装失败</value></data>
   <data name="FoundationReady" xml:space="preserve"><value>基础已就绪。</value></data>
   <data name="StartupFailure" xml:space="preserve"><value>启动失败。请查看诊断信息。</value></data>
   <data name="AuthorityReadOnly" xml:space="preserve"><value>只读模式：此实例不是本地权威实例。本地显示的数据可能已过时。仍可搜索和查看数据。</value></data>
@@ -60,6 +72,12 @@
   <data name="M07SetupGitHubReleaseName" xml:space="preserve"><value>GitHub release 名称</value></data>
   <data name="M07SetupGitHubCredentialTarget" xml:space="preserve"><value>受保护 GitHub 凭据目标名称</value></data>
   <data name="M07SetupGitHubHelp" xml:space="preserve"><value>这里只填写 Credential Manager 目标名称。绝不要在这里填写 PAT。</value></data>
+  <data name="M07SetupPreprodGuidance" xml:space="preserve"><value>PreProd 必须使用独立的 OneDrive 根目录（例如“Sushi81 POS PREPROD”）、专用私有 GitHub 交接仓库（建议：cimerosef/sushi81-pos-handoff-preprod）和独立的 Credential Manager 目标（建议：Sushi81POS-PREPROD-GitHub-Handoff）。不得将源代码仓库用作运行时仓库。</value></data>
+  <data name="M07SetupOneDriveCollision" xml:space="preserve"><value>PreProd OneDrive 根目录必须独立，不能与 Production 根目录相同、互相包含或位于其内部。</value></data>
+  <data name="M07SetupOneDriveIsolationUnproven" xml:space="preserve"><value>无法确认两个 OneDrive 根目录彼此独立。请移除符号链接或重解析点后重试。</value></data>
+  <data name="M07SetupGitHubCollision" xml:space="preserve"><value>PreProd GitHub 运行时交接仓库必须不同于 Production 仓库和 Sushi81 POS 源代码仓库。</value></data>
+  <data name="M07SetupCredentialCollision" xml:space="preserve"><value>PreProd Credential Manager 目标必须与 Production 目标不同。</value></data>
+  <data name="M07SetupProductionSettingsUnavailable" xml:space="preserve"><value>Production 本地配置存在，但无法无歧义地读取。PreProd 配置未保存。</value></data>
   <data name="M07SetupSave" xml:space="preserve"><value>验证并要求重启</value></data>
   <data name="M07SetupRestartRequired" xml:space="preserve"><value>配置已保存。请重启 Sushi81 POS，以组合 M07 服务并启用配对。</value></data>
   <data name="M07SetupRootRequired" xml:space="preserve"><value>必须填写 OneDrive 共享文件夹。</value></data>

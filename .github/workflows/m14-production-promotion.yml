@@ -1,0 +1,58 @@
+name: M14 WP6 Production promotion evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  promote-accepted-c01:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact promotion source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Verify promotion source identity
+        id: source
+        shell: pwsh
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
+        run: |
+          if ($env:GITHUB_REF -cne 'refs/heads/codex/m14-preprod-foundation-authorized') { throw 'Promotion evidence must run on the authorized branch.' }
+          $head = (git rev-parse HEAD).Trim()
+          if ($head -cne $env:EXPECTED_HEAD) { throw 'Promotion checkout differs from the workflow head.' }
+          "head=$head" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - name: Test promotion safeguards without rebuilding application
+        shell: pwsh
+        run: '& .\installer\scripts\Test-M14-ProductionPromotion.ps1 -SelfTest'
+      - name: Install signed pinned Inno Setup 6.7.3
+        id: inno
+        shell: pwsh
+        run: |
+          $version = '6.7.3'
+          $download = Join-Path $env:RUNNER_TEMP "innosetup-$version.exe"
+          Invoke-WebRequest -Uri "https://github.com/jrsoftware/issrc/releases/download/is-$($version.Replace('.', '_'))/innosetup-$version.exe" -OutFile $download
+          $signature = Get-AuthenticodeSignature -FilePath $download
+          if ($signature.Status -ne 'Valid' -or [string]$signature.SignerCertificate.Subject -notmatch '(?i)Pyrsys B\.V\.') { throw 'Pinned Inno Setup signer is invalid.' }
+          $process = Start-Process -FilePath $download -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw 'Pinned Inno Setup installation failed.' }
+          $candidates = @((Join-Path ([Environment]::GetEnvironmentVariable('ProgramFiles(x86)')) 'Inno Setup 6\ISCC.exe'),(Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'))
+          $compiler = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $compiler) { throw 'Pinned Inno Setup compiler is missing.' }
+          "path=$compiler" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - name: Promote accepted immutable C01 to evidence-only Production installer
+        shell: pwsh
+        env:
+          PROMOTION_HEAD: ${{ steps.source.outputs.head }}
+          INNO_COMPILER: ${{ steps.inno.outputs.path }}
+        run: |
+          & .\installer\scripts\Promote-M14-Candidate.ps1 -Repository 'cimerosef/sushi81-pos' -CandidateTag 'v1.0.1-preprod-c01' -ExpectedReleaseId 398945249 -ExpectedSourceSha '95e2ead7d95af5fb47f6b162fde4d22d8ea47d82' -PromotionHead $env:PROMOTION_HEAD -CompilerPath $env:INNO_COMPILER -ArtifactDirectory (Join-Path $env:GITHUB_WORKSPACE 'artifacts/m14-wp6')
+      - name: Upload WP6 Production promotion evidence only
+        uses: actions/upload-artifact@v7
+        with:
+          name: Sushi81-POS-M14-WP6-promotion-evidence-${{ steps.source.outputs.head }}
+          path: artifacts/m14-wp6/*
+          if-no-files-found: error
+          retention-days: 90

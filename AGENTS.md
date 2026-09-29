@@ -111,6 +111,33 @@ The active GitHub implementation pull request is the durable inter-agent mailbox
 - A Codex run must not remain alive merely to poll a ChatGPT browser tab.
 - Ending one Codex run must not be interpreted as cancelling the recurring relay automation.
 
+### Controller-managed execution-gate standing authorization
+
+The project owner grants ChatGPT/controller standing authorization to manage Issue #4 without asking for a separate owner confirmation on each open/close transition.
+
+When a complete executable `CODEX_HANDOFF_READY` task has been durably published and all controller-side preparation that can be done while paused is complete, ChatGPT/controller may reopen Issue #4 to allow Codex execution.
+
+When Codex publishes the matching durable `CODEX_DONE`, ChatGPT/controller may close Issue #4 before review/next-task preparation so that no additional queued work starts unintentionally. If the completed package is accepted and the next package is already within the owner-authorized milestone scope, ChatGPT/controller may publish the next handoff and reopen Issue #4 without another owner approval.
+
+### Standing owner authorization for non-business technical/operational execution
+
+Within already-approved project scope, the owner grants ChatGPT/controller and Codex the highest standing project authorization available for **non-business technical and operational decisions**. No case-by-case owner confirmation is required merely to:
+
+- choose conforming implementation details, internal structure, naming, test strategy or other technical mechanics;
+- create commits and push updates to the currently authorized branch/PR;
+- update technical worklogs, evidence, diagnostics and status records;
+- run or rerun builds, tests, CI and other non-destructive verification;
+- make ordinary technical corrections that preserve approved behavior and data semantics;
+- perform the mandatory ChatGPT completion-notification attempt after durable `CODEX_DONE` delivery.
+
+This standing authorization is intended to avoid unnecessary approval prompts for technical execution. It must not be interpreted as authority to change product/business behavior, business rules, data meaning, authority/recovery/data-loss semantics, approved architecture/cost/dependency boundaries, milestone scope, or user-facing contractual behavior that requires a specification decision.
+
+It also does **not** authorize destructive operations on real business data, production deployment/cutover, credential disclosure, bypass of platform security controls, or PR merge where the project process still requires explicit owner approval.
+
+If the operating system, browser, GitHub, Codex host or another platform presents a non-bypassable permission/security prompt, repository standing authorization does not override that platform control; Codex should use the highest permission already granted by the owner, never weaken security, and report only a genuine technical/platform blocker.
+
+For ChatGPT completion notification specifically, there is **NO owner notification opt-out**. After every durable matching `CODEX_DONE`, Codex must always attempt the already-open Sushi81 POS ChatGPT browser notification and record exactly one of `browserNotification: succeeded`, `browserNotification: unavailable`, or `browserNotification: failed`. It must never skip the attempt because GitHub delivery succeeded or because it infers a preference not to notify.
+
 ### Codex Execution Gate — daily master switch
 
 GitHub issue **#4 — `Codex execution gate — Sushi81 POS`** is the single daily execution switch for the recurring Codex mailbox automation.

@@ -319,7 +319,7 @@ public partial class MainWindow : Window
     {
         if (DataContext is not ShellViewModel { CanConfigureM07: true } viewModel) return;
 
-        var dialog = new M07SetupDialog(this, viewModel.Localized, viewModel.Configuration);
+        var dialog = new M07SetupDialog(this, viewModel.Localized, viewModel.Configuration, viewModel.DeploymentProfile);
         if (dialog.ShowDialog() != true) return;
 
         try
@@ -581,7 +581,7 @@ public partial class MainWindow : Window
     private async void OnExportGestionExport(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { GestionExportWorkflow: { CanExport: true } workflow } viewModel) return;
-        var suggested = $"Sushi81_POS_Export_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx";
+        var suggested = GestionExportFileNames.NewExport(DateTime.Now, viewModel.DeploymentProfile);
         var target = fileDialogs.ShowSave(this, suggested, LocalizedText(this, "CatalogueFileFilter", "Excel workbook (*.xlsx)|*.xlsx"));
         if (string.IsNullOrWhiteSpace(target)) return;
         var result = await workflow.ExportAsync(target);
@@ -592,7 +592,7 @@ public partial class MainWindow : Window
     private async void OnRegenerateGestionExport(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { GestionExportWorkflow: { CanRegenerate: true, SelectedHistory: { } selected } workflow } viewModel) return;
-        var suggested = $"Sushi81_POS_Export_{selected.GeneratedAt.ToLocalTime():yyyyMMdd_HHmmss}_{selected.BatchId:D}.xlsx";
+        var suggested = GestionExportFileNames.Regenerate(selected.GeneratedAt, selected.BatchId, viewModel.DeploymentProfile);
         var target = fileDialogs.ShowSave(this, suggested, LocalizedText(this, "CatalogueFileFilter", "Excel workbook (*.xlsx)|*.xlsx"));
         if (string.IsNullOrWhiteSpace(target)) return;
         var result = await workflow.RegenerateAsync(target);
@@ -603,7 +603,7 @@ public partial class MainWindow : Window
     private async void OnRetryPreparedGestionExport(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { GestionExportWorkflow: { CanRetryPrepared: true, SelectedPreparedBatch: { } selected } workflow } viewModel) return;
-        var suggested = $"Sushi81_POS_Export_Retry_{selected.PreparedAt.ToLocalTime():yyyyMMdd_HHmmss}_{selected.BatchId:D}.xlsx";
+        var suggested = GestionExportFileNames.Retry(selected.PreparedAt, selected.BatchId, viewModel.DeploymentProfile);
         var target = fileDialogs.ShowSave(this, suggested, LocalizedText(this, "CatalogueFileFilter", "Excel workbook (*.xlsx)|*.xlsx"));
         if (string.IsNullOrWhiteSpace(target)) return;
         var result = await workflow.RetryPreparedAsync(target);
@@ -2117,7 +2117,11 @@ public partial class MainWindow : Window
         private readonly TextBox githubCredentialTargetBox;
         private readonly IReadOnlyDictionary<string, string> labels;
 
-        public M07SetupDialog(Window owner, IReadOnlyDictionary<string, string> labels, LocalConfiguration configuration)
+        public M07SetupDialog(
+            Window owner,
+            IReadOnlyDictionary<string, string> labels,
+            LocalConfiguration configuration,
+            Sushi81.Pos.Application.Foundation.DeploymentProfile deploymentProfile)
         {
             Owner = owner;
             this.labels = labels;
@@ -2134,6 +2138,17 @@ public partial class MainWindow : Window
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 0, 0, 14)
             });
+
+            if (deploymentProfile.IsPreProduction)
+            {
+                root.Children.Add(new TextBlock
+                {
+                    Text = Read(labels, "M07SetupPreprodGuidance", "PreProd must use a separate OneDrive root, private handoff repository, and Credential Manager target."),
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = Brushes.DarkRed,
+                    Margin = new Thickness(0, 0, 0, 14)
+                });
+            }
 
             root.Children.Add(new TextBlock { Text = Read(labels, "M07SetupOneDriveRoot", "Sushi81 shared OneDrive root"), FontWeight = FontWeights.SemiBold });
             var rootPanel = new DockPanel { Margin = new Thickness(0, 4, 0, 10) };

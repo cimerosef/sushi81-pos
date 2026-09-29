@@ -16,6 +16,7 @@ using Sushi81.Pos.Infrastructure.Configuration;
 using Sushi81.Pos.Application.Export;
 using Sushi81.Pos.Application.Archive;
 using Sushi81.Pos.Application.Maintenance;
+using Sushi81.Pos.Application.Foundation;
 
 namespace Sushi81.Pos.Desktop;
 
@@ -85,11 +86,13 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
     private readonly M07ConfigurationSetupService? _m07Setup;
     private AuthorityPhase? _authorityPhase;
     private readonly DesktopOperationDiagnostics? diagnostics;
+    private readonly DeploymentProfile _deploymentProfile;
 
-    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, CatalogueWorkbookService? catalogueWorkbookService = null, CatalogueImportService? catalogueImportService = null, GestionExportWorkflowViewModel? gestionExportWorkflow = null, IAnnualArchiveAccess? archiveAccess = null, IArchivedOrderPrintApplicationService? archivedOrderPrintService = null, DesktopOperationDiagnostics? diagnostics = null, BusinessDataResetService? businessDataResetService = null)
+    public ShellViewModel(ISelectedCultureStore cultureStore, bool startupSucceeded, CatalogueService? catalogueService = null, BusinessSettingsService? settingsService = null, OrderEntryService? orderEntryService = null, OrderLifecycleService? orderLifecycleService = null, IWriteAuthorityGuard? authorityGuard = null, WriteAuthorityState authorityState = WriteAuthorityState.Authoritative, M07RuntimeServices? m07Runtime = null, LocalConfiguration? configuration = null, M07ConfigurationSetupService? m07Setup = null, AuthorityPhase? authorityPhase = null, IOrderPrintApplicationService? printService = null, PrinterSetupViewModel? printerSetup = null, HiboutikImportOrchestrator? hiboutikImportOrchestrator = null, CatalogueWorkbookService? catalogueWorkbookService = null, CatalogueImportService? catalogueImportService = null, GestionExportWorkflowViewModel? gestionExportWorkflow = null, IAnnualArchiveAccess? archiveAccess = null, IArchivedOrderPrintApplicationService? archivedOrderPrintService = null, DesktopOperationDiagnostics? diagnostics = null, BusinessDataResetService? businessDataResetService = null, DeploymentProfile? deploymentProfile = null)
     {
         _cultureStore = cultureStore ?? throw new ArgumentNullException(nameof(cultureStore));
         _configuration = configuration ?? new LocalConfiguration();
+        _deploymentProfile = deploymentProfile ?? DeploymentProfile.Production;
         _m07Setup = m07Setup;
         this.diagnostics = diagnostics;
         BusinessDataResetService = businessDataResetService;
@@ -236,6 +239,12 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     public string Title { get; private set; } = string.Empty;
 
+    public DeploymentProfile DeploymentProfile => _deploymentProfile;
+
+    public bool IsPreProduction => _deploymentProfile.IsPreProduction;
+
+    public string EnvironmentBanner { get; private set; } = string.Empty;
+
     public string Status { get; private set; } = string.Empty;
 
     public string AuthorityStatus { get; private set; } = string.Empty;
@@ -321,7 +330,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
 
     private void RefreshResources()
     {
-        Title = Read("ShellTitle");
+        Title = IsPreProduction ? _deploymentProfile.ApplicationIdentity : Read("ShellTitle");
+        EnvironmentBanner = IsPreProduction ? Read("PreProductionEnvironmentMarker") : string.Empty;
         Status = Read(StartupSucceeded ? "FoundationReady" : "StartupFailure");
         AuthorityStatus = Read(AuthorityState switch
         {
@@ -346,7 +356,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         Languages.Add(new LanguageOption("fr-FR", Read("FrenchLanguage")));
         Languages.Add(new LanguageOption("zh-CN", Read("ChineseLanguage")));
         _selectedLanguage = Languages.Single(option => option.CultureName == _culture.Name);
-        var keys = new[] { "ShellTitle", "Catalogue", "Settings", "Caisse", "Commandes", "Products", "Search", "OrderSearch", "Category", "All", "Active", "Inactive", "NewProduct", "Edit", "Save", "Cancel", "Add", "Confirm", "ReloadOrder", "Activate", "Deactivate", "Create", "Modify", "BulkActivate", "BulkDeactivate", "BulkConfirm", "BulkNoChange", "BulkSuccess", "DeletePermanently", "ManageCategories", "CategoryShortCode", "CategoryShortCodeTooltip", "Code", "Name", "PriceTtc", "Vat", "DiscountEligible", "OptionsEnabled", "OptionGroups", "Options", "SelectionMode", "Required", "Optional", "Single", "Multi", "Minimum", "Maximum", "AdjustmentTtc", "MoveUp", "MoveDown", "PickupDiscount", "PickupMinimum", "DeliveryMinimum", "DeliveryFee", "DeliveryFeeEnabled", "Fulfilment", "FulfilmentUnselected", "Retrait", "Livraison", "PlannedDate", "PlannedTime", "TimeHour", "TimeMinute", "TimeUnset", "Telephone", "DeliveryAddress", "Comment", "PickupDiscountRequest", "Cart", "TotalTtc", "Quantity", "CustomAdjustments", "AddAdjustment", "AdjustmentLabel", "AdjustmentAmount", "NewOrder", "ManualTotalActive", "ReloadOrderTooltip", "ReloadedOrder", "OrderBrowser", "BrowseDate", "Browse", "OrderBrowserTime", "OrderBrowserMode", "OrderBrowserStatus", "OrderBrowserTotal", "OrderBrowserTelephone", "OrderBrowserEmptyTelephone", "OrderId", "OrderStatus", "OrderStatusOpen", "OrderStatusClosed", "OrderStatusCancelled", "OrderLines", "Unit", "PickupDiscountApplied", "TaxSnapshot", "InvalidOrderId", "OrderNotFound", "OrderSaved", "OrderSavedOutputFailed", "ProductInactive", "InvalidPlannedTime", "InvalidManualTotal", "ValidationFulfilmentRequired", "ValidationPlannedDateRequired", "ValidationPlannedDatePast", "ValidationPlannedTimeRequired", "ValidationPlannedTimeInvalid", "ValidationCartRequired", "ValidationDeliveryMinimum", "ValidationPickupDiscount", "InvalidQuantity", "InvalidOptions", "InvalidAdjustment", "EmptyCatalogue", "DeleteConfirm", "M03StartupFailure", "DeliveryFeeVatFixed", "CreateCategory", "CreateCategoryFirst", "RenameCategory", "Close", "EnterValidValues", "Saved", "ValidationGeneric", "OperationFailed", "ValidationAuthorityBlocked", "ValidationRequired", "ValidationCategoryDuplicate", "ValidationCategoryShortCodeDuplicate", "ValidationCategoryShortCodeTooLong", "ValidationCategoryMissing", "ValidationProductMissing", "ValidationProductDuplicateCode", "ValidationPriceNegative", "ValidationVatRange", "ValidationRequiredChoices", "ValidationSettingsRange", "ValidationInvalidNumber", "ValidationBusy", "ValidationGroupStructure", "ValidationOptionStructure", "ValidationConflict", "ValidationField", "CategoryEdit", "CategoryCreateSave", "CategoryRenameSave", "DirtyEditorClose", "Discard", "KeepEditing", "OptionName", "OptionActive", "OrderReference", "OrderCard", "OrderCash", "OrderPaid", "OrderDifference", "OrderSearchLive", "OrderModify", "OrderAbandon", "OrderCancel", "OrderNewFromDetails", "OrderClose", "OrderEffectiveDate", "OrderEffectiveDateEdit", "OrderEffectiveDateHint", "OrderBrowseByDate", "OrderSave", "OrderReadOnly", "OrderEdit", "OrderAdvance", "OrderSearchHint", "OrderNoSelection", "DashboardTurnover", "DashboardReceived", "DashboardReceivedCard", "DashboardReceivedCash", "DashboardHiboutikCard", "DashboardHiboutikCash", "DashboardFuture", "DashboardDueToday", "DashboardOverdue", "DashboardRefresh", "AuthorityReadOnly", "AuthorityTransitioning", "AuthorityRecoveryRequired" };
+        var keys = new[] { "ShellTitle", "PreProductionEnvironmentMarker", "Catalogue", "Settings", "Caisse", "Commandes", "Products", "Search", "OrderSearch", "Category", "All", "Active", "Inactive", "NewProduct", "Edit", "Save", "Cancel", "Add", "Confirm", "ReloadOrder", "Activate", "Deactivate", "Create", "Modify", "BulkActivate", "BulkDeactivate", "BulkConfirm", "BulkNoChange", "BulkSuccess", "DeletePermanently", "ManageCategories", "CategoryShortCode", "CategoryShortCodeTooltip", "Code", "Name", "PriceTtc", "Vat", "DiscountEligible", "OptionsEnabled", "OptionGroups", "Options", "SelectionMode", "Required", "Optional", "Single", "Multi", "Minimum", "Maximum", "AdjustmentTtc", "MoveUp", "MoveDown", "PickupDiscount", "PickupMinimum", "DeliveryMinimum", "DeliveryFee", "DeliveryFeeEnabled", "Fulfilment", "FulfilmentUnselected", "Retrait", "Livraison", "PlannedDate", "PlannedTime", "TimeHour", "TimeMinute", "TimeUnset", "Telephone", "DeliveryAddress", "Comment", "PickupDiscountRequest", "Cart", "TotalTtc", "Quantity", "CustomAdjustments", "AddAdjustment", "AdjustmentLabel", "AdjustmentAmount", "NewOrder", "ManualTotalActive", "ReloadOrderTooltip", "ReloadedOrder", "OrderBrowser", "BrowseDate", "Browse", "OrderBrowserTime", "OrderBrowserMode", "OrderBrowserStatus", "OrderBrowserTotal", "OrderBrowserTelephone", "OrderBrowserEmptyTelephone", "OrderId", "OrderStatus", "OrderStatusOpen", "OrderStatusClosed", "OrderStatusCancelled", "OrderLines", "Unit", "PickupDiscountApplied", "TaxSnapshot", "InvalidOrderId", "OrderNotFound", "OrderSaved", "OrderSavedOutputFailed", "ProductInactive", "InvalidPlannedTime", "InvalidManualTotal", "ValidationFulfilmentRequired", "ValidationPlannedDateRequired", "ValidationPlannedDatePast", "ValidationPlannedTimeRequired", "ValidationPlannedTimeInvalid", "ValidationCartRequired", "ValidationDeliveryMinimum", "ValidationPickupDiscount", "InvalidQuantity", "InvalidOptions", "InvalidAdjustment", "EmptyCatalogue", "DeleteConfirm", "M03StartupFailure", "DeliveryFeeVatFixed", "CreateCategory", "CreateCategoryFirst", "RenameCategory", "Close", "EnterValidValues", "Saved", "ValidationGeneric", "OperationFailed", "ValidationAuthorityBlocked", "ValidationRequired", "ValidationCategoryDuplicate", "ValidationCategoryShortCodeDuplicate", "ValidationCategoryShortCodeTooLong", "ValidationCategoryMissing", "ValidationProductMissing", "ValidationProductDuplicateCode", "ValidationPriceNegative", "ValidationVatRange", "ValidationRequiredChoices", "ValidationSettingsRange", "ValidationInvalidNumber", "ValidationBusy", "ValidationGroupStructure", "ValidationOptionStructure", "ValidationConflict", "ValidationField", "CategoryEdit", "CategoryCreateSave", "CategoryRenameSave", "DirtyEditorClose", "Discard", "KeepEditing", "OptionName", "OptionActive", "OrderReference", "OrderCard", "OrderCash", "OrderPaid", "OrderDifference", "OrderSearchLive", "OrderModify", "OrderAbandon", "OrderCancel", "OrderNewFromDetails", "OrderClose", "OrderEffectiveDate", "OrderEffectiveDateEdit", "OrderEffectiveDateHint", "OrderBrowseByDate", "OrderSave", "OrderReadOnly", "OrderEdit", "OrderAdvance", "OrderSearchHint", "OrderNoSelection", "DashboardTurnover", "DashboardReceived", "DashboardReceivedCard", "DashboardReceivedCash", "DashboardHiboutikCard", "DashboardHiboutikCash", "DashboardFuture", "DashboardDueToday", "DashboardOverdue", "DashboardRefresh", "AuthorityReadOnly", "AuthorityTransitioning", "AuthorityRecoveryRequired" };
         keys = keys.Append("ValidationPaymentNegative").Append("OrderCloseEligible")
             .Append("AuthorityCloseTitle").Append("AuthorityClosePrompt").Append("AuthorityTargetLabel")
             .Append("AuthorityCloseRetain").Append("AuthorityTransferClose").Append("AuthorityCloseCancel")
@@ -364,6 +374,7 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("AuthorityTargetTitle").Append("AuthorityTargetPrompt").Append("AuthorityTargetConfirm")
              .Append("AuthorityTransferUnavailable")
              .Append("M07Setup").Append("M07SetupTitle").Append("M07SetupPrompt")
+             .Append("M07SetupPreprodGuidance")
              .Append("M07SetupOneDriveRoot").Append("M07SetupBrowse")
              .Append("M07SetupGitHubOwner").Append("M07SetupGitHubRepository")
              .Append("M07SetupGitHubReleaseTag").Append("M07SetupGitHubReleaseName")
@@ -373,7 +384,9 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
              .Append("M07SetupRootUnavailable").Append("M07SetupLineageUnavailable")
              .Append("M07SetupLineageInvalid").Append("M07SetupLineageRequired")
              .Append("M07SetupPhaseLocked").Append("M07SetupAuthorityStateUnavailable")
-             .Append("M07SetupPersistenceFailed")
+             .Append("M07SetupOneDriveCollision").Append("M07SetupOneDriveIsolationUnproven")
+             .Append("M07SetupGitHubCollision").Append("M07SetupCredentialCollision")
+             .Append("M07SetupProductionSettingsUnavailable").Append("M07SetupPersistenceFailed")
              .Append("M07DisasterRecovery").Append("M07DisasterRecoveryPending")
              .Append("M07DisasterRecoveryNoCandidate").Append("M07DisasterRecoveryFailed")
              .Append("M07DisasterRecoverySucceeded").Append("M07DisasterRecoveryLostToWinner")
@@ -468,6 +481,8 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
         GestionExportWorkflow?.ApplyLocalization(Localized);
         ArchiveAccess?.ApplyLocalization(Localized);
         OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(EnvironmentBanner));
+        OnPropertyChanged(nameof(IsPreProduction));
         OnPropertyChanged(nameof(Status));
         OnPropertyChanged(nameof(AuthorityStatus));
         OnPropertyChanged(nameof(CanWrite));
@@ -551,6 +566,11 @@ public sealed class ShellViewModel : INotifyPropertyChanged, IDisposable
                     M07ConfigurationSetupFailureKind.LineageRequired => "M07SetupLineageRequired",
                     M07ConfigurationSetupFailureKind.AuthorityPhaseUnsafe => "M07SetupPhaseLocked",
                     M07ConfigurationSetupFailureKind.AuthorityStateUnavailable => "M07SetupAuthorityStateUnavailable",
+                    M07ConfigurationSetupFailureKind.OneDriveRootCollision => "M07SetupOneDriveCollision",
+                    M07ConfigurationSetupFailureKind.OneDriveIsolationUnproven => "M07SetupOneDriveIsolationUnproven",
+                    M07ConfigurationSetupFailureKind.GitHubRepositoryCollision => "M07SetupGitHubCollision",
+                    M07ConfigurationSetupFailureKind.CredentialTargetCollision => "M07SetupCredentialCollision",
+                    M07ConfigurationSetupFailureKind.ProductionSettingsUnavailable => "M07SetupProductionSettingsUnavailable",
                     M07ConfigurationSetupFailureKind.PersistenceFailed => "M07SetupPersistenceFailed",
                     _ => "M07SetupPersistenceFailed"
                 });

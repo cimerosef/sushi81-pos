@@ -3,6 +3,8 @@ using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Pairing.SystemMetadata;
 using Sushi81.Pos.Infrastructure.Authority;
 using Sushi81.Pos.Infrastructure.Pairing.SystemMetadata;
+using Sushi81.Pos.Application.Foundation;
+using Sushi81.Pos.Application.Foundation.Paths;
 
 namespace Sushi81.Pos.Infrastructure.Configuration;
 
@@ -17,6 +19,11 @@ public enum M07ConfigurationSetupFailureKind
     LineageRequired,
     AuthorityPhaseUnsafe,
     AuthorityStateUnavailable,
+    OneDriveRootCollision,
+    OneDriveIsolationUnproven,
+    GitHubRepositoryCollision,
+    CredentialTargetCollision,
+    ProductionSettingsUnavailable,
     PersistenceFailed
 }
 
@@ -48,7 +55,9 @@ public sealed record M07ConfigurationSetupResult(
 
 public sealed class M07ConfigurationSetupService(
     ILocalConfigurationService configurationService,
-    IAuthorityStateStore? authorityStateStore = null)
+    IAuthorityStateStore? authorityStateStore = null,
+    IAppPaths? appPaths = null,
+    string? productionSettingsFilePath = null)
 {
     public async Task<M07ConfigurationSetupResult> ValidateAndPersistAsync(
         LocalConfiguration current,
@@ -205,6 +214,26 @@ public sealed class M07ConfigurationSetupService(
                     current,
                     M07ConfigurationSetupFailureKind.LineageUnavailable,
                     "The shared lineage metadata is not currently readable.");
+            }
+        }
+
+        var profile = appPaths?.Profile ?? DeploymentProfile.Production;
+        if (profile.IsPreProduction)
+        {
+            var isolation = await PreProductionRemoteIsolationGuard.ValidateAsync(
+                profile,
+                normalizedRoot,
+                input.GitHubOwner,
+                input.GitHubRepository,
+                input.GitHubCredentialTarget,
+                productionSettingsFilePath,
+                cancellationToken);
+            if (!isolation.Succeeded)
+            {
+                return M07ConfigurationSetupResult.Failure(
+                    current,
+                    isolation.FailureKind,
+                    isolation.Diagnostic ?? "PreProd remote isolation could not be verified.");
             }
         }
 

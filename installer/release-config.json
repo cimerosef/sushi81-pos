@@ -7,7 +7,11 @@
   "publishSingleFile": false,
   "innoSetupVersion": "6.7.3",
   "innoAppId": "C7A1B9E2-1E62-4B4B-A2EA-7802814408FC",
+  "preprodProductName": "Sushi81 POS PREPROD",
+  "preprodInnoAppId": "67FB6B75-3C5E-44A5-98AD-305EA4C62D95",
   "binaryInstallDirectory": "{localappdata}\\Programs\\Sushi81 POS",
+  "preprodBinaryInstallDirectory": "{localappdata}\\Programs\\Sushi81 POS PREPROD",
   "durableDataDirectory": "%LOCALAPPDATA%\\Sushi81 POS",
+  "preprodDurableDataDirectory": "%LOCALAPPDATA%\\Sushi81 POS PREPROD",
   "artifactRetentionDays": 90
 }

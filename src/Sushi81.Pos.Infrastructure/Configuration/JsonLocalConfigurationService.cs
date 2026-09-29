@@ -64,7 +64,7 @@ public sealed class JsonLocalConfigurationService(IAppPaths paths) : ILocalConfi
     {
         paths.EnsureInitialized();
         var configurationPath = Path.Combine(paths.ConfigDirectory, ConfigurationFileName);
-        if (!File.Exists(configurationPath)) return new LocalConfiguration();
+        if (!File.Exists(configurationPath)) return CreateProfileDefaults();
 
         try
         {
@@ -76,12 +76,46 @@ public sealed class JsonLocalConfigurationService(IAppPaths paths) : ILocalConfi
                 bufferSize: 4096,
                 useAsync: true);
             var configuration = await JsonSerializer.DeserializeAsync<LocalConfiguration>(stream, SerializerOptions, cancellationToken);
-            return configuration ?? throw new InvalidDataException("The local configuration file contains no configuration object.");
+            return ApplyProfileDefaults(configuration ?? throw new InvalidDataException("The local configuration file contains no configuration object."));
         }
         catch (JsonException exception)
         {
             throw new InvalidDataException($"The local configuration file '{configurationPath}' is malformed. Correct or replace it before starting Sushi81 POS.", exception);
         }
+    }
+
+    private LocalConfiguration CreateProfileDefaults() => LocalConfiguration.CreateDefaults(paths.Profile);
+
+    private LocalConfiguration ApplyProfileDefaults(LocalConfiguration configuration)
+    {
+        var profileDefaults = CreateProfileDefaults();
+        var productionDefaults = LocalConfiguration.CreateDefaults(Sushi81.Pos.Application.Foundation.DeploymentProfile.Production);
+        var isPreProduction = paths.Profile.IsPreProduction;
+
+        return configuration with
+        {
+            GitHubReleaseTag = UseProfileDefault(
+                configuration.GitHubReleaseTag,
+                productionDefaults.GitHubReleaseTag,
+                profileDefaults.GitHubReleaseTag,
+                isPreProduction),
+            GitHubReleaseName = UseProfileDefault(
+                configuration.GitHubReleaseName,
+                productionDefaults.GitHubReleaseName,
+                profileDefaults.GitHubReleaseName,
+                isPreProduction)
+        };
+    }
+
+    private static string UseProfileDefault(string? configured, string productionDefault, string profileDefault, bool isPreProduction)
+    {
+        if (string.IsNullOrWhiteSpace(configured))
+            return profileDefault;
+
+        if (isPreProduction && string.Equals(configured.Trim(), productionDefault, StringComparison.Ordinal))
+            return profileDefault;
+
+        return configured;
     }
 
     private async Task SaveCoreAsync(LocalConfiguration configuration, CancellationToken cancellationToken)

@@ -1,0 +1,186 @@
+name: M14 PREPROD candidate publication
+
+on:
+  push:
+    branches:
+      - codex/m14-preprod-foundation-authorized
+    tags:
+      - 'm14-preprod-dispatch-c*'
+  workflow_dispatch:
+    inputs:
+      candidate_number:
+        description: Monotonic PREPROD candidate number (C01, C02, ...)
+        required: true
+        default: '1'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m14-preprod-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-candidate:
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/codex/m14-preprod-foundation-authorized' || startsWith(github.ref, 'refs/tags/m14-preprod-dispatch-c'))) || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/m14-preprod-foundation-authorized')
+    outputs:
+      candidate: ${{ steps.source.outputs.candidate }}
+      publication_allowed: ${{ steps.source.outputs.publication_allowed }}
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the exact event source commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Validate event identity, lightweight dispatch tag and exact source head
+        id: source
+        shell: pwsh
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.sha }}
+          CANDIDATE_NUMBER: ${{ inputs.candidate_number || '1' }}
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -cne $env:EXPECTED_SOURCE_SHA) { throw "Expected event SHA $($env:EXPECTED_SOURCE_SHA) but checked out $actual." }
+          $objectType = (git cat-file -t $env:EXPECTED_SOURCE_SHA).Trim()
+          if ($LASTEXITCODE -ne 0 -or $objectType -cne 'commit') { throw 'Event SHA must identify a commit, not an annotated tag object.' }
+          $publicationAllowed = 'false'
+          if ($env:GITHUB_EVENT_NAME -ceq 'push' -and $env:GITHUB_REF -ceq 'refs/heads/codex/m14-preprod-foundation-authorized') {
+            $candidate = 'C01'
+          } elseif ($env:GITHUB_EVENT_NAME -ceq 'workflow_dispatch' -and $env:GITHUB_REF -ceq 'refs/heads/codex/m14-preprod-foundation-authorized') {
+            if ($env:CANDIDATE_NUMBER -cnotmatch '^[1-9][0-9]?$') { throw 'candidate_number must be an integer from 1 through 99.' }
+            $candidate = 'C{0:D2}' -f [int]$env:CANDIDATE_NUMBER
+            $publicationAllowed = 'true'
+          } elseif ($env:GITHUB_EVENT_NAME -ceq 'push') {
+            Import-Module .\installer\scripts\M14-CandidatePipeline.psm1 -Force
+            $identity = Get-M14DispatchTagIdentity -Ref $env:GITHUB_REF
+            $candidate = $identity.CandidateId
+            $remote = @(git ls-remote --refs origin $env:GITHUB_REF)
+            if ($LASTEXITCODE -ne 0 -or $remote.Count -ne 1 -or $remote[0] -cne "$($env:EXPECTED_SOURCE_SHA)`t$($env:GITHUB_REF)") {
+              throw 'Dispatch tag must be a lightweight ref targeting the exact checked-out event commit.'
+            }
+            $publicationAllowed = 'true'
+          } else {
+            throw 'This event/ref is not authorized for candidate build or publication.'
+          }
+          $short = $actual.Substring(0, 7).ToLowerInvariant()
+          "head=$actual" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "short=$short" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "candidate=$candidate" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "publication_allowed=$publicationAllowed" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "Exact source SHA: $actual" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "Candidate identity: $candidate; publication allowed: $publicationAllowed" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+      - name: Test repository safety scanner
+        shell: pwsh
+        run: '& .github/scripts/Test-RepositorySafety.ps1 -SelfTest'
+      - name: Scan tracked and non-ignored repository files
+        shell: pwsh
+        run: '& .github/scripts/Test-RepositorySafety.ps1'
+      - name: Setup pinned .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Restore exact source head
+        run: dotnet restore Sushi81.Pos.sln
+      - name: Audit direct and transitive NuGet vulnerabilities
+        shell: pwsh
+        run: '& .github/scripts/Audit-NuGetVulnerabilities.ps1'
+      - name: Release build
+        run: dotnet build Sushi81.Pos.sln -c Release --no-restore
+      - name: Full Release solution tests
+        run: dotnet test Sushi81.Pos.sln -c Release --no-build --nologo
+      - name: Restore exact win-x64 application publish assets
+        run: dotnet restore src/Sushi81.Pos.Desktop/Sushi81.Pos.Desktop.csproj -r win-x64
+      - name: Test M14 candidate manifest/package/release safeguards
+        shell: pwsh
+        run: '& .\installer\scripts\Test-M14-CandidatePipeline.ps1 -SelfTest'
+      - name: Install and authenticate pinned Inno Setup compiler
+        id: inno
+        shell: pwsh
+        run: |
+          $version = '6.7.3'
+          $installer = Join-Path $env:RUNNER_TEMP "innosetup-$version.exe"
+          $uri = "https://github.com/jrsoftware/issrc/releases/download/is-$($version.Replace('.', '_'))/innosetup-$version.exe"
+          Invoke-WebRequest -Uri $uri -OutFile $installer
+          $signature = Get-AuthenticodeSignature -FilePath $installer
+          if ($signature.Status -ne 'Valid') { throw "Inno Setup Authenticode status is $($signature.Status)." }
+          $publisher = [string]$signature.SignerCertificate.Subject
+          if ($publisher -notmatch '(?i)Pyrsys B\.V\.') { throw "Unexpected Inno Setup signer '$publisher'." }
+          $install = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') -PassThru -Wait
+          if ($install.ExitCode -ne 0) { throw "Inno Setup installation failed: $($install.ExitCode)." }
+          $candidates = @(
+            (Join-Path ([Environment]::GetEnvironmentVariable('ProgramFiles(x86)')) 'Inno Setup 6\ISCC.exe'),
+            (Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe')
+          )
+          $iscc = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $iscc) { throw 'ISCC.exe was not installed.' }
+          "path=$iscc" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "Pinned Inno Setup package: $version; signed publisher: $publisher" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+      - name: Build one-publish immutable candidate assets and verify hosted lifecycle
+        shell: pwsh
+        env:
+          EXPECTED_SOURCE_SHA: ${{ steps.source.outputs.head }}
+          CANDIDATE_ID: ${{ steps.source.outputs.candidate }}
+          INNO_COMPILER_PATH: ${{ steps.inno.outputs.path }}
+        run: |
+          $artifactDirectory = Join-Path $env:GITHUB_WORKSPACE 'artifacts/m14-candidate'
+          & .\installer\scripts\Build-M14-Candidate.ps1 -ExpectedSourceSha $env:EXPECTED_SOURCE_SHA -CandidateId $env:CANDIDATE_ID -CompilerPath $env:INNO_COMPILER_PATH -ArtifactDirectory $artifactDirectory
+          if ($LASTEXITCODE -ne 0) { throw 'M14 candidate build, archive verification, PreProd packaging or installer lifecycle failed.' }
+      - name: Upload validated candidate release assets for the write-scoped publish job
+        uses: actions/upload-artifact@v7
+        with:
+          name: Sushi81-POS-M14-PREPROD-${{ steps.source.outputs.candidate }}-${{ steps.source.outputs.short }}
+          path: artifacts/m14-candidate/*
+          if-no-files-found: error
+          retention-days: 90
+
+  publish-candidate:
+    needs: build-candidate
+    if: needs.build-candidate.outputs.publication_allowed == 'true' && ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/m14-preprod-foundation-authorized') || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/m14-preprod-dispatch-c')))
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the exact event source commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Download the validated candidate assets
+        uses: actions/download-artifact@v7
+        with:
+          pattern: Sushi81-POS-M14-PREPROD-*
+          path: artifacts/m14-candidate
+          merge-multiple: true
+      - name: Verify exact source head before publishing
+        shell: pwsh
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.sha }}
+          CANDIDATE_ID: ${{ needs.build-candidate.outputs.candidate }}
+        run: |
+          $actual = (git rev-parse HEAD).Trim()
+          if ($actual -cne $env:EXPECTED_SOURCE_SHA) { throw "Expected exact publication source $($env:EXPECTED_SOURCE_SHA), found $actual." }
+          $objectType = (git cat-file -t $env:EXPECTED_SOURCE_SHA).Trim()
+          if ($LASTEXITCODE -ne 0 -or $objectType -cne 'commit') { throw 'Publication source must be a commit, not an annotated tag object.' }
+          if ($env:GITHUB_EVENT_NAME -ceq 'push') {
+            Import-Module .\installer\scripts\M14-CandidatePipeline.psm1 -Force
+            $identity = Get-M14DispatchTagIdentity -Ref $env:GITHUB_REF
+            if ($identity.CandidateId -cne $env:CANDIDATE_ID) { throw 'Dispatch tag and built candidate identity disagree.' }
+            $remote = @(git ls-remote --refs origin $env:GITHUB_REF)
+            if ($LASTEXITCODE -ne 0 -or $remote.Count -ne 1 -or $remote[0] -cne "$($env:EXPECTED_SOURCE_SHA)`t$($env:GITHUB_REF)") {
+              throw 'Dispatch tag is not a lightweight ref at the exact publication source.'
+            }
+          }
+      - name: Publish immutable PREPROD candidate only after asset validation
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SOURCE_SHA: ${{ github.sha }}
+          CANDIDATE_ID: ${{ needs.build-candidate.outputs.candidate }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          & .\installer\scripts\Publish-M14-Candidate.ps1 -ExpectedSourceSha $env:EXPECTED_SOURCE_SHA -CandidateId $env:CANDIDATE_ID -Repository $env:REPOSITORY -CandidateDirectory (Join-Path $env:GITHUB_WORKSPACE 'artifacts/m14-candidate')
+          if ($LASTEXITCODE -ne 0) { throw 'M14 candidate preflight, immutable draft verification or publication failed.' }
