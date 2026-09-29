@@ -50,9 +50,19 @@ The value is derived only from committed sale-time order/item/adjustment snapsho
 
 The line appears on initial unpaid customer output, settled customer output and explicit customer reprint. It does not appear when no discount was applied.
 
-Existing authoritative TTC total, persisted VAT breakdown, payment display rules and kitchen output remain unchanged.
+Existing authoritative TTC total, persisted VAT breakdown and payment display rules remain unchanged. Kitchen business content remains unchanged except for the separate PM01-PRINT-002 reserved handwriting space.
 
 **Evidence:** deterministic print-model tests for unpaid/settled/reprint/no-discount cases plus owner physical/safe PREPROD print review.
+
+## PM01-PRINT-002 — Kitchen ticket reserves handwriting space after TOTAL
+
+Every kitchen ticket reserves real blank vertical paper space immediately after the final kitchen `TOTAL`, approximately equal to three normal kitchen handwriting-line heights.
+
+The space is present on ordinary kitchen output, explicit kitchen `RÉIMPRESSION`, PREPROD kitchen output and cancelled-order kitchen output. It is not represented as fake business data and must survive the actual rendered thermal layout/pagination path.
+
+Customer output does not gain this kitchen handwriting spacer.
+
+**Evidence:** deterministic print-render/layout tests proving the kitchen document height includes the reserved trailing spacer without altering ticket content, plus owner physical PREPROD kitchen-print review.
 
 ## PM01-REG-001 — Existing safety invariants
 
@@ -77,6 +87,7 @@ Minimum owner sequence:
 3. inspect a code family containing 1/2/.../10+ and confirm natural order;
 4. create/identify a Retrait order with an actually applied discount and inspect the unpaid customer ticket;
 5. settle that same test order and explicitly reprint the customer ticket, confirming the same discount information remains correct;
-6. confirm PREPROD marking remains visible on tested output.
+6. print an ordinary PREPROD kitchen ticket and a kitchen `RÉIMPRESSION`, confirming approximately three writable blank lines remain after the final `TOTAL` and before the paper ends;
+7. confirm PREPROD/reprint markings remain visible and customer tickets do not acquire the kitchen handwriting spacer.
 
 No computer-B PREPROD installation is required unless the implementation materially touches a deferred M14 multi-device area.
