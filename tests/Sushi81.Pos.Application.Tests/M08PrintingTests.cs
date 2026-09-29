@@ -138,6 +138,118 @@ public sealed class M08PrintingTests
     }
 
     [TestMethod]
+    public void AppliedPickupDiscountUsesCommittedLineSnapshotsAcrossPaymentAndPrintVariants()
+    {
+        var factory = new OrderPrintDocumentFactory(new FixedClock(), DeploymentProfile.PreProduction);
+        foreach (var status in new[] { OrderStatus.Open, OrderStatus.Cancelled })
+        foreach (var intent in new[] { PrintIntent.InitialAutomatic, PrintIntent.InitialRetry, PrintIntent.ExplicitReprint })
+        foreach (var payment in new[] { (Card: 0L, Cash: 0L), (Card: 2367L, Cash: 0L), (Card: 0L, Cash: 2367L), (Card: 1200L, Cash: 1167L) })
+        {
+            var order = CreateDiscountedOrder(status) with
+            {
+                CardPaymentTtc = Money.FromCents(payment.Card),
+                CashPaymentTtc = Money.FromCents(payment.Cash)
+            };
+            var document = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Customer, intent);
+            var remise = document.Content.Blocks.Single(block => block.Kind == PrintReceiptBlockKind.Discount);
+
+            Assert.AreEqual("Remise", remise.Text);
+            Assert.AreEqual("-2.63 EUR", remise.SecondaryText);
+            Assert.AreEqual("23.67", document.Content.Blocks.Single(block => block.Kind == PrintReceiptBlockKind.Total).SecondaryText);
+            Assert.AreEqual(payment.Card > 0, document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Payment && block.Text == "CB"));
+            Assert.AreEqual(payment.Cash > 0, document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Payment && block.Text == "Espèce"));
+            Assert.IsTrue(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "*** PREPROD ***"));
+            Assert.AreEqual(status == OrderStatus.Cancelled, document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "ANNULÉ"));
+            Assert.AreEqual(intent == PrintIntent.ExplicitReprint, document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Marker && block.Text == "DUPLICATA"));
+            Assert.IsFalse(document.Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.HandwritingSpace));
+        }
+    }
+
+    [TestMethod]
+    public void PickupDiscountExcludesPositiveOptionsAndManualOverrideDelta()
+    {
+        var original = CreateDiscountedOrder(OrderStatus.Open);
+        var item = original.Items[0] with
+        {
+            ProductBasePriceTtc = Money.FromCents(1000),
+            ExtendedBaseTtc = Money.FromCents(1000),
+            CalculatedLineTotalTtc = Money.FromCents(1060),
+            Adjustments =
+            [
+                new(Guid.NewGuid(), 0, OrderAdjustmentKind.CustomAdjustment, null, null, "Retrait option", Money.FromCents(-100), 10m),
+                new(Guid.NewGuid(), 1, OrderAdjustmentKind.PredefinedOption, null, null, "Extra", Money.FromCents(250), 10m)
+            ]
+        };
+        var order = original with
+        {
+            Items = [item],
+            TotalTtc = Money.FromCents(999),
+            ManualTotalOverrideActive = true
+        };
+        var document = new OrderPrintDocumentFactory(new FixedClock()).Create(order, ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.InitialAutomatic);
+
+        Assert.AreEqual("-0.90 EUR", document.Content.Blocks.Single(block => block.Kind == PrintReceiptBlockKind.Discount).SecondaryText);
+        Assert.AreEqual("9.99", document.Content.Blocks.Single(block => block.Kind == PrintReceiptBlockKind.Total).SecondaryText);
+        Assert.IsFalse(new OrderPrintDocumentFactory(new FixedClock()).Create(
+            order with { PickupDiscountApplied = false, PickupDiscountRate = null }, ReceiptIdentity.Default,
+            PrintDocumentKind.Customer, PrintIntent.InitialAutomatic).Content.Blocks.Any(block => block.Kind == PrintReceiptBlockKind.Discount));
+    }
+
+    [TestMethod]
+    public void InconsistentAppliedPickupDiscountFailsGenerationInsteadOfPrintingAnInventedAmount()
+    {
+        var order = CreateDiscountedOrder(OrderStatus.Open);
+        var factory = new OrderPrintDocumentFactory(new FixedClock());
+        var invalid = new[]
+        {
+            order with { PickupDiscountRate = null },
+            order with { Fulfilment = FulfilmentMode.Livraison },
+            order with { Items = [order.Items[0] with { ProductDiscountEligible = false }] },
+            order with { Items = [order.Items[0] with { CalculatedLineTotalTtc = Money.FromCents(2630) }] },
+            order with { Items = [order.Items[0] with { CalculatedLineTotalTtc = Money.FromCents(2400) }] }
+        };
+        foreach (var snapshot in invalid)
+            Assert.ThrowsExactly<InvalidOperationException>(() => factory.Create(snapshot, ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.InitialAutomatic));
+    }
+
+    [TestMethod]
+    public void EveryKitchenVariantEndsInExactlyOneSemanticHandwritingSpace()
+    {
+        foreach (var status in new[] { OrderStatus.Open, OrderStatus.Cancelled })
+        foreach (var intent in new[] { PrintIntent.InitialAutomatic, PrintIntent.InitialRetry, PrintIntent.ExplicitReprint })
+        foreach (var profile in new[] { DeploymentProfile.Production, DeploymentProfile.PreProduction })
+        {
+            var document = new OrderPrintDocumentFactory(new FixedClock(), profile).Create(
+                CreateOrder(BusinessDate, status), ReceiptIdentity.Default, PrintDocumentKind.Kitchen, intent);
+            var blocks = document.Content.Blocks;
+            Assert.AreEqual(PrintReceiptBlockKind.Total, blocks[^2].Kind);
+            Assert.AreEqual(PrintReceiptBlockKind.HandwritingSpace, blocks[^1].Kind);
+            Assert.AreEqual(1, blocks.Count(block => block.Kind == PrintReceiptBlockKind.HandwritingSpace));
+            Assert.IsFalse(document.Text.EndsWith(Environment.NewLine, StringComparison.Ordinal));
+        }
+    }
+
+    private static OrderSnapshot CreateDiscountedOrder(OrderStatus status)
+    {
+        var order = CreateOrder(BusinessDate, status);
+        return order with
+        {
+            Fulfilment = FulfilmentMode.Retrait,
+            PickupDiscountApplied = true,
+            PickupDiscountRate = 0.10m,
+            TotalTtc = Money.FromCents(2367),
+            Items = [order.Items[0] with
+            {
+                ProductBasePriceTtc = Money.FromCents(2630),
+                ExtendedBaseTtc = Money.FromCents(2630),
+                CalculatedLineTotalTtc = Money.FromCents(2367),
+                Adjustments = []
+            }],
+            TaxBreakdown = [new(10m, Money.FromCents(2367), Money.FromCents(215))]
+        };
+    }
+
+    [TestMethod]
     public void CustomerItemRowsUseQuantityAwareBasePricingWithoutCurrencySuffixes()
     {
         var factory = new OrderPrintDocumentFactory(new FixedClock());

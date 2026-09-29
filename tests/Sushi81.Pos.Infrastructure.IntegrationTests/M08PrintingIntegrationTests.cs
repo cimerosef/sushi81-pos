@@ -555,6 +555,63 @@ public sealed class M08PrintingIntegrationTests
     }
 
     [TestMethod]
+    public async Task KitchenHandwritingSpacerOccupiesThreeMeasuredBodyLinesAfterFinalTotalOnLastPage()
+    {
+        var blocks = new List<PrintReceiptBlock>
+        {
+            new(PrintReceiptBlockKind.Heading, "*** CUISINE ***", AtomicGroup: "header")
+        };
+        for (var index = 0; index < 24; index++)
+            blocks.Add(new(PrintReceiptBlockKind.Item, $"1x P-{index:000}", "Plat suffisamment long pour enrouler le texte"));
+        blocks.Add(new(PrintReceiptBlockKind.Total, "TOTAL", "23.67 EUR", AtomicGroup: "kitchen-total"));
+        blocks.Add(new(PrintReceiptBlockKind.HandwritingSpace, string.Empty, AtomicGroup: "kitchen-total"));
+        var content = new PrintReceiptContent(blocks);
+
+        var result = await StaPrintThread.RunAsync(() =>
+        {
+            var surface = new PrintImageableSurface(280, 280, 5, 5, 270, 230);
+            var width = ThermalPrintLayout.EffectiveContentWidth(surface);
+            var pages = ThermalPrintLayout.RenderPages(content, surface);
+            var last = pages[^1];
+            var spacer = last[^1];
+            var withoutSpacer = ThermalPrintLayout.MeasureRenderedHeight(last.Take(last.Count - 1), width);
+            var withSpacer = ThermalPrintLayout.MeasureRenderedHeight(last, width);
+            var lineHeight = ThermalPrintLayout.MeasureTextHeight("M", width, ThermalPrintLayout.KitchenBodyFontSize);
+            return (PageCount: pages.Count, Last: last, Spacer: spacer,
+                Visual: ThermalPrintLayout.CreateVisual(spacer, width),
+                ExtraHeight: withSpacer - withoutSpacer, LineHeight: lineHeight,
+                Diagnostics: ThermalPrintLayout.Paginate(content, surface));
+        }, CancellationToken.None);
+
+        Assert.IsGreaterThan(1, result.PageCount);
+        Assert.AreEqual(1, result.Last.Count(block => block.SpacerHeight > 0));
+        StringAssert.Contains(result.Last[^2].Text, "TOTAL : 23.67 EUR");
+        Assert.AreEqual(string.Empty, result.Spacer.Text);
+        Assert.IsInstanceOfType<System.Windows.Controls.Border>(result.Visual);
+        Assert.AreEqual(3 * result.LineHeight, result.Spacer.SpacerHeight, 0.01);
+        Assert.AreEqual(result.Spacer.SpacerHeight, result.ExtraHeight, 0.01);
+        Assert.IsTrue(result.Diagnostics[^1].EndsWith("TOTAL : 23.67 EUR", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task CustomerDiscountRendersOneNegativeRemiseLineWithoutKitchenSpacer()
+    {
+        var content = new PrintReceiptContent([
+            new(PrintReceiptBlockKind.BusinessName, "Sushi 81"),
+            new(PrintReceiptBlockKind.Discount, "Remise", "-2.63 EUR", AtomicGroup: "customer-total"),
+            new(PrintReceiptBlockKind.Total, "Total EUR", "23.67", AtomicGroup: "customer-total")
+        ]);
+
+        var rendered = await StaPrintThread.RunAsync(() =>
+            ThermalPrintLayout.RenderPages(content, new PrintImageableSurface(300, 300, 5, 5, 290, 280))
+                .SelectMany(page => page).ToArray(), CancellationToken.None);
+
+        Assert.AreEqual(1, rendered.Count(block => block.Text == "Remise : -2.63 EUR"));
+        Assert.AreEqual(0, rendered.Count(block => block.SpacerHeight > 0));
+        Assert.AreEqual("Total EUR 23.67", rendered.Single(block => block.Total is not null).Text);
+    }
+
+    [TestMethod]
     public void PrintQueueSelectionNormalizesSortsAndResolvesStableIdentifiers()
     {
         var queues = PrintQueueSelection.Normalize([

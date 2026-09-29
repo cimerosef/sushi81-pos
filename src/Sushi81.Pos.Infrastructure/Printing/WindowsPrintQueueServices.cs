@@ -198,6 +198,7 @@ public static class ThermalPrintLayout
     public const double FontSize = CustomerBodyFontSize;
     public const double KitchenInfoFontSize = CustomerBodyFontSize;
     public const double KitchenBodyFontSize = 18;
+    public const double KitchenHandwritingLineCount = 3;
     public const double KitchenHeadingFontSize = 22;
     public const double KitchenTotalFontSize = 20;
     public const double KitchenItemTopMargin = 3;
@@ -349,7 +350,7 @@ public static class ThermalPrintLayout
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(surface);
         return RenderPages(content, surface)
-            .Select(page => string.Join(Environment.NewLine, page.Select(block => block.Text)))
+            .Select(page => string.Join(Environment.NewLine, page.Where(block => block.SpacerHeight == 0).Select(block => block.Text)))
             .DefaultIfEmpty(string.Empty)
             .ToArray();
     }
@@ -419,6 +420,9 @@ public static class ThermalPrintLayout
 
     internal static FrameworkElement CreateVisual(RenderedThermalReceiptBlock block, double width)
     {
+        if (block.SpacerHeight > 0)
+            return new Border { Width = width, Height = block.SpacerHeight };
+
         if (block.Total is not null)
         {
             var totalRow = new Grid
@@ -574,7 +578,8 @@ internal sealed record RenderedThermalReceiptBlock(
     PrintReceiptItem? Item = null,
     PrintReceiptOption? Option = null,
     double TopMargin = 0,
-    RenderedThermalReceiptTotal? Total = null);
+    RenderedThermalReceiptTotal? Total = null,
+    double SpacerHeight = 0);
 
 internal sealed record RenderedThermalReceiptTotal(string Label, string Amount);
 
@@ -634,7 +639,12 @@ internal static class ThermalReceiptRenderer
             PrintReceiptBlockKind.Option => RenderPrefixed("    - ", Combine(block), width, group, BodyFontSize(isKitchen)),
             PrintReceiptBlockKind.ItemAmount => RenderPrefixed("  ", block.Text, width, group, ThermalPrintLayout.CustomerBodyFontSize),
             PrintReceiptBlockKind.Tax => RenderTax(block, width, group),
+            PrintReceiptBlockKind.Discount => RenderLabelValue(block.Text, block.SecondaryText, width, group, ThermalPrintLayout.CustomerBodyFontSize),
             PrintReceiptBlockKind.Payment or PrintReceiptBlockKind.PaymentConfirmation => RenderLabelValue(block.Text, block.SecondaryText, width, group, ThermalPrintLayout.CustomerBodyFontSize),
+            PrintReceiptBlockKind.HandwritingSpace when isKitchen => [new(string.Empty, group, ThermalPrintLayout.KitchenBodyFontSize,
+                TextAlignment.Left, FontWeights.Normal, SpacerHeight: ThermalPrintLayout.KitchenHandwritingLineCount *
+                    ThermalPrintLayout.MeasureTextHeight("M", width, ThermalPrintLayout.KitchenBodyFontSize))],
+            PrintReceiptBlockKind.HandwritingSpace => throw new InvalidOperationException("Kitchen handwriting space cannot appear on a customer receipt."),
             PrintReceiptBlockKind.Total when block.Text.Equals("Total EUR", StringComparison.Ordinal)
                 => RenderTotal(block, group),
             PrintReceiptBlockKind.Total => RenderCentered(

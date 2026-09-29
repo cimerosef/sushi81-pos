@@ -49,10 +49,12 @@ public enum PrintReceiptBlockKind
     Option,
     ItemAmount,
     Tax,
+    Discount,
     Total,
     Payment,
     PaymentConfirmation,
-    Footer
+    Footer,
+    HandwritingSpace
 }
 
 public sealed record PrintReceiptItem(
@@ -88,7 +90,7 @@ public sealed record PrintReceiptContent(IReadOnlyList<PrintReceiptBlock> Blocks
 
     public string ToDiagnosticText() => string.Join(
         Environment.NewLine,
-        Blocks.Select(block => block.Kind == PrintReceiptBlockKind.Separator
+        Blocks.Where(block => block.Kind != PrintReceiptBlockKind.HandwritingSpace).Select(block => block.Kind == PrintReceiptBlockKind.Separator
             ? block.Text
             : string.Join(" ", new[] { block.Text, block.SecondaryText, block.TertiaryText }
                 .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -220,6 +222,7 @@ public sealed class OrderPrintDocumentFactory
         }
         blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
         blocks.Add(new(PrintReceiptBlockKind.Total, "TOTAL", $"{FormatMoney(order.TotalTtc)} EUR", AtomicGroup: "kitchen-total"));
+        blocks.Add(new(PrintReceiptBlockKind.HandwritingSpace, string.Empty, AtomicGroup: "kitchen-total"));
         return new(blocks);
     }
 
@@ -265,6 +268,8 @@ public sealed class OrderPrintDocumentFactory
             blocks.Add(new(PrintReceiptBlockKind.Tax, $"TVA {tax.VatRate:0.#}%", $"{FormatMoney(tax.IncludedVatTtc)} EUR", $"base {FormatMoney(net)} EUR", "customer-tax"));
         }
         blocks.Add(new(PrintReceiptBlockKind.Separator, "-"));
+        if (order.PickupDiscountApplied)
+            blocks.Add(new(PrintReceiptBlockKind.Discount, "Remise", $"-{FormatMoney(CommittedPickupDiscount(order))} EUR", AtomicGroup: "customer-total"));
         blocks.Add(new(PrintReceiptBlockKind.Total, "Total EUR", FormatMoney(order.TotalTtc), AtomicGroup: "customer-total"));
         AddSettledPayments(blocks, order);
         blocks.Add(new(PrintReceiptBlockKind.Footer, "Merci de votre visite !", AtomicGroup: "customer-footer"));
@@ -308,6 +313,44 @@ public sealed class OrderPrintDocumentFactory
         }
         if (modes.Count > 0)
             blocks.Add(new(PrintReceiptBlockKind.PaymentConfirmation, "Payé en", string.Join(" + ", modes) + " TVA incluse", AtomicGroup: "customer-payment"));
+    }
+
+    private static Money CommittedPickupDiscount(OrderSnapshot order)
+    {
+        if (order.Fulfilment != FulfilmentMode.Retrait || order.PickupDiscountRate is not { } rate || rate <= 0m || rate > 1m)
+            throw new InvalidOperationException("The committed pickup discount is inconsistent.");
+
+        var discount = Money.Zero;
+        var eligibleCount = 0;
+        foreach (var item in order.Items)
+        {
+            if (item.Quantity <= 0 || item.ExtendedBaseTtc != item.ProductBasePriceTtc * item.Quantity)
+                throw new InvalidOperationException("The committed pickup discount has an invalid quantity.");
+
+            var beforeDiscount = item.ExtendedBaseTtc + item.Adjustments.Aggregate(
+                Money.Zero, (sum, adjustment) => sum + adjustment.AdjustmentTtcPerUnit * item.Quantity);
+            var lineDiscount = beforeDiscount - item.CalculatedLineTotalTtc;
+            if (!item.ProductDiscountEligible)
+            {
+                if (lineDiscount != Money.Zero)
+                    throw new InvalidOperationException("A noneligible line has an inconsistent committed amount.");
+                continue;
+            }
+
+            eligibleCount++;
+            var discountableComponent = item.ExtendedBaseTtc + item.Adjustments
+                .Where(adjustment => adjustment.AdjustmentTtcPerUnit < Money.Zero)
+                .Aggregate(Money.Zero, (sum, adjustment) => sum + adjustment.AdjustmentTtcPerUnit * item.Quantity);
+            var expectedDiscount = discountableComponent - Money.FromCents(
+                BusinessRounding.ToCents(discountableComponent.Euros * (1m - rate)));
+            if (lineDiscount < Money.Zero || lineDiscount != expectedDiscount)
+                throw new InvalidOperationException("The committed pickup discount does not match its line snapshot.");
+            discount += lineDiscount;
+        }
+
+        if (eligibleCount == 0 || discount <= Money.Zero)
+            throw new InvalidOperationException("The committed pickup discount has no positive amount.");
+        return discount;
     }
 
     private static string FormatMoney(Money money) => money.Euros.ToString("0.00", CultureInfo.InvariantCulture);
