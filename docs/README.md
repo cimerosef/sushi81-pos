@@ -4,7 +4,7 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6 implementation active: M01–M13 are Passed/merged. Current authoritative `main` is M13 merge commit `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. M12 real populated-archive operational verification remains DEFERRED-NOT-M13. M14 PreProd Foundation and immutable release promotion is owner-approved/frozen on 2026-09-27 and implementation is package-gated on `codex/m14-preprod-foundation-authorized`.**
+**Phase 6: M01–M13 are Passed/merged. Current authoritative `main` is M13 merge commit `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. M12 real populated-archive operational verification remains DEFERRED-NOT-M13. M14 PreProd Foundation is Accepted under waiver / closure-ready on open Draft PR #30: owner A-only acceptance and controller WP1–WP6 acceptance are recorded, while real two-PC PREPROD pairing/handoff remains deferred, not Passed. Controller closure and merge approval remain separate. No stable Release or Production deployment has occurred.**
 
 M12 final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3` passed exact-head CI #862 / run `36021889765` with 881/881 tests and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test also succeeded.
 
@@ -51,7 +51,7 @@ M08 owner-selected visual/identity detail is frozen in `decisions/m08-print-layo
 - `acceptance-criteria-amendment-m10-category-short-code-workbook.md` — Approved 2026-09-17 clarification of AC-CAT-008 through AC-CAT-011 for Category short-code workbook behavior.
 - `acceptance-criteria-amendment-m11-gestion-export.md` — Approved 2026-09-20 M11 export clarification.
 - `acceptance-criteria-amendment-m12-local-archive.md` — Approved 2026-09-21 M12 local archive/user-selected export amendment.
-- `acceptance-criteria-amendment-m14-preprod-foundation.md` — Approved 2026-09-27 M14 PreProd environment/release acceptance amendment.
+- `acceptance-criteria-amendment-m14-preprod-foundation.md` — Approved 2026-09-27 M14 PreProd environment/release amendment, with the Approved 2026-09-29 single-PC owner waiver for current closure.
 - `v1-specification-freeze.md` — Approved — Phase 5 baseline, amended through approved post-freeze decisions.
 
 ### Phase 6 — Implementation planning and controlled execution
@@ -145,8 +145,8 @@ M13 completed control package:
 - [Simplified Chinese operator guide](operating-guide.zh-CN.md) — primary practical manual for Chinese-speaking staff; start with the new-PC setup.
 - [English operating guide](operating-guide.md) — equivalent English reference.
 - branch `codex/m13-installer-final-acceptance-authorized`;
-- Draft PR #26 — active M13 durable mailbox;
-- Issue #4 — sole execution gate and active-PR pointer; it was OPEN only for this final documentation handoff. Normal post-package expectation is no active implementation gate until a new authorized task.
+- PR #26 — historical M13 durable mailbox, CLOSED/MERGED at `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`;
+- Issue #4 — sole execution gate and current active-PR pointer; M14 execution remains governed by its state and exact PR handoff.
 
 ## Decision records
 
@@ -169,15 +169,15 @@ Where a later Approved decision explicitly supersedes a narrow older clause, the
 
 ## M14 current control package
 
-- `decisions/m14-preprod-environment-isolation-and-promotion.md` — Approved deployment/storage/release decision;
-- `acceptance-criteria-amendment-m14-preprod-foundation.md` — Approved acceptance amendment;
+- `decisions/m14-preprod-environment-isolation-and-promotion.md` — Approved deployment/storage/release decision and 2026-09-29 single-PC operating-model amendment;
+- `acceptance-criteria-amendment-m14-preprod-foundation.md` — Approved acceptance amendment with the explicit two-PC PREPROD owner waiver;
 - `implementation/milestone-14-preparation-readiness.md` — readiness frozen;
 - `implementation/milestone-14-preprod-foundation.md` — owner-authorized implementation contract;
-- `implementation/milestone-14-final-manual-acceptance.md` — prepared owner checklist;
+- `implementation/milestone-14-final-manual-acceptance.md` — owner A-only acceptance record; real two-PC PREPROD E is deferred, not Passed;
 - `implementation/milestone-14-worklog.md` — package/evidence ledger;
 - `implementation/milestone-14-authorization.md` — owner authorization.
 
-M14 does not include post-launch business bug fixes. Those begin only after the isolated PreProd foundation is accepted.
+M14 is **Accepted under waiver / closure-ready**, pending controller closure and separate merge approval. PREPROD currently operates only on computer A; B remains Production-only. A second PREPROD device or a material change to multi-device handoff/DR/coordination requires the deferred real two-PC verification before acceptance. This M14 handoff does not authorize post-launch business bug fixes, a stable Release or Production deployment. M12 real populated-archive verification remains separately deferred.
 
 ## Implementation authority rule
 

@@ -1,6 +1,6 @@
 # M14 — PreProd Foundation — worklog
 
-**Status:** ACTIVE CONTROL LEDGER
+**Status:** ACCEPTED UNDER WAIVER / CLOSURE-READY — controller closure pending
 **Milestone:** M14
 **Start baseline:** `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`
 **Implementation branch:** `codex/m14-preprod-foundation-authorized`
@@ -10,7 +10,7 @@
 - 2026-09-27 — owner approved/froze the M14 design.
 - 2026-09-27 — controlling decision, acceptance amendment, readiness, implementation contract and owner checklist prepared.
 - 2026-09-27 — M14 implementation branch and Draft PR created.
-- Issue #4 remains CLOSED while the controller prepares the first executable package.
+- During preparation, Issue #4 remained CLOSED until a complete executable handoff was published; current execution is controlled by the live gate and active PR mailbox.
 
 ## Package ledger
 
@@ -21,8 +21,8 @@
 | WP3 — initial PROD→PREPROD seed | Passed | Accepted head `c1fefff86acc4b9e23c1f2020b09486a1300997a`; controller comment `5860855082`; exact-head CI #939 / run `36358293220` SUCCESS |
 | WP4 — remote environment isolation | Passed | Accepted head `260569d245b348d3a0eb4d92eaf0543f31510cc5`; controller comment `5861273369`; exact-head CI #945 / run `36361546258` SUCCESS |
 | WP5 — immutable GitHub candidate pipeline | Passed | Accepted source/release head `95e2ead7d95af5fb47f6b162fde4d22d8ea47d82`; controller comment `5886517441`; push CI #958 / PR CI #959 SUCCESS; immutable C01 Release `398945249` / tag `v1.0.1-preprod-c01` |
-| WP6 — production promotion pipeline | Not started | — |
-| WP7 — owner two-PC acceptance/closure | Not started | — |
+| WP6 — production promotion pipeline | Passed | Accepted head `1c73999c323dba593e3279f47c54a6174638b23d`; controller comment `5887252324`; exact-head CI #963 / run `36546336521` SUCCESS; promotion artifact `11022832475` |
+| WP7 — owner manual acceptance / closure | Accepted under waiver / closure-ready | Owner computer-A evidence A/B/C/D/F PASS; G controller-accepted; real two-PC PREPROD E deferred under Approved 2026-09-29 waiver, not Passed; controller closure pending |
 
 ## WP1 — runtime deployment-profile isolation
 
@@ -104,6 +104,14 @@
 - The shared profile staging seam copies only accepted manifest files and adds exactly the ASCII root `deployment-profile.txt=prod`. The existing Inno template compiles the frozen Production AppId/name/install/shortcut identity with signed pinned Inno Setup 6.7.3. File lengths/hashes are checked before and after compilation. A machine-readable equivalence proof, promotion provenance with zero application restore/build/publish counts, accepted manifest, package summary, lifecycle summary and Production installer form the WP6 artifact. Promotion scripts and the dedicated manual workflow enforce a no-rebuild/no-publish boundary; ordinary PR CI provides exact-head hosted promotion evidence before the manual workflow reaches main.
 - Hosted lifecycle validation installs, repairs, uninstalls and reinstalls the Production installer on synthetic runner paths, rechecks all 418 accepted C01 application files, and verifies Production and PREPROD synthetic durable/install fixtures remain untouched. It checks Production AppId/uninstall/shortcut/profile and absence of a service, scheduled task or updater. No real Production device or data is exercised.
 - Local WP6 promotion self-tests and retained WP5 candidate self-tests passed. The live C01 Release/tag/five-asset identity and three metadata-asset byte/hash/record checks passed. Local Release solution build passed with 0 warnings / 0 errors; full Release tests passed 972 / 0 failed / 0 skipped; repository safety self-test and scan passed. Exact-head CI #963 / run `36546336521` succeeded, including retained WP2 dual-installer and hosted `m14-wp6-promotion-evidence`. Artifact `11022832475` contains the accepted manifest, byte-equivalence proof, promotion provenance, lifecycle summary, package summary and Production installer `Sushi81POS-PROD-Setup-1.0.1-C01-1c73999.exe` (49,809,920 bytes; SHA-256 `fd80e17c28b5bbde0bfbbda57b5d807dd328d5a5871253b9da8fb5c27248289a`). Controller independently downloaded/re-hashed the artifact ZIP and installer and accepted WP6 in comment `5887252324`. No stable `v1.0.1` Release, Production deployment, PR merge or WP7 two-PC owner acceptance was performed.
+
+## WP7 — owner single-PC acceptance under waiver
+
+- Handoff: `M14-WP7-SINGLE-PC-OWNER-WAIVER-CLOSURE-07R1` (PR #30 comment `5890303901`); authorized start head `e19c8a90e7480b99d06d6493997a59219e0d10e7`. This package reconciles documentation/evidence only; it does not change application, installer, workflows or accepted C01/WP6 assets.
+- On computer A, the owner verified immutable C01 installer SHA-256, distinct Production and PREPROD launches/data identities, the explicit read-only PROD→PREPROD seed and representative catalogue/order/settings/Gestion content, and separate authority DeviceId/LineageId values. Production remained operational with existing data unchanged. Raw business data, authority IDs and credentials are not copied into this source record.
+- PREPROD saved a distinct OneDrive root, dedicated private runtime repository and Credential Manager target. The source/build-repository collision attempt was rejected before save; correct configuration persisted and M07 services were available after restart. The persistent PREPROD banner, prefixed Gestion filename and marked kitchen/customer safe reprints were observed. WP6 G promotion evidence was separately controller-accepted at CI #963 / artifact `11022832475`.
+- The owner approved a single-PC PREPROD operating model on 2026-09-29. PREPROD currently exists only on A; B remains Production-only. Checklist E — real PREPROD A→B pairing, target-directed handoff and acquisition — was **not performed** and remains **DEFERRED UNDER OWNER WAIVER**, not Passed. It must be completed before adding a second PREPROD device or accepting a material multi-device pairing/authority-handoff/target-acquisition/DR/OneDrive/GitHub coordination change. Existing M07 implementation and automated coverage remain intact.
+- M14 status is **Accepted under waiver / closure-ready**, pending final controller closure and separate merge approval. The M12 populated real annual-archive verification remains separately deferred. No stable Release, Production deployment, PR merge, M15 or business bugfix work is authorized by this record. Exact-head CI for this docs-only reconciliation is recorded in the matching `CODEX_DONE`.
 
 ## Rules
 

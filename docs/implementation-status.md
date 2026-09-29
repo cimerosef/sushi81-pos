@@ -1,8 +1,8 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-27
-**Current state:** M01 through M13 and the independent post-M09 dashboard enhancement are Passed and merged. Current authoritative `main` is M13 merge commit `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. M12 real populated-archive verification remains DEFERRED-NOT-M13. M14 — PreProd Foundation and immutable release promotion — is owner-authorized/frozen on 2026-09-27 on branch `codex/m14-preprod-foundation-authorized`; implementation is package-gated and Issue #4 remains CLOSED until the prepared first handoff is explicitly released for execution.
+**Last updated:** 2026-09-29
+**Current state:** M01 through M13 and the independent post-M09 dashboard enhancement are Passed and merged. Current authoritative `main` is M13 merge commit `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. M12 real populated-archive verification remains DEFERRED-NOT-M13. M14 — PreProd Foundation and immutable release promotion — is **Accepted under waiver / closure-ready** on Draft PR #30: owner manual acceptance on computer A and controller acceptance of WP1–WP6 are recorded; the real two-PC PREPROD pairing/handoff remains deferred under the Approved 2026-09-29 single-PC waiver, not Passed. Final controller closure and any separate merge approval remain pending. No stable Release or Production deployment has occurred.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -14,7 +14,7 @@
 - `In progress` — an authorized executable handoff is active under OPEN Issue #4.
 - `Partial` — some evidence exists, but complete acceptance is not yet satisfied.
 - `Closure-ready` — owner acceptance (including any explicit documented waiver) is complete; final controller closure remains. Any merge authorization or prerequisite is governed by its durable owner record.
-- `Accepted under waiver` — milestone controller closure/merge is complete under an explicit owner risk waiver; the waived/deferred verification remains named and must not be represented as Passed.
+- `Accepted under waiver` — owner acceptance proceeds under an explicit Approved waiver while the waived/deferred verification remains named and must not be represented as Passed. Controller closure and merge state are recorded separately; `Accepted under waiver / closure-ready` means the owner evidence is complete and final controller closure remains pending.
 - `Passed` — required automated/manual evidence is recorded and passes.
 - `Blocked — amendment required` — a genuine material specification conflict prevents conforming implementation.
 - `Blocked — architecture decision required` — a required technical capability still needs an approved architecture decision/proof.
@@ -40,7 +40,7 @@
 | M11 — Gestion intermediate export | Passed | PR #24 CLOSED/MERGED at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831, 0 failed, 0 skipped and Release build 0 warnings/errors. |
 | M12 — Annual archive/historical access | Accepted under waiver / merged | PR #25 CLOSED/MERGED at `f59663c6b47ab21114c24360544e4e25094f4722`. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3`; exact-head CI #862 / run `36021889765` succeeded with 881/881, 0 failed/skipped and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test succeeded. Real populated-archive operational verification remains explicitly deferred under the owner waiver and is not claimed Passed. |
 | M13 — Installer and final acceptance | Passed / merged | PR #26 CLOSED/MERGED at `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. Accepted production application remains source `469c8761061b0ecf488e06386a97b9e10652a916`; CI #912 / `36253271385`, 932/932 tests; installer artifact `10909188508`. |
-| M14 — PreProd Foundation and immutable release promotion | Authorized / preparation complete | Owner-approved/frozen 2026-09-27. Branch `codex/m14-preprod-foundation-authorized`; execution package-gated. Business bug fixes excluded until foundation acceptance. |
+| M14 — PreProd Foundation and immutable release promotion | Accepted under waiver / closure-ready; PR open/unmerged | Owner A-only manual evidence accepted; WP1–WP6 controller-accepted. Immutable C01 Release `398945249` remains the PREPROD candidate; WP6 exact-head `1c73999c323dba593e3279f47c54a6174638b23d`, CI #963 / run `36546336521`, promotion artifact `11022832475` are evidence only. Two-PC PREPROD pairing/handoff is deferred under the 2026-09-29 owner waiver, not Passed. Final controller closure and merge approval remain separate. |
 
 ## 3. Current merged baseline
 
@@ -69,6 +69,8 @@ M12 closure facts:
 - scope: permanent Prod/PreProd isolation, safe initial seed, independent runtime transport/DR configuration, dual installers, immutable GitHub candidate payload and no-rebuild production promotion;
 - explicitly excluded: post-launch business bug fixes, repeated automatic Prod→PreProd refresh, automatic production deployment, M12 deferred populated-archive verification;
 - execution remains controlled by the active M14 PR mailbox and Issue #4.
+
+Current M14 closure line: WP7 owner checklist A, B, C, D and F passed on PREPROD computer A; G was controller-accepted with WP6 evidence. Checklist E, the real second-PREPROD-device pairing and A→B target-directed handoff, is **DEFERRED UNDER OWNER WAIVER**. PREPROD currently exists only on A; B remains Production-only. The deferred verification is mandatory before a second PREPROD device is introduced or before accepting material multi-device pairing/authority-handoff/target-acquisition/DR/OneDrive/GitHub coordination changes. The waiver changes acceptance practice, not M07 runtime semantics. See the Approved M14 decision amendment, acceptance amendment and final manual acceptance record. M12 populated real annual-archive verification remains a separate deferred obligation.
 
 Controlling records:
 

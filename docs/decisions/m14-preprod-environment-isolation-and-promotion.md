@@ -144,3 +144,11 @@ After explicit owner acceptance of one candidate, production packaging downloads
 M14 establishes the environment and release foundation only.
 
 It does not implement post-launch business bug fixes, repeated automatic PROD-to-PREPROD refresh, automatic production deployment, production/PreProd data merge, multi-writer behavior, OneDrive live SQLite, or the deferred M12 populated annual archive verification.
+
+## Approved owner amendment — 2026-09-29 single-PC PREPROD operation and acceptance waiver
+
+The owner accepted the C01 PREPROD manual evidence on computer A and chose a **single-PC PREPROD operating model for now**. PREPROD is deployed only on A. Computer B remains Production-only; installing PREPROD on B merely to repeat the established M07 handoff behavior is not required for current M14 closure.
+
+The original two-real-PC PREPROD pairing and A→B authority-handoff acceptance remains traceable but is **deferred under owner waiver**, not Passed. It becomes mandatory before PREPROD is expanded to a second computer, or before accepting a change that materially affects multi-device pairing, authority handoff, target acquisition, Disaster Recovery, OneDrive/GitHub cross-device coordination, or equivalent multi-device semantics.
+
+Ordinary later business, UI, print and export bugfix candidates are validated first on PREPROD computer A. This amendment changes the present deployment and acceptance practice only. It does not change M07 runtime semantics, target-directed handoff, the approved Production A/B arrangement, or the application's ability to support more than one PREPROD device. The deferred two-PC verification must remain visible in M14 closure records until completed.

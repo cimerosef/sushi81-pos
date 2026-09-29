@@ -102,14 +102,22 @@ On the two real Windows computers, owner acceptance must prove at least:
 
 Owner acceptance does not repeat full M01–M13 business regression.
 
+### Approved 2026-09-29 owner waiver for current M14 closure
+
+The two-real-PC criterion above is preserved as the original unwaived acceptance contract. For **current M14 closure only**, the owner accepted PREPROD on computer A and approved deferral of item H.6 (PREPROD-A/PREPROD-B pairing) and H.7 (real A→B PREPROD target-directed handoff). Computer B remains Production-only. These two items are **DEFERRED UNDER OWNER WAIVER**, not Passed and not silently removed.
+
+The deferred real two-PC PREPROD verification is required before adding a second PREPROD computer or accepting a change that materially touches multi-device pairing, authority handoff, target acquisition, Disaster Recovery, OneDrive/GitHub cross-device coordination, or equivalent multi-device behavior. Single-PC PREPROD acceptance does not alter M07 runtime semantics or automated multi-device coverage.
+
 ## I. Completion gate
 
-M14 is not Passed unless:
+The unwaived `Passed` gate still requires all original criteria, including H.6 and H.7. Under the Approved owner waiver above, current M14 may instead reach **Accepted under waiver / closure-ready** when:
 
 - exact-head CI is green;
 - Release build is 0 warnings / 0 errors;
 - tests are 0 failed / 0 unexpected skipped;
 - all required automated isolation/promotion tests pass;
-- owner manual acceptance passes;
+- owner manual acceptance on computer A passes for the applicable A/B/C/D/F checklist evidence, promotion item G is controller-accepted, and H.6/H.7 remain explicitly deferred rather than labelled Passed;
 - docs/status are reconciled;
 - M12 deferred real populated-archive verification remains explicitly deferred and is not relabelled Passed.
+
+This closure status does not authorize a second PREPROD installation, a Production deployment, a stable Release or PR merge. The deferred two-PC PREPROD obligation remains visible until its trigger and real verification are satisfied.

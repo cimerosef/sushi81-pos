@@ -1,6 +1,6 @@
 # M14 — PreProd Foundation and immutable release promotion — implementation contract
 
-**Status:** OWNER-AUTHORIZED; execution package-gated
+**Status:** OWNER-AUTHORIZED; WP1–WP6 controller-accepted; WP7 owner-accepted under waiver / closure-ready, controller closure pending
 **Milestone:** M14
 **Implementation branch:** `codex/m14-preprod-foundation-authorized`
 **Start baseline:** `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`
@@ -172,7 +172,7 @@ The pipeline existing does not authorize deployment. Owner release approval rema
 
 ## 9. WP7 — Owner manual acceptance
 
-Use both real Windows computers.
+The original unwaived acceptance sequence uses both real Windows computers:
 
 Minimum owner sequence:
 
@@ -189,6 +189,8 @@ Minimum owner sequence:
 11. confirm production database/authority/runtime transport was not changed by PreProd actions;
 12. verify visible PreProd print/export marking;
 13. review CI evidence that production promotion packages the exact accepted payload.
+
+**Approved 2026-09-29 owner waiver for current M14 closure:** PREPROD operates only on computer A for now; computer B remains Production-only. The owner accepted the applicable A-only manual evidence and the controller accepted WP6 promotion evidence. Steps 8–10 above are deferred, not Passed, and are mandatory before adding a second PREPROD computer or accepting changes that materially affect multi-device pairing, authority handoff, target acquisition, Disaster Recovery or OneDrive/GitHub cross-device coordination. This changes acceptance/deployment practice only; the implementation and M07 handoff semantics remain intact. See the Approved M14 decision amendment, acceptance amendment and final manual acceptance record for the `Accepted under waiver / closure-ready` status.
 
 Do not repeat full M01–M13 business acceptance.
 
