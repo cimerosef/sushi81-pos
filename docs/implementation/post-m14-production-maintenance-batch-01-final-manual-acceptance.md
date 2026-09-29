@@ -2,7 +2,7 @@
 
 **Status:** NOT RUN
 **Environment:** computer A PREPROD only
-**Candidate:** C02 / `v1.0.1-preprod-c02` — publication and controller verification pending
+**Candidate:** C02 / `v1.0.1-preprod-c02` — build artifact exists, immutable Release publication blocked; controller verification pending
 
 Do not use Production for candidate testing. Do not install PREPROD on computer B for this batch unless the controller explicitly expands scope because implementation touched a deferred M14 multi-device area.
 
@@ -79,7 +79,7 @@ Then inspect kitchen output:
 
 Batch owner acceptance may be marked PASS only after 0 and A–D pass against the exact controller-approved immutable C02 candidate. WP1's original intermittent Production extra-add symptom remains unresolved until the empirical sequence in A passes.
 
-**C02 publication evidence:** pending immutable Release verification; no owner test has been performed.
+**C02 publication evidence:** GitHub Actions run `36629889943` built candidate artifact `11062068062`, but its publish job failed at the immutable-release setting permission preflight. The final C02 Release/tag does not exist yet. Do not install this unpublished artifact as the acceptance candidate. No owner test has been performed.
 
 This checklist does not authorize:
 
