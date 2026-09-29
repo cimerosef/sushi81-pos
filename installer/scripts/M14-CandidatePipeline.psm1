@@ -231,18 +231,19 @@ function Test-M14PayloadArchive {
     Test-M14PayloadManifest -PayloadDirectory $destination -ManifestPath $ManifestPath -ExpectedSourceSha $ExpectedSourceSha -ExpectedCandidateId $ExpectedCandidateId
 }
 
-function New-M14PreProdStagingPayload {
+function New-M14ProfileStagingPayload {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$PayloadDirectory,
         [Parameter(Mandatory = $true)][string]$ManifestPath,
         [Parameter(Mandatory = $true)][string]$DestinationDirectory,
         [string]$ExpectedSourceSha,
-        [string]$ExpectedCandidateId
+        [string]$ExpectedCandidateId,
+        [ValidateSet('prod','preprod')][string]$Profile
     )
     $manifest = Test-M14PayloadManifest -PayloadDirectory $PayloadDirectory -ManifestPath $ManifestPath -ExpectedSourceSha $ExpectedSourceSha -ExpectedCandidateId $ExpectedCandidateId
     $destination = [IO.Path]::GetFullPath($DestinationDirectory)
-    if (Test-Path -LiteralPath $destination) { throw "Refusing to reuse PreProd staging directory '$destination'." }
+    if (Test-Path -LiteralPath $destination) { throw "Refusing to reuse profile staging directory '$destination'." }
     New-Item -ItemType Directory -Path $destination -Force | Out-Null
     $sourceRoot = (Resolve-Path -LiteralPath $PayloadDirectory).Path
     foreach ($entry in @($manifest.files)) {
@@ -254,19 +255,31 @@ function New-M14PreProdStagingPayload {
         Copy-Item -LiteralPath $source -Destination $target
     }
     $markerPath = Join-Path $destination 'deployment-profile.txt'
-    [IO.File]::WriteAllBytes($markerPath, [Text.Encoding]::ASCII.GetBytes('preprod'))
+    [IO.File]::WriteAllBytes($markerPath, [Text.Encoding]::ASCII.GetBytes($Profile))
     $actualFiles = @(Get-ChildItem -LiteralPath $destination -Recurse -File -Force)
-    if ($actualFiles.Count -ne @($manifest.files).Count + 1) { throw 'PreProd packaging added or omitted an unexpected file.' }
+    if ($actualFiles.Count -ne @($manifest.files).Count + 1) { throw 'Profile packaging added or omitted an unexpected file.' }
     $marker = [IO.File]::ReadAllBytes($markerPath)
-    if ([Text.Encoding]::ASCII.GetString($marker) -cne 'preprod' -or $marker.Length -ne 7) { throw 'PreProd profile marker must contain exactly the ASCII value preprod.' }
+    if ([Text.Encoding]::ASCII.GetString($marker) -cne $Profile -or $marker.Length -ne $Profile.Length) { throw "Profile marker must contain exactly ASCII '$Profile'." }
     foreach ($entry in @($manifest.files)) {
         $target = Join-Path $destination ([string]$entry.path.Replace('/',[IO.Path]::DirectorySeparatorChar))
         if (-not (Test-Path -LiteralPath $target -PathType Leaf) -or (Get-Item -LiteralPath $target).Length -ne [long]$entry.bytes -or
             (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$entry.sha256) {
-            throw "PreProd packaging changed application payload file '$($entry.path)'."
+            throw "Profile packaging changed application payload file '$($entry.path)'."
         }
     }
     $markerPath
+}
+
+function New-M14PreProdStagingPayload {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$PayloadDirectory,
+        [Parameter(Mandatory = $true)][string]$ManifestPath,
+        [Parameter(Mandatory = $true)][string]$DestinationDirectory,
+        [string]$ExpectedSourceSha,
+        [string]$ExpectedCandidateId
+    )
+    New-M14ProfileStagingPayload -PayloadDirectory $PayloadDirectory -ManifestPath $ManifestPath -DestinationDirectory $DestinationDirectory -ExpectedSourceSha $ExpectedSourceSha -ExpectedCandidateId $ExpectedCandidateId -Profile preprod
 }
 
 function Assert-M14CandidateNotPublished {
@@ -356,4 +369,4 @@ function Assert-M14PublishedTagTarget {
     }
 }
 
-Export-ModuleMember -Function Get-M14CandidateIdentity,Get-M14DispatchTagIdentity,Assert-M14SafePayloadPath,Get-M14PayloadEntries,Get-M14PayloadTreeHash,New-M14PayloadManifest,Test-M14PayloadManifest,New-M14PayloadArchive,Test-M14PayloadArchive,New-M14PreProdStagingPayload,Assert-M14CandidateNotPublished,Get-M14CandidateReleaseMatches,Assert-M14NoExistingRelease,Get-M14DraftReleaseId,Assert-M14ReleaseAssetsUnchanged,Assert-M14PublishedTagTarget
+Export-ModuleMember -Function Get-M14CandidateIdentity,Get-M14DispatchTagIdentity,Assert-M14SafePayloadPath,Get-M14PayloadEntries,Get-M14PayloadTreeHash,New-M14PayloadManifest,Test-M14PayloadManifest,New-M14PayloadArchive,Test-M14PayloadArchive,New-M14ProfileStagingPayload,New-M14PreProdStagingPayload,Assert-M14CandidateNotPublished,Get-M14CandidateReleaseMatches,Assert-M14NoExistingRelease,Get-M14DraftReleaseId,Assert-M14ReleaseAssetsUnchanged,Assert-M14PublishedTagTarget
