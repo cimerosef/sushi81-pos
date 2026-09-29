@@ -16,20 +16,22 @@ The owner reported four current Production maintenance findings after M14:
 3. product codes are displayed in lexical order such as `R1, R10, ... R2` rather than operator-friendly natural alphanumeric order;
 4. while adding products to an order, a prior product can intermittently be added a second time when a later product is added.
 
-The owner approved treating all four findings as one maintenance batch, with the duplicate-add defect first because it can create an incorrect order and total.
+The owner approved treating all four initial findings as one maintenance batch, with the duplicate-add defect first because it can create an incorrect order and total.
+
+During execution of the batch, the owner added one further printing optimization: the kitchen ticket must reserve approximately three handwriting-line heights of blank paper after the final `TOTAL`, so staff can add handwritten information after printing. The owner explicitly requested this behavior for inclusion in the same batch.
 
 ## Decision
 
 ### 1. Batch and validation model
 
-All four findings belong to one Production Maintenance Batch 01 and one owner-tested PREPROD candidate.
+All four initial findings plus the later owner-approved kitchen handwriting-space optimization belong to one Production Maintenance Batch 01 and one owner-tested PREPROD candidate.
 
 Implementation is split into ordered work packages:
 
 - WP1 — diagnose and repair intermittent duplicate product addition;
 - WP2 — reveal the newly added cart line automatically;
 - WP3 — natural alphanumeric product-code ordering;
-- WP4 — show applied Retrait discount on customer tickets;
+- WP4 — printing improvements: show applied Retrait discount on customer tickets and reserve kitchen handwriting space after `TOTAL`;
 - WP5 — integrated regression, documentation reconciliation, immutable PREPROD candidate and owner acceptance.
 
 No work package auto-authorizes a Production deployment or PR merge.
@@ -73,7 +75,9 @@ Ordering must remain deterministic for ties and must not modify product codes, i
 
 The same current-catalogue query behavior used by Catalogue/Caisse must not present conflicting code orderings.
 
-### 5. Customer-ticket Retrait discount line
+### 5. Printing improvements
+
+#### 5.1 Customer-ticket Retrait discount line
 
 When `PickupDiscountApplied` is true, the customer ticket displays the actual applied discount amount as a negative customer-facing line, using the existing French ticket style, for example:
 
@@ -89,7 +93,17 @@ The discount line is shown consistently on:
 
 If no Retrait discount was actually applied, no discount line is printed.
 
-This change does not alter discount eligibility, rate, minimum, rounding, VAT, authoritative total, payment state or kitchen-ticket semantics.
+This change does not alter discount eligibility, rate, minimum, rounding, VAT, authoritative total or payment state.
+
+#### 5.2 Kitchen-ticket handwriting space
+
+Every kitchen ticket must reserve a blank handwriting area immediately after the final kitchen `TOTAL`. The target is approximately three normal kitchen handwriting-line heights of vertical paper space.
+
+The reserved space applies consistently to ordinary kitchen printing, kitchen `RÉIMPRESSION`, PREPROD-marked kitchen output and cancelled-order kitchen output. It contains no pseudo-data and does not change the business content of the ticket.
+
+The customer ticket receives no corresponding blank handwriting area.
+
+The implementation must create real rendered vertical space that survives the Windows thermal-print layout/pagination path; simply appending empty strings that are trimmed/collapsed by the renderer is not sufficient.
 
 ### 6. Acceptance environment
 
