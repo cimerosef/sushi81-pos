@@ -7,7 +7,7 @@
 
 ## 1. Mission
 
-Repair one Production order-entry correctness defect and implement three small operator-facing improvements without reopening approved pricing, payment, catalogue identity, printing architecture, authority/recovery or cross-device semantics.
+Repair one Production order-entry correctness defect and implement four small operator-facing improvements without reopening approved pricing, payment, catalogue identity, printing architecture, authority/recovery or cross-device semantics.
 
 Controlling records:
 
@@ -103,7 +103,9 @@ Tests cover mixed examples including `R1/R2/R9/R10/R11`, `ML1/ML2/ML9/ML10`, `R4
 
 Preserve search/filter/category behavior and product identity.
 
-## 5. WP4 — customer-ticket Retrait discount display
+## 5. WP4 — printing improvements
+
+### 5.1 Customer-ticket Retrait discount display
 
 When `PickupDiscountApplied` is true, compute the actual discount from committed sale-time line snapshots:
 
@@ -121,8 +123,26 @@ Required tests:
 - explicit reprint -> same discount plus `DUPLICATA`;
 - no applied discount -> no discount row;
 - changed current Catalogue/settings after commit cannot change historical printed discount;
-- VAT/Total/payment snapshots remain unchanged;
-- kitchen ticket remains unchanged except existing PREPROD/reprint/cancel markers.
+- VAT/Total/payment snapshots remain unchanged.
+
+### 5.2 Kitchen-ticket handwriting spacer
+
+Reserve real vertical blank space immediately after the final kitchen `TOTAL`, targeting approximately three normal kitchen handwriting-line heights.
+
+Implementation requirements:
+
+- use an explicit print-layout/rendering spacer or equivalent real vertical measure; do not rely on empty strings that the renderer may trim/collapse;
+- ordinary kitchen print, explicit `RÉIMPRESSION`, PREPROD kitchen output and cancelled-order kitchen output all retain the space;
+- the spacer is after the kitchen total/business content and does not introduce labels or pseudo-data;
+- customer output receives no such spacer;
+- preserve existing page-width, item/option wrapping, atomic groups, PREPROD/reprint/cancel markings and printer queue behavior.
+
+Required tests:
+
+- rendered ordinary kitchen document has the expected trailing vertical-space contribution after `TOTAL`;
+- kitchen reprint and PREPROD/cancel variants retain the same spacer;
+- long/multipage kitchen output keeps business pagination intact and reserves the spacer only at the physical end of the final kitchen document;
+- customer rendered height/content does not gain the kitchen spacer.
 
 ## 6. WP5 — integration, docs, candidate
 
