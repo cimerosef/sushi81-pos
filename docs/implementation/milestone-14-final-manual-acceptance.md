@@ -1,6 +1,6 @@
 # M14 — PreProd foundation — owner manual acceptance
 
-**Status:** NOT STARTED
+**Status:** IN PROGRESS — WP7 OWNER ACCEPTANCE
 **Milestone:** M14
 
 This checklist is intentionally limited to the new environment-isolation and release-promotion foundation. It does not repeat the full V1 business acceptance.
@@ -85,7 +85,7 @@ Controller reviews GitHub evidence showing:
 
 No production deployment is required merely to Pass this evidence item.
 
-**Owner result:** pending
+**Owner result:** accepted by controller — WP6 exact-head `1c73999c323dba593e3279f47c54a6174638b23d`; CI #963 / run `36546336521`; promotion artifact `11022832475`; controller comment `5887252324`. No production deployment was performed.
 
 ## Completion rule
 
