@@ -190,6 +190,8 @@ Current owner-authorized maintenance package:
 - WP3 natural product-code ordering;
 - WP4 printing improvements: customer-ticket applied Retrait discount line plus kitchen-ticket handwriting space after `TOTAL`;
 - WP5 integration/documentation/new immutable PREPROD candidate;
+- WP1–WP4 implementation/automated evidence controller-accepted; WP1's original extra-add symptom and visible WP2–WP4 behavior still require owner computer-A PREPROD verification;
+- WP5 candidate identity C02 (`v1.0.1-preprod-c02`) is in preparation; historical immutable C01 remains unchanged and owner C02 acceptance is NOT RUN;
 - owner manual acceptance on computer A PREPROD only unless implementation unexpectedly touches a deferred M14 multi-device area.
 
 Controlling records:

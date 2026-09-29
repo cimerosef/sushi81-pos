@@ -59,7 +59,7 @@ function Assert-CandidateAssets {
         $summary.sourceHeadSha -cne $ExpectedSourceSha.ToLowerInvariant() -or $provenance.sourceHeadSha -cne $ExpectedSourceSha.ToLowerInvariant() -or
         $summary.productVersion -cne $identity.ProductVersion -or $provenance.productVersion -cne $identity.ProductVersion -or
         $summary.runtimeIdentifier -cne 'win-x64' -or $provenance.runtimeIdentifier -cne 'win-x64') {
-        throw 'Candidate summary/provenance identity does not match the exact authorized C01 source and version.'
+        throw "Candidate summary/provenance identity does not match the exact authorized $($identity.CandidateId) source and version."
     }
     if ($summary.applicationPublishInvocationCount -ne 1 -or $provenance.applicationPublishInvocationCount -ne 1 -or
         $summary.installerApplicationRepublishInvocationCount -ne 0 -or $provenance.installerApplicationRepublishInvocationCount -ne 0) {
@@ -164,7 +164,7 @@ Assert-M14NoExistingRelease -ReleasePages $preflightReleasePages -CandidateTag $
 
 $assetPaths = @($verifiedAssets.Names | ForEach-Object { Join-Path $candidateRoot $_ })
 $notes = @(
-    'Owner-testable M14 PREPROD candidate C01.'
+    "Owner-testable M14 PREPROD candidate $($identity.CandidateId)."
     ''
     "Exact source SHA: $ExpectedSourceSha"
     "Payload tree SHA-256: $($verifiedAssets.Summary.payloadTreeSha256)"

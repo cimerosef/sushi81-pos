@@ -2,9 +2,15 @@
 
 **Status:** NOT RUN
 **Environment:** computer A PREPROD only
-**Candidate:** pending controller-approved immutable candidate
+**Candidate:** C02 / `v1.0.1-preprod-c02` — publication and controller verification pending
 
 Do not use Production for candidate testing. Do not install PREPROD on computer B for this batch unless the controller explicitly expands scope because implementation touched a deferred M14 multi-device area.
+
+## 0 — install and environment identity
+
+After controller verification of the exact immutable C02 Release and installer hash, install C02 over the existing PREPROD installation on computer A. Confirm the prior PREPROD durable data/settings remain available, the PREPROD banner is visible, and the separate Production installation/data remain unchanged. Do not run this checklist against C01 or Production.
+
+**Owner result:** NOT RUN.
 
 ## A — duplicate-add regression
 
@@ -13,6 +19,7 @@ Using the normal Caisse product list:
 - add several different simple products one by one;
 - include both Add-button and double-click usage;
 - use a normal operator rhythm and one deliberately faster sequence;
+- repeat a deliberate add of the same product and confirm each distinct gesture remains its own line;
 - confirm every deliberate add produces one and only one cart addition;
 - confirm adding a later product never creates another copy of an earlier product;
 - if practical, include one option-enabled product and confirm/cancel its dialog once.
@@ -23,8 +30,8 @@ Using the normal Caisse product list:
 
 Create enough cart lines to require the cart vertical scrollbar.
 
-- add another product at the bottom;
-- confirm the newly added line becomes visible automatically;
+- add two more products at the bottom;
+- confirm each newly added line becomes visible automatically;
 - adjust quantity on an existing line and confirm the cart does not gratuitously jump to the bottom;
 - edit/remove as convenient and confirm normal cart controls remain usable.
 
@@ -70,7 +77,9 @@ Then inspect kitchen output:
 
 ## E — completion
 
-Batch owner acceptance may be marked PASS only after A–D pass against the exact controller-approved immutable candidate.
+Batch owner acceptance may be marked PASS only after 0 and A–D pass against the exact controller-approved immutable C02 candidate. WP1's original intermittent Production extra-add symptom remains unresolved until the empirical sequence in A passes.
+
+**C02 publication evidence:** pending immutable Release verification; no owner test has been performed.
 
 This checklist does not authorize:
 

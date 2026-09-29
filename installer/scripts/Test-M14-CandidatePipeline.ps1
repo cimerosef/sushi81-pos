@@ -201,6 +201,9 @@ try {
         $publisherScript.Contains("'make_latest=false'") -and
         $publisherScript.Contains('immutable -ne $true') -and
         -not [regex]::IsMatch($publisherScript,'(?i)(--clobber|release delete|git push.*--force|retry)')) 'asset, digest, tag, prerelease, non-latest, immutable and single-use guards must remain without automatic retry or overwrite.'
+    Assert-Condition ($publisherScript.Contains('authorized $($identity.CandidateId) source and version') -and
+        $publisherScript.Contains('Owner-testable M14 PREPROD candidate $($identity.CandidateId).') -and
+        -not $publisherScript.Contains('C01')) 'candidate publisher messages and release notes must use the actual C01-C99 identity.'
     Assert-Condition ($lifecycleScript.Contains('foreach ($path in @($installRoot,$dataRoot,$shortcut))') -and
         $lifecycleScript.Contains('[string]::Equals($installRoot,$prodInstallRoot') -and
         $lifecycleScript.Contains('[string]::Equals($dataRoot,$prodDataRoot')) 'hosted lifecycle checks must isolate PREPROD targets without requiring production folders to be absent.'
