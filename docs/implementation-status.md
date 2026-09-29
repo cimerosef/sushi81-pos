@@ -89,7 +89,7 @@ Controlling records:
 - baseline: `71024888a9cfd08109496ad076002be96e708c1a`;
 - branch: `codex/post-m14-production-maintenance-batch-01`;
 - Draft PR/mailbox: #31;
-- WP order: duplicate-add repair -> cart auto-reveal -> natural product-code ordering -> customer-ticket Retrait discount -> integration/candidate;
+- WP order: duplicate-add repair -> cart auto-reveal -> natural product-code ordering -> printing (customer-ticket Retrait discount + kitchen handwriting space) -> integration/candidate;
 - owner acceptance target: computer A PREPROD only;
 - computer B remains Production-only;
 - M14 deferred two-PC PREPROD verification and M12 populated real archive verification remain unchanged;
