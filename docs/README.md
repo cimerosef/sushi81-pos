@@ -188,7 +188,7 @@ Current owner-authorized maintenance package:
 - WP1 duplicate-add correctness repair;
 - WP2 cart auto-reveal;
 - WP3 natural product-code ordering;
-- WP4 customer-ticket applied Retrait discount line;
+- WP4 printing improvements: customer-ticket applied Retrait discount line plus kitchen-ticket handwriting space after `TOTAL`;
 - WP5 integration/documentation/new immutable PREPROD candidate;
 - owner manual acceptance on computer A PREPROD only unless implementation unexpectedly touches a deferred M14 multi-device area.
 
