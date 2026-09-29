@@ -128,7 +128,7 @@ Within already-approved project scope, the owner grants ChatGPT/controller and C
 - update technical worklogs, evidence, diagnostics and status records;
 - run or rerun builds, tests, CI and other non-destructive verification;
 - make ordinary technical corrections that preserve approved behavior and data semantics;
-- perform the mandatory ChatGPT completion-notification attempt after durable `CODEX_DONE` delivery.
+- perform the mandatory ChatGPT result-notification attempt after a durable terminal record, including a blocker or failure.
 
 This standing authorization is intended to avoid unnecessary approval prompts for technical execution. It must not be interpreted as authority to change product/business behavior, business rules, data meaning, authority/recovery/data-loss semantics, approved architecture/cost/dependency boundaries, milestone scope, or user-facing contractual behavior that requires a specification decision.
 
@@ -136,7 +136,7 @@ It also does **not** authorize destructive operations on real business data, pro
 
 If the operating system, browser, GitHub, Codex host or another platform presents a non-bypassable permission/security prompt, repository standing authorization does not override that platform control; Codex should use the highest permission already granted by the owner, never weaken security, and report only a genuine technical/platform blocker.
 
-For ChatGPT completion notification specifically, there is **NO owner notification opt-out**. After every durable matching `CODEX_DONE`, Codex must always attempt the already-open Sushi81 POS ChatGPT browser notification and record exactly one of `browserNotification: succeeded`, `browserNotification: unavailable`, or `browserNotification: failed`. It must never skip the attempt because GitHub delivery succeeded or because it infers a preference not to notify.
+For ChatGPT result notification specifically, there is **NO owner notification opt-out**. After every durable matching terminal result, including `CODEX_DONE`, `CODEX_BLOCKED` or `CODEX_FAILED`, Codex must always attempt the already-open Sushi81 POS ChatGPT browser notification and record exactly one of `browserNotification: succeeded`, `browserNotification: unavailable`, or `browserNotification: failed`. It must never skip the attempt because GitHub delivery succeeded or because it infers a preference not to notify.
 
 ### Codex Execution Gate — daily master switch
 
@@ -153,7 +153,7 @@ Therefore ChatGPT may continue to publish new `CODEX_HANDOFF_READY: <id>` tasks 
 
 **Closed-gate sequencing rule:** when issue #4 is closed and ChatGPT determines that new Codex work is needed, ChatGPT must first complete all ChatGPT-side review/design/documentation work that can be done without Codex, update the authoritative GitHub material as appropriate, and publish the complete queued `CODEX_HANDOFF_READY: <id>` task while the gate remains closed. Only after that durable preparation is complete should ChatGPT ask the operator to reopen issue #4. The operator must not be asked to reopen the gate merely so ChatGPT can prepare documentation, commands, or the handoff itself.
 
-Closing issue #4 is not an interrupt mechanism. If Codex is already executing an authorized handoff when the gate is closed, that already-running task should finish safely, push its work and publish its matching `CODEX_DONE`; no additional queued handoff may start afterward. Emergency cancellation of an already-running task is a separate explicit manual action.
+Closing issue #4 is not an interrupt mechanism. If Codex is already executing an authorized handoff when the gate is closed, that already-running task should finish safely and publish its matching terminal result (`CODEX_DONE` on success, `CODEX_BLOCKED` or `CODEX_FAILED` if incomplete); no additional queued handoff may start afterward. Emergency cancellation of an already-running task is a separate explicit manual action.
 
 Reopening issue #4 resumes queued work. Queued handoffs must be processed **serially in publication order, oldest unprocessed first**, never concurrently and never newest-first.
 
@@ -179,9 +179,9 @@ When ChatGPT has completed review/design work, no user decision is required, and
 
 The PR top-level comment is the **only authoritative task mailbox entry**. Issue #4 remains the execution switch/status pointer and must not contain a competing full copy of the task instruction. It may name the currently active handoff ID and point to the authoritative PR comment.
 
-Every handoff ID is single-use. Codex must never process the same `CODEX_HANDOFF_READY` ID twice. Each distinct handoff ID must receive its own durable matching `CODEX_DONE: <same-id>` completion record; an older `CODEX_DONE` must not be edited or reused to represent a newer handoff.
+Every handoff ID is single-use. Codex must never process the same `CODEX_HANDOFF_READY` ID twice. Each distinct executed handoff ID must receive its own durable matching terminal record: `CODEX_DONE: <same-id>` on success, or `CODEX_BLOCKED: <same-id>` / `CODEX_FAILED: <same-id>` if it stops incomplete. A later repair requires a new READY ID; an older terminal record must not be edited or reused to represent a newer handoff. Editing that same comment only to add its browser-notification outcome is allowed.
 
-A historical READY whose ID already has a matching DONE is completed history, never active work.
+A historical READY whose ID already has a matching terminal record is completed history, never active work. A blocked or failed package can be repaired only through a new distinct READY.
 
 Before publishing a new executable handoff, ChatGPT/controller must read back and verify:
 
@@ -206,12 +206,20 @@ On each automation wake-up, Codex must perform these checks in order:
 1. read GitHub issue #4;
 2. if issue #4 is **CLOSED**, make no repository/project changes and end that automation run immediately;
 3. if issue #4 is **OPEN**, inspect the active Sushi81 POS implementation PR comments;
-4. find the **oldest** `CODEX_HANDOFF_READY: <id>` that has not already been completed by a matching `CODEX_DONE: <id>`;
+4. find the **oldest** `CODEX_HANDOFF_READY: <id>` without a matching terminal `CODEX_DONE: <id>`, `CODEX_BLOCKED: <id>` or `CODEX_FAILED: <id>`; a later repair requires its own distinct READY ID;
 5. if none exists, make no repository changes and end that automation run normally;
 6. if a handoff exists, execute only that one associated authorized task;
 7. never infer a new milestone or continue work merely because the automation woke up.
 
 The recurring automation itself remains enabled after an individual run ends. A no-work or gate-closed run should end quickly rather than sleeping/polling inside the same run.
+
+### Terminal-result notification — owner standing rule
+
+At the end of every executed Codex handoff/task, **whether successful, failed, blocked, fail-closed or partially complete**, Codex must report the result to the already-open Sushi81 POS ChatGPT conversation. A browser notification is required even when no `CODEX_DONE` is appropriate. This owner rule supersedes success-only notification wording below.
+
+First leave a durable top-level terminal record on the active implementation PR/mailbox: `CODEX_DONE: <same-id>` for success, `CODEX_BLOCKED: <same-id>` for a blocker, or `CODEX_FAILED: <same-id>` for a failed task. State what completed, what did not, current SHA/evidence, gate status and the exact next unblock. Then attempt a concise browser notification with the same ID and PR evidence pointer. Record exactly one final line in the durable terminal comment: `browserNotification: succeeded`, `browserNotification: unavailable` or `browserNotification: failed`. It may be added by editing that same terminal comment after the browser attempt. If no valid active PR exists, report through the available authorized GitHub gate/coordination channel without changing project contents; a CLOSED gate still forbids repository/project modifications. Never include secrets, tokens or large logs in the notification.
+
+These markers record a terminal outcome and prevent re-executing the same handoff ID; they do not authorize a new task, business decision, Production action or merge. An idle recurring wake-up with no executable handoff is not an executed task.
 
 ### Codex → ChatGPT completion
 
@@ -228,11 +236,11 @@ After completing an authorized handoff, Codex must perform the following deliver
 
 The browser-notification **attempt is mandatory for every executed handoff**. It is not optional and must not be skipped merely because GitHub delivery already succeeded.
 
-### Standing project-owner authorization for completion notifications
+### Standing project-owner authorization for terminal notifications
 
-The project owner gives **standing authorization** for Codex to perform the completion-notification action described above after every authorized handoff. Codex must **not ask the project owner for an additional approval or confirmation** merely to send that completion message.
+The project owner gives **standing authorization** for Codex to perform the result-notification action described above after every executed handoff/task, including failure or blocker. Codex must **not ask the project owner for an additional approval or confirmation** merely to send that result message.
 
-This standing authorization is intentionally narrow. It authorizes Codex, after the durable matching `CODEX_DONE` has been posted, to:
+This standing authorization is intentionally narrow. It authorizes Codex, after the durable matching terminal comment has been posted, to:
 
 - switch to or focus the already-open Sushi81 POS ChatGPT browser conversation;
 - type a short completion notification containing the matching handoff ID, pushed head/evidence pointer and request for ChatGPT review;
@@ -247,7 +255,7 @@ If the host platform, browser, operating system, security sandbox or tool runtim
 
 The browser-notification **success is best-effort and non-fatal**. Browser/session unavailability, navigation failure, authentication/session loss, inability to control the existing tab, or another browser-side error does not make the implementation task fail and does not authorize re-execution of the handoff. GitHub remains the durable completion record.
 
-For every `CODEX_DONE`, Codex must record the browser-notification attempt outcome in that same PR comment using one of these values:
+For every terminal result comment, Codex must record the browser-notification attempt outcome in that same PR comment using one of these values:
 
 - `browserNotification: succeeded`
 - `browserNotification: unavailable`

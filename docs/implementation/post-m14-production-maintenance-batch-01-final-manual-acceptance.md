@@ -2,7 +2,7 @@
 
 **Status:** NOT RUN
 **Environment:** computer A PREPROD only
-**Candidate:** C02 / `v1.0.1-preprod-c02` — build artifact exists, immutable Release publication blocked; controller verification pending
+**Candidate:** C02 / `v1.0.1-preprod-c02` — immutable Release `399541988` published; controller verification and owner acceptance pending
 
 Do not use Production for candidate testing. Do not install PREPROD on computer B for this batch unless the controller explicitly expands scope because implementation touched a deferred M14 multi-device area.
 
@@ -79,7 +79,7 @@ Then inspect kitchen output:
 
 Batch owner acceptance may be marked PASS only after 0 and A–D pass against the exact controller-approved immutable C02 candidate. WP1's original intermittent Production extra-add symptom remains unresolved until the empirical sequence in A passes.
 
-**C02 publication evidence:** GitHub Actions run `36629889943` built candidate artifact `11062068062`, but its publish job failed at the immutable-release setting permission preflight. The final C02 Release/tag does not exist yet. Do not install this unpublished artifact as the acceptance candidate. No owner test has been performed.
+**C02 publication evidence:** [immutable PREPROD C02 Release](https://github.com/cimerosef/sushi81-pos/releases/tag/v1.0.1-preprod-c02), ID `399541988`, source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`, installer `Sushi81POS-PREPROD-Setup-1.0.1-0aa3a02.exe` SHA-256 `3ef1346e857914e9898dacafe522c9308d5d740a9db00413c19b9415daa44e4a`. Actions run `36629889943` built artifact `11062068062`; its GITHUB_TOKEN publish job failed before Release creation, then the tracked publisher completed publication with owner authentication without rebuilding. The Release is draft=false, prerelease=true, immutable=true and non-latest, with exactly five verified assets. Controller independent verification remains pending; no owner test has been performed.
 
 This checklist does not authorize:
 
