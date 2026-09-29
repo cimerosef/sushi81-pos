@@ -26,6 +26,7 @@ public partial class MainWindow : Window
 {
     private bool loaded;
     private bool orderProductAddInProgress;
+    private readonly Queue<(OrderEntryShellViewModel Entry, Guid ProductId)> orderProductAddQueue = new();
     private int commandesGridResizeInvocationCount;
     private int commandesGridWidthMutationCount;
     private IDisposable? performanceTraceProbe;
@@ -642,30 +643,50 @@ public partial class MainWindow : Window
     private async void OnAddOrderProduct(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { Entry: { } entry }) return;
-        if (orderProductAddInProgress) return;
+        ProductSummary? selected;
         if (ReferenceEquals(sender, orderProductsGrid))
         {
+            // WPF raises MouseDoubleClick for each click after the first in one burst.
+            // Each even click completes another deliberate double-click pair.
+            if (e is not MouseButtonEventArgs { ChangedButton: MouseButton.Left } click
+                || click.ClickCount < 2 || click.ClickCount % 2 != 0) return;
             if (FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject) is not { DataContext: ProductSummary productSummary }) return;
             entry.SelectedProduct = productSummary;
+            selected = productSummary;
         }
-        if (!entry.CanAddSelectedProduct) return;
+        else if (ReferenceEquals(sender, orderAddButton)) selected = entry.SelectedProduct;
+        else return;
+        if (!entry.CanAddSelectedProduct || selected is null) return;
+
+        // Capture each gesture's product before an earlier asynchronous lookup can finish.
+        orderProductAddQueue.Enqueue((entry, selected.Id));
+        if (orderProductAddInProgress) return;
         orderProductAddInProgress = true;
         try
         {
-            await entry.AddSelectedProductAsync();
-            if (entry.PendingProduct is { } product)
+            while (orderProductAddQueue.Count > 0)
             {
-                if (!product.Aggregate.Product.OptionsEnabled)
+                var request = orderProductAddQueue.Dequeue();
+                if (DataContext is not ShellViewModel { Entry: { } currentEntry }
+                    || !ReferenceEquals(currentEntry, request.Entry)
+                    || !currentEntry.CanWrite || currentEntry.IsBusy || currentEntry.IsCommitted) continue;
+                try
                 {
-                    entry.AddConfiguredLine(product, [], [], 1);
-                    return;
-                }
+                    var product = await currentEntry.LoadProductForAddAsync(request.ProductId);
+                    if (product is null || !currentEntry.CanWrite || currentEntry.IsBusy || currentEntry.IsCommitted) continue;
+                    if (!product.Aggregate.Product.OptionsEnabled)
+                    {
+                        currentEntry.AddConfiguredLine(product, [], [], 1);
+                        continue;
+                    }
 
-                var dialog = new OptionSelectionDialog(this, product, null);
-                if (dialog.ShowDialog() == true) entry.AddConfiguredLine(product, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
+                    var dialog = new OptionSelectionDialog(this, product, null);
+                    if (dialog.ShowDialog() == true)
+                        currentEntry.AddConfiguredLine(product, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
+                }
+                catch (Exception exception) { ReportUnexpectedFailure(exception); MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
             }
         }
-        catch (Exception exception) { ReportUnexpectedFailure(exception); MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
         finally { orderProductAddInProgress = false; }
     }
 

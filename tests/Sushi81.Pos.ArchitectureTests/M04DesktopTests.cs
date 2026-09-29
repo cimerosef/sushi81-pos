@@ -517,6 +517,7 @@ public sealed class M04DesktopTests
                     RoutedEvent = Control.MouseDoubleClickEvent,
                     Source = productRow
                 };
+                typeof(MouseButtonEventArgs).GetProperty(nameof(MouseButtonEventArgs.ClickCount))!.SetValue(doubleClick, 2);
                 productsGrid.RaiseEvent(doubleClick);
                 Assert.HasCount(2, entry.Cart, "Double-clicking a simple product must use the same direct-add path.");
 
@@ -547,6 +548,203 @@ public sealed class M04DesktopTests
                 entry.RefreshAsync().GetAwaiter().GetResult();
                 Assert.AreEqual(secondCategoryId, entry.SelectedCategoryId);
                 Assert.AreEqual(second.Aggregate.Product.Id, entry.Products.Single().Id);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void CaisseGridTripleClickContinuationDoesNotAddThePreviousProductAgainOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var first = SimpleProduct(Guid.NewGuid(), "A", "Premier", categoryId, "Plats");
+            var second = SimpleProduct(Guid.NewGuid(), "B", "Deuxième", categoryId, "Plats");
+            var third = SimpleProduct(Guid.NewGuid(), "C", "Troisième", categoryId, "Plats");
+            var catalogue = new DelayedFirstProductCatalogue(first, second, third);
+            catalogue.ReleaseFirst();
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(catalogue, new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var caisse = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]);
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+                var grid = (DataGrid)typeof(MainWindow).GetField("orderProductsGrid", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var firstRow = VisualDescendants<DataGridRow>(grid).Single(row => row.DataContext is ProductSummary summary && summary.Id == first.Aggregate.Product.Id);
+                var secondRow = VisualDescendants<DataGridRow>(grid).Single(row => row.DataContext is ProductSummary summary && summary.Id == second.Aggregate.Product.Id);
+                var thirdRow = VisualDescendants<DataGridRow>(grid).Single(row => row.DataContext is ProductSummary summary && summary.Id == third.Aggregate.Product.Id);
+
+                void RaiseDoubleClick(DataGridRow row, int clickCount)
+                {
+                    var args = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                    {
+                        RoutedEvent = Control.MouseDoubleClickEvent,
+                        Source = row
+                    };
+                    typeof(MouseButtonEventArgs).GetProperty(nameof(MouseButtonEventArgs.ClickCount))!.SetValue(args, clickCount);
+                    grid.RaiseEvent(args);
+                }
+
+                RaiseDoubleClick(firstRow, 2);
+                Assert.HasCount(1, entry.Cart);
+                Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[0].Draft.Product.Product.Id);
+
+                RaiseDoubleClick(firstRow, 3);
+                Assert.HasCount(1, entry.Cart, "The third click in one burst is not a second deliberate double-click add.");
+
+                RaiseDoubleClick(firstRow, 4);
+                Assert.HasCount(2, entry.Cart, "A fourth click completes a second deliberate double-click pair.");
+                Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[1].Draft.Product.Product.Id);
+
+                RaiseDoubleClick(secondRow, 2);
+                Assert.HasCount(3, entry.Cart);
+                Assert.AreEqual(second.Aggregate.Product.Id, entry.Cart[2].Draft.Product.Product.Id);
+
+                RaiseDoubleClick(thirdRow, 2);
+                Assert.HasCount(4, entry.Cart);
+                Assert.AreEqual(third.Aggregate.Product.Id, entry.Cart[3].Draft.Product.Product.Id);
+
+                RaiseDoubleClick(firstRow, 2);
+                Assert.HasCount(5, entry.Cart, "A separate deliberate double-click of A remains valid.");
+                Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[4].Draft.Product.Product.Id);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void CaisseFastSequentialButtonAddsKeepEveryDistinctGestureWhileProductLoadsOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var first = SimpleProduct(Guid.NewGuid(), "A", "Premier", categoryId, "Plats");
+            var second = SimpleProduct(Guid.NewGuid(), "B", "Deuxième", categoryId, "Plats");
+            var third = SimpleProduct(Guid.NewGuid(), "C", "Troisième", categoryId, "Plats");
+            var catalogue = new DelayedFirstProductCatalogue(first, second, third);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(catalogue, new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            var previousContext = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext(window.Dispatcher));
+            try
+            {
+                var caisse = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]);
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+                var grid = (DataGrid)typeof(MainWindow).GetField("orderProductsGrid", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var add = (Button)typeof(MainWindow).GetField("orderAddButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+
+                void Add(OrderEntryProduct product)
+                {
+                    grid.SelectedItem = entry.Products.Single(summary => summary.Id == product.Aggregate.Product.Id);
+                    window.UpdateLayout();
+                    Assert.IsTrue(add.IsEnabled);
+                    add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                }
+
+                Add(first);
+                Add(second);
+                Add(third);
+                Assert.IsEmpty(entry.Cart, "The first product lookup is deliberately still pending.");
+
+                catalogue.ReleaseFirst();
+                var frame = new System.Windows.Threading.DispatcherFrame();
+                window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() => frame.Continue = false));
+                System.Windows.Threading.Dispatcher.PushFrame(frame);
+                Assert.HasCount(3, entry.Cart, "Each deliberate Add click must survive the earlier async lookup.");
+                CollectionAssert.AreEqual(
+                    new[] { first.Aggregate.Product.Id, second.Aggregate.Product.Id, third.Aggregate.Product.Id },
+                    entry.Cart.Select(line => line.Draft.Product.Product.Id).ToArray());
+
+                Add(first);
+                Assert.HasCount(4, entry.Cart);
+                Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[3].Draft.Product.Product.Id);
+                Add(first);
+                Assert.HasCount(5, entry.Cart, "A second deliberate Add click of the same product remains valid.");
+                Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[4].Draft.Product.Product.Id);
+            }
+            finally { SynchronizationContext.SetSynchronizationContext(previousContext); window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void CaisseOptionDialogConfirmAddsOnceAndCancelAddsNoneOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+            var groupId = Guid.NewGuid();
+            var optionId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(productId, "OPT", "Avec option", categoryId, Money.FromCents(1000), 10m, true, true, true, default, default),
+                [new OptionGroup(groupId, productId, "Choix", DomainSelectionMode.Single, true, null, null, 0, default, default)],
+                new Dictionary<Guid, IReadOnlyList<ProductOption>>
+                {
+                    [groupId] = [new(optionId, groupId, "Sauce", Money.Zero, true, 0, default, default)]
+                }), "Plats");
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(new DesktopCatalogue(product, categoryId), new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var caisse = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]);
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+                var grid = (DataGrid)typeof(MainWindow).GetField("orderProductsGrid", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var add = (Button)typeof(MainWindow).GetField("orderAddButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                grid.SelectedItem = entry.Products.Single();
+                window.UpdateLayout();
+
+                void ClickAndRespond(bool confirm)
+                {
+                    Exception? dialogFailure = null;
+                    window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
+                    {
+                        Window? dialog = null;
+                        try
+                        {
+                            dialog = window.OwnedWindows.Cast<Window>().Single(owned => owned.GetType().Name == "OptionSelectionDialog");
+                            if (confirm)
+                            {
+                                VisualDescendants<RadioButton>(dialog).Single(option => Equals(option.Tag, optionId)).IsChecked = true;
+                                VisualDescendants<Button>(dialog).Single(button => Equals(button.Content, shell.Localized["Add"]))
+                                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            }
+                            else
+                            {
+                                VisualDescendants<Button>(dialog).Single(button => Equals(button.Content, shell.Localized["Cancel"]))
+                                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            }
+                        }
+                        catch (Exception exception) { dialogFailure = exception; dialog?.Close(); }
+                    }));
+                    add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    if (dialogFailure is not null) ExceptionDispatchInfo.Capture(dialogFailure).Throw();
+                }
+
+                ClickAndRespond(confirm: true);
+                Assert.HasCount(1, entry.Cart);
+                CollectionAssert.AreEqual(new[] { optionId }, entry.Cart[0].Draft.SelectedOptionIds.ToArray());
+
+                ClickAndRespond(confirm: false);
+                Assert.HasCount(1, entry.Cart, "Cancelling the next option dialog must not add another line.");
             }
             finally { window.Close(); }
         });
@@ -641,7 +839,7 @@ public sealed class M04DesktopTests
     private sealed class DesktopCatalogue(OrderEntryProduct product, Guid categoryId) : IOrderEntryCatalogueQueries
     {
         public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([new(categoryId, "Plats")]);
-        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([new(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name, categoryId, product.CategoryName, product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, true, false)]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([new(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name, categoryId, product.CategoryName, product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, true, product.Aggregate.Product.OptionsEnabled)]);
         public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(productId == product.Aggregate.Product.Id ? product : null);
     }
 
@@ -667,6 +865,33 @@ public sealed class M04DesktopTests
 
         public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) =>
             Task.FromResult(new[] { first, second }.SingleOrDefault(product => product.Aggregate.Product.Id == productId));
+    }
+
+    private sealed class DelayedFirstProductCatalogue(params OrderEntryProduct[] products) : IOrderEntryCatalogueQueries
+    {
+        private readonly TaskCompletionSource<OrderEntryProduct?> firstLookup = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool firstLookupPending = true;
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CategorySummary>>([new(products[0].Aggregate.Product.CategoryId, products[0].CategoryName)]);
+
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ProductSummary>>(products.Select(product =>
+                new ProductSummary(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name,
+                    product.Aggregate.Product.CategoryId, product.CategoryName, product.Aggregate.Product.PriceTtc,
+                    product.Aggregate.Product.VatRate, true, true, false)).ToArray());
+
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default)
+        {
+            if (firstLookupPending && productId == products[0].Aggregate.Product.Id)
+            {
+                firstLookupPending = false;
+                return firstLookup.Task;
+            }
+            return Task.FromResult<OrderEntryProduct?>(products.SingleOrDefault(product => product.Aggregate.Product.Id == productId));
+        }
+
+        public void ReleaseFirst() => firstLookup.SetResult(products[0]);
     }
 
     private sealed class DisappearingCatalogue : IOrderEntryCatalogueQueries

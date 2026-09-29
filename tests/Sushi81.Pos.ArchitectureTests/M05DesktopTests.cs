@@ -2335,13 +2335,16 @@ public sealed class M05DesktopTests
 
             entry.ChangeQuantity(original, 4);
             entry.RemoveLine(duplicate);
+            entry.AddConfiguredLine(second, [], [], 1);
+            var manual = entry.Cart.Single(line => line.Draft.Product.Product.Id == second.Aggregate.Product.Id);
             Assert.AreEqual(4, original.Quantity);
             Assert.IsEmpty(entry.Cart.Where(line => ReferenceEquals(line, duplicate)));
 
             Assert.IsTrue(entry.IgnoreHiboutikLine(3));
-            Assert.HasCount(1, entry.Cart);
-            Assert.AreSame(original, entry.Cart.Single());
-            Assert.AreEqual(4, entry.Cart.Single().Quantity, "An unrelated import transition must not restore the original imported quantity.");
+            Assert.HasCount(2, entry.Cart);
+            Assert.AreSame(original, entry.Cart[0]);
+            Assert.AreSame(manual, entry.Cart[1], "An import presentation refresh must not duplicate an ordinary manually added line.");
+            Assert.AreEqual(4, original.Quantity, "An unrelated import transition must not restore the original imported quantity.");
         });
     }
 
