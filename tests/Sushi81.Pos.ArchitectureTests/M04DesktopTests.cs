@@ -517,7 +517,6 @@ public sealed class M04DesktopTests
                     RoutedEvent = Control.MouseDoubleClickEvent,
                     Source = productRow
                 };
-                typeof(MouseButtonEventArgs).GetProperty(nameof(MouseButtonEventArgs.ClickCount))!.SetValue(doubleClick, 2);
                 productsGrid.RaiseEvent(doubleClick);
                 Assert.HasCount(2, entry.Cart, "Double-clicking a simple product must use the same direct-add path.");
 
@@ -554,7 +553,7 @@ public sealed class M04DesktopTests
     }
 
     [TestMethod]
-    public void CaisseGridTripleClickContinuationDoesNotAddThePreviousProductAgainOnSta()
+    public void CaisseGridWpfDoubleClickEventAddsEachSelectedProductExactlyOnceOnSta()
     {
         RunOnSta(() =>
         {
@@ -581,39 +580,40 @@ public sealed class M04DesktopTests
                 var secondRow = VisualDescendants<DataGridRow>(grid).Single(row => row.DataContext is ProductSummary summary && summary.Id == second.Aggregate.Product.Id);
                 var thirdRow = VisualDescendants<DataGridRow>(grid).Single(row => row.DataContext is ProductSummary summary && summary.Id == third.Aggregate.Product.Id);
 
-                void RaiseDoubleClick(DataGridRow row, int clickCount)
+                void RaiseDoubleClick(DataGridRow row)
                 {
                     var args = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
                     {
                         RoutedEvent = Control.MouseDoubleClickEvent,
                         Source = row
                     };
-                    typeof(MouseButtonEventArgs).GetProperty(nameof(MouseButtonEventArgs.ClickCount))!.SetValue(args, clickCount);
+                    Assert.AreEqual(1, args.ClickCount, "WPF Control creates new MouseDoubleClick args with the constructor-default click count.");
                     grid.RaiseEvent(args);
                 }
 
-                RaiseDoubleClick(firstRow, 2);
+                RaiseDoubleClick(firstRow);
                 Assert.HasCount(1, entry.Cart);
                 Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[0].Draft.Product.Product.Id);
 
-                RaiseDoubleClick(firstRow, 3);
-                Assert.HasCount(1, entry.Cart, "The third click in one burst is not a second deliberate double-click add.");
+                // The underlying second mouse-down owns ClickCount == 2; WPF Control
+                // synthesizes a separate MouseDoubleClick event for the grid handler.
+                var secondMouseDown = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                {
+                    RoutedEvent = UIElement.MouseLeftButtonDownEvent,
+                    Source = secondRow
+                };
+                typeof(MouseButtonEventArgs).GetProperty(nameof(MouseButtonEventArgs.ClickCount))!.SetValue(secondMouseDown, 2);
+                grid.RaiseEvent(secondMouseDown);
+                Assert.HasCount(2, entry.Cart);
+                Assert.AreEqual(second.Aggregate.Product.Id, entry.Cart[1].Draft.Product.Product.Id);
 
-                RaiseDoubleClick(firstRow, 4);
-                Assert.HasCount(2, entry.Cart, "A fourth click completes a second deliberate double-click pair.");
-                Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[1].Draft.Product.Product.Id);
-
-                RaiseDoubleClick(secondRow, 2);
+                RaiseDoubleClick(thirdRow);
                 Assert.HasCount(3, entry.Cart);
-                Assert.AreEqual(second.Aggregate.Product.Id, entry.Cart[2].Draft.Product.Product.Id);
+                Assert.AreEqual(third.Aggregate.Product.Id, entry.Cart[2].Draft.Product.Product.Id);
 
-                RaiseDoubleClick(thirdRow, 2);
-                Assert.HasCount(4, entry.Cart);
-                Assert.AreEqual(third.Aggregate.Product.Id, entry.Cart[3].Draft.Product.Product.Id);
-
-                RaiseDoubleClick(firstRow, 2);
-                Assert.HasCount(5, entry.Cart, "A separate deliberate double-click of A remains valid.");
-                Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[4].Draft.Product.Product.Id);
+                RaiseDoubleClick(firstRow);
+                Assert.HasCount(4, entry.Cart, "A separate deliberate double-click of A remains valid.");
+                Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[3].Draft.Product.Product.Id);
             }
             finally { window.Close(); }
         });

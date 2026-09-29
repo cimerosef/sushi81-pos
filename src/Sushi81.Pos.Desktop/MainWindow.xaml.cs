@@ -646,10 +646,9 @@ public partial class MainWindow : Window
         ProductSummary? selected;
         if (ReferenceEquals(sender, orderProductsGrid))
         {
-            // WPF raises MouseDoubleClick for each click after the first in one burst.
-            // Each even click completes another deliberate double-click pair.
-            if (e is not MouseButtonEventArgs { ChangedButton: MouseButton.Left } click
-                || click.ClickCount < 2 || click.ClickCount % 2 != 0) return;
+            // WPF synthesizes MouseDoubleClick from a second mouse-down with new event args;
+            // the synthesized args have constructor-default ClickCount == 1.
+            if (e is not MouseButtonEventArgs { ChangedButton: MouseButton.Left }) return;
             if (FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject) is not { DataContext: ProductSummary productSummary }) return;
             entry.SelectedProduct = productSummary;
             selected = productSummary;
