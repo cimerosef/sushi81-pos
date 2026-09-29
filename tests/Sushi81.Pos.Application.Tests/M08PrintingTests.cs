@@ -196,6 +196,45 @@ public sealed class M08PrintingTests
     }
 
     [TestMethod]
+    public void PickupDiscountUsesQuantityAndEligibleLinesOnlyWithoutCurrentSettings()
+    {
+        var original = CreateDiscountedOrder(OrderStatus.Open);
+        var eligible = original.Items[0] with
+        {
+            Quantity = 2,
+            ProductBasePriceTtc = Money.FromCents(1000),
+            ExtendedBaseTtc = Money.FromCents(2000),
+            CalculatedLineTotalTtc = Money.FromCents(2120),
+            Adjustments =
+            [
+                new(Guid.NewGuid(), 0, OrderAdjustmentKind.CustomAdjustment, null, null, "Retrait option", Money.FromCents(-100), 10m),
+                new(Guid.NewGuid(), 1, OrderAdjustmentKind.PredefinedOption, null, null, "Extra", Money.FromCents(250), 10m)
+            ]
+        };
+        var ineligible = eligible with
+        {
+            Id = Guid.NewGuid(),
+            Position = 1,
+            ProductDiscountEligible = false,
+            Quantity = 1,
+            ProductBasePriceTtc = Money.FromCents(500),
+            ExtendedBaseTtc = Money.FromCents(500),
+            CalculatedLineTotalTtc = Money.FromCents(600),
+            Adjustments = [new(Guid.NewGuid(), 0, OrderAdjustmentKind.PredefinedOption, null, null, "Extra", Money.FromCents(100), 10m)]
+        };
+        var order = original with { Items = [eligible, ineligible], TotalTtc = Money.FromCents(2720) };
+        var factory = new OrderPrintDocumentFactory(new FixedClock());
+        var defaultIdentity = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Customer, PrintIntent.InitialAutomatic);
+        var changedIdentity = factory.Create(order, ReceiptIdentity.Default with { BusinessName = "Synthetic receipt identity" },
+            PrintDocumentKind.Customer, PrintIntent.InitialAutomatic);
+
+        // 2 x (10.00 - 1.00) discounted by 10%; the positive 2 x 2.50 and ineligible 6.00 do not reduce it.
+        Assert.AreEqual("-1.80 EUR", defaultIdentity.Content.Blocks.Single(block => block.Kind == PrintReceiptBlockKind.Discount).SecondaryText);
+        Assert.AreEqual("-1.80 EUR", changedIdentity.Content.Blocks.Single(block => block.Kind == PrintReceiptBlockKind.Discount).SecondaryText);
+        Assert.AreEqual("27.20", defaultIdentity.Content.Blocks.Single(block => block.Kind == PrintReceiptBlockKind.Total).SecondaryText);
+    }
+
+    [TestMethod]
     public void InconsistentAppliedPickupDiscountFailsGenerationInsteadOfPrintingAnInventedAmount()
     {
         var order = CreateDiscountedOrder(OrderStatus.Open);
@@ -203,8 +242,11 @@ public sealed class M08PrintingTests
         var invalid = new[]
         {
             order with { PickupDiscountRate = null },
+            order with { PickupDiscountRate = 0m },
+            order with { PickupDiscountRate = 1.01m },
             order with { Fulfilment = FulfilmentMode.Livraison },
             order with { Items = [order.Items[0] with { ProductDiscountEligible = false }] },
+            order with { Items = [order.Items[0] with { ExtendedBaseTtc = Money.FromCents(2629) }] },
             order with { Items = [order.Items[0] with { CalculatedLineTotalTtc = Money.FromCents(2630) }] },
             order with { Items = [order.Items[0] with { CalculatedLineTotalTtc = Money.FromCents(2400) }] }
         };

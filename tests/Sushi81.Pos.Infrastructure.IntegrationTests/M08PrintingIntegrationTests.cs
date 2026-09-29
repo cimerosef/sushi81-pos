@@ -562,7 +562,10 @@ public sealed class M08PrintingIntegrationTests
             new(PrintReceiptBlockKind.Heading, "*** CUISINE ***", AtomicGroup: "header")
         };
         for (var index = 0; index < 24; index++)
+        {
             blocks.Add(new(PrintReceiptBlockKind.Item, $"1x P-{index:000}", "Plat suffisamment long pour enrouler le texte"));
+            blocks.Add(new(PrintReceiptBlockKind.Option, $"Option-{index:000}", "0.50"));
+        }
         blocks.Add(new(PrintReceiptBlockKind.Total, "TOTAL", "23.67 EUR", AtomicGroup: "kitchen-total"));
         blocks.Add(new(PrintReceiptBlockKind.HandwritingSpace, string.Empty, AtomicGroup: "kitchen-total"));
         var content = new PrintReceiptContent(blocks);
@@ -580,7 +583,8 @@ public sealed class M08PrintingIntegrationTests
             return (PageCount: pages.Count, Last: last, Spacer: spacer,
                 Visual: ThermalPrintLayout.CreateVisual(spacer, width),
                 ExtraHeight: withSpacer - withoutSpacer, LineHeight: lineHeight,
-                Diagnostics: ThermalPrintLayout.Paginate(content, surface));
+                Diagnostics: ThermalPrintLayout.Paginate(content, surface),
+                RenderedText: string.Join(" ", pages.SelectMany(page => page).Select(block => block.Text)));
         }, CancellationToken.None);
 
         Assert.IsGreaterThan(1, result.PageCount);
@@ -591,6 +595,11 @@ public sealed class M08PrintingIntegrationTests
         Assert.AreEqual(3 * result.LineHeight, result.Spacer.SpacerHeight, 0.01);
         Assert.AreEqual(result.Spacer.SpacerHeight, result.ExtraHeight, 0.01);
         Assert.IsTrue(result.Diagnostics[^1].EndsWith("TOTAL : 23.67 EUR", StringComparison.Ordinal));
+        for (var index = 0; index < 24; index++)
+        {
+            StringAssert.Contains(result.RenderedText, $"P-{index:000}");
+            StringAssert.Contains(result.RenderedText, $"Option-{index:000}");
+        }
     }
 
     [TestMethod]
