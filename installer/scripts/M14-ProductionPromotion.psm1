@@ -148,6 +148,13 @@ function Assert-M14PromotionBoundary {
     }
     if ($job -cnotmatch '(?ms)^    permissions:\s*\r?\n(?<scope>.*?)(?=^    steps:|\z)' -or
         $Matches['scope'].Trim() -cne 'contents: read') { throw 'PR promotion job requires exactly contents: read.' }
+    foreach ($promotion in @($workflow,$job)) {
+        $checkouts = @([regex]::Matches($promotion,'(?ms)^      - name:.*?(?=^      - name:|\z)') |
+            Where-Object { $_.Value.Contains('uses: actions/checkout@') })
+        if ($checkouts.Count -ne 1 -or $checkouts[0].Value -cnotmatch '(?m)^          persist-credentials: false\s*$') {
+            throw 'Promotion checkout must not persist job credentials.'
+        }
+    }
     foreach ($text in @($workflow,$ci)) {
         # Every explicit permission block is constrained; scalar/all/write scopes are forbidden.
         $lines = $text -split '\r?\n'

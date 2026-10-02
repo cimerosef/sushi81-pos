@@ -236,6 +236,8 @@ try {
             $baseline.Replace('contents: read','contents: write'),
             $baseline.Replace('contents: read','contents: none'),
             $baseline.Replace('permissions:','permissions: write-all'),
+            $baseline.Replace('persist-credentials: false','persist-credentials: true'),
+            $baseline.Replace('persist-credentials: false','fetch-depth: 1'),
             $baseline.Replace('SUSHI81_RELEASE_READ_TOKEN: ${{ github.token }}','SUSHI81_RELEASE_READ_TOKEN: ${{ secrets.ACCOUNT_TOKEN }}'),
             $baseline.Replace('SUSHI81_RELEASE_READ_TOKEN: ${{ github.token }}','UNUSED: value'),
             $baseline.Replace('-Repository ''cimerosef/sushi81-pos''','-Token ${{ github.token }} -Repository ''cimerosef/sushi81-pos''')
