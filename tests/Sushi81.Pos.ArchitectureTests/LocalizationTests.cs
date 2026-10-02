@@ -198,38 +198,49 @@ public sealed class LocalizationTests
     public void BusinessDataResetWpfDialogRequiresExactTokenAndSeparateFinalConfirmation()
     {
         Exception? failure = null;
+        var checkpoint = "STA worker not started";
         var thread = new Thread(() =>
         {
             try
             {
+                Volatile.Write(ref checkpoint, "constructing shell localization");
                 var viewModel = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+                Volatile.Write(ref checkpoint, "constructing owner window");
                 var owner = new Window();
+                Volatile.Write(ref checkpoint, "showing owner window");
                 owner.Show();
+                Volatile.Write(ref checkpoint, "constructing confirmation dialog");
                 var dialog = new BusinessDataResetConfirmationDialog(
                     owner,
                     viewModel.Localized,
                     new BusinessDataResetPreview(3, 1, 1, 1, 1, 2, 1, 2, 1, 2));
 
+                Volatile.Write(ref checkpoint, "asserting preview and token controls");
                 Assert.IsFalse(dialog.ContinueButton.IsEnabled);
                 dialog.ConfirmationTokenInput.Text = "reset";
                 Assert.IsFalse(dialog.ContinueButton.IsEnabled, "The locale-independent confirmation token is case-sensitive.");
                 dialog.ConfirmationTokenInput.Text = "RESET";
                 Assert.IsTrue(dialog.ContinueButton.IsEnabled);
+                Volatile.Write(ref checkpoint, "advancing to final confirmation");
                 dialog.ContinueButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Assert.IsTrue(dialog.IsFinalStep, "The exact token advances only to a separate final confirmation.");
                 Assert.IsFalse(dialog.IsResetConfirmed);
                 Assert.AreEqual("Confirmer et réinitialiser", dialog.FinalResetButton.Content);
+                Volatile.Write(ref checkpoint, "confirming reset flag");
                 dialog.FinalResetButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Assert.IsTrue(dialog.IsResetConfirmed);
 
+                Volatile.Write(ref checkpoint, "constructing cancellation dialog");
                 var cancelled = new BusinessDataResetConfirmationDialog(
                     owner,
                     viewModel.Localized,
                     new BusinessDataResetPreview(3, 1, 1, 1, 1, 2, 1, 2, 1, 2));
+                Volatile.Write(ref checkpoint, "asserting cancellation controls");
                 cancelled.ConfirmationTokenInput.Text = "RESET";
                 cancelled.ContinueButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 cancelled.CancelButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Assert.IsFalse(cancelled.IsResetConfirmed, "Cancel must leave the dialog unconfirmed.");
+                Volatile.Write(ref checkpoint, "all semantic assertions completed");
             }
             catch (Exception exception)
             {
@@ -239,7 +250,7 @@ public sealed class LocalizationTests
 
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(15)), "The WPF confirmation test thread should complete promptly.");
+        Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(15)), $"The WPF confirmation test thread should complete promptly. Last checkpoint: {Volatile.Read(ref checkpoint)}.");
         if (failure is not null)
             ExceptionDispatchInfo.Capture(failure).Throw();
     }

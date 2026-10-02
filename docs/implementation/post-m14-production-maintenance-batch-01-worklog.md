@@ -224,3 +224,9 @@ No `src/` or application test file, accepted C02 constant, migration, installer 
 ### AUTH09 credential persistence follow-up
 
 Final workflow review identified the [checkout action's default credential persistence](https://github.com/actions/checkout#usage). Both promotion job checkouts explicitly use `persist-credentials: false`; safeguard mutations reject true or missing settings. This supplements process-environment/header cleanup and raises the promotion self-test to **147 assertions**. No other checkout, trigger, permission or application source is changed. The earlier infrastructure push/CI #1000 is superseded by the final exact-head CI recorded in the terminal comment.
+
+## H11 — public repository and hosted WPF test stabilization (2026-10-02)
+
+Handoff `POST-M14-PM01-PUBLIC-REPO-WPF-STABILIZE-11` starts at `926d930c4fad4d0a4918cf2878198361aeef1390`. The owner restored public repository visibility; the controller explicitly superseded unexecuted Handoff 10. The five AUTH09 workflow/script files were restored exactly to accepted R1 commit `131b9a43f0e68555c9dd2a87fab66dd309dea1a9`, verified with a path-limited zero diff. AUTH09's historical record above is retained; its private-read implementation was reverted before acceptance because the public Release path no longer requires it.
+
+Initial diagnosis preserves the existing reset-dialog test's real operations, every business assertion and 15-second STA join. Bounded, thread-safe operation checkpoints are added to the timeout message to identify the hosted stall before choosing a test-only stabilization. No application/runtime file is changed and no actual business-data reset is invoked.
