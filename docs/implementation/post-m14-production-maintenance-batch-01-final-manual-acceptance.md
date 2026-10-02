@@ -1,6 +1,6 @@
 # Post-M14 Production Maintenance Batch 01 — owner PREPROD acceptance
 
-**Status:** IN PROGRESS — 0, A and B PASS; C–D pending
+**Status:** IN PROGRESS — 0, A, B and C PASS; D pending
 **Environment:** computer A PREPROD only
 **Candidate:** C02 / `v1.0.1-preprod-c02` — immutable Release `399541988` published; controller verification and owner acceptance pending
 
@@ -45,7 +45,7 @@ Expected shape includes `R1, R2, ... R9, R10, R11...`, not `R1, R10, ... R2`.
 
 Also confirm letter-suffixed codes remain sensible, for example `R4, R4a, R4b, R4c, R5`.
 
-**Owner result:** NOT RUN.
+**Owner result:** PASS — owner inspected representative natural-code families in the current product list. Numeric families sort naturally (`...R9, R10, R11...`) rather than lexically, and suffixed codes such as `R4, R4a, R4b, R4c, R5` appear in the expected sequence.
 
 ## D — printing improvements
 
@@ -77,9 +77,9 @@ Then inspect kitchen output:
 
 ## E — completion
 
-Batch owner acceptance may be marked PASS only after 0 and A–D pass against the exact controller-approved immutable C02 candidate. Checklist 0, A and B are now PASS. The owner-observed intermittent Production extra-add symptom has passed this C02 empirical regression round; C–D remain pending before Batch 01 final acceptance.
+Batch owner acceptance may be marked PASS only after 0 and A–D pass against the exact controller-approved immutable C02 candidate. Checklist 0, A, B and C are now PASS. The owner-observed intermittent Production extra-add symptom has passed this C02 empirical regression round; D printing acceptance remains pending before Batch 01 final acceptance.
 
-**C02 publication evidence:** [immutable PREPROD C02 Release](https://github.com/cimerosef/sushi81-pos/releases/tag/v1.0.1-preprod-c02), ID `399541988`, source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`, installer `Sushi81POS-PREPROD-Setup-1.0.1-0aa3a02.exe` SHA-256 `3ef1346e857914e9898dacafe522c9308d5d740a9db00413c19b9415daa44e4a`. Actions run `36629889943` built artifact `11062068062`; its GITHUB_TOKEN publish job failed before Release creation, then the tracked publisher completed publication with owner authentication without rebuilding. The Release is draft=false, prerelease=true, immutable=true and non-latest, with exactly five verified assets. Controller independent verification is complete. Owner testing is in progress: 0, A and B passed; C–D remain pending.
+**C02 publication evidence:** [immutable PREPROD C02 Release](https://github.com/cimerosef/sushi81-pos/releases/tag/v1.0.1-preprod-c02), ID `399541988`, source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`, installer `Sushi81POS-PREPROD-Setup-1.0.1-0aa3a02.exe` SHA-256 `3ef1346e857914e9898dacafe522c9308d5d740a9db00413c19b9415daa44e4a`. Actions run `36629889943` built artifact `11062068062`; its GITHUB_TOKEN publish job failed before Release creation, then the tracked publisher completed publication with owner authentication without rebuilding. The Release is draft=false, prerelease=true, immutable=true and non-latest, with exactly five verified assets. Controller independent verification is complete. Owner testing is in progress: 0, A, B and C passed; D remains pending.
 
 This checklist does not authorize:
 
