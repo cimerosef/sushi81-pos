@@ -4,7 +4,7 @@ This directory contains the authoritative product, business, architecture, opera
 
 ## Current status
 
-**Phase 6: M01–M13 are Passed/merged. M14 PreProd Foundation is Accepted under waiver / merged through PR #30 at `71024888a9cfd08109496ad076002be96e708c1a`, the current authoritative `main`. M14 real two-PC PREPROD pairing/handoff/acquisition remains deferred under owner waiver and is not Passed; PREPROD remains computer-A-only and computer B remains Production-only. M12 real populated-archive operational verification remains separately deferred. Post-M14 Production Maintenance Batch 01 is owner-authorized on Draft PR #31; no Production deployment or merge is authorized.**
+**Phase 6: M01–M13 are Passed/merged. M14 PreProd Foundation is Accepted under waiver / merged through PR #30 at `71024888a9cfd08109496ad076002be96e708c1a`, the current authoritative `main`. M14 real two-PC PREPROD pairing/handoff/acquisition remains deferred under owner waiver and is not Passed; PREPROD remains computer-A-only and computer B remains Production-only. M12 real populated-archive operational verification remains separately deferred. Post-M14 Production Maintenance Batch 01 on Draft PR #31 has completed controller verification and computer-A PREPROD owner acceptance on immutable C02; it is closure-ready. No Production deployment/promotion or PR merge is authorized without separate explicit owner approval.**
 
 M12 final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3` passed exact-head CI #862 / run `36021889765` with 881/881 tests and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test also succeeded.
 
