@@ -110,3 +110,16 @@ The tracked `Publish-M14-Candidate.ps1` at the exact C02 source performed its us
 | `Sushi81POS-PREPROD-Setup-1.0.1-0aa3a02.exe` | `599265272` | 49822179 | `3ef1346e857914e9898dacafe522c9308d5d740a9db00413c19b9415daa44e4a` |
 
 Historical immutable C01 Release `398945249`, its source tag and all five asset identities/digests were re-read and remained unchanged. Owner computer-A PREPROD acceptance remains NOT RUN pending controller's independent C02 verification. No Production deployment, promotion, computer-B PREPROD installation or PR merge occurred.
+
+## 2026-10-02 — C02 owner computer-A PREPROD acceptance complete
+
+The owner installed controller-approved immutable PREPROD candidate C02 (`v1.0.1-preprod-c02`, Release `399541988`, exact application source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`) over the existing PREPROD installation on computer A. PREPROD identity and prior PREPROD data/settings remained normal; Production remained separate and unchanged.
+
+Owner manual checklist results are PASS:
+- 0 environment/install identity: PASS;
+- A duplicate-add empirical regression: PASS with mixed Add-button/double-click use, faster sequences and deliberate repeated adds; every deliberate gesture added exactly once and later products did not create unintended copies of earlier products;
+- B cart auto-reveal: PASS; new bottom lines auto-revealed while quantity changes on existing lines did not cause gratuitous bottom jumps;
+- C natural product-code ordering: PASS for numeric families and suffixed codes;
+- D printing: PASS. Discounted unpaid Retrait customer output showed the correct negative `Remise`, coherent TVA/Total and PREPROD marking; paid explicit reprint preserved the same discount with truthful payment information and `DUPLICATA`; a no-discount customer ticket showed no false `Remise`; ordinary and reprinted kitchen tickets retained approximately three writable blank lines after final `TOTAL`, with `RÉIMPRESSION`/PREPROD markings preserved on reprint.
+
+The original intermittent Production extra-add symptom therefore passed the required C02 empirical owner regression round. Batch 01 owner manual acceptance is complete. This evidence does not authorize Production deployment/promotion or PR #31 merge. Computer B remains Production-only. M14 two-PC PREPROD verification and M12 populated real archive verification remain deferred exactly as before.
