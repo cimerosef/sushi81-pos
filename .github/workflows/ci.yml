@@ -210,7 +210,7 @@ jobs:
           retention-days: 90
 
   m14-wp6-promotion-evidence:
-    if: github.event_name == 'pull_request' && github.head_ref == 'codex/m14-preprod-foundation-authorized'
+    if: github.event_name == 'pull_request' && github.head_ref == 'codex/post-m14-production-maintenance-batch-01'
     needs: build-and-test
     runs-on: windows-latest
     permissions:
@@ -247,13 +247,13 @@ jobs:
           $compiler = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
           if (-not $compiler) { throw 'Pinned Inno Setup compiler is missing.' }
           "path=$compiler" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-      - name: Build and verify Production promotion evidence from immutable C01
+      - name: Build and verify Production promotion evidence from immutable C02
         shell: pwsh
         env:
           PROMOTION_HEAD: ${{ steps.source.outputs.head }}
           INNO_COMPILER: ${{ steps.inno.outputs.path }}
         run: |
-          & .\installer\scripts\Promote-M14-Candidate.ps1 -Repository 'cimerosef/sushi81-pos' -CandidateTag 'v1.0.1-preprod-c01' -ExpectedReleaseId 398945249 -ExpectedSourceSha '95e2ead7d95af5fb47f6b162fde4d22d8ea47d82' -PromotionHead $env:PROMOTION_HEAD -CompilerPath $env:INNO_COMPILER -ArtifactDirectory (Join-Path $env:GITHUB_WORKSPACE 'artifacts/m14-wp6')
+          & .\installer\scripts\Promote-M14-Candidate.ps1 -Repository 'cimerosef/sushi81-pos' -CandidateTag 'v1.0.1-preprod-c02' -ExpectedReleaseId 399541988 -ExpectedSourceSha '0aa3a0282a432da38bff9b35b38ffa03cf3bbada' -PromotionHead $env:PROMOTION_HEAD -CompilerPath $env:INNO_COMPILER -ArtifactDirectory (Join-Path $env:GITHUB_WORKSPACE 'artifacts/m14-wp6')
       - name: Upload exact-head M14 WP6 promotion evidence
         uses: actions/upload-artifact@v7
         with:

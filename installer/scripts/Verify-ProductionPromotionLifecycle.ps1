@@ -4,10 +4,15 @@ param([Parameter(Mandatory)][string]$InstallerPath,[Parameter(Mandatory)][string
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -cne 'true' -or -not $env:RUNNER_TEMP) { throw 'Production lifecycle is restricted to a hosted Actions runner.' }
 Import-Module (Join-Path $PSScriptRoot 'M14-CandidatePipeline.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'M14-ProductionPromotion.psm1') -Force
+$accepted = Get-M14AcceptedPromotionIdentity
 $manifest = Get-Content -LiteralPath $PayloadManifest -Raw | ConvertFrom-Json
-if ($manifest.candidateId -cne 'C01' -or $manifest.sourceHeadSha -cne $ExpectedSourceSha -or
-    $manifest.productVersion -cne '1.0.1' -or $manifest.runtimeIdentifier -cne 'win-x64' -or
-    [int]$manifest.fileCount -ne 418) { throw 'Lifecycle manifest is not the accepted C01.' }
+if ($ExpectedSourceSha -cne $accepted.sourceSha -or $manifest.candidateId -cne $accepted.candidateId -or
+    $manifest.sourceHeadSha -cne $accepted.sourceSha -or $manifest.productVersion -cne $accepted.version -or
+    $manifest.runtimeIdentifier -cne $accepted.runtime -or [int]$manifest.fileCount -ne $accepted.fileCount -or
+    $manifest.applicationPayloadTreeSha256 -cne $accepted.treeSha256) {
+    throw "Lifecycle manifest is not the accepted $($accepted.candidateId)."
+}
 $local = [IO.Path]::GetFullPath($env:LOCALAPPDATA)
 $app = [IO.Path]::GetFullPath($env:APPDATA)
 $profile = [IO.Path]::GetFullPath($env:USERPROFILE)
@@ -85,7 +90,7 @@ function Assert-Installed([string]$Step) {
         $path = Join-Path $install ([string]$entry.path).Replace('/',[IO.Path]::DirectorySeparatorChar)
         if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Get-Item -LiteralPath $path).Length -ne [long]$entry.bytes -or
             (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$entry.sha256) {
-            throw "$Step installed file does not match accepted C01: $($entry.path)."
+            throw "$Step installed file does not match accepted $($accepted.candidateId): $($entry.path)."
         }
     }
     $uninstall = Get-ProdUninstall
@@ -113,7 +118,7 @@ function Invoke-Installer([string]$Step,[switch]$Uninstall) {
 $steps = [Collections.Generic.List[string]]::new()
 Invoke-Installer 'clean Production install'
 Assert-Installed 'clean Production install'
-$steps.Add('clean Production install and 418 accepted C01 file hashes passed')
+$steps.Add("clean Production install and $($accepted.fileCount) accepted $($accepted.candidateId) file hashes passed")
 Invoke-Installer 'same-version Production repair'
 Assert-Installed 'same-version Production repair'
 $steps.Add('same-version repair preserved Production/PREPROD synthetic trees')
@@ -126,13 +131,13 @@ if (@(Get-ChildItem -LiteralPath $uninstallRoot -ErrorAction SilentlyContinue | 
 $steps.Add('Production uninstall preserved Production/PREPROD synthetic durable trees')
 Invoke-Installer 'Production reinstall'
 Assert-Installed 'Production reinstall'
-$steps.Add('Production reinstall and C01 file hashes passed')
+$steps.Add("Production reinstall and $($accepted.candidateId) file hashes passed")
 $services = @(Get-CimInstance Win32_Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)sushi81' -or $_.DisplayName -match '(?i)sushi81' })
 $tasks = @(Get-ScheduledTask -ErrorAction Stop | Where-Object { $_.TaskName -match '(?i)sushi81' -or $_.TaskPath -match '(?i)sushi81' })
 $updaters = @(Get-ChildItem -LiteralPath $install -Recurse -File -Force | Where-Object { $_.Name -match '(?i)(updater|self-update|update-service)' })
 if ($services.Count -or $tasks.Count -or $updaters.Count) { throw 'Production installer introduced a service, scheduled task or updater.' }
 Assert-Synthetic 'final verification'
-[pscustomobject]@{ passed=$true; acceptedFileCount=418; productionDataFiles=$expectedProdData.Count;
+[pscustomobject]@{ passed=$true; acceptedCandidateId=$accepted.candidateId; acceptedFileCount=$accepted.fileCount; productionDataFiles=$expectedProdData.Count;
     preprodDataFiles=$expectedPreData.Count; preprodInstallFixtureFiles=$expectedPreInstall.Count;
     productionDurableDataPreserved=$true; preprodSyntheticTreesPreserved=$true;
     noServiceScheduledTaskOrUpdater=$true; steps=@($steps);

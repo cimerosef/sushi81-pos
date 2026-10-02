@@ -16,7 +16,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 Assert-M14PromotionBoundary -RepoRoot $repoRoot
 if ($Repository -cne $accepted.repository -or $CandidateTag -cne $accepted.tag -or
     $ExpectedReleaseId -ne $accepted.releaseId -or $ExpectedSourceSha -cne $accepted.sourceSha) {
-    throw 'Promotion arguments do not identify the accepted immutable C01.'
+    throw "Promotion arguments do not identify the accepted immutable $($accepted.candidateId)."
 }
 if ($PromotionHead -cnotmatch '^[0-9a-f]{40}$' -or (git -C $repoRoot rev-parse HEAD).Trim() -cne $PromotionHead) {
     throw 'Promotion checkout does not match the exact requested head.'
@@ -46,7 +46,7 @@ try {
     $extracted = Join-Path $work 'extracted'
     $verified = Test-M14PayloadArchive -ArchivePath (Join-Path $download 'application-payload.zip') -ManifestPath $manifestPath -ExtractionDirectory $extracted -ExpectedSourceSha $accepted.sourceSha -ExpectedCandidateId $accepted.candidateId
     if ($verified.fileCount -ne $accepted.fileCount -or $verified.applicationPayloadTreeSha256 -cne $accepted.treeSha256) {
-        throw 'Extracted C01 payload does not match accepted file count/tree hash.'
+        throw "Extracted $($accepted.candidateId) payload does not match accepted file count/tree hash."
     }
     & (Join-Path $PSScriptRoot 'Test-ForbiddenContent.ps1') -Path $extracted | Out-Null
     $package = & (Join-Path $PSScriptRoot 'Package-ProductionFromPayload.ps1') -PayloadDirectory $extracted -ManifestPath $manifestPath -PackageDirectory (Join-Path $work 'package') -CompilerPath $CompilerPath -PromotionHead $PromotionHead
@@ -59,7 +59,7 @@ try {
     $runId = if ($env:GITHUB_RUN_ID) { $env:GITHUB_RUN_ID } else { 'local' }
     $branch = if ($env:GITHUB_HEAD_REF) { $env:GITHUB_HEAD_REF } elseif ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { (git -C $repoRoot branch --show-current).Trim() }
     $record = [ordered]@{
-        schemaVersion=1; acceptedCandidateId='C01'; acceptedCandidateTag=$accepted.tag;
+        schemaVersion=1; acceptedCandidateId=$accepted.candidateId; acceptedCandidateTag=$accepted.tag;
         acceptedCandidateReleaseId=$accepted.releaseId; acceptedSourceSha=$accepted.sourceSha;
         acceptedPayloadFileCount=$accepted.fileCount; acceptedPayloadTreeSha256=$accepted.treeSha256;
         acceptedPayloadManifestSha256=$accepted.assets[1].digest.Substring(7);
@@ -72,7 +72,7 @@ try {
         innoSetupVersion='6.7.3'; productionInstallerFileName=$package.proof.installerFileName;
         productionInstallerBytes=$package.proof.installerBytes; productionInstallerSha256=$package.proof.installerSha256;
         applicationRestoreInvocationCount=0; applicationBuildInvocationCount=0; applicationPublishInvocationCount=0;
-        allManifestDescribedProductionFilesMatchAcceptedC01=$true;
+        allManifestDescribedProductionFilesMatchAcceptedCandidate=$true;
         syntheticLifecyclePassed=$true; realProductionDeploymentPerformed=$false
     }
     Copy-Item -LiteralPath $package.installerPath -Destination (Join-Path $destination $package.proof.installerFileName)
@@ -80,7 +80,7 @@ try {
     Copy-Item -LiteralPath $package.proofPath -Destination (Join-Path $destination 'production-payload-equivalence.json')
     [IO.File]::WriteAllText((Join-Path $destination 'promotion-provenance.json'),($record | ConvertTo-Json -Depth 10),[Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText((Join-Path $destination 'production-lifecycle-summary.json'),($lifecycle | ConvertTo-Json -Depth 10),[Text.UTF8Encoding]::new($false))
-    $packageSummary = [ordered]@{ schemaVersion=1; candidate='C01'; sourceSha=$accepted.sourceSha; promotionHead=$PromotionHead;
+    $packageSummary = [ordered]@{ schemaVersion=1; candidate=$accepted.candidateId; sourceSha=$accepted.sourceSha; promotionHead=$PromotionHead;
         installerFileName=$package.proof.installerFileName; installerBytes=$package.proof.installerBytes;
         installerSha256=$package.proof.installerSha256; payloadFiles=$accepted.fileCount;
         payloadTreeSha256=$accepted.treeSha256; evidenceOnly=$true }

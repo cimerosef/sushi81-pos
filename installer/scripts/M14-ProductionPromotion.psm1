@@ -3,20 +3,20 @@ $ErrorActionPreference = 'Stop'
 
 $script:Accepted = [pscustomobject]@{
     repository = 'cimerosef/sushi81-pos'
-    tag = 'v1.0.1-preprod-c01'
-    releaseId = 398945249L
-    sourceSha = '95e2ead7d95af5fb47f6b162fde4d22d8ea47d82'
-    candidateId = 'C01'
+    tag = 'v1.0.1-preprod-c02'
+    releaseId = 399541988L
+    sourceSha = '0aa3a0282a432da38bff9b35b38ffa03cf3bbada'
+    candidateId = 'C02'
     version = '1.0.1'
     runtime = 'win-x64'
     fileCount = 418
-    treeSha256 = 'aa0cf2c1aa2c2292c2bd49bec542e7db3a262b1d8dd09c08f4419107e6e14cc5'
+    treeSha256 = '006f5db911b71c5ecf7e61ffcaf42b9950d9196b4e19c0f9da49b5bb4b32fb6c'
     assets = @(
-        [pscustomobject]@{ id=597676924L; name='application-payload.zip'; size=70025059L; digest='sha256:e533fbd50064902da9b38d7110ded955dfe78deb6648db352917077881e7b1f1' },
-        [pscustomobject]@{ id=597676923L; name='payload-manifest.json'; size=72773L; digest='sha256:9ba12e4ecca0241d41c66dea8a253707f3c2ee07f56c717b7b6c19070a29288a' },
-        [pscustomobject]@{ id=597676921L; name='package-summary.json'; size=2506L; digest='sha256:c5e86730ec016d9b78dc66ff3313f861d9a99d0ca36af2f3d3537aaffc4e8226' },
-        [pscustomobject]@{ id=597676922L; name='release-provenance.json'; size=1700L; digest='sha256:20e3b0eac98362e602c4e226831906186f0cc1b93d28df2d4b40c0bc3f986f68' },
-        [pscustomobject]@{ id=597676920L; name='Sushi81POS-PREPROD-Setup-1.0.1-95e2ead.exe'; size=49816320L; digest='sha256:a895d9b464484c1de669aaf31484b9020a179583f9e35c9495d5d4d75bf691f6' }
+        [pscustomobject]@{ id=599265273L; name='application-payload.zip'; size=70028491L; digest='sha256:c814e7b9a17fcf31cbf3337e770b8c98327d49704f4b3eabb09d50f8a9edfa07' },
+        [pscustomobject]@{ id=599265276L; name='payload-manifest.json'; size=72773L; digest='sha256:9cb7f8b13480e1b1664062bd1045f1ba759ab09fb65aafc8f6c3bf2ccaa668a6' },
+        [pscustomobject]@{ id=599265277L; name='package-summary.json'; size=2506L; digest='sha256:65c0549979a7f1632e3fce0224a4dffaf4d8783a35fefd45bb4e84b0b9502cea' },
+        [pscustomobject]@{ id=599265278L; name='release-provenance.json'; size=1700L; digest='sha256:cf56025d91bbe4184f878cb92da30ec23084d6524b2c850c211f23c72c17e5ed' },
+        [pscustomobject]@{ id=599265272L; name='Sushi81POS-PREPROD-Setup-1.0.1-0aa3a02.exe'; size=49822179L; digest='sha256:3ef1346e857914e9898dacafe522c9308d5d740a9db00413c19b9415daa44e4a' }
     )
 }
 
@@ -29,28 +29,28 @@ function Assert-M14AcceptedRelease {
           [Parameter(Mandatory)][long]$ExpectedReleaseId,[Parameter(Mandatory)][string]$ExpectedSourceSha)
     $a = $script:Accepted
     if ($Repository -cne $a.repository -or $Tag -cne $a.tag -or $ExpectedReleaseId -ne $a.releaseId -or
-        $ExpectedSourceSha -cne $a.sourceSha) { throw 'Promotion input differs from the approved C01 identity.' }
+        $ExpectedSourceSha -cne $a.sourceSha) { throw "Promotion input differs from the approved $($a.candidateId) identity." }
     if ($null -eq $Release -or [long]$Release.id -ne $a.releaseId -or $Release.tag_name -cne $a.tag -or
         [string]$Release.target_commitish -cne $a.sourceSha -or $Release.draft -isnot [bool] -or $Release.draft -or
         $Release.prerelease -isnot [bool] -or -not $Release.prerelease -or
         $Release.immutable -isnot [bool] -or -not $Release.immutable) {
-        throw 'C01 Release ID, state, tag or source identity is not the accepted immutable candidate.'
+        throw "$($a.candidateId) Release ID, state, tag or source identity is not the accepted immutable candidate."
     }
     if ($null -eq $TagRef -or $TagRef.ref -cne "refs/tags/$($a.tag)" -or
         $TagRef.object.type -cne 'commit' -or $TagRef.object.sha -cne $a.sourceSha) {
-        throw 'C01 Git tag is not a direct commit ref to the accepted source.'
+        throw "$($a.candidateId) Git tag is not a direct commit ref to the accepted source."
     }
     $assets = @($Release.assets)
-    if ($assets.Count -ne $a.assets.Count) { throw 'C01 Release has a missing or extra asset.' }
+    if ($assets.Count -ne $a.assets.Count) { throw "$($a.candidateId) Release has a missing or extra asset." }
     $seenIds = [Collections.Generic.HashSet[long]]::new()
     $seenNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($asset in $assets) {
-        if (-not $seenIds.Add([long]$asset.id) -or -not $seenNames.Add([string]$asset.name)) { throw 'C01 Release contains duplicate asset identity.' }
+        if (-not $seenIds.Add([long]$asset.id) -or -not $seenNames.Add([string]$asset.name)) { throw "$($a.candidateId) Release contains duplicate asset identity." }
         $expected = @($a.assets | Where-Object { $_.id -eq [long]$asset.id })
         if ($expected.Count -ne 1 -or $asset.name -cne $expected[0].name -or [long]$asset.size -ne $expected[0].size -or
             $asset.digest -cne $expected[0].digest -or $asset.state -cne 'uploaded' -or
             [string]$asset.browser_download_url -cne "https://github.com/$Repository/releases/download/$Tag/$($expected[0].name)") {
-            throw "C01 Release asset ID/name/size/digest/state/URL differs from accepted evidence: $($asset.name)."
+            throw "$($a.candidateId) Release asset ID/name/size/digest/state/URL differs from accepted evidence: $($asset.name)."
         }
     }
     $a
@@ -64,25 +64,32 @@ function Assert-M14AcceptedPayloadMetadata {
         $Manifest.sourceHeadSha -cne $a.sourceSha -or $Manifest.productVersion -cne $a.version -or
         $Manifest.runtimeIdentifier -cne $a.runtime -or [int]$Manifest.fileCount -ne $a.fileCount -or
         @($Manifest.files).Count -ne $a.fileCount -or $Manifest.applicationPayloadTreeSha256 -cne $a.treeSha256) {
-        throw 'C01 payload manifest is not the accepted source/candidate/product/runtime/tree.'
+        throw "$($a.candidateId) payload manifest is not the accepted source/candidate/product/runtime/tree."
     }
     if ($Summary.candidateId -cne $a.candidateId -or $Summary.sourceHeadSha -cne $a.sourceSha -or
         $Summary.productVersion -cne $a.version -or $Summary.runtimeIdentifier -cne $a.runtime -or
         [int]$Summary.payloadFileCount -ne $a.fileCount -or $Summary.payloadTreeSha256 -cne $a.treeSha256 -or
-        $Summary.payloadManifestSha256 -cne $a.assets[1].digest.Substring(7) -or
+        $Summary.candidateTag -cne $a.tag -or $Summary.payloadManifestSha256 -cne $a.assets[1].digest.Substring(7) -or
+        $Summary.applicationPayloadArchive.name -cne $a.assets[0].name -or
         $Summary.applicationPayloadArchive.sha256 -cne $a.assets[0].digest.Substring(7) -or
         [long]$Summary.applicationPayloadArchive.bytes -ne $a.assets[0].size -or
+        $Summary.preprodInstaller.name -cne $a.assets[4].name -or
         $Summary.preprodInstaller.sha256 -cne $a.assets[4].digest.Substring(7) -or
+        [long]$Summary.preprodInstaller.bytes -ne $a.assets[4].size -or
         $Summary.releaseProvenanceSha256 -cne $a.assets[3].digest.Substring(7)) {
-        throw 'C01 package summary does not match accepted payload identity.'
+        throw "$($a.candidateId) package summary does not match accepted payload identity."
     }
     if ($Provenance.candidateId -cne $a.candidateId -or $Provenance.sourceHeadSha -cne $a.sourceSha -or
         $Provenance.productVersion -cne $a.version -or $Provenance.runtimeIdentifier -cne $a.runtime -or
         [int]$Provenance.payloadFileCount -ne $a.fileCount -or $Provenance.payloadTreeSha256 -cne $a.treeSha256 -or
-        $Provenance.payloadManifestSha256 -cne $a.assets[1].digest.Substring(7) -or
+        $Provenance.candidateTag -cne $a.tag -or $Provenance.payloadManifestSha256 -cne $a.assets[1].digest.Substring(7) -or
+        $Provenance.applicationPayloadArchive.name -cne $a.assets[0].name -or
         $Provenance.applicationPayloadArchive.sha256 -cne $a.assets[0].digest.Substring(7) -or
-        $Provenance.preprodInstaller.sha256 -cne $a.assets[4].digest.Substring(7)) {
-        throw 'C01 release provenance does not match accepted source/candidate/product/runtime.'
+        [long]$Provenance.applicationPayloadArchive.bytes -ne $a.assets[0].size -or
+        $Provenance.preprodInstaller.name -cne $a.assets[4].name -or
+        $Provenance.preprodInstaller.sha256 -cne $a.assets[4].digest.Substring(7) -or
+        [long]$Provenance.preprodInstaller.bytes -ne $a.assets[4].size) {
+        throw "$($a.candidateId) release provenance does not match accepted source/candidate/product/runtime."
     }
 }
 
@@ -92,7 +99,7 @@ function Assert-M14DownloadedAsset {
     $item = Get-Item -LiteralPath $Path -ErrorAction Stop
     if ($item.Length -ne [long]$Asset.size -or
         "sha256:$((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant())" -cne [string]$Asset.digest) {
-        throw "Downloaded C01 asset differs in byte length or SHA-256: $($Asset.name)."
+        throw "Downloaded $($script:Accepted.candidateId) asset differs in byte length or SHA-256: $($Asset.name)."
     }
 }
 
@@ -112,8 +119,17 @@ function Assert-M14PromotionBoundary {
         }
     }
     $workflow = Get-Content -LiteralPath (Join-Path $RepoRoot '.github/workflows/m14-production-promotion.yml') -Raw
-    if ($workflow -match '(?im)^\s*contents:\s*write\s*$' -or $workflow -match '(?im)^\s*(?:push|release|create):\s*$') {
-        throw 'Promotion workflow must be read-only and manually dispatched.'
+    if ($workflow -match '(?im)^\s*contents:\s*write\s*$' -or
+        $workflow -cnotmatch '(?ms)^on:\s*\r?\n(?<triggers>.*?)(?=^permissions:|\z)' -or
+        $Matches['triggers'].Trim() -cne 'workflow_dispatch:' -or
+        $workflow -cnotmatch '(?ms)^permissions:\s*\r?\n(?<scope>.*?)(?=^jobs:|\z)' -or
+        $Matches['scope'].Trim() -cne 'contents: read' -or
+        -not $workflow.Contains('refs/heads/codex/post-m14-production-maintenance-batch-01')) {
+        throw 'Promotion workflow must be manually dispatched, read-only and on the authorized branch.'
+    }
+    $identityCall = "-CandidateTag '$($script:Accepted.tag)' -ExpectedReleaseId $($script:Accepted.releaseId) -ExpectedSourceSha '$($script:Accepted.sourceSha)'"
+    if (-not $workflow.Contains($identityCall)) {
+        throw 'Promotion workflow does not name the exact accepted candidate.'
     }
     $ci = Get-Content -LiteralPath (Join-Path $RepoRoot '.github/workflows/ci.yml') -Raw
     if ($ci -cnotmatch '(?ms)^  m14-wp6-promotion-evidence:\s*\r?\n(?<job>.*?)(?=^  [a-z][a-z0-9-]*:|\z)') {
@@ -122,6 +138,10 @@ function Assert-M14PromotionBoundary {
     $job = $Matches['job']
     if ($job -match '(?i)\bdotnet(?:\.exe)?\b' -or $job -match '(?im)^\s*contents:\s*write\s*$') {
         throw 'PR promotion evidence job must neither rebuild the application nor use a write token.'
+    }
+    if (-not $job.Contains("github.head_ref == 'codex/post-m14-production-maintenance-batch-01'") -or
+        -not $job.Contains($identityCall)) {
+        throw 'PR promotion evidence job does not target the authorized branch and candidate.'
     }
 }
 
