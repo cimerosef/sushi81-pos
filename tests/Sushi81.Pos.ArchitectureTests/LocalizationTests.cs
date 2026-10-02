@@ -18,6 +18,7 @@ using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using Sushi81.Pos.Application.Catalogue;
 using Sushi81.Pos.Application.Foundation.Authority;
 using Sushi81.Pos.Application.Foundation.Configuration;
@@ -201,24 +202,39 @@ public sealed class LocalizationTests
         var checkpoint = "STA worker not started";
         var thread = new Thread(() =>
         {
+            ShellViewModel? viewModel = null;
+            Window? owner = null;
+            BusinessDataResetConfirmationDialog? dialog = null;
+            BusinessDataResetConfirmationDialog? cancelled = null;
+            void Cleanup(string operation, Action action)
+            {
+                Volatile.Write(ref checkpoint, operation);
+                try { action(); }
+                catch (Exception exception) { failure ??= exception; }
+            }
             try
             {
                 Volatile.Write(ref checkpoint, "constructing shell localization");
-                var viewModel = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
+                viewModel = new ShellViewModel(new InMemorySelectedCultureStore(), startupSucceeded: true);
                 Volatile.Write(ref checkpoint, "constructing owner window");
-                var owner = new Window();
-                Volatile.Write(ref checkpoint, "showing owner window");
-                owner.Show();
+                owner = new Window();
+                Volatile.Write(ref checkpoint, "creating hidden owner HWND");
+                // Ownership needs an HWND; this control contract needs no visible desktop window.
+                Assert.AreNotEqual(IntPtr.Zero, new WindowInteropHelper(owner).EnsureHandle());
+                Assert.IsFalse(owner.IsVisible);
                 Volatile.Write(ref checkpoint, "constructing confirmation dialog");
-                var dialog = new BusinessDataResetConfirmationDialog(
+                dialog = new BusinessDataResetConfirmationDialog(
                     owner,
                     viewModel.Localized,
                     new BusinessDataResetPreview(3, 1, 1, 1, 1, 2, 1, 2, 1, 2));
 
                 Volatile.Write(ref checkpoint, "asserting preview and token controls");
+                Assert.IsFalse(dialog.IsVisible);
                 Assert.IsFalse(dialog.ContinueButton.IsEnabled);
+                Volatile.Write(ref checkpoint, "entering lowercase token");
                 dialog.ConfirmationTokenInput.Text = "reset";
                 Assert.IsFalse(dialog.ContinueButton.IsEnabled, "The locale-independent confirmation token is case-sensitive.");
+                Volatile.Write(ref checkpoint, "entering exact token");
                 dialog.ConfirmationTokenInput.Text = "RESET";
                 Assert.IsTrue(dialog.ContinueButton.IsEnabled);
                 Volatile.Write(ref checkpoint, "advancing to final confirmation");
@@ -231,13 +247,16 @@ public sealed class LocalizationTests
                 Assert.IsTrue(dialog.IsResetConfirmed);
 
                 Volatile.Write(ref checkpoint, "constructing cancellation dialog");
-                var cancelled = new BusinessDataResetConfirmationDialog(
+                cancelled = new BusinessDataResetConfirmationDialog(
                     owner,
                     viewModel.Localized,
                     new BusinessDataResetPreview(3, 1, 1, 1, 1, 2, 1, 2, 1, 2));
                 Volatile.Write(ref checkpoint, "asserting cancellation controls");
+                Assert.IsFalse(cancelled.IsVisible);
                 cancelled.ConfirmationTokenInput.Text = "RESET";
+                Volatile.Write(ref checkpoint, "advancing cancellation dialog");
                 cancelled.ContinueButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Volatile.Write(ref checkpoint, "cancelling final confirmation");
                 cancelled.CancelButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Assert.IsFalse(cancelled.IsResetConfirmed, "Cancel must leave the dialog unconfirmed.");
                 Volatile.Write(ref checkpoint, "all semantic assertions completed");
@@ -246,7 +265,20 @@ public sealed class LocalizationTests
             {
                 failure = exception;
             }
-        });
+            finally
+            {
+                Cleanup("closing cancellation dialog", () => cancelled?.Close());
+                Cleanup("closing confirmation dialog", () => dialog?.Close());
+                Cleanup("closing hidden owner", () => owner?.Close());
+                Cleanup("disposing shell localization", () => viewModel?.Dispose());
+                Cleanup("shutting down STA dispatcher", () =>
+                {
+                    var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+                    if (!dispatcher.HasShutdownStarted) dispatcher.InvokeShutdown();
+                });
+                Volatile.Write(ref checkpoint, "semantic assertions and cleanup completed");
+            }
+        }) { IsBackground = true, Name = "Reset confirmation contract STA" };
 
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
