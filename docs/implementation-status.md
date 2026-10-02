@@ -1,8 +1,8 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-29
-**Current state:** M01 through M13 and the independent post-M09 dashboard enhancement are Passed/merged. M14 — PreProd Foundation and immutable release promotion — is **Accepted under waiver / merged** through PR #30 at `71024888a9cfd08109496ad076002be96e708c1a`. The real two-PC PREPROD pairing/handoff/acquisition remains DEFERRED UNDER OWNER WAIVER — NOT PASSED; PREPROD remains computer-A-only and computer B remains Production-only. M12 real populated-archive verification remains separately deferred. Post-M14 Production Maintenance Batch 01 is OWNER-AUTHORIZED on Draft PR #31; WP1–WP4 implementation and automated evidence are controller-accepted, while the original intermittent extra-add symptom and all visible behavior await computer-A PREPROD owner acceptance. WP5 C02 immutable Release `399541988` is published from exact source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`; controller verification and owner acceptance are pending/NOT RUN. No Production deployment or merge is authorized.
+**Last updated:** 2026-10-02
+**Current state:** M01 through M13 and the independent post-M09 dashboard enhancement are Passed/merged. M14 — PreProd Foundation and immutable release promotion — is **Accepted under waiver / merged** through PR #30 at `71024888a9cfd08109496ad076002be96e708c1a`. The real two-PC PREPROD pairing/handoff/acquisition remains DEFERRED UNDER OWNER WAIVER — NOT PASSED; PREPROD remains computer-A-only and computer B remains Production-only. M12 real populated-archive verification remains separately deferred. Post-M14 Production Maintenance Batch 01 on Draft PR #31 has completed implementation, controller candidate verification and computer-A PREPROD owner acceptance against immutable C02 Release `399541988` / exact application source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`. Checklist 0 and A–D are PASS, including the empirical extra-add regression. The batch is closure-ready; no Production deployment/promotion or PR merge is authorized without separate explicit owner approval.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -41,7 +41,7 @@
 | M12 — Annual archive/historical access | Accepted under waiver / merged | PR #25 CLOSED/MERGED at `f59663c6b47ab21114c24360544e4e25094f4722`. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3`; exact-head CI #862 / run `36021889765` succeeded with 881/881, 0 failed/skipped and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test succeeded. Real populated-archive operational verification remains explicitly deferred under the owner waiver and is not claimed Passed. |
 | M13 — Installer and final acceptance | Passed / merged | PR #26 CLOSED/MERGED at `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. Accepted production application remains source `469c8761061b0ecf488e06386a97b9e10652a916`; CI #912 / `36253271385`, 932/932 tests; installer artifact `10909188508`. |
 | M14 — PreProd Foundation and immutable release promotion | Accepted under waiver / merged | PR #30 CLOSED/MERGED at `71024888a9cfd08109496ad076002be96e708c1a`. Immutable C01 Release `398945249` and WP6 exact-head `1c73999c323dba593e3279f47c54a6174638b23d`, CI #963 / run `36546336521`, promotion artifact `11022832475` remain accepted evidence. Two-PC PREPROD pairing/handoff/acquisition remains deferred under owner waiver, not Passed. |
-| Post-M14 Production Maintenance Batch 01 | In progress / PR open | Draft PR #31 on `codex/post-m14-production-maintenance-batch-01`; WP1–WP4 implementation/automated evidence controller-accepted. WP1 original intermittent extra-add symptom remains pending computer-A PREPROD empirical verification. WP5 C02 artifact `11062068062` was built by run `36629889943`; its GITHUB_TOKEN publication failed at an administration-read 403, then tracked publisher recovered with owner authentication and created immutable Release `399541988` without rebuild. Controller review and owner C02 acceptance are pending/NOT RUN. Issue #4 controls execution. |
+| Post-M14 Production Maintenance Batch 01 | Closure-ready / PR open | Draft PR #31 on `codex/post-m14-production-maintenance-batch-01`; WP1–WP5 implementation/publication evidence controller-accepted. Immutable C02 Release `399541988` was owner-tested on computer A PREPROD; checklist 0 and A–D PASS, including the empirical extra-add regression, cart auto-reveal, natural code order, customer discount output and kitchen handwriting space. No Production deployment/promotion or PR merge is authorized without separate explicit owner approval. |
 
 ## 3. Current merged baseline
 
@@ -89,15 +89,15 @@ Controlling records:
 - baseline: `71024888a9cfd08109496ad076002be96e708c1a`;
 - branch: `codex/post-m14-production-maintenance-batch-01`;
 - Draft PR/mailbox: #31;
-- WP1 accepted for implementation/automated evidence at `e9438bd26f9d107db08ad580d06f594dceeeefc7`; the owner-observed extra-add symptom remains pending empirical verification;
-- WP2 accepted at `499084f3cbdbbde4b3f635a678093e6048253e80`;
-- WP3 accepted at `cee78e4773504cc6038eb6b71fddf263a7468030`;
-- WP4 accepted at `08fac6cb0d291fcbb3cd826d99608f36dde5f769`;
-- WP5: C02 integration/docs and immutable candidate publication complete as implementation evidence; controller verification and owner computer-A PREPROD acceptance pending, historical C01 unchanged;
-- owner acceptance target: computer A PREPROD only;
+- WP1 accepted for implementation/automated evidence at `e9438bd26f9d107db08ad580d06f594dceeeefc7`; the owner-observed extra-add symptom subsequently passed the required C02 computer-A PREPROD empirical regression;
+- WP2 accepted at `499084f3cbdbbde4b3f635a678093e6048253e80` and owner-visible cart auto-reveal PASS on C02;
+- WP3 accepted at `cee78e4773504cc6038eb6b71fddf263a7468030` and owner-visible natural code ordering PASS on C02;
+- WP4 accepted at `08fac6cb0d291fcbb3cd826d99608f36dde5f769`; customer discount output and kitchen handwriting-space behavior PASS in owner physical PREPROD testing;
+- WP5 immutable C02 publication/integration evidence controller-accepted; Release `399541988` / source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`; historical C01 unchanged;
+- owner computer-A PREPROD acceptance: PASS for checklist 0 and A–D;
 - computer B remains Production-only;
 - M14 deferred two-PC PREPROD verification and M12 populated real archive verification remain unchanged;
-- no Production deployment or PR merge is authorized.
+- Batch 01 is closure-ready; no Production deployment/promotion or PR merge is authorized without separate explicit owner approval.
 
 Controlling records:
 
