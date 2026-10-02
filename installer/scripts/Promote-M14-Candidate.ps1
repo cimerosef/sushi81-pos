@@ -9,35 +9,68 @@ param(
     [Parameter(Mandatory)][string]$ArtifactDirectory
 )
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'M14-CandidatePipeline.psm1') -Force
-Import-Module (Join-Path $PSScriptRoot 'M14-ProductionPromotion.psm1') -Force
-$accepted = Get-M14AcceptedPromotionIdentity
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-Assert-M14PromotionBoundary -RepoRoot $repoRoot
-if ($Repository -cne $accepted.repository -or $CandidateTag -cne $accepted.tag -or
-    $ExpectedReleaseId -ne $accepted.releaseId -or $ExpectedSourceSha -cne $accepted.sourceSha) {
-    throw "Promotion arguments do not identify the accepted immutable $($accepted.candidateId)."
+function Get-M14ReleaseReadHeaders {
+    $readToken = [Environment]::GetEnvironmentVariable('SUSHI81_RELEASE_READ_TOKEN', 'Process')
+    if ([string]::IsNullOrWhiteSpace($readToken)) { throw 'Promotion requires the ephemeral read token in the process environment.' }
+    # Child tools must not inherit the credential; it stays only in these request headers.
+    [Environment]::SetEnvironmentVariable('SUSHI81_RELEASE_READ_TOKEN', $null, 'Process')
+    @{ Accept='application/vnd.github+json'; Authorization="Bearer $readToken";
+        'X-GitHub-Api-Version'='2022-11-28'; 'User-Agent'='Sushi81-M14-WP6-Promotion' }
 }
-if ($PromotionHead -cnotmatch '^[0-9a-f]{40}$' -or (git -C $repoRoot rev-parse HEAD).Trim() -cne $PromotionHead) {
-    throw 'Promotion checkout does not match the exact requested head.'
+function Read-M14ReleaseMetadata {
+    param([string]$Uri,[hashtable]$Headers)
+    $identity = Get-M14AcceptedPromotionIdentity
+    $base = "https://api.github.com/repos/$($identity.repository)"
+    if ($Uri -cne "$base/releases/$($identity.releaseId)" -and $Uri -cne "$base/git/ref/tags/$($identity.tag)") {
+        throw 'Promotion metadata endpoint is outside the accepted identity.'
+    }
+    try { Invoke-RestMethod -Uri $Uri -Headers $Headers -MaximumRedirection 0 -Verbose:$false -Debug:$false }
+    catch { throw 'Authenticated promotion metadata read failed; no anonymous fallback is permitted.' }
 }
-$headers = @{ Accept='application/vnd.github+json'; 'X-GitHub-Api-Version'='2022-11-28'; 'User-Agent'='Sushi81-M14-WP6-Promotion' }
-$api = "https://api.github.com/repos/$Repository"
-# Preflight all remote identity before creating any package staging.
-$release = Invoke-RestMethod -Uri "$api/releases/$ExpectedReleaseId" -Headers $headers
-$tagRef = Invoke-RestMethod -Uri "$api/git/ref/tags/$CandidateTag" -Headers $headers
-$checked = Assert-M14AcceptedRelease -Release $release -TagRef $tagRef -Repository $Repository -Tag $CandidateTag -ExpectedReleaseId $ExpectedReleaseId -ExpectedSourceSha $ExpectedSourceSha
-$tempParent = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
-$work = Join-Path $tempParent "sushi81-m14-wp6-$([guid]::NewGuid().ToString('N'))"
-$download = Join-Path $work 'download'
-New-Item -ItemType Directory -Path $download -Force | Out-Null
+function Save-M14ReleaseAsset {
+    param([long]$AssetId,[hashtable]$Headers,[string]$Path)
+    $identity = Get-M14AcceptedPromotionIdentity
+    if ($AssetId -notin @($identity.assets.id)) { throw 'Promotion asset ID is outside the accepted identity.' }
+    $assetHeaders = $Headers.Clone()
+    $assetHeaders.Accept = 'application/octet-stream'
+    try {
+        # PowerShell strips Authorization on redirects by default. Never forward it to the asset CDN.
+        Invoke-WebRequest -Uri "https://api.github.com/repos/$($identity.repository)/releases/assets/$AssetId" -Headers $assetHeaders -OutFile $Path -MaximumRedirection 5 -Verbose:$false -Debug:$false | Out-Null
+    } catch { throw 'Authenticated promotion asset download failed; no anonymous fallback is permitted.' }
+    finally { $assetHeaders.Clear() }
+}
+# Fail before any remote request or staging, including when invoked outside Actions.
+$headers = Get-M14ReleaseReadHeaders
+$work = $null
 try {
+    Import-Module (Join-Path $PSScriptRoot 'M14-CandidatePipeline.psm1') -Force
+    Import-Module (Join-Path $PSScriptRoot 'M14-ProductionPromotion.psm1') -Force
+    $accepted = Get-M14AcceptedPromotionIdentity
+    $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+    Assert-M14PromotionBoundary -RepoRoot $repoRoot
+    if ($Repository -cne $accepted.repository -or $CandidateTag -cne $accepted.tag -or
+        $ExpectedReleaseId -ne $accepted.releaseId -or $ExpectedSourceSha -cne $accepted.sourceSha) {
+        throw "Promotion arguments do not identify the accepted immutable $($accepted.candidateId)."
+    }
+    if ($PromotionHead -cnotmatch '^[0-9a-f]{40}$' -or (git -C $repoRoot rev-parse HEAD).Trim() -cne $PromotionHead) {
+        throw 'Promotion checkout does not match the exact requested head.'
+    }
+    $api = "https://api.github.com/repos/$Repository"
+    # Preflight all remote identity before creating any package staging.
+    $release = Read-M14ReleaseMetadata -Uri "$api/releases/$ExpectedReleaseId" -Headers $headers
+    $tagRef = Read-M14ReleaseMetadata -Uri "$api/git/ref/tags/$CandidateTag" -Headers $headers
+    $checked = Assert-M14AcceptedRelease -Release $release -TagRef $tagRef -Repository $Repository -Tag $CandidateTag -ExpectedReleaseId $ExpectedReleaseId -ExpectedSourceSha $ExpectedSourceSha
+    $tempParent = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
+    $work = Join-Path $tempParent "sushi81-m14-wp6-$([guid]::NewGuid().ToString('N'))"
+    $download = Join-Path $work 'download'
+    New-Item -ItemType Directory -Path $download -Force | Out-Null
     foreach ($name in @('application-payload.zip','payload-manifest.json','package-summary.json','release-provenance.json')) {
         $asset = @($release.assets | Where-Object { $_.name -ceq $name })[0]
         $path = Join-Path $download $name
-        Invoke-WebRequest -Uri ([string]$asset.browser_download_url) -Headers @{ 'User-Agent'='Sushi81-M14-WP6-Promotion' } -OutFile $path
+        Save-M14ReleaseAsset -AssetId ([long]$asset.id) -Headers $headers -Path $path
         Assert-M14DownloadedAsset -Path $path -Asset $asset
     }
+    $headers.Clear()
     $manifestPath = Join-Path $download 'payload-manifest.json'
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     $summary = Get-Content -LiteralPath (Join-Path $download 'package-summary.json') -Raw | ConvertFrom-Json
@@ -88,5 +121,6 @@ try {
     & (Join-Path $PSScriptRoot 'Test-ForbiddenContent.ps1') -Path $destination | Out-Null
     [pscustomobject]@{ artifactDirectory=$destination; summary=$packageSummary; lifecycle=$lifecycle }
 } finally {
-    if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
+    $headers.Clear()
+    if ($work -and (Test-Path -LiteralPath $work)) { Remove-Item -LiteralPath $work -Recurse -Force }
 }

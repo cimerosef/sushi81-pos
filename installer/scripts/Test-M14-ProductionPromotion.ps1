@@ -11,12 +11,14 @@ if ($accepted.candidateId -cne 'C02' -or $accepted.tag -cne 'v1.0.1-preprod-c02'
     $accepted.treeSha256 -cne '006f5db911b71c5ecf7e61ffcaf42b9950d9196b4e19c0f9da49b5bb4b32fb6c') {
     throw 'Promotion self-test requires the exact owner-accepted immutable C02 identity.'
 }
+$script:assertionCount = 0
 function Assert-Throws([scriptblock]$Action,[string]$Name) {
+    $script:assertionCount++
     $failed = $false
     try { & $Action | Out-Null } catch { $failed = $true }
     if (-not $failed) { throw "Promotion self-test expected '$Name' to fail closed." }
 }
-function Assert-True([bool]$Value,[string]$Name) { if (-not $Value) { throw "Promotion self-test failed: $Name" } }
+function Assert-True([bool]$Value,[string]$Name) { $script:assertionCount++; if (-not $Value) { throw "Promotion self-test failed: $Name" } }
 function Clone($Object) { ($Object | ConvertTo-Json -Depth 20 | ConvertFrom-Json) }
 $assets = @($accepted.assets | ForEach-Object {
     [pscustomobject]@{ id=$_.id; name=$_.name; size=$_.size; digest=$_.digest; state='uploaded';
@@ -97,6 +99,7 @@ Assert-Throws { Assert-M14AcceptedPayloadMetadata -Manifest $metadataManifest -S
 $bad = Clone $metadataProvenance; $bad.preprodInstaller.sha256='0'*64
 Assert-Throws { Assert-M14AcceptedPayloadMetadata -Manifest $metadataManifest -Summary $metadataSummary -Provenance $bad } 'release provenance installer digest mismatch'
 $tmp = Join-Path ([IO.Path]::GetTempPath()) "sushi81-wp6-selftest-$([guid]::NewGuid().ToString('N'))"
+$previousReadToken = [Environment]::GetEnvironmentVariable('SUSHI81_RELEASE_READ_TOKEN','Process')
 try {
     $payload = Join-Path $tmp 'payload'
     New-Item -ItemType Directory -Path $payload -Force | Out-Null
@@ -121,8 +124,87 @@ try {
     $download = Join-Path $tmp 'download.bin'
     [IO.File]::WriteAllText($download,'wrong',[Text.UTF8Encoding]::new($false))
     Assert-Throws { Assert-M14DownloadedAsset -Path $download -Asset $accepted.assets[0] } 'downloaded bytes/digest mismatch'
+    $syntheticAsset = [pscustomobject]@{name='synthetic.bin';size=5L;digest="sha256:$((Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash.ToLowerInvariant())"}
+    Assert-M14DownloadedAsset -Path $download -Asset $syntheticAsset
+    [IO.File]::WriteAllText($download,'other',[Text.UTF8Encoding]::new($false))
+    Assert-Throws { Assert-M14DownloadedAsset -Path $download -Asset $syntheticAsset } 'same-size downloaded digest mismatch'
+    [IO.File]::WriteAllText($download,'wrong-size',[Text.UTF8Encoding]::new($false))
+    Assert-Throws { Assert-M14DownloadedAsset -Path $download -Asset $syntheticAsset } 'downloaded size mismatch'
     $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
     Assert-M14PromotionBoundary -RepoRoot $repoRoot
+    # Load only the real transport functions: offline mocks never contact GitHub or package an installer.
+    $promotionScript = Join-Path $PSScriptRoot 'Promote-M14-Candidate.ps1'
+    $parseTokens=$null; $parseErrors=$null
+    $promotionAst = [Management.Automation.Language.Parser]::ParseFile($promotionScript,[ref]$parseTokens,[ref]$parseErrors)
+    Assert-True ($parseErrors.Count -eq 0) 'promotion script parses'
+    foreach ($name in @('Get-M14ReleaseReadHeaders','Read-M14ReleaseMetadata','Save-M14ReleaseAsset')) {
+        $definition = $promotionAst.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name},$false)
+        Assert-True (@($definition).Count -eq 1) 'one real transport function'
+        . ([scriptblock]::Create($definition[0].Extent.Text))
+    }
+    $script:requests = [Collections.Generic.List[object]]::new()
+    $script:failureStatus = 0
+    $sentinel = 'synthetic-read-token-for-offline-selftest'
+    function Invoke-RestMethod {
+        param($Uri,$Headers,$MaximumRedirection,[switch]$Verbose,[switch]$Debug)
+        $script:requests.Add([pscustomobject]@{uri=$Uri;headers=$Headers.Clone();redirects=$MaximumRedirection})
+        if ($script:failureStatus) { throw "Synthetic $script:failureStatus $sentinel" }
+        if ($Uri.EndsWith("/releases/$($accepted.releaseId)")) { $release } else { $ref }
+    }
+    function Invoke-WebRequest {
+        param($Uri,$Headers,$OutFile,$MaximumRedirection,[switch]$Verbose,[switch]$Debug)
+        $script:requests.Add([pscustomobject]@{uri=$Uri;headers=$Headers.Clone();redirects=$MaximumRedirection})
+        if ($script:failureStatus) { throw "Synthetic $script:failureStatus $sentinel" }
+        [IO.File]::WriteAllText($OutFile,'synthetic-asset',[Text.UTF8Encoding]::new($false))
+        'Transport response must not reach promotion output'
+    }
+    function Assert-SanitizedFailure([scriptblock]$Action,[string]$Name) {
+        $script:requests.Clear()
+        $script:caught=$false
+        $output = @(& { try { & $Action } catch { $script:caught=$true; $_ } } *>&1)
+        Assert-True $script:caught $Name
+        Assert-True (-not (($output | Out-String).Contains($sentinel))) 'transport failure does not expose credential'
+        Assert-True ($script:requests.Count -eq 1) 'authenticated failure has no retry or anonymous fallback'
+    }
+    foreach ($missing in @($null,'','   ')) {
+        [Environment]::SetEnvironmentVariable('SUSHI81_RELEASE_READ_TOKEN',$missing,'Process')
+        $script:requests.Clear()
+        Assert-Throws { Get-M14ReleaseReadHeaders } 'missing/blank credential helper preflight'
+        $notCreated = Join-Path $tmp 'missing-token-artifact'
+        Assert-Throws { & $promotionScript -Repository $accepted.repository -CandidateTag $accepted.tag -ExpectedReleaseId $accepted.releaseId -ExpectedSourceSha $accepted.sourceSha -PromotionHead ('c'*40) -CompilerPath 'unused' -ArtifactDirectory $notCreated } 'missing/blank executable credential preflight'
+        Assert-True ($script:requests.Count -eq 0 -and -not (Test-Path -LiteralPath $notCreated)) 'missing token prevents remote reads and artifact staging'
+    }
+    [Environment]::SetEnvironmentVariable('SUSHI81_RELEASE_READ_TOKEN',$sentinel,'Process')
+    $readHeaders = Get-M14ReleaseReadHeaders
+    Assert-True ([string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable('SUSHI81_RELEASE_READ_TOKEN','Process'))) 'child tools do not inherit credential'
+    $base = "https://api.github.com/repos/$($accepted.repository)"
+    $metadataUris = @("$base/releases/$($accepted.releaseId)","$base/git/ref/tags/$($accepted.tag)")
+    $script:requests.Clear()
+    foreach ($uri in $metadataUris) { Read-M14ReleaseMetadata -Uri $uri -Headers $readHeaders | Out-Null }
+    foreach ($asset in $accepted.assets[0..3]) {
+        $output = @(Save-M14ReleaseAsset -AssetId $asset.id -Headers $readHeaders -Path $download *>&1)
+        Assert-True ($output.Count -eq 0) 'asset transport emits neither headers nor response'
+        Assert-True ($script:requests[$script:requests.Count-1].uri -ceq "$base/releases/assets/$($asset.id)") 'asset download uses validated API ID'
+    }
+    Assert-True ($script:requests.Count -eq 6) 'Release/tag and four payload assets use authenticated requests'
+    for ($i=0; $i -lt $script:requests.Count; $i++) {
+        $request=$script:requests[$i]
+        Assert-True ($request.headers.Authorization -ceq "Bearer $sentinel") 'request uses environment-supplied bearer only'
+        $expectedAccept = if ($i -lt 2) { 'application/vnd.github+json' } else { 'application/octet-stream' }
+        Assert-True ($request.headers.Accept -ceq $expectedAccept) 'metadata/asset Accept contract'
+        Assert-True ($request.redirects -eq $(if ($i -lt 2) {0} else {5})) 'trusted metadata has no redirect; asset redirects bounded with default credential stripping'
+    }
+    foreach ($status in @(401,403,404)) {
+        $script:failureStatus=$status
+        foreach ($uri in $metadataUris) { Assert-SanitizedFailure { Read-M14ReleaseMetadata -Uri $uri -Headers $readHeaders } 'metadata auth failure fails closed' }
+        Assert-SanitizedFailure { Save-M14ReleaseAsset -AssetId $accepted.assets[0].id -Headers $readHeaders -Path $download } 'asset auth failure fails closed'
+    }
+    $script:failureStatus=0; $script:requests.Clear()
+    Assert-Throws { Read-M14ReleaseMetadata -Uri 'https://invalid.example/release' -Headers $readHeaders } 'untrusted metadata endpoint'
+    Assert-Throws { Save-M14ReleaseAsset -AssetId 7L -Headers $readHeaders -Path $download } 'unvalidated asset ID'
+    Assert-True ($script:requests.Count -eq 0) 'untrusted endpoint/asset fails before transport'
+    $readHeaders.Clear()
+    Remove-Item -LiteralPath Function:\Invoke-RestMethod,Function:\Invoke-WebRequest
     $boundaryRoot = Join-Path $tmp 'boundary-copy'
     foreach ($relative in @('installer/scripts/Promote-M14-Candidate.ps1','installer/scripts/M14-ProductionPromotion.psm1',
         'installer/scripts/Package-ProductionFromPayload.ps1','installer/scripts/Verify-ProductionPromotionLifecycle.ps1',
@@ -146,6 +228,37 @@ try {
     Assert-Throws { Assert-M14PromotionBoundary -RepoRoot $boundaryRoot } 'old candidate workflow identity'
     [IO.File]::WriteAllText($boundaryWorkflow,$original.Replace('refs/heads/codex/post-m14-production-maintenance-batch-01','refs/heads/codex/m14-preprod-foundation-authorized'),[Text.UTF8Encoding]::new($false))
     Assert-Throws { Assert-M14PromotionBoundary -RepoRoot $boundaryRoot } 'old branch promotion guard'
+    [IO.File]::WriteAllText($boundaryWorkflow,$original,[Text.UTF8Encoding]::new($false))
+    foreach ($relative in @('.github/workflows/m14-production-promotion.yml','.github/workflows/ci.yml')) {
+        $target=Join-Path $boundaryRoot $relative
+        $baseline=Get-Content -LiteralPath (Join-Path $repoRoot $relative) -Raw
+        foreach ($mutation in @(
+            $baseline.Replace('contents: read','contents: write'),
+            $baseline.Replace('contents: read','contents: none'),
+            $baseline.Replace('permissions:','permissions: write-all'),
+            $baseline.Replace('SUSHI81_RELEASE_READ_TOKEN: ${{ github.token }}','SUSHI81_RELEASE_READ_TOKEN: ${{ secrets.ACCOUNT_TOKEN }}'),
+            $baseline.Replace('SUSHI81_RELEASE_READ_TOKEN: ${{ github.token }}','UNUSED: value'),
+            $baseline.Replace('-Repository ''cimerosef/sushi81-pos''','-Token ${{ github.token }} -Repository ''cimerosef/sushi81-pos''')
+        )) {
+            [IO.File]::WriteAllText($target,$mutation,[Text.UTF8Encoding]::new($false))
+            Assert-Throws { Assert-M14PromotionBoundary -RepoRoot $boundaryRoot } 'workflow permission/env-only credential mutation'
+        }
+        [IO.File]::WriteAllText($target,$baseline,[Text.UTF8Encoding]::new($false))
+    }
+    $target=Join-Path $boundaryRoot 'installer/scripts/Promote-M14-Candidate.ps1'
+    $baseline=Get-Content -LiteralPath $promotionScript -Raw
+    foreach ($mutation in @(
+        $baseline.Replace('releases/assets/$AssetId','releases/download/$AssetId'),
+        $baseline.Replace('-MaximumRedirection 5','-MaximumRedirection 5 -PreserveAuthorizationOnRedirect'),
+        $baseline.Replace('schemaVersion=1; acceptedCandidateId=', 'credential=$headers.Authorization; schemaVersion=1; acceptedCandidateId='),
+        $baseline.Replace('schemaVersion=1; candidate=$accepted.candidateId', 'credential=$headers.Authorization; schemaVersion=1; candidate=$accepted.candidateId'),
+        $baseline.Replace('Authorization="Bearer $readToken"', 'Authorization="Bearer hard-coded-account-credential"'),
+        ($baseline + "`n`$accountToken = 'ghp_" + ('X'*36) + "'")
+    )) {
+        [IO.File]::WriteAllText($target,$mutation,[Text.UTF8Encoding]::new($false))
+        Assert-Throws { Assert-M14PromotionBoundary -RepoRoot $boundaryRoot } 'unsafe transport/persisted/hard-coded credential mutation'
+    }
+    [IO.File]::WriteAllText($target,$baseline,[Text.UTF8Encoding]::new($false))
     $config = Get-Content -LiteralPath (Join-Path $repoRoot 'installer/release-config.json') -Raw | ConvertFrom-Json
     $iss = Get-Content -LiteralPath (Join-Path $repoRoot 'installer/sushi81-pos.iss') -Raw
     Assert-True ($config.innoAppId -ceq 'C7A1B9E2-1E62-4B4B-A2EA-7802814408FC' -and
@@ -163,8 +276,9 @@ try {
         $source.Contains('applicationPublishInvocationCount=0')) 'Promotion provenance must record zero application compilation.'
     Assert-True ($source.Contains('Verify-ProductionPromotionLifecycle.ps1') -and
         (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'Verify-ProductionPromotionLifecycle.ps1') -Raw).Contains('Assert-Synthetic')) 'Hosted synthetic lifecycle is required.'
-    Assert-True (-not ($source -match '(?i)GH_TOKEN|github\.token|[a-f0-9]{64}[^a-f0-9]')) 'Promotion source must not carry account tokens.'
-    'M14 WP6 promotion self-tests passed (immutable identity, assets, metadata, staging, boundary and synthetic lifecycle contract).'
+    Assert-True (-not ($source -match '(?i)github_pat_|gh[pousr]_[a-z0-9]{20,}|[a-f0-9]{64}[^a-f0-9]')) 'Promotion source must not carry hard-coded/account tokens.'
+    "M14 WP6 promotion self-tests passed ($script:assertionCount assertions: authentication, immutable identity, assets, metadata, staging, boundary and synthetic lifecycle contract)."
 } finally {
+    [Environment]::SetEnvironmentVariable('SUSHI81_RELEASE_READ_TOKEN',$previousReadToken,'Process')
     if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
 }
