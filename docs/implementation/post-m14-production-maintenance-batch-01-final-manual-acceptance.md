@@ -1,8 +1,8 @@
 # Post-M14 Production Maintenance Batch 01 — owner PREPROD acceptance
 
-**Status:** IN PROGRESS — 0, A, B and C PASS; D pending
+**Status:** PASS — owner computer-A PREPROD acceptance complete
 **Environment:** computer A PREPROD only
-**Candidate:** C02 / `v1.0.1-preprod-c02` — immutable Release `399541988` published; controller verification and owner acceptance pending
+**Candidate:** C02 / `v1.0.1-preprod-c02` — immutable Release `399541988`; controller-verified and owner-accepted
 
 Do not use Production for candidate testing. Do not install PREPROD on computer B for this batch unless the controller explicitly expands scope because implementation touched a deferred M14 multi-device area.
 
@@ -73,13 +73,13 @@ Then inspect kitchen output:
 - confirm `*** PREPROD ***` remains visible;
 - confirm the customer ticket has not gained this kitchen-only blank writing area.
 
-**Owner result:** IN PROGRESS — unpaid discounted Retrait customer ticket PASS. Paid explicit customer reprint PASS: the same `Remise` amount remained, truthful payment information was present, and `DUPLICATA` plus `*** PREPROD ***` remained visible. No-discount negative check and kitchen handwriting-space checks remain pending.
+**Owner result:** PASS — discounted Retrait customer ticket before payment showed the correct negative `Remise`, coherent TVA/Total and `*** PREPROD ***`; after settlement, explicit customer reprint preserved the same `Remise`, truthful payment information, `DUPLICATA` and `*** PREPROD ***`. A no-discount customer ticket showed no false `Remise`. Ordinary and explicit-reprint kitchen tickets both retained approximately three writable blank lines after the final `TOTAL`; reprint retained `RÉIMPRESSION` and `*** PREPROD ***`. Customer output did not gain the kitchen-only handwriting space.
 
 ## E — completion
 
-Batch owner acceptance may be marked PASS only after 0 and A–D pass against the exact controller-approved immutable C02 candidate. Checklist 0, A, B and C are now PASS. The owner-observed intermittent Production extra-add symptom has passed this C02 empirical regression round; D printing acceptance remains pending before Batch 01 final acceptance.
+**Batch owner acceptance: PASS.** Checklist 0 and A–D passed against the exact controller-approved immutable C02 candidate. The owner-observed intermittent Production extra-add symptom passed the required C02 empirical regression round. The cart auto-reveal, natural product-code ordering, customer discount printing and kitchen handwriting-space behaviors all passed computer-A PREPROD owner verification.
 
-**C02 publication evidence:** [immutable PREPROD C02 Release](https://github.com/cimerosef/sushi81-pos/releases/tag/v1.0.1-preprod-c02), ID `399541988`, source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`, installer `Sushi81POS-PREPROD-Setup-1.0.1-0aa3a02.exe` SHA-256 `3ef1346e857914e9898dacafe522c9308d5d740a9db00413c19b9415daa44e4a`. Actions run `36629889943` built artifact `11062068062`; its GITHUB_TOKEN publish job failed before Release creation, then the tracked publisher completed publication with owner authentication without rebuilding. The Release is draft=false, prerelease=true, immutable=true and non-latest, with exactly five verified assets. Controller independent verification is complete. Owner testing is in progress: 0, A, B and C passed; D remains pending.
+**C02 publication evidence:** [immutable PREPROD C02 Release](https://github.com/cimerosef/sushi81-pos/releases/tag/v1.0.1-preprod-c02), ID `399541988`, source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`, installer `Sushi81POS-PREPROD-Setup-1.0.1-0aa3a02.exe` SHA-256 `3ef1346e857914e9898dacafe522c9308d5d740a9db00413c19b9415daa44e4a`. Actions run `36629889943` built artifact `11062068062`; its GITHUB_TOKEN publish job failed before Release creation, then the tracked publisher completed publication with owner authentication without rebuilding. The Release is draft=false, prerelease=true, immutable=true and non-latest, with exactly five verified assets. Controller independent verification is complete. Owner computer-A PREPROD acceptance is complete and PASS for 0 and A–D.
 
 This checklist does not authorize:
 
