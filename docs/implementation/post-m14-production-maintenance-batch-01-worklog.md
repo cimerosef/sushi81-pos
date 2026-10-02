@@ -160,3 +160,41 @@ Using the same owner-authenticated draft/upload/verify/publish sequence as the C
 Historical immutable PREPROD C01 Release `398945249` and C02 Release `399541988`, their direct source tags, release notes/state and all ten asset IDs/names/lengths/digests remained unchanged. Existing accepted Release build/test evidence remains CI #995 / `36995625540` and #996 / `36997069245`, both 987 passed / 0 failed / 0 skipped and build 0 warnings / 0 errors; no local application build/test or installer generation was invoked for this publication task. Any CI outputs triggered by this documentation commit are separate evidence and do not replace the immutable published installer.
 
 Owner Production deployment authorization exists, but real A/B installation is owner-executed/manual and is not yet recorded complete. Codex deployed/installed nothing; PR #31 remains open/unmerged and merge is not authorized. M14 two-PC PREPROD and M12 populated-archive deferred obligations remain unchanged. Stop for controller Release/evidence verification after the matching durable PR terminal comment and ChatGPT notification.
+
+## 2026-10-02 — authoritative-computer-B overflow add/reveal repair R1
+
+Handoff: `POST-M14-PM01-B-OVERFLOW-ADD-REPAIR-R1-08`, PR #31 comment [`5956700069`](https://github.com/cimerosef/sushi81-pos/pull/31#issuecomment-5956700069), from exact START_HEAD `32bfbe7bd2377d4e74eece12dc34fbc4f229d548` on `codex/post-m14-production-maintenance-batch-01`. Issue #4 was OPEN and authorized only this corrective WP1/WP2 repair when execution began. The owner subsequently recorded Production v1.0.1 installation on both A and B: A is read-only/non-authoritative and did not reproduce; B is authoritative/writable and reproduced a missing latest product after the cart overflowed, with retries/later products exposing earlier lines. PR #31 comment `5957414267` confirms the Add-button path also reproduced. This later B report is retained alongside the earlier computer-A C02 acceptance; that earlier result does not establish B acceptance of this repair.
+
+### Deterministic reproduction before the runtime change
+
+The new real-window STA regression seeds twelve synthetic cart lines, asserts writability and `ScrollableHeight > 0`, then uses the actual grid `MouseDoubleClick` routed event or Add-button event for A→B→C→A. Grid events retain WPF's constructor-default click count and source the actual product row, so identity is independent of stale selection. A controlled catalogue holds each asynchronous lookup separately; A and B gestures arrive before A's lookup completes, with a finite normal/render dispatcher backlog. Each completed add is observed at DispatcherPriority.Background after the normal WPF continuation/layout/reveal work, without an ApplicationIdle flush between gestures. Cart count/product IDs and the newest realized line's effective visible bounds are checked after every completion, before a later gesture can hide a failed reveal.
+
+With runtime code still at START_HEAD, the first valid geometry run produced:
+
+| Window dimensions (DIP) | Input paths | Pre-repair outcome |
+| --- | --- | --- |
+| 800 × 520 | Button and grid double-click | Both fail: one correct A mutation, newest line completely clipped; cart nominal height 260, allocated slot approximately 88.73 |
+| 980 × 680 | Button and grid double-click | Both fail: one correct A mutation, newest line completely clipped; cart nominal height 260, allocated slot approximately 157.30 |
+| 1280 × 900 | Button and grid double-click | Both pass |
+
+Baseline total: **4 failed / 2 passed / 0 skipped**. An initial harness checkpoint at Input ran before the Input-priority asynchronous continuation and observed an unchanged cart; that observation was a test scheduling error, not the production reproduction. It was corrected to Background before this baseline was recorded and before runtime code was changed.
+
+### Root cause and repair
+
+`orderCartList` forced `MinHeight="260"` inside a star-sized row. At smaller available client heights, the containing layout allocated less than 260 DIP. WPF retained a nominal 260-DIP list and approximately 256-DIP ScrollViewer, then applied a layout clip for the smaller allocated area. Existing `ScrollIntoView` correctly scrolled the exact new line into the nominal viewport's bottom, which lay outside the actually visible clipped region. The old WP2 assertion compared only against the nominal viewer height, allowing this invisible reveal to pass. [WPF LayoutInformation.GetLayoutClip](https://learn.microsoft.com/en-us/dotnet/api/system.windows.controls.primitives.layoutinformation.getlayoutclip?view=windowsdesktop-10.0) supplies the layout clipping geometry used by the strengthened oracle.
+
+The runtime repair removes only this forced minimum from `MainWindow.xaml`. The list/ScrollViewer now use the actual allocated star-row height, so the existing exact-line Loaded-priority reveal reaches the visible viewport. There is no delay filter, deduplication, new queue behavior or arbitrary sleep. The deterministic failing case is a correct mutation with a hidden latest line, matching the owner's duplicate-driving visibility failure on both entry paths; it did not show a stale-product mutation. B's actual DPI/client dimensions were not measured, so this is an equivalent deterministic reproduction and technical explanation, not a claim that the precise B window geometry or subsequent manual acceptance is known.
+
+The final regression covers both input paths at 760 × 520 (the minimum window), 800 × 520, 980 × 680 and 1280 × 900. It checks A→B→C→A identity/count and the newest line's width/height against viewer bounds, client bounds, every ancestor layout clip and ClipToBounds. Two further cases complete an actual Add-button mutation, clear the cart or close the window before its reveal callback, and prove the stale callback cannot scroll; a fresh add after clear remains usable. The existing non-add regression now uses the same clipping-aware oracle and still proves quantity/edit/reprice/remove do not jump to bottom. Existing actual WPF double-click, delayed fast-button, deliberate repeat, option confirm/cancel and Hiboutik cart-preservation regressions remain green.
+
+### Verification and delivery boundary
+
+- Focused Release STA/WPF regressions: **15 passed / 0 failed / 0 skipped**.
+- Full Release solution build: **0 warnings / 0 errors**.
+- Full Release solution tests: **997 passed / 0 failed / 0 skipped** (Domain 33, Application 197, OneDrive 32 + 92, Architecture 246, Infrastructure 397).
+- Repository safety self-test: all **16 synthetic cases** passed; tracked/non-ignored scan: **485 files** passed. M14 candidate-pipeline and Production-promotion self-tests passed. `git diff --check` passed. These were verification self-tests, not candidate or Release publication.
+- The exact pushed SHA and exact-head CI are recorded in this handoff's matching PR terminal comment after remote verification.
+
+Execution topology: the main agent evaluated parallelization and retained reproduction, runtime/test writes, integration and verification serially because this is a narrow hotfix with a shared UI/test seam. Two read-only workers audited layout/source/diff and regression design; their returned findings were reviewed by the main agent. The final independent audit accepted the one-attribute runtime repair and strengthened geometry/lifecycle assertions. The runtime did not expose the repository-preferred GPT-5.6 Luna/max selection or independently verifiable actual worker model/effort, so only mechanical, independently reviewable audits were delegated; no worker changes were integrated.
+
+Production `v1.0.1`, its immutable Release/assets and earlier C02 acceptance remain historical evidence and are not described as containing this repair. This handoff changes no product version, creates no PREPROD candidate, publishes no Release, deploys nothing on A/B and does not merge PR #31. Pricing, lifecycle, authority, persistence, printing, export, catalogue ordering and Production/PREPROD isolation are untouched. M14 two-PC PREPROD and M12 populated-archive obligations remain deferred. Computer-B repair acceptance is **NOT RUN**; stop for controller source/evidence review before any separately authorized packaging/deployment task.

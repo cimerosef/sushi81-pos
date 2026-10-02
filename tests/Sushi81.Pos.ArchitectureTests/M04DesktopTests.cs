@@ -680,6 +680,147 @@ public sealed class M04DesktopTests
     }
 
     [TestMethod]
+    [DataRow(false, 760, 520)]
+    [DataRow(true, 760, 520)]
+    [DataRow(false, 800, 520)]
+    [DataRow(true, 800, 520)]
+    [DataRow(false, 980, 680)]
+    [DataRow(true, 980, 680)]
+    [DataRow(false, 1280, 900)]
+    [DataRow(true, 1280, 900)]
+    public void CaisseOverflowedCartRevealsEachCompletedGestureInsideActualLayoutClipOnSta(bool doubleClick, int width, int height)
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var products = new[]
+            {
+                SimpleProduct(Guid.NewGuid(), "A", "Premier", categoryId, "Plats"),
+                SimpleProduct(Guid.NewGuid(), "B", "Deuxième", categoryId, "Plats"),
+                SimpleProduct(Guid.NewGuid(), "C", "Troisième", categoryId, "Plats")
+            };
+            var catalogue = new ControlledProductCatalogue(products);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(catalogue, new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            Assert.IsTrue(entry.CanWrite);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = width, Height = height };
+            window.Show();
+            var previousContext = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext(window.Dispatcher));
+            try
+            {
+                VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]).IsSelected = true;
+                window.UpdateLayout();
+                var grid = (DataGrid)typeof(MainWindow).GetField("orderProductsGrid", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var add = (Button)typeof(MainWindow).GetField("orderAddButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var cart = (ListBox)typeof(MainWindow).GetField("orderCartList", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var viewer = VisualDescendants<ScrollViewer>(cart).Single();
+                for (var index = 0; index < 12; index++) entry.AddConfiguredLine(products[0], [], [], 1);
+                PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                viewer.ScrollToTop();
+                PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Assert.IsGreaterThan(0D, viewer.ScrollableHeight, "The initial cart must overflow.");
+                var rows = VisualDescendants<DataGridRow>(grid).ToDictionary(row => ((ProductSummary)row.DataContext).Id);
+                var seedCount = entry.Cart.Count;
+                var sequence = new[] { products[0], products[1], products[2], products[0] };
+
+                void Gesture(OrderEntryProduct product)
+                {
+                    window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(() =>
+                    {
+                        if (doubleClick)
+                            grid.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                            {
+                                RoutedEvent = Control.MouseDoubleClickEvent,
+                                Source = rows[product.Aggregate.Product.Id]
+                            });
+                        else
+                        {
+                            grid.SelectedItem = entry.Products.Single(summary => summary.Id == product.Aggregate.Product.Id);
+                            add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        }
+                    }));
+                    PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.Input);
+                }
+
+                // Both real entry gestures can arrive while the first lookup is pending.
+                Gesture(sequence[0]);
+                Gesture(sequence[1]);
+                Assert.HasCount(seedCount, entry.Cart);
+                for (var index = 0; index < sequence.Length; index++)
+                {
+                    Assert.AreEqual(sequence[index].Aggregate.Product.Id, catalogue.PendingProductId);
+                    // A finite normal/render backlog models a slower client. Observe at
+                    // Background, after the Input-priority async continuation and normal
+                    // WPF Loaded/render work, never at ApplicationIdle.
+                    for (var backlog = 0; backlog < 4; backlog++)
+                        window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, new Action(window.UpdateLayout));
+                    window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(catalogue.ReleaseNext));
+                    PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.Background);
+                    Assert.HasCount(seedCount + index + 1, entry.Cart);
+                    CollectionAssert.AreEqual(sequence.Take(index + 1).Select(product => product.Aggregate.Product.Id).ToArray(),
+                        entry.Cart.Skip(seedCount).Select(line => line.Draft.Product.Product.Id).ToArray(), "Completed mutations must preserve exact gesture identity.");
+                    AssertCartLineVisibleThroughLayoutClips(window, cart, viewer, entry.Cart[^1]);
+                    if (index + 2 < sequence.Length) Gesture(sequence[index + 2]);
+                }
+                Assert.IsNull(cart.SelectedItem, "Reveal must preserve cart selection.");
+            }
+            finally { SynchronizationContext.SetSynchronizationContext(previousContext); window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void CaissePendingCartRevealCannotScrollAfterClearOrCloseOnSta(bool close)
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var product = SimpleProduct(Guid.NewGuid(), "A", "Premier", categoryId, "Plats");
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(new DesktopCatalogue(product, categoryId), new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 800, Height = 520 };
+            window.Show();
+            try
+            {
+                VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]).IsSelected = true;
+                window.UpdateLayout();
+                var cart = (ListBox)typeof(MainWindow).GetField("orderCartList", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var viewer = VisualDescendants<ScrollViewer>(cart).Single();
+                var add = (Button)typeof(MainWindow).GetField("orderAddButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                for (var index = 0; index < 12; index++) entry.AddConfiguredLine(product, [], [], 1);
+                PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                viewer.ScrollToTop();
+                entry.SelectedProduct = entry.Products.Single();
+                PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Assert.IsGreaterThan(0D, viewer.ScrollableHeight);
+                Assert.AreEqual(0D, viewer.VerticalOffset, 0.01D);
+                add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.HasCount(13, entry.Cart, "The actual button handler added a line with a pending reveal.");
+                if (close) window.Close();
+                else entry.Cart.Clear();
+                PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.Background);
+                Assert.AreEqual(0D, viewer.VerticalOffset, 0.01D, "A stale reveal cannot scroll after clear/close.");
+                if (!close)
+                {
+                    Assert.IsEmpty(cart.Items);
+                    add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.Background);
+                    Assert.HasCount(1, entry.Cart, "A fresh gesture remains usable after the clear.");
+                    AssertCartLineVisibleThroughLayoutClips(window, cart, viewer, entry.Cart.Single());
+                }
+            }
+            finally { if (window.IsVisible) window.Close(); }
+        });
+    }
+
+    [TestMethod]
     public void CaisseCartRevealsOnlyNewlyInsertedLinesOnSta()
     {
         RunOnSta(() =>
@@ -712,11 +853,7 @@ public sealed class M04DesktopTests
 
                 void AssertVisible(OrderEntryCartLineViewModel line)
                 {
-                    var container = (ListBoxItem?)cart.ItemContainerGenerator.ContainerFromItem(line);
-                    Assert.IsNotNull(container, "The newly inserted cart item must be realized.");
-                    var bounds = container.TransformToAncestor(viewer).TransformBounds(new Rect(container.RenderSize));
-                    Assert.IsGreaterThanOrEqualTo(-2D, bounds.Top, "The inserted item must enter the cart viewport.");
-                    Assert.IsLessThanOrEqualTo(viewer.ActualHeight + 2D, bounds.Bottom, "The inserted item must fit inside the cart viewport.");
+                    AssertCartLineVisibleThroughLayoutClips(window, cart, viewer, line);
                 }
 
                 for (var index = 0; index < 12; index++) entry.AddConfiguredLine(product, [], [], 1);
@@ -898,6 +1035,37 @@ public sealed class M04DesktopTests
             foreach (var descendant in VisualDescendants<T>(VisualTreeHelper.GetChild(root, index))) yield return descendant;
     }
 
+    private static void PumpDispatcher(Window window, System.Windows.Threading.DispatcherPriority priority)
+    {
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        window.Dispatcher.BeginInvoke(priority, new Action(() => frame.Continue = false));
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
+    }
+
+    private static void AssertCartLineVisibleThroughLayoutClips(Window window, ListBox cart, ScrollViewer viewer, OrderEntryCartLineViewModel line)
+    {
+        var container = (ListBoxItem?)cart.ItemContainerGenerator.ContainerFromItem(line);
+        Assert.IsNotNull(container, "The completed add must be realized before subsequent input.");
+        var bounds = container.TransformToAncestor(window).TransformBounds(new Rect(container.RenderSize));
+        var visible = bounds;
+        visible.Intersect(viewer.TransformToAncestor(window).TransformBounds(new Rect(viewer.RenderSize)));
+        if (window.Content is FrameworkElement content)
+            visible.Intersect(content.TransformToAncestor(window).TransformBounds(new Rect(content.RenderSize)));
+        for (DependencyObject? ancestor = container; ancestor is not null && !ReferenceEquals(ancestor, window); ancestor = VisualTreeHelper.GetParent(ancestor))
+        {
+            if (ancestor is not FrameworkElement element) continue;
+            var clip = System.Windows.Controls.Primitives.LayoutInformation.GetLayoutClip(element);
+            if (clip is not null)
+                visible.Intersect(element.TransformToAncestor(window).TransformBounds(clip.Bounds));
+            if (element.ClipToBounds)
+                visible.Intersect(element.TransformToAncestor(window).TransformBounds(new Rect(element.RenderSize)));
+        }
+        var slot = System.Windows.Controls.Primitives.LayoutInformation.GetLayoutSlot(cart);
+        Assert.IsGreaterThanOrEqualTo(bounds.Height - 2D, visible.IsEmpty ? 0D : visible.Height,
+            $"Completed line is clipped: item={bounds}; visible={visible}; cart nominal={cart.RenderSize}; allocated slot={slot}; viewer={viewer.RenderSize}. Nominal viewport visibility alone is insufficient.");
+        Assert.IsGreaterThanOrEqualTo(bounds.Width - 2D, visible.IsEmpty ? 0D : visible.Width, "The new line must also fit the visible width.");
+    }
+
     private static void RunOnSta(Action action)
     {
         Exception? failure = null;
@@ -941,6 +1109,32 @@ public sealed class M04DesktopTests
 
         public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) =>
             Task.FromResult(new[] { first, second }.SingleOrDefault(product => product.Aggregate.Product.Id == productId));
+    }
+
+    private sealed class ControlledProductCatalogue(params OrderEntryProduct[] products) : IOrderEntryCatalogueQueries
+    {
+        private TaskCompletionSource<OrderEntryProduct?>? pending;
+        public Guid PendingProductId { get; private set; }
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CategorySummary>>([new(products[0].Aggregate.Product.CategoryId, products[0].CategoryName)]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ProductSummary>>(products.Select(product => new ProductSummary(product.Aggregate.Product.Id,
+                product.Aggregate.Product.Code, product.Aggregate.Product.Name, product.Aggregate.Product.CategoryId, product.CategoryName,
+                product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, true, false)).ToArray());
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default)
+        {
+            Assert.IsNull(pending, "The window must serialize product lookup requests.");
+            PendingProductId = productId;
+            pending = new TaskCompletionSource<OrderEntryProduct?>();
+            return pending.Task;
+        }
+        public void ReleaseNext()
+        {
+            var completion = pending!;
+            var product = products.Single(product => product.Aggregate.Product.Id == PendingProductId);
+            pending = null;
+            completion.SetResult(product);
+        }
     }
 
     private sealed class DelayedFirstProductCatalogue(params OrderEntryProduct[] products) : IOrderEntryCatalogueQueries
