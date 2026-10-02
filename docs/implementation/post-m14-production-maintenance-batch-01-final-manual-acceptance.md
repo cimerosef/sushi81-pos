@@ -1,6 +1,6 @@
 # Post-M14 Production Maintenance Batch 01 — owner PREPROD acceptance
 
-**Status:** NOT RUN
+**Status:** IN PROGRESS — 0 and A PASS; B–D pending
 **Environment:** computer A PREPROD only
 **Candidate:** C02 / `v1.0.1-preprod-c02` — immutable Release `399541988` published; controller verification and owner acceptance pending
 
@@ -10,7 +10,7 @@ Do not use Production for candidate testing. Do not install PREPROD on computer 
 
 After controller verification of the exact immutable C02 Release and installer hash, install C02 over the existing PREPROD installation on computer A. Confirm the prior PREPROD durable data/settings remain available, the PREPROD banner is visible, and the separate Production installation/data remain unchanged. Do not run this checklist against C01 or Production.
 
-**Owner result:** NOT RUN.
+**Owner result:** PASS — C02 installed on computer A PREPROD. PREPROD identity/banner, prior PREPROD data/settings and normal launch were confirmed; Production remained separate/unmodified.
 
 ## A — duplicate-add regression
 
@@ -24,7 +24,7 @@ Using the normal Caisse product list:
 - confirm adding a later product never creates another copy of an earlier product;
 - if practical, include one option-enabled product and confirm/cancel its dialog once.
 
-**Owner result:** NOT RUN.
+**Owner result:** PASS — owner exercised mixed Add-button/double-click entry, several different products, a faster sequence and deliberate repeated adds. Every deliberate gesture added exactly once; no later add created an unintended duplicate of an earlier product.
 
 ## B — cart auto-reveal
 
@@ -77,9 +77,9 @@ Then inspect kitchen output:
 
 ## E — completion
 
-Batch owner acceptance may be marked PASS only after 0 and A–D pass against the exact controller-approved immutable C02 candidate. WP1's original intermittent Production extra-add symptom remains unresolved until the empirical sequence in A passes.
+Batch owner acceptance may be marked PASS only after 0 and A–D pass against the exact controller-approved immutable C02 candidate. Checklist 0 and A are now PASS. The owner-observed intermittent Production extra-add symptom has passed this C02 empirical regression round; B–D remain pending before Batch 01 final acceptance.
 
-**C02 publication evidence:** [immutable PREPROD C02 Release](https://github.com/cimerosef/sushi81-pos/releases/tag/v1.0.1-preprod-c02), ID `399541988`, source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`, installer `Sushi81POS-PREPROD-Setup-1.0.1-0aa3a02.exe` SHA-256 `3ef1346e857914e9898dacafe522c9308d5d740a9db00413c19b9415daa44e4a`. Actions run `36629889943` built artifact `11062068062`; its GITHUB_TOKEN publish job failed before Release creation, then the tracked publisher completed publication with owner authentication without rebuilding. The Release is draft=false, prerelease=true, immutable=true and non-latest, with exactly five verified assets. Controller independent verification remains pending; no owner test has been performed.
+**C02 publication evidence:** [immutable PREPROD C02 Release](https://github.com/cimerosef/sushi81-pos/releases/tag/v1.0.1-preprod-c02), ID `399541988`, source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`, installer `Sushi81POS-PREPROD-Setup-1.0.1-0aa3a02.exe` SHA-256 `3ef1346e857914e9898dacafe522c9308d5d740a9db00413c19b9415daa44e4a`. Actions run `36629889943` built artifact `11062068062`; its GITHUB_TOKEN publish job failed before Release creation, then the tracked publisher completed publication with owner authentication without rebuilding. The Release is draft=false, prerelease=true, immutable=true and non-latest, with exactly five verified assets. Controller independent verification is complete. Owner testing is in progress: 0 and A passed; B–D remain pending.
 
 This checklist does not authorize:
 
