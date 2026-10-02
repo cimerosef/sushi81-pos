@@ -73,7 +73,7 @@ Then inspect kitchen output:
 - confirm `*** PREPROD ***` remains visible;
 - confirm the customer ticket has not gained this kitchen-only blank writing area.
 
-**Owner result:** NOT RUN.
+**Owner result:** IN PROGRESS — unpaid discounted Retrait customer ticket PASS. Visible negative `Remise`, discount amount, TVA/final Total coherence and `*** PREPROD ***` marking were confirmed. Paid explicit customer reprint, no-discount negative check and kitchen handwriting-space checks remain pending.
 
 ## E — completion
 
