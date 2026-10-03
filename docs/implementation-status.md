@@ -236,3 +236,19 @@ The first safe M12 real populated-archive verification remains an authoritative 
 ## 6. Evidence preservation
 
 Historical milestone worklogs, acceptance records, decision records, PR discussions and exact-head evidence remain authoritative in place. Current-state reconciliation changes only this living summary.
+
+## 7. Owner-facing PREPROD Release channel — H16 (2026-10-03)
+
+[Owner decision on PR #31](https://github.com/cimerosef/sushi81-pos/pull/31#issuecomment-5970354231) and [H16 executable contract](https://github.com/cimerosef/sushi81-pos/pull/31#issuecomment-5970354818) establish this standing download convention:
+
+- Selected owner-facing PREPROD tag: `v<product-version>-preprod`; Release name: `Sushi81 POS PREPROD <product-version>`.
+- Published state: `draft=false`, `prerelease=true`, immutable. The lightweight tag directly targets the exact application source used to build the installer, even when later documentation commits advance the PR head.
+- Exactly one uploaded Release asset: the verified PREPROD installer. Production installers are never uploaded to this channel. Manifests, provenance and lifecycle evidence remain linked from Release notes to the durable PR/CI/artifact.
+- Multiple acceptance candidates may still use immutable `v<version>-preprod-cNN` records before selecting the simple owner-facing baseline. Historical C01/C02 identities, five-asset contracts, acceptance and failures remain unchanged.
+- Production and PREPROD retain separate Release/download channels and separate application/install/data identities. Production [v1.0.2](https://github.com/cimerosef/sushi81-pos/releases/tag/v1.0.2), Release `402544671`, remains unchanged.
+
+The selected PREPROD 1.0.2 installer is `Sushi81POS-PREPROD-Setup-1.0.2-7183c47.exe`, **49,822,849 bytes**, SHA-256 `a80acb102767887e1e06826ca82bfc655b34ff215dc7bbb89a159245db0e007c`, from accepted H12 run `37098264492` / artifact `11265107248` and exact source/tag target `7183c4798f6889fe10af8dfec90bed5b12a26529`. Its owner download entry is [PREPROD v1.0.2](https://github.com/cimerosef/sushi81-pos/releases/tag/v1.0.2-preprod); actual publication/readback evidence is recorded in the H16 worklog and matching terminal PR comment. H12's automated-only delivery restriction remains a historical packaging-time statement; H16 separately authorizes selecting those unchanged bytes for the owner-facing PREPROD channel.
+
+PREPROD AppId remains `67FB6B75-3C5E-44A5-98AD-305EA4C62D95`; app/shortcut `Sushi81 POS PREPROD`; install root `%LOCALAPPDATA%\Programs\Sushi81 POS PREPROD`; durable root `%LOCALAPPDATA%\Sushi81 POS PREPROD`. The 418-file common application payload matches H12 Production byte-for-byte after excluding only packaging-only `deployment-profile.txt`; tree SHA-256 `9106ed6a6c951fd6c1fc5c46aff2e705b4828a653507bdd566835f0f31266376`.
+
+Current download/deployment facts in this addendum supersede the earlier Batch 01 installer/deployment snapshots above: owner-reported Production v1.0.2 acceptance is PASS on [B](https://github.com/cimerosef/sushi81-pos/pull/31#issuecomment-5970266544) and [A](https://github.com/cimerosef/sushi81-pos/pull/31#issuecomment-5970303974). H16 publication is download-channel delivery, not Codex installation or owner manual acceptance of PREPROD 1.0.2. Computer A remains Production + PREPROD; B remains Production-only. Real two-PC PREPROD pairing/handoff/acquisition remains **Deferred under owner waiver — NOT PASSED**; M12 populated-archive verification remains separately deferred. No authority operation or PR merge is authorized here.
