@@ -127,11 +127,14 @@ Required tests:
 
 ### 5.2 Kitchen-ticket handwriting spacer
 
-Reserve real vertical blank space immediately after the final kitchen `TOTAL`, targeting approximately three normal kitchen handwriting-line heights.
+Reserve approximately 25 mm of real writable vertical paper immediately after the final kitchen `TOTAL`, independent of font line height (owner-approved physical-paper refinement, 2026-10-03).
 
 Implementation requirements:
 
-- use an explicit print-layout/rendering spacer or equivalent real vertical measure; do not rely on empty strings that the renderer may trim/collapse;
+- retain exactly one semantic `HandwritingSpace`; its WPF visual height is `25 / 25.4 * 96` DIP;
+- paint only a tiny approximately 2 DIP square at the visual's extreme bottom/right, inside the content width, so the reserved tail contains real rendered ink; keep the handwriting interior blank;
+- the feed anchor is layout metadata, excluded from diagnostic/business text, persisted data and exports; retain generic Windows printing without ESC/POS/device-specific commands;
+- keep final `TOTAL` plus reserve/anchor atomic when that group fits a page; reject unusably short printable-page geometry before submission rather than split or clip this physical reserve;
 - ordinary kitchen print, explicit `RÉIMPRESSION`, PREPROD kitchen output and cancelled-order kitchen output all retain the space;
 - the spacer is after the kitchen total/business content and does not introduce labels or pseudo-data;
 - customer output receives no such spacer;

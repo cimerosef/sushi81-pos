@@ -56,13 +56,15 @@ Existing authoritative TTC total, persisted VAT breakdown and payment display ru
 
 ## PM01-PRINT-002 — Kitchen ticket reserves handwriting space after TOTAL
 
-Every kitchen ticket reserves real blank vertical paper space immediately after the final kitchen `TOTAL`, approximately equal to three normal kitchen handwriting-line heights.
+Every kitchen ticket reserves approximately **25 mm** of real writable vertical paper immediately after the final kitchen `TOTAL` (owner-approved physical refinement, 2026-10-03). Convert millimetres to WPF DIP with `mm / 25.4 * 96`, independently of font line height.
 
 The space is present on ordinary kitchen output, explicit kitchen `RÉIMPRESSION`, PREPROD kitchen output and cancelled-order kitchen output. It is not represented as fake business data and must survive the actual rendered thermal layout/pagination path.
 
-Customer output does not gain this kitchen handwriting spacer.
+The reserved visual has a deliberately tiny painted feed anchor (approximately 2 DIP square) at its extreme bottom/right, fully inside the imageable content width. Its purpose is to retain rendered ink at the physical end against trailing-blank trimming; the handwriting interior remains blank. The anchor is never diagnostic text, fake business data, persisted/exported content or customer output. Keep final `TOTAL` plus reserve/anchor together when the group fits a page. Generic Windows queue/spooler printing is retained; no raw ESC/POS or device-specific transport.
 
-**Evidence:** deterministic print-render/layout tests proving the kitchen document height includes the reserved trailing spacer without altering ticket content, plus owner physical PREPROD kitchen-print review.
+Customer output does not gain this kitchen handwriting spacer or feed anchor.
+
+**Evidence:** deterministic semantic, physical-height, actual rendered-anchor/blank-interior and boundary/multipage tests across ordinary/reprint/PREPROD/cancelled kitchen variants, with customer output and diagnostic/business content unchanged. Owner physical PREPROD thermal-paper review remains required before Production release; PDF geometry or automated raster evidence alone is not that acceptance.
 
 ## PM01-REG-001 — Existing safety invariants
 
@@ -87,7 +89,7 @@ Minimum owner sequence:
 3. inspect a code family containing 1/2/.../10+ and confirm natural order;
 4. create/identify a Retrait order with an actually applied discount and inspect the unpaid customer ticket;
 5. settle that same test order and explicitly reprint the customer ticket, confirming the same discount information remains correct;
-6. print an ordinary PREPROD kitchen ticket and a kitchen `RÉIMPRESSION`, confirming approximately three writable blank lines remain after the final `TOTAL` and before the paper ends;
+6. print an ordinary PREPROD kitchen ticket and a kitchen `RÉIMPRESSION`, confirming approximately 25 mm of writable blank paper remains after the final `TOTAL`, ending in only the tiny bottom/right feed anchor;
 7. confirm PREPROD/reprint markings remain visible and customer tickets do not acquire the kitchen handwriting spacer.
 
 No computer-B PREPROD installation is required unless the implementation materially touches a deferred M14 multi-device area.

@@ -267,6 +267,10 @@ public sealed class M08PrintingTests
             Assert.AreEqual(PrintReceiptBlockKind.Total, blocks[^2].Kind);
             Assert.AreEqual(PrintReceiptBlockKind.HandwritingSpace, blocks[^1].Kind);
             Assert.AreEqual(1, blocks.Count(block => block.Kind == PrintReceiptBlockKind.HandwritingSpace));
+            Assert.AreEqual(string.Empty, blocks[^1].Text);
+            Assert.IsNull(blocks[^1].SecondaryText);
+            Assert.AreEqual(blocks[^2].AtomicGroup, blocks[^1].AtomicGroup);
+            Assert.AreEqual(new PrintReceiptContent(blocks.Take(blocks.Count - 1).ToArray()).ToDiagnosticText(), document.Text);
             Assert.IsFalse(document.Text.EndsWith(Environment.NewLine, StringComparison.Ordinal));
         }
     }

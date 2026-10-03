@@ -97,13 +97,13 @@ This change does not alter discount eligibility, rate, minimum, rounding, VAT, a
 
 #### 5.2 Kitchen-ticket handwriting space
 
-Every kitchen ticket must reserve a blank handwriting area immediately after the final kitchen `TOTAL`. The target is approximately three normal kitchen handwriting-line heights of vertical paper space.
+Every kitchen ticket must reserve a blank handwriting area immediately after the final kitchen `TOTAL`. The original three-line intent is refined by the owner-approved 2026-10-03 physical-paper repair: target approximately **25 mm** of vertical paper, independently of font line height.
 
 The reserved space applies consistently to ordinary kitchen printing, kitchen `RÉIMPRESSION`, PREPROD-marked kitchen output and cancelled-order kitchen output. It contains no pseudo-data and does not change the business content of the ticket.
 
 The customer ticket receives no corresponding blank handwriting area.
 
-The implementation must create real rendered vertical space that survives the Windows thermal-print layout/pagination path; simply appending empty strings that are trimmed/collapsed by the renderer is not sufficient.
+The implementation must preserve the physical reserve through the generic Windows thermal-print layout/pagination path. A tiny painted feed anchor (approximately 2 WPF DIP square) at the extreme bottom/right of the reserved visual prevents the trailing area from being entirely unpainted; the writable interior stays blank. The anchor stays inside the imageable content width and is layout metadata only, never diagnostic/business text. Keep final `TOTAL` and reserve in one pagination group when they fit a page. Do not introduce raw ESC/POS or device-specific transport. Owner validation on real thermal paper remains required before a Production release.
 
 ### 6. Acceptance environment
 
