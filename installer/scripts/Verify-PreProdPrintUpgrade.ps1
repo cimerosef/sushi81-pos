@@ -136,8 +136,8 @@ foreach ($spec in @(
     @{ Path=$CurrentInstaller; Version='1.0.3'; FileVersion='1.0.3.0' }
 )) {
     $versionInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo($spec.Path)
-    if ($versionInfo.ProductName -cne 'Sushi81 POS PREPROD' -or
-        $versionInfo.FileVersion -cne $spec.FileVersion -or $versionInfo.ProductVersion -cne $spec.Version) {
+    if ($versionInfo.ProductName.Trim() -cne 'Sushi81 POS PREPROD' -or
+        $versionInfo.FileVersion.Trim() -cne $spec.FileVersion -or $versionInfo.ProductVersion.Trim() -cne $spec.Version) {
         throw 'An installer input does not identify the required PREPROD product/version before launch.'
     }
 }
@@ -216,7 +216,7 @@ function Assert-PreProdInstalled([string]$Step,[string]$Version,[string]$Source)
     $exePath = Join-Path $installRoot 'Sushi81.Pos.Desktop.exe'
     if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) { throw "$Step omitted the installed PREPROD executable." }
     $versionInfo = [Diagnostics.FileVersionInfo]::GetVersionInfo($exePath)
-    if ($versionInfo.FileVersion -cne "$Version.0" -or $versionInfo.ProductVersion -cne "$Version+$Source") {
+    if ($versionInfo.FileVersion.Trim() -cne "$Version.0" -or $versionInfo.ProductVersion.Trim() -cne "$Version+$Source") {
         throw "$Step installed the wrong executable file/informational version."
     }
     $marker = [IO.File]::ReadAllBytes((Join-Path $installRoot 'deployment-profile.txt'))
