@@ -1,6 +1,12 @@
 name: Continuous integration
 
 on:
+  workflow_dispatch:
+    inputs:
+      expected_head:
+        description: Exact authorized H12 source SHA for evidence-only 1.0.2 packaging
+        required: true
+        type: string
   pull_request:
   push:
     branches:
@@ -52,6 +58,67 @@ jobs:
         run: dotnet build Sushi81.Pos.sln -c Release --no-restore
       - name: Test
         run: dotnet test Sushi81.Pos.sln -c Release --no-build --nologo
+
+  production-patch-102-evidence:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/post-m14-production-maintenance-batch-01'
+    needs: build-and-test
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact patch source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify authorized patch head and unchanged application source
+        shell: pwsh
+        env:
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+          EVENT_HEAD: ${{ github.sha }}
+        run: |
+          $head = (git rev-parse HEAD).Trim()
+          if ($env:EXPECTED_HEAD -cnotmatch '^[0-9a-f]{40}$' -or $head -cne $env:EXPECTED_HEAD -or $head -cne $env:EVENT_HEAD) { throw 'Patch source differs from the authorized dispatch head.' }
+          git diff --exit-code b516aba0652e0e3be3c65adcac7f6e41ef706dbe HEAD -- src/
+          if ($LASTEXITCODE -ne 0) { throw 'H12 application source differs from the accepted baseline.' }
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Test patch and existing installer safeguards
+        shell: pwsh
+        run: |
+          & .\installer\scripts\Test-ProductionPatch.ps1
+          & .\installer\scripts\Test-M14-CandidatePipeline.ps1 -SelfTest
+          & .\installer\scripts\Test-M14-ProductionPromotion.ps1 -SelfTest
+      - name: Install signed pinned Inno Setup 6.7.3
+        id: inno
+        shell: pwsh
+        run: |
+          $version = '6.7.3'
+          $download = Join-Path $env:RUNNER_TEMP "innosetup-$version.exe"
+          Invoke-WebRequest -Uri "https://github.com/jrsoftware/issrc/releases/download/is-$($version.Replace('.', '_'))/innosetup-$version.exe" -OutFile $download
+          $signature = Get-AuthenticodeSignature -FilePath $download
+          if ($signature.Status -ne 'Valid' -or [string]$signature.SignerCertificate.Subject -notmatch '(?i)Pyrsys B\.V\.') { throw 'Pinned Inno Setup signer is invalid.' }
+          $process = Start-Process -FilePath $download -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -WindowStyle Hidden -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw 'Pinned Inno Setup installation failed.' }
+          $candidates = @((Join-Path ([Environment]::GetEnvironmentVariable('ProgramFiles(x86)')) 'Inno Setup 6\ISCC.exe'),(Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'))
+          $compiler = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $compiler) { throw 'Pinned compiler is missing.' }
+          "path=$compiler" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - name: Build patch and verify hosted dual-profile and real 1.0.1 upgrade lifecycle
+        shell: pwsh
+        env:
+          PATCH_HEAD: ${{ inputs.expected_head }}
+          INNO_COMPILER: ${{ steps.inno.outputs.path }}
+        run: '& .\installer\scripts\Run-ProductionPatch.ps1 -ExpectedSourceSha $env:PATCH_HEAD -CompilerPath $env:INNO_COMPILER -OutputDirectory (Join-Path $env:RUNNER_TEMP "patch-102") -ArtifactDirectory (Join-Path $env:GITHUB_WORKSPACE "artifacts/patch-102")'
+      - name: Upload verified patch evidence only
+        uses: actions/upload-artifact@v7
+        with:
+          name: Sushi81-POS-production-patch-1.0.2-${{ github.sha }}
+          path: artifacts/patch-102/*
+          if-no-files-found: error
+          retention-days: 90
 
   m13-production-installer:
     if: >-
