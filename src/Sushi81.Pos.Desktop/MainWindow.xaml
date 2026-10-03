@@ -414,7 +414,7 @@
                 </StackPanel>
               </Expander>
             </StackPanel>
-            <ListBox x:Name="orderCartList" Grid.Row="1" ItemsSource="{Binding Cart}" SelectedItem="{Binding SelectedCartLine}" BorderThickness="1" MinHeight="260" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="OnEditOrderLine">
+            <ListBox x:Name="orderCartList" Grid.Row="1" ItemsSource="{Binding Cart}" SelectedItem="{Binding SelectedCartLine}" BorderThickness="1" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="OnEditOrderLine">
               <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.ItemContainerStyle>
               <ListBox.ItemTemplate><DataTemplate><Grid Margin="4" MinHeight="48">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="0" /><ColumnDefinition Width="88" /><ColumnDefinition Width="40" /><ColumnDefinition Width="40" /><ColumnDefinition Width="40" /></Grid.ColumnDefinitions>

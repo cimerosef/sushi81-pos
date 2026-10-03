@@ -198,6 +198,9 @@ public static class ThermalPrintLayout
     public const double FontSize = CustomerBodyFontSize;
     public const double KitchenInfoFontSize = CustomerBodyFontSize;
     public const double KitchenBodyFontSize = 18;
+    public const double KitchenHandwritingReserveMm = 25;
+    public const double KitchenHandwritingReserveHeight = KitchenHandwritingReserveMm / 25.4d * 96d;
+    public const double KitchenFeedAnchorSize = 2;
     public const double KitchenHeadingFontSize = 22;
     public const double KitchenTotalFontSize = 20;
     public const double KitchenItemTopMargin = 3;
@@ -349,7 +352,7 @@ public static class ThermalPrintLayout
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(surface);
         return RenderPages(content, surface)
-            .Select(page => string.Join(Environment.NewLine, page.Select(block => block.Text)))
+            .Select(page => string.Join(Environment.NewLine, page.Where(block => block.SpacerHeight == 0).Select(block => block.Text)))
             .DefaultIfEmpty(string.Empty)
             .ToArray();
     }
@@ -381,6 +384,10 @@ public static class ThermalPrintLayout
         var current = new List<RenderedThermalReceiptBlock>();
         foreach (var unit in units)
         {
+            if (unit.Any(block => block.SpacerHeight > 0)
+                && MeasureRenderedHeight(unit, width) > surface.ImageableHeight)
+                throw new InvalidOperationException("The kitchen total and physical handwriting reserve exceed the printable page height.");
+
             var candidate = current.Concat(unit).ToArray();
             if (current.Count > 0 && MeasureRenderedHeight(candidate, width) > surface.ImageableHeight)
             {
@@ -419,6 +426,25 @@ public static class ThermalPrintLayout
 
     internal static FrameworkElement CreateVisual(RenderedThermalReceiptBlock block, double width)
     {
+        if (block.SpacerHeight > 0)
+        {
+            // Ink at the reserved tail prevents a thermal driver from trimming an entirely blank area.
+            return new Border
+            {
+                Width = width,
+                Height = block.SpacerHeight,
+                ClipToBounds = true,
+                Child = new Border
+                {
+                    Width = Math.Min(KitchenFeedAnchorSize, width),
+                    Height = KitchenFeedAnchorSize,
+                    Background = Brushes.Black,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Bottom
+                }
+            };
+        }
+
         if (block.Total is not null)
         {
             var totalRow = new Grid
@@ -574,7 +600,8 @@ internal sealed record RenderedThermalReceiptBlock(
     PrintReceiptItem? Item = null,
     PrintReceiptOption? Option = null,
     double TopMargin = 0,
-    RenderedThermalReceiptTotal? Total = null);
+    RenderedThermalReceiptTotal? Total = null,
+    double SpacerHeight = 0);
 
 internal sealed record RenderedThermalReceiptTotal(string Label, string Amount);
 
@@ -634,7 +661,11 @@ internal static class ThermalReceiptRenderer
             PrintReceiptBlockKind.Option => RenderPrefixed("    - ", Combine(block), width, group, BodyFontSize(isKitchen)),
             PrintReceiptBlockKind.ItemAmount => RenderPrefixed("  ", block.Text, width, group, ThermalPrintLayout.CustomerBodyFontSize),
             PrintReceiptBlockKind.Tax => RenderTax(block, width, group),
+            PrintReceiptBlockKind.Discount => RenderLabelValue(block.Text, block.SecondaryText, width, group, ThermalPrintLayout.CustomerBodyFontSize),
             PrintReceiptBlockKind.Payment or PrintReceiptBlockKind.PaymentConfirmation => RenderLabelValue(block.Text, block.SecondaryText, width, group, ThermalPrintLayout.CustomerBodyFontSize),
+            PrintReceiptBlockKind.HandwritingSpace when isKitchen => [new(string.Empty, group, ThermalPrintLayout.KitchenBodyFontSize,
+                TextAlignment.Left, FontWeights.Normal, SpacerHeight: ThermalPrintLayout.KitchenHandwritingReserveHeight)],
+            PrintReceiptBlockKind.HandwritingSpace => throw new InvalidOperationException("Kitchen handwriting space cannot appear on a customer receipt."),
             PrintReceiptBlockKind.Total when block.Text.Equals("Total EUR", StringComparison.Ordinal)
                 => RenderTotal(block, group),
             PrintReceiptBlockKind.Total => RenderCentered(

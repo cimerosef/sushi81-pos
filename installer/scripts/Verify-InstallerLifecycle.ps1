@@ -21,6 +21,15 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or [string]::IsNullOrWhiteSpace($env:RUNNER_
 }
 
 if (-not [string]::IsNullOrWhiteSpace($PreProductionInstaller)) {
+    $upgradeFixture = $null
+    if (-not [string]::IsNullOrWhiteSpace($PreviousInstaller)) {
+        if ($env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or $ExpectedProductVersion -cne '1.0.2') {
+            throw 'The accepted v1.0.1 upgrade fixture is restricted to hosted H12 version 1.0.2 verification.'
+        }
+        Import-Module (Join-Path $PSScriptRoot 'ProductionPatch.psm1') -Force
+        $PreviousInstaller = (Resolve-Path -LiteralPath $PreviousInstaller).Path
+        $upgradeFixture = Assert-AcceptedV101Installer -Path $PreviousInstaller
+    }
     if ([string]::IsNullOrWhiteSpace($PayloadManifest)) { throw 'PayloadManifest is required for dual-installer lifecycle verification.' }
     if ([string]::IsNullOrWhiteSpace($ExpectedProductVersion)) { throw 'ExpectedProductVersion is required for dual-installer lifecycle verification.' }
     if ($ExpectedSourceSha -notmatch '^[0-9a-fA-F]{40}$') { throw 'ExpectedSourceSha must be a full 40-character commit SHA.' }
@@ -112,6 +121,8 @@ if (-not [string]::IsNullOrWhiteSpace($PreProductionInstaller)) {
             'Config\local-settings.fixture' = "synthetic-$($profile.Key)-settings-v1"
             'Config\device-identity.fixture' = "synthetic-$($profile.Key)-device-v1"
             'Config\authority-state.fixture' = "synthetic-$($profile.Key)-authority-v1"
+            'Config\transfer-state.fixture' = "synthetic-$($profile.Key)-transfer-v1"
+            'Config\printer-settings.fixture' = "synthetic-$($profile.Key)-printer-v1"
         }
         foreach ($entry in $fixtures.GetEnumerator()) {
             $target = Join-Path $profile.DataRoot $entry.Key
@@ -149,7 +160,7 @@ if (-not [string]::IsNullOrWhiteSpace($PreProductionInstaller)) {
         $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-')
         $target = if ($Uninstall) { Join-Path $profile.InstallRoot 'unins000.exe' } else { $profile.Installer }
         if (-not (Test-Path -LiteralPath $target -PathType Leaf)) { throw "$Step executable is missing: '$target'." }
-        $process = Start-Process -FilePath $target -ArgumentList $arguments -PassThru -Wait
+        $process = Start-Process -FilePath $target -ArgumentList $arguments -WindowStyle Hidden -PassThru -Wait
         if ($process.ExitCode -ne 0) { throw "$Step failed with exit code $($process.ExitCode)." }
         Assert-DurableTreesUnchanged $Step
     }
@@ -182,7 +193,7 @@ if (-not [string]::IsNullOrWhiteSpace($PreProductionInstaller)) {
             $payloadPath = Join-Path $profile.InstallRoot ([string]$entry.path.Replace('/', '\'))
             if (-not (Test-Path -LiteralPath $payloadPath -PathType Leaf)) { throw "$Step is missing payload file '$($entry.path)'." }
             $hash = (Get-FileHash -LiteralPath $payloadPath -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($hash -cne [string]$entry.sha256) { throw "$Step payload hash mismatch for '$($entry.path)'." }
+            if ($hash -cne [string]$entry.sha256 -or (Get-Item -LiteralPath $payloadPath).Length -ne [long]$entry.bytes) { throw "$Step payload size/hash mismatch for '$($entry.path)'." }
         }
         $uninstall = Get-ProfileUninstallEntry $profile
         if ($uninstall.Properties.DisplayVersion -ne $ExpectedProductVersion -or
@@ -248,6 +259,49 @@ if (-not [string]::IsNullOrWhiteSpace($PreProductionInstaller)) {
     Assert-ProfileInstalled $preprod 'Prod reinstall isolation check'
     $steps.Add('Prod reinstall after uninstall: passed')
 
+    $upgradeEvidence = $null
+    if ($null -ne $upgradeFixture) {
+        Invoke-ProfileInstaller $prod 'remove current synthetic Prod installation before historical fixture' -Uninstall
+        Assert-ProfileUninstalled $prod $preprod 'prepare historical upgrade fixture'
+        $previousProfile = $prod.PSObject.Copy()
+        $previousProfile.Installer = $PreviousInstaller
+        # Validate the original installer again immediately before execution; never rebuild a substitute.
+        Assert-AcceptedV101Installer -Path $PreviousInstaller | Out-Null
+        Invoke-ProfileInstaller $previousProfile 'install accepted historical Production v1.0.1'
+        $oldExe = Join-Path $prod.InstallRoot 'Sushi81.Pos.Desktop.exe'
+        $oldVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($oldExe)
+        $oldUninstall = Get-ProfileUninstallEntry $prod
+        if ($oldVersion.FileVersion -cne '1.0.1.0' -or $oldVersion.ProductVersion -cne "1.0.1+$($upgradeFixture.sourceSha)" -or
+            $oldUninstall.Properties.DisplayVersion -cne '1.0.1' -or
+            [IO.Path]::GetFullPath([string]$oldUninstall.Properties.InstallLocation).TrimEnd('\') -cne $prod.InstallRoot.TrimEnd('\') -or
+            [IO.File]::ReadAllText((Join-Path $prod.InstallRoot 'deployment-profile.txt')) -cne 'prod') {
+            throw 'Historical fixture installed an unexpected executable/version/identity/location/profile.'
+        }
+        Assert-ProfileInstalled $preprod 'historical Prod install PREPROD isolation'
+        Assert-DurableTreesUnchanged 'immediately before accepted v1.0.1 to v1.0.2 upgrade'
+        Invoke-ProfileInstaller $prod 'in-place accepted Production v1.0.1 to v1.0.2 upgrade'
+        Assert-ProfileInstalled $prod 'in-place v1.0.2 upgrade payload and identity'
+        Assert-ProfileInstalled $preprod 'in-place upgrade PREPROD isolation'
+        $newUninstall = Get-ProfileUninstallEntry $prod
+        if ($newUninstall.KeyName -cne $oldUninstall.KeyName) { throw 'Production upgrade changed the uninstall identity.' }
+        Assert-DurableTreesUnchanged 'after accepted v1.0.1 to v1.0.2 upgrade'
+        $upgradeEvidence = [ordered]@{
+            passed = $true
+            fromVersion = '1.0.1'
+            toVersion = $ExpectedProductVersion
+            fixture = $upgradeFixture
+            uninstallIdentityBefore = $oldUninstall.KeyName
+            uninstallIdentityAfter = $newUninstall.KeyName
+            finalDisplayVersion = [string]$newUninstall.Properties.DisplayVersion
+            prodSyntheticFileCount = $durableHashes.prod.Count
+            preprodSyntheticFileCount = $durableHashes.preprod.Count
+            allSyntheticFilesByteIdentical = $true
+            exactNewInstalledPayloadHashesVerified = $true
+            preprodUnchanged = $true
+        }
+        $steps.Add('accepted immutable v1.0.1 installer upgraded in place to 1.0.2: stable uninstall identity, exact new payload and all synthetic durable files preserved')
+    }
+
     $serviceMatches = @(Get-CimInstance Win32_Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '(?i)sushi81' -or $_.DisplayName -match '(?i)sushi81' })
     $scheduledTaskCommand = Get-Command Get-ScheduledTask -ErrorAction SilentlyContinue
     if ($null -eq $scheduledTaskCommand) { throw 'Hosted runner cannot enumerate scheduled tasks.' }
@@ -261,6 +315,7 @@ if (-not [string]::IsNullOrWhiteSpace($PreProductionInstaller)) {
     Assert-DurableTreesUnchanged 'final verification'
 
     $dualSummary = [ordered]@{
+        passed = $true
         expectedSourceSha = $ExpectedSourceSha.ToLowerInvariant()
         productVersion = $ExpectedProductVersion
         prodAppId = $prod.AppId
@@ -275,6 +330,7 @@ if (-not [string]::IsNullOrWhiteSpace($PreProductionInstaller)) {
         commonApplicationFileCount = @($manifest.files).Count
         excludedPackagingOnlyFile = 'deployment-profile.txt'
         syntheticDurableFiles = [ordered]@{ prod = $durableHashes.prod; preprod = $durableHashes.preprod }
+        acceptedProductionUpgrade = $upgradeEvidence
         steps = @($steps)
         interactiveLaunchSmoke = 'deferred to owner acceptance; no headless UI acceptance claimed'
     }

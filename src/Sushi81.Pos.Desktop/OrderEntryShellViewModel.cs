@@ -642,11 +642,21 @@ public sealed class OrderEntryShellViewModel : INotifyPropertyChanged, IDisposab
 
     public async Task AddSelectedProductAsync(CancellationToken cancellationToken = default)
     {
-        if (SelectedProduct is not { } selected || IsCommitted) return;
-        var product = await service.GetActiveProductAsync(selected.Id, cancellationToken);
-        if (product is null) { SetLocalizedValidationMessage("ProductInactive", "Le produit n’est plus actif."); return; }
-        PendingProduct = product;
+        var selected = SelectedProduct;
+        PendingProduct = null;
         OnPropertyChanged(nameof(PendingProduct));
+        if (selected is null) return;
+        PendingProduct = await LoadProductForAddAsync(selected.Id, cancellationToken);
+        OnPropertyChanged(nameof(PendingProduct));
+    }
+
+    public async Task<OrderEntryProduct?> LoadProductForAddAsync(Guid productId, CancellationToken cancellationToken = default)
+    {
+        if (!CanWrite || IsBusy || IsCommitted) return null;
+        var product = await service.GetActiveProductAsync(productId, cancellationToken);
+        if (!CanWrite || IsBusy || IsCommitted) return null;
+        if (product is null) SetLocalizedValidationMessage("ProductInactive", "Le produit n’est plus actif.");
+        return product;
     }
 
     public OrderEntryProduct? PendingProduct { get; private set; }

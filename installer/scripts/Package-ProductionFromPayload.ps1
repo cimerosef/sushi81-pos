@@ -51,7 +51,7 @@ foreach ($entry in @($stageManifest.files)) {
     }
 }
 $short = $PromotionHead.Substring(0,7)
-$base = "Sushi81POS-PROD-Setup-1.0.1-C01-$short"
+$base = "Sushi81POS-PROD-Setup-$($accepted.version)-$($accepted.candidateId)-$short"
 $output = Join-Path $packageRoot 'installer'
 New-Item -ItemType Directory -Path $output | Out-Null
 $values = @{
@@ -77,13 +77,13 @@ foreach ($entry in @($manifest.files)) {
     $file = Join-Path $staging ([string]$entry.path).Replace('/',[IO.Path]::DirectorySeparatorChar)
     if ((Get-Item -LiteralPath $file).Length -ne [long]$entry.bytes -or
         (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$entry.sha256) {
-        throw "Inno compilation changed accepted C01 payload '$($entry.path)'."
+        throw "Inno compilation changed accepted $($accepted.candidateId) payload '$($entry.path)'."
     }
 }
 $proof = [ordered]@{
-    schemaVersion=1; acceptedCandidateId='C01'; acceptedSourceSha=$accepted.sourceSha;
+    schemaVersion=1; acceptedCandidateId=$accepted.candidateId; acceptedSourceSha=$accepted.sourceSha;
     manifestDescribedFileCount=$accepted.fileCount; acceptedPayloadTreeSha256=$accepted.treeSha256;
-    allManifestDescribedFilesMatchAcceptedC01=$true;
+    allManifestDescribedFilesMatchAcceptedCandidate=$true;
     extraPackagingFiles=@([ordered]@{ path='deployment-profile.txt'; asciiValue='prod'; bytes=4 });
     installerFileName=$item.Name; installerBytes=[long]$item.Length;
     installerSha256=(Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()

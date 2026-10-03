@@ -1,8 +1,8 @@
 # V1 implementation status and acceptance traceability
 
 **Status:** Active implementation control document  
-**Last updated:** 2026-09-29
-**Current state:** M01 through M13 and the independent post-M09 dashboard enhancement are Passed and merged. Current authoritative `main` is M13 merge commit `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. M12 real populated-archive verification remains DEFERRED-NOT-M13. M14 — PreProd Foundation and immutable release promotion — is **Accepted under waiver / closure-ready** on Draft PR #30: owner manual acceptance on computer A and controller acceptance of WP1–WP6 are recorded; the real two-PC PREPROD pairing/handoff remains deferred under the Approved 2026-09-29 single-PC waiver, not Passed. Final controller closure and any separate merge approval remain pending. No stable Release or Production deployment has occurred.
+**Last updated:** 2026-10-02
+**Current state:** M01 through M13 and the independent post-M09 dashboard enhancement are Passed/merged. M14 — PreProd Foundation and immutable release promotion — is **Accepted under waiver / merged** through PR #30 at `71024888a9cfd08109496ad076002be96e708c1a`. The real two-PC PREPROD pairing/handoff/acquisition remains DEFERRED UNDER OWNER WAIVER — NOT PASSED; PREPROD remains computer-A-only and computer B remains Production-only. M12 real populated-archive verification remains separately deferred. Post-M14 Production Maintenance Batch 01 on Draft PR #31 is controller-accepted after computer-A PREPROD owner acceptance of immutable C02 Release `399541988` / exact application source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`. Checklist 0 and A–D are PASS, including the empirical extra-add regression. The unchanged no-rebuild C02 Production installer is available from immutable Production [Release `v1.0.1`](https://github.com/cimerosef/sushi81-pos/releases/tag/v1.0.1), ID `401752460`. Owner Production deployment authorization is granted; real A/B installation remains owner-executed/manual and is not yet recorded complete. Codex performed no Production installation. PR merge is not authorized.
 
 > Historical implementation/evidence through M06 remains preserved at [`implementation/archive/implementation-status-through-m06-2026-09-07.md`](implementation/archive/implementation-status-through-m06-2026-09-07.md). Later milestone worklogs/manual-acceptance records and PR comments preserve their own history. This file is the living current-state summary and does not rewrite historical failures.
 
@@ -40,15 +40,16 @@
 | M11 — Gestion intermediate export | Passed | PR #24 CLOSED/MERGED at `1a94f3400e0aa9fe9f878bbe98a8285112206ba9`. Accepted runtime candidate `77ccecf9d947462e96e74b8aa1d99ced30e3788e`; controller closure comment `5762784303`; post-merge CI #821 / run `35617254203` succeeded with 831/831, 0 failed, 0 skipped and Release build 0 warnings/errors. |
 | M12 — Annual archive/historical access | Accepted under waiver / merged | PR #25 CLOSED/MERGED at `f59663c6b47ab21114c24360544e4e25094f4722`. Final pre-merge head `49a0fe69e23e68c5591ef36ba5c56ef09a9d88b3`; exact-head CI #862 / run `36021889765` succeeded with 881/881, 0 failed/skipped and Release build 0 warnings/errors. Post-merge CI #863 / run `36023054757` build-and-test succeeded. Real populated-archive operational verification remains explicitly deferred under the owner waiver and is not claimed Passed. |
 | M13 — Installer and final acceptance | Passed / merged | PR #26 CLOSED/MERGED at `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`. Accepted production application remains source `469c8761061b0ecf488e06386a97b9e10652a916`; CI #912 / `36253271385`, 932/932 tests; installer artifact `10909188508`. |
-| M14 — PreProd Foundation and immutable release promotion | Accepted under waiver / closure-ready; PR open/unmerged | Owner A-only manual evidence accepted; WP1–WP6 controller-accepted. Immutable C01 Release `398945249` remains the PREPROD candidate; WP6 exact-head `1c73999c323dba593e3279f47c54a6174638b23d`, CI #963 / run `36546336521`, promotion artifact `11022832475` are evidence only. Two-PC PREPROD pairing/handoff is deferred under the 2026-09-29 owner waiver, not Passed. Final controller closure and merge approval remain separate. |
+| M14 — PreProd Foundation and immutable release promotion | Accepted under waiver / merged | PR #30 CLOSED/MERGED at `71024888a9cfd08109496ad076002be96e708c1a`. Immutable C01 Release `398945249` and WP6 exact-head `1c73999c323dba593e3279f47c54a6174638b23d`, CI #963 / run `36546336521`, promotion artifact `11022832475` remain accepted evidence. Two-PC PREPROD pairing/handoff/acquisition remains deferred under owner waiver, not Passed. |
+| Post-M14 Production Maintenance Batch 01 | Accepted / PR open | Draft PR #31 on `codex/post-m14-production-maintenance-batch-01`; WP1–WP5 evidence and owner computer-A PREPROD checklist 0 and A–D accepted for immutable C02 Release `399541988`. No-rebuild C02 Production installer from promotion run `36996353104`, artifact `11222165768`, is published unchanged in immutable Production Release `v1.0.1` / `401752460`. Owner manual A/B deployment is authorized but not yet recorded complete; no Codex installation occurred. PR merge is not authorized. |
 
 ## 3. Current merged baseline
 
 Current authoritative `main`:
 
-`6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`
+`71024888a9cfd08109496ad076002be96e708c1a`
 
-This is PR #26's M13 merge commit.
+This is PR #30's M14 merge commit.
 
 M12 closure facts:
 
@@ -61,16 +62,16 @@ M12 closure facts:
 - first safe real verification point remains an authoritative startup on or after 2027-02-01 with real 2026 rows;
 - archive failure must continue to fail safe without silent eligible-live-row deletion.
 
-## 3.1 M14 current authorization record
+## 3.1 M14 final merged state
 
 - owner approval/freeze: 2026-09-27;
 - start baseline: `6ff2e04ce17e34addf58cf6dcfa756d4b7fae8aa`;
 - implementation branch: `codex/m14-preprod-foundation-authorized`;
 - scope: permanent Prod/PreProd isolation, safe initial seed, independent runtime transport/DR configuration, dual installers, immutable GitHub candidate payload and no-rebuild production promotion;
 - explicitly excluded: post-launch business bug fixes, repeated automatic Prod→PreProd refresh, automatic production deployment, M12 deferred populated-archive verification;
-- execution remains controlled by the active M14 PR mailbox and Issue #4.
+- PR #30 is CLOSED/MERGED at `71024888a9cfd08109496ad076002be96e708c1a`; Issue #4 is no longer an M14 execution pointer.
 
-Current M14 closure line: WP7 owner checklist A, B, C, D and F passed on PREPROD computer A; G was controller-accepted with WP6 evidence. Checklist E, the real second-PREPROD-device pairing and A→B target-directed handoff, is **DEFERRED UNDER OWNER WAIVER**. PREPROD currently exists only on A; B remains Production-only. The deferred verification is mandatory before a second PREPROD device is introduced or before accepting material multi-device pairing/authority-handoff/target-acquisition/DR/OneDrive/GitHub coordination changes. The waiver changes acceptance practice, not M07 runtime semantics. See the Approved M14 decision amendment, acceptance amendment and final manual acceptance record. M12 populated real annual-archive verification remains a separate deferred obligation.
+Current M14 closure line: M14 is **Accepted under waiver / merged**. WP7 owner checklist A, B, C, D and F passed on PREPROD computer A; G was controller-accepted with WP6 evidence. Checklist E, the real second-PREPROD-device pairing and A→B target-directed handoff/acquisition, is **DEFERRED UNDER OWNER WAIVER — NOT PASSED**. PREPROD currently exists only on A; B remains Production-only. The deferred verification is mandatory before a second PREPROD device is introduced or before accepting material multi-device pairing/authority-handoff/target-acquisition/DR/OneDrive/GitHub coordination changes. The waiver changes acceptance practice, not M07 runtime semantics. M12 populated real annual-archive verification remains a separate deferred obligation.
 
 Controlling records:
 
@@ -81,6 +82,32 @@ Controlling records:
 - `implementation/milestone-14-final-manual-acceptance.md`;
 - `implementation/milestone-14-worklog.md`;
 - `implementation/milestone-14-authorization.md`.
+
+## 3.2 Post-M14 Production Maintenance Batch 01
+
+- owner authorization: granted 2026-09-29;
+- baseline: `71024888a9cfd08109496ad076002be96e708c1a`;
+- branch: `codex/post-m14-production-maintenance-batch-01`;
+- Draft PR/mailbox: #31;
+- WP1 accepted for implementation/automated evidence at `e9438bd26f9d107db08ad580d06f594dceeeefc7`; the owner-observed extra-add symptom subsequently passed the required C02 computer-A PREPROD empirical regression;
+- WP2 accepted at `499084f3cbdbbde4b3f635a678093e6048253e80` and owner-visible cart auto-reveal PASS on C02;
+- WP3 accepted at `cee78e4773504cc6038eb6b71fddf263a7468030` and owner-visible natural code ordering PASS on C02;
+- WP4 accepted at `08fac6cb0d291fcbb3cd826d99608f36dde5f769`; customer discount output and kitchen handwriting-space behavior PASS in owner physical PREPROD testing;
+- WP5 immutable C02 publication/integration evidence controller-accepted; Release `399541988` / source `0aa3a0282a432da38bff9b35b38ffa03cf3bbada`; historical C01 unchanged;
+- owner computer-A PREPROD acceptance: PASS for checklist 0 and A–D;
+- computer B remains Production-only;
+- M14 deferred two-PC PREPROD verification and M12 populated real archive verification remain unchanged;
+- Batch 01 controller closure is ACCEPTED; C02 Production installer generation/verification completed at promotion tooling head `2a8958af78db1a3cd79cee760aa17c83f99269ef` in manual run `36996353104`, artifact `11222165768`;
+- no Production installation/deployment occurred; deployment remains pending separate owner authorization, and PR #31 merge remains unauthorized.
+
+Controlling records:
+
+- `decisions/post-m14-production-maintenance-batch-01.md`;
+- `acceptance-criteria-amendment-post-m14-production-maintenance-batch-01.md`;
+- `implementation/post-m14-production-maintenance-batch-01.md`;
+- `implementation/post-m14-production-maintenance-batch-01-worklog.md`;
+- `implementation/post-m14-production-maintenance-batch-01-final-manual-acceptance.md`;
+- `implementation/post-m14-production-maintenance-batch-01-authorization.md`.
 
 ## 4. M11 historical implementation/acceptance record
 
@@ -209,3 +236,35 @@ The first safe M12 real populated-archive verification remains an authoritative 
 ## 6. Evidence preservation
 
 Historical milestone worklogs, acceptance records, decision records, PR discussions and exact-head evidence remain authoritative in place. Current-state reconciliation changes only this living summary.
+
+## 7. Owner-facing PREPROD Release channel — H16 (2026-10-03)
+
+[Owner decision on PR #31](https://github.com/cimerosef/sushi81-pos/pull/31#issuecomment-5970354231) and [H16 executable contract](https://github.com/cimerosef/sushi81-pos/pull/31#issuecomment-5970354818) establish this standing download convention:
+
+- Selected owner-facing PREPROD tag: `v<product-version>-preprod`; Release name: `Sushi81 POS PREPROD <product-version>`.
+- Published state: `draft=false`, `prerelease=true`, immutable. The lightweight tag directly targets the exact application source used to build the installer, even when later documentation commits advance the PR head.
+- Exactly one uploaded Release asset: the verified PREPROD installer. Production installers are never uploaded to this channel. Manifests, provenance and lifecycle evidence remain linked from Release notes to the durable PR/CI/artifact.
+- Multiple acceptance candidates may still use immutable `v<version>-preprod-cNN` records before selecting the simple owner-facing baseline. Historical C01/C02 identities, five-asset contracts, acceptance and failures remain unchanged.
+- Production and PREPROD retain separate Release/download channels and separate application/install/data identities. Production [v1.0.2](https://github.com/cimerosef/sushi81-pos/releases/tag/v1.0.2), Release `402544671`, remains unchanged.
+
+The selected PREPROD 1.0.2 installer is `Sushi81POS-PREPROD-Setup-1.0.2-7183c47.exe`, **49,822,849 bytes**, SHA-256 `a80acb102767887e1e06826ca82bfc655b34ff215dc7bbb89a159245db0e007c`, from accepted H12 run `37098264492` / artifact `11265107248` and exact source/tag target `7183c4798f6889fe10af8dfec90bed5b12a26529`. Its owner download entry is [PREPROD v1.0.2](https://github.com/cimerosef/sushi81-pos/releases/tag/v1.0.2-preprod); actual publication/readback evidence is recorded in the H16 worklog and matching terminal PR comment. H12's automated-only delivery restriction remains a historical packaging-time statement; H16 separately authorizes selecting those unchanged bytes for the owner-facing PREPROD channel.
+
+PREPROD AppId remains `67FB6B75-3C5E-44A5-98AD-305EA4C62D95`; app/shortcut `Sushi81 POS PREPROD`; install root `%LOCALAPPDATA%\Programs\Sushi81 POS PREPROD`; durable root `%LOCALAPPDATA%\Sushi81 POS PREPROD`. The 418-file common application payload matches H12 Production byte-for-byte after excluding only packaging-only `deployment-profile.txt`; tree SHA-256 `9106ed6a6c951fd6c1fc5c46aff2e705b4828a653507bdd566835f0f31266376`.
+
+Current download/deployment facts in this addendum supersede the earlier Batch 01 installer/deployment snapshots above: owner-reported Production v1.0.2 acceptance is PASS on [B](https://github.com/cimerosef/sushi81-pos/pull/31#issuecomment-5970266544) and [A](https://github.com/cimerosef/sushi81-pos/pull/31#issuecomment-5970303974). H16 publication is download-channel delivery, not Codex installation or owner manual acceptance of PREPROD 1.0.2. Computer A remains Production + PREPROD; B remains Production-only. Real two-PC PREPROD pairing/handoff/acquisition remains **Deferred under owner waiver — NOT PASSED**; M12 populated-archive verification remains separately deferred. No authority operation or PR merge is authorized here.
+
+## H17 kitchen physical-paper reserve repair (2026-10-03)
+
+Issue #4 and PR #31 authorize `POST-M14-PM01-KITCHEN-PHYSICAL-RESERVE-R2-17` from `8c5b2ce122b93d2b0a5a9d6940067c8c4fada1ca`, source/tests/docs only. Owner reports Production A/B v1.0.2 normal, B cart-add real-use repair PASS, and A PREPROD v1.0.2 update/smoke PASS. The new finding is specific to real thermal paper: the prior three-line blank spacer was visible in PDF but did not leave enough physical writable tail.
+
+The kitchen-only refinement fixes the reserve at 25 mm (`25 / 25.4 * 96 = 94.488188976...` WPF DIP) and paints one tiny 2 DIP square at its extreme bottom/right, wholly inside the content width. Diagnostic/business text and customer output remain unchanged. Final TOTAL and reserve stay together in pagination; unusably short page geometry fails safely before printer submission rather than clipping the reserve/anchor.
+
+H17 implementation/automated evidence is separate from owner real thermal-paper acceptance, which remains **NOT RUN for the repaired source**. H17 creates no repaired installer, Release or deployment and does not merge PR #31. Existing v1.0.2 Production/PREPROD Releases remain the accepted published baselines. A remains Production + PREPROD; B remains Production only; real two-PC PREPROD acceptance remains Deferred under owner waiver / not Passed, and M12 populated real archive acceptance remains separately Deferred.
+
+## H18 PREPROD 1.0.3 candidate packaging (2026-10-03)
+
+H17 source/tests/docs were [controller-accepted](https://github.com/cimerosef/sushi81-pos/pull/31#issuecomment-5973308900) at `1dcedb0e0647e290bbc9ca86e3161919537b598a`. [H18](https://github.com/cimerosef/sushi81-pos/pull/31#issuecomment-5973309601) authorizes a PREPROD 1.0.3 packaging/evidence path with that exact application source and unchanged tests; it does not authorize a tag, Release, owner installation, Production deployment or merge.
+
+The hosted candidate uses the unchanged builder with explicit 1.0.3/1.0.3.0 metadata and one application publish, verifies equivalent Production/PREPROD payloads, and exports only the PREPROD installer plus technical evidence. It verifies the actual immutable owner-facing PREPROD 1.0.2 installer before a synthetic in-place 1.0.2 -> 1.0.3 upgrade, retaining PREPROD AppId/name/roots/uninstall identity, all seeded durable bytes and the new application manifest hashes. Exact final-head CI, packaging result and independently checked artifact identity are authoritative in H18's matching terminal PR record.
+
+**PHYSICAL THERMAL PRINTER ACCEPTANCE NOT RUN. PRODUCTION DEPLOYMENT NOT AUTHORIZED.** Existing Production/PREPROD 1.0.2 Releases stay unchanged; computer A remains Production + PREPROD, B Production only. The kitchen repair requires real thermal-paper validation of a separately delivered candidate. M14 two-PC PREPROD verification remains Deferred under owner waiver / not Passed, and M12 populated real archive verification remains separately Deferred.

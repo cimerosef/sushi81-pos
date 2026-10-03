@@ -1,6 +1,20 @@
 name: Continuous integration
 
 on:
+  workflow_dispatch:
+    inputs:
+      expected_head:
+        description: Exact authorized full packaging head SHA
+        required: true
+        type: string
+      evidence_package:
+        description: Authorized evidence-only packaging task
+        required: true
+        default: production-patch-102
+        type: choice
+        options:
+          - production-patch-102
+          - preprod-print-103
   pull_request:
   push:
     branches:
@@ -23,6 +37,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - name: Verify checked-out source head
         shell: pwsh
         env:
@@ -37,6 +52,9 @@ jobs:
       - name: Scan tracked and non-ignored repository files
         shell: pwsh
         run: '& .github/scripts/Test-RepositorySafety.ps1'
+      - name: Test H18 PREPROD fixture and workflow safeguards
+        shell: pwsh
+        run: '& .\installer\scripts\Test-PreProdPrintCandidate.ps1 -SelfTest'
       - name: Test M14 immutable candidate pipeline
         shell: pwsh
         run: '& .\installer\scripts\Test-M14-CandidatePipeline.ps1 -SelfTest'
@@ -52,6 +70,74 @@ jobs:
         run: dotnet build Sushi81.Pos.sln -c Release --no-restore
       - name: Test
         run: dotnet test Sushi81.Pos.sln -c Release --no-build --nologo
+      - name: Focused H17 printing regressions
+        shell: pwsh
+        run: |
+          dotnet test tests/Sushi81.Pos.Application.Tests/Sushi81.Pos.Application.Tests.csproj -c Release --no-build --nologo --filter FullyQualifiedName~M08PrintingTests
+          if ($LASTEXITCODE -ne 0) { throw 'Focused application printing regressions failed.' }
+          dotnet test tests/Sushi81.Pos.Infrastructure.IntegrationTests/Sushi81.Pos.Infrastructure.IntegrationTests.csproj -c Release --no-build --nologo --filter FullyQualifiedName~M08PrintingIntegrationTests
+          if ($LASTEXITCODE -ne 0) { throw 'Focused infrastructure printing regressions failed.' }
+
+  production-patch-102-evidence:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/post-m14-production-maintenance-batch-01' && inputs.evidence_package == 'production-patch-102'
+    needs: build-and-test
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact patch source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify authorized patch head and unchanged application source
+        shell: pwsh
+        env:
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+          EVENT_HEAD: ${{ github.sha }}
+        run: |
+          $head = (git rev-parse HEAD).Trim()
+          if ($env:EXPECTED_HEAD -cnotmatch '^[0-9a-f]{40}$' -or $head -cne $env:EXPECTED_HEAD -or $head -cne $env:EVENT_HEAD) { throw 'Patch source differs from the authorized dispatch head.' }
+          git diff --exit-code b516aba0652e0e3be3c65adcac7f6e41ef706dbe HEAD -- src/
+          if ($LASTEXITCODE -ne 0) { throw 'H12 application source differs from the accepted baseline.' }
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Test patch and existing installer safeguards
+        shell: pwsh
+        run: |
+          & .\installer\scripts\Test-ProductionPatch.ps1
+          & .\installer\scripts\Test-M14-CandidatePipeline.ps1 -SelfTest
+          & .\installer\scripts\Test-M14-ProductionPromotion.ps1 -SelfTest
+      - name: Install signed pinned Inno Setup 6.7.3
+        id: inno
+        shell: pwsh
+        run: |
+          $version = '6.7.3'
+          $download = Join-Path $env:RUNNER_TEMP "innosetup-$version.exe"
+          Invoke-WebRequest -Uri "https://github.com/jrsoftware/issrc/releases/download/is-$($version.Replace('.', '_'))/innosetup-$version.exe" -OutFile $download
+          $signature = Get-AuthenticodeSignature -FilePath $download
+          if ($signature.Status -ne 'Valid' -or [string]$signature.SignerCertificate.Subject -notmatch '(?i)Pyrsys B\.V\.') { throw 'Pinned Inno Setup signer is invalid.' }
+          $process = Start-Process -FilePath $download -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -WindowStyle Hidden -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw 'Pinned Inno Setup installation failed.' }
+          $candidates = @((Join-Path ([Environment]::GetEnvironmentVariable('ProgramFiles(x86)')) 'Inno Setup 6\ISCC.exe'),(Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'))
+          $compiler = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $compiler) { throw 'Pinned compiler is missing.' }
+          "path=$compiler" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - name: Build patch and verify hosted dual-profile and real 1.0.1 upgrade lifecycle
+        shell: pwsh
+        env:
+          PATCH_HEAD: ${{ inputs.expected_head }}
+          INNO_COMPILER: ${{ steps.inno.outputs.path }}
+        run: '& .\installer\scripts\Run-ProductionPatch.ps1 -ExpectedSourceSha $env:PATCH_HEAD -CompilerPath $env:INNO_COMPILER -OutputDirectory (Join-Path $env:RUNNER_TEMP "patch-102") -ArtifactDirectory (Join-Path $env:GITHUB_WORKSPACE "artifacts/patch-102")'
+      - name: Upload verified patch evidence only
+        uses: actions/upload-artifact@v7
+        with:
+          name: Sushi81-POS-production-patch-1.0.2-${{ github.sha }}
+          path: artifacts/patch-102/*
+          if-no-files-found: error
+          retention-days: 90
 
   m13-production-installer:
     if: >-
@@ -64,6 +150,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
           fetch-depth: 0
       - name: Verify exact source and expose its identity
         id: source
@@ -151,6 +238,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - name: Verify exact source head
         id: source
         shell: pwsh
@@ -210,7 +298,7 @@ jobs:
           retention-days: 90
 
   m14-wp6-promotion-evidence:
-    if: github.event_name == 'pull_request' && github.head_ref == 'codex/m14-preprod-foundation-authorized'
+    if: github.event_name == 'pull_request' && github.head_ref == 'codex/post-m14-production-maintenance-batch-01'
     needs: build-and-test
     runs-on: windows-latest
     permissions:
@@ -247,13 +335,13 @@ jobs:
           $compiler = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
           if (-not $compiler) { throw 'Pinned Inno Setup compiler is missing.' }
           "path=$compiler" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-      - name: Build and verify Production promotion evidence from immutable C01
+      - name: Build and verify Production promotion evidence from immutable C02
         shell: pwsh
         env:
           PROMOTION_HEAD: ${{ steps.source.outputs.head }}
           INNO_COMPILER: ${{ steps.inno.outputs.path }}
         run: |
-          & .\installer\scripts\Promote-M14-Candidate.ps1 -Repository 'cimerosef/sushi81-pos' -CandidateTag 'v1.0.1-preprod-c01' -ExpectedReleaseId 398945249 -ExpectedSourceSha '95e2ead7d95af5fb47f6b162fde4d22d8ea47d82' -PromotionHead $env:PROMOTION_HEAD -CompilerPath $env:INNO_COMPILER -ArtifactDirectory (Join-Path $env:GITHUB_WORKSPACE 'artifacts/m14-wp6')
+          & .\installer\scripts\Promote-M14-Candidate.ps1 -Repository 'cimerosef/sushi81-pos' -CandidateTag 'v1.0.1-preprod-c02' -ExpectedReleaseId 399541988 -ExpectedSourceSha '0aa3a0282a432da38bff9b35b38ffa03cf3bbada' -PromotionHead $env:PROMOTION_HEAD -CompilerPath $env:INNO_COMPILER -ArtifactDirectory (Join-Path $env:GITHUB_WORKSPACE 'artifacts/m14-wp6')
       - name: Upload exact-head M14 WP6 promotion evidence
         uses: actions/upload-artifact@v7
         with:
@@ -261,3 +349,72 @@ jobs:
           path: artifacts/m14-wp6/*
           if-no-files-found: error
           retention-days: 90
+
+  preprod-print-103-evidence:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/post-m14-production-maintenance-batch-01' && inputs.evidence_package == 'preprod-print-103'
+    needs: build-and-test
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact H18 packaging head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify authorized head and unchanged H17 source and tests
+        shell: pwsh
+        env:
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+          EVENT_HEAD: ${{ github.sha }}
+        run: |
+          $head = (git rev-parse HEAD).Trim()
+          if ($env:EXPECTED_HEAD -cnotmatch '^[0-9a-f]{40}$' -or $head -cne $env:EXPECTED_HEAD -or $head -cne $env:EVENT_HEAD) { throw 'H18 packaging checkout differs from authorized dispatch head.' }
+          git diff --exit-code 1dcedb0e0647e290bbc9ca86e3161919537b598a HEAD -- src/
+          if ($LASTEXITCODE -ne 0) { throw 'H17 application source changed.' }
+          git diff --exit-code 1dcedb0e0647e290bbc9ca86e3161919537b598a HEAD -- tests/
+          if ($LASTEXITCODE -ne 0) { throw 'H17 printing tests changed.' }
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Test H18 and existing candidate promotion safeguards
+        shell: pwsh
+        run: |
+          & .\installer\scripts\Test-PreProdPrintCandidate.ps1 -SelfTest
+          & .\installer\scripts\Test-ProductionPatch.ps1
+          & .\installer\scripts\Test-M14-CandidatePipeline.ps1 -SelfTest
+          & .\installer\scripts\Test-M14-ProductionPromotion.ps1 -SelfTest
+      - name: Install signed pinned Inno Setup 6.7.3
+        id: inno
+        shell: pwsh
+        run: |
+          $version = '6.7.3'
+          $download = Join-Path $env:RUNNER_TEMP "innosetup-$version.exe"
+          Invoke-WebRequest -Uri "https://github.com/jrsoftware/issrc/releases/download/is-$($version.Replace('.', '_'))/innosetup-$version.exe" -OutFile $download
+          $signature = Get-AuthenticodeSignature -FilePath $download
+          if ($signature.Status -ne 'Valid' -or [string]$signature.SignerCertificate.Subject -notmatch '(?i)Pyrsys B\.V\.') { throw 'Pinned Inno Setup signer is invalid.' }
+          $process = Start-Process -FilePath $download -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -WindowStyle Hidden -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw 'Pinned Inno Setup installation failed.' }
+          $candidates = @((Join-Path ([Environment]::GetEnvironmentVariable('ProgramFiles(x86)')) 'Inno Setup 6\ISCC.exe'),(Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'))
+          $compiler = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+          if (-not $compiler) { throw 'Pinned Inno Setup compiler is missing.' }
+          "path=$compiler" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - name: Build PREPROD 1.0.3 and verify immutable 1.0.2 in-place upgrade
+        shell: pwsh
+        env:
+          PACKAGING_HEAD: ${{ inputs.expected_head }}
+          INNO_COMPILER: ${{ steps.inno.outputs.path }}
+        run: '& .\installer\scripts\Run-PreProdPrintCandidate.ps1 -ExpectedHead $env:PACKAGING_HEAD -CompilerPath $env:INNO_COMPILER -OutputDirectory (Join-Path $env:RUNNER_TEMP "preprod-print-103") -ArtifactDirectory (Join-Path $env:GITHUB_WORKSPACE "artifacts/preprod-print-103")'
+      - name: Upload verified PREPROD-only owner-validation candidate
+        id: candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: Sushi81-POS-PREPROD-print-1.0.3-${{ github.sha }}
+          path: artifacts/preprod-print-103/*
+          if-no-files-found: error
+          retention-days: 90
+      - name: Record durable candidate identity
+        shell: pwsh
+        run: |
+          @('PHYSICAL THERMAL PRINTER ACCEPTANCE NOT RUN','PRODUCTION DEPLOYMENT NOT AUTHORIZED',"Artifact ID: ${{ steps.candidate.outputs.artifact-id }}","Artifact digest: ${{ steps.candidate.outputs.artifact-digest }}","Packaging head: ${{ github.sha }}",'Application source: 1dcedb0e0647e290bbc9ca86e3161919537b598a','Retention: 90 days') | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

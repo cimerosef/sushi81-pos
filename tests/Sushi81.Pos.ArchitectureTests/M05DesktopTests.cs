@@ -414,7 +414,9 @@ public sealed class M05DesktopTests
     }
 
     [TestMethod]
-    public void MainWindowCommandesUsesActualTopListBottomDetailLayoutAndCaisseKeepsOnlyOperationalEntryOnSta()
+    [DataRow(700D)]
+    [DataRow(900D)]
+    public void MainWindowCommandesUsesActualTopListBottomDetailLayoutAndCaisseKeepsOnlyOperationalEntryOnSta(double maximumHeight)
     {
         RunOnSta(() =>
         {
@@ -424,7 +426,7 @@ public sealed class M05DesktopTests
             using var lifecycleService = new OrderLifecycleService(store, new DeterministicIds(), new FixedClock(), settings: settings);
             using var entryService = new OrderEntryService(new OrderEntryCatalogueService(new EmptyCatalogueStore()), settings, store, new NoopDispatcher(), new DeterministicIds(), new FixedClock());
             using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true, new CatalogueService(new EmptyCatalogueStore()), new BusinessSettingsService(settings), entryService, lifecycleService);
-            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700, MaxHeight = maximumHeight };
             window.Show();
             try
             {
@@ -470,7 +472,15 @@ public sealed class M05DesktopTests
                 caisseTab.IsSelected = true;
                 window.UpdateLayout();
                 var cart = Field<ListBox>(window, "orderCartList");
-                Assert.IsGreaterThan(230D, cart.ActualHeight, "The Caisse cart must be materially taller than the removed compact browser area.");
+                var cartLayout = (Grid)VisualTreeHelper.GetParent(cart);
+                var availableHeight = cartLayout.ActualHeight - cartLayout.RowDefinitions[0].ActualHeight;
+                var allocatedHeight = LayoutInformation.GetLayoutSlot(cart).Height;
+                Assert.IsGreaterThan(0D, availableHeight);
+                Assert.IsGreaterThan(0D, allocatedHeight);
+                Assert.AreEqual(allocatedHeight, cart.ActualHeight, 2D, "The cart must fill its actual allocated space without extending into a layout clip.");
+                // D3 requires a substantial share of available space, not a fixed
+                // nominal height that can exceed a smaller host's visible slot.
+                Assert.IsGreaterThanOrEqualTo(0.4D * availableHeight, cart.ActualHeight, "The Caisse cart must retain its enlarged share of the available entry area.");
                 Assert.AreEqual(ScrollBarVisibility.Auto, ScrollViewer.GetVerticalScrollBarVisibility(cart));
                 Assert.IsTrue(VisualDescendants<ScrollViewer>(cart).Any(viewer => viewer.ScrollableHeight > 0), "Long carts must scroll inside the cart control.");
                 Assert.IsGreaterThan(0D, Field<TextBox>(window, "orderDeliveryAddressBox").ActualWidth);
@@ -2335,13 +2345,16 @@ public sealed class M05DesktopTests
 
             entry.ChangeQuantity(original, 4);
             entry.RemoveLine(duplicate);
+            entry.AddConfiguredLine(second, [], [], 1);
+            var manual = entry.Cart.Single(line => line.Draft.Product.Product.Id == second.Aggregate.Product.Id);
             Assert.AreEqual(4, original.Quantity);
             Assert.IsEmpty(entry.Cart.Where(line => ReferenceEquals(line, duplicate)));
 
             Assert.IsTrue(entry.IgnoreHiboutikLine(3));
-            Assert.HasCount(1, entry.Cart);
-            Assert.AreSame(original, entry.Cart.Single());
-            Assert.AreEqual(4, entry.Cart.Single().Quantity, "An unrelated import transition must not restore the original imported quantity.");
+            Assert.HasCount(2, entry.Cart);
+            Assert.AreSame(original, entry.Cart[0]);
+            Assert.AreSame(manual, entry.Cart[1], "An import presentation refresh must not duplicate an ordinary manually added line.");
+            Assert.AreEqual(4, original.Quantity, "An unrelated import transition must not restore the original imported quantity.");
         });
     }
 

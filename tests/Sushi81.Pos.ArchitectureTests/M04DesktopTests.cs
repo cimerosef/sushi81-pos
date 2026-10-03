@@ -553,6 +553,417 @@ public sealed class M04DesktopTests
     }
 
     [TestMethod]
+    public void CaisseGridWpfDoubleClickEventAddsEachSelectedProductExactlyOnceOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var first = SimpleProduct(Guid.NewGuid(), "A", "Premier", categoryId, "Plats");
+            var second = SimpleProduct(Guid.NewGuid(), "B", "Deuxième", categoryId, "Plats");
+            var third = SimpleProduct(Guid.NewGuid(), "C", "Troisième", categoryId, "Plats");
+            var catalogue = new DelayedFirstProductCatalogue(first, second, third);
+            catalogue.ReleaseFirst();
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(catalogue, new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var caisse = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]);
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+                var grid = (DataGrid)typeof(MainWindow).GetField("orderProductsGrid", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var firstRow = VisualDescendants<DataGridRow>(grid).Single(row => row.DataContext is ProductSummary summary && summary.Id == first.Aggregate.Product.Id);
+                var secondRow = VisualDescendants<DataGridRow>(grid).Single(row => row.DataContext is ProductSummary summary && summary.Id == second.Aggregate.Product.Id);
+                var thirdRow = VisualDescendants<DataGridRow>(grid).Single(row => row.DataContext is ProductSummary summary && summary.Id == third.Aggregate.Product.Id);
+
+                void RaiseDoubleClick(DataGridRow row)
+                {
+                    var args = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                    {
+                        RoutedEvent = Control.MouseDoubleClickEvent,
+                        Source = row
+                    };
+                    Assert.AreEqual(1, args.ClickCount, "WPF Control creates new MouseDoubleClick args with the constructor-default click count.");
+                    grid.RaiseEvent(args);
+                }
+
+                RaiseDoubleClick(firstRow);
+                Assert.HasCount(1, entry.Cart);
+                Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[0].Draft.Product.Product.Id);
+
+                // The underlying second mouse-down owns ClickCount == 2; WPF Control
+                // synthesizes a separate MouseDoubleClick event for the grid handler.
+                var secondMouseDown = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                {
+                    RoutedEvent = UIElement.MouseLeftButtonDownEvent,
+                    Source = secondRow
+                };
+                typeof(MouseButtonEventArgs).GetProperty(nameof(MouseButtonEventArgs.ClickCount))!.SetValue(secondMouseDown, 2);
+                grid.RaiseEvent(secondMouseDown);
+                Assert.HasCount(2, entry.Cart);
+                Assert.AreEqual(second.Aggregate.Product.Id, entry.Cart[1].Draft.Product.Product.Id);
+
+                RaiseDoubleClick(thirdRow);
+                Assert.HasCount(3, entry.Cart);
+                Assert.AreEqual(third.Aggregate.Product.Id, entry.Cart[2].Draft.Product.Product.Id);
+
+                RaiseDoubleClick(firstRow);
+                Assert.HasCount(4, entry.Cart, "A separate deliberate double-click of A remains valid.");
+                Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[3].Draft.Product.Product.Id);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void CaisseFastSequentialButtonAddsKeepEveryDistinctGestureWhileProductLoadsOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var first = SimpleProduct(Guid.NewGuid(), "A", "Premier", categoryId, "Plats");
+            var second = SimpleProduct(Guid.NewGuid(), "B", "Deuxième", categoryId, "Plats");
+            var third = SimpleProduct(Guid.NewGuid(), "C", "Troisième", categoryId, "Plats");
+            var catalogue = new DelayedFirstProductCatalogue(first, second, third);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(catalogue, new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            var previousContext = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext(window.Dispatcher));
+            try
+            {
+                var caisse = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]);
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+                var grid = (DataGrid)typeof(MainWindow).GetField("orderProductsGrid", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var add = (Button)typeof(MainWindow).GetField("orderAddButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+
+                void Add(OrderEntryProduct product)
+                {
+                    grid.SelectedItem = entry.Products.Single(summary => summary.Id == product.Aggregate.Product.Id);
+                    window.UpdateLayout();
+                    Assert.IsTrue(add.IsEnabled);
+                    add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                }
+
+                Add(first);
+                Add(second);
+                Add(third);
+                Assert.IsEmpty(entry.Cart, "The first product lookup is deliberately still pending.");
+
+                catalogue.ReleaseFirst();
+                var frame = new System.Windows.Threading.DispatcherFrame();
+                window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() => frame.Continue = false));
+                System.Windows.Threading.Dispatcher.PushFrame(frame);
+                Assert.HasCount(3, entry.Cart, "Each deliberate Add click must survive the earlier async lookup.");
+                CollectionAssert.AreEqual(
+                    new[] { first.Aggregate.Product.Id, second.Aggregate.Product.Id, third.Aggregate.Product.Id },
+                    entry.Cart.Select(line => line.Draft.Product.Product.Id).ToArray());
+
+                Add(first);
+                Assert.HasCount(4, entry.Cart);
+                Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[3].Draft.Product.Product.Id);
+                Add(first);
+                Assert.HasCount(5, entry.Cart, "A second deliberate Add click of the same product remains valid.");
+                Assert.AreEqual(first.Aggregate.Product.Id, entry.Cart[4].Draft.Product.Product.Id);
+            }
+            finally { SynchronizationContext.SetSynchronizationContext(previousContext); window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    [DataRow(false, 760, 520)]
+    [DataRow(true, 760, 520)]
+    [DataRow(false, 800, 520)]
+    [DataRow(true, 800, 520)]
+    [DataRow(false, 980, 680)]
+    [DataRow(true, 980, 680)]
+    [DataRow(false, 1280, 900)]
+    [DataRow(true, 1280, 900)]
+    public void CaisseOverflowedCartRevealsEachCompletedGestureInsideActualLayoutClipOnSta(bool doubleClick, int width, int height)
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var products = new[]
+            {
+                SimpleProduct(Guid.NewGuid(), "A", "Premier", categoryId, "Plats"),
+                SimpleProduct(Guid.NewGuid(), "B", "Deuxième", categoryId, "Plats"),
+                SimpleProduct(Guid.NewGuid(), "C", "Troisième", categoryId, "Plats")
+            };
+            var catalogue = new ControlledProductCatalogue(products);
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(catalogue, new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            Assert.IsTrue(entry.CanWrite);
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = width, Height = height };
+            window.Show();
+            var previousContext = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext(window.Dispatcher));
+            try
+            {
+                VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]).IsSelected = true;
+                window.UpdateLayout();
+                var grid = (DataGrid)typeof(MainWindow).GetField("orderProductsGrid", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var add = (Button)typeof(MainWindow).GetField("orderAddButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var cart = (ListBox)typeof(MainWindow).GetField("orderCartList", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var viewer = VisualDescendants<ScrollViewer>(cart).Single();
+                for (var index = 0; index < 12; index++) entry.AddConfiguredLine(products[0], [], [], 1);
+                PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                viewer.ScrollToTop();
+                PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Assert.IsGreaterThan(0D, viewer.ScrollableHeight, "The initial cart must overflow.");
+                var rows = VisualDescendants<DataGridRow>(grid).ToDictionary(row => ((ProductSummary)row.DataContext).Id);
+                var seedCount = entry.Cart.Count;
+                var sequence = new[] { products[0], products[1], products[2], products[0] };
+
+                void Gesture(OrderEntryProduct product)
+                {
+                    window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(() =>
+                    {
+                        if (doubleClick)
+                            grid.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                            {
+                                RoutedEvent = Control.MouseDoubleClickEvent,
+                                Source = rows[product.Aggregate.Product.Id]
+                            });
+                        else
+                        {
+                            grid.SelectedItem = entry.Products.Single(summary => summary.Id == product.Aggregate.Product.Id);
+                            add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        }
+                    }));
+                    PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.Input);
+                }
+
+                // Both real entry gestures can arrive while the first lookup is pending.
+                Gesture(sequence[0]);
+                Gesture(sequence[1]);
+                Assert.HasCount(seedCount, entry.Cart);
+                for (var index = 0; index < sequence.Length; index++)
+                {
+                    Assert.AreEqual(sequence[index].Aggregate.Product.Id, catalogue.PendingProductId);
+                    // A finite normal/render backlog models a slower client. Observe at
+                    // Background, after the Input-priority async continuation and normal
+                    // WPF Loaded/render work, never at ApplicationIdle.
+                    for (var backlog = 0; backlog < 4; backlog++)
+                        window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, new Action(window.UpdateLayout));
+                    window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(catalogue.ReleaseNext));
+                    PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.Background);
+                    Assert.HasCount(seedCount + index + 1, entry.Cart);
+                    CollectionAssert.AreEqual(sequence.Take(index + 1).Select(product => product.Aggregate.Product.Id).ToArray(),
+                        entry.Cart.Skip(seedCount).Select(line => line.Draft.Product.Product.Id).ToArray(), "Completed mutations must preserve exact gesture identity.");
+                    AssertCartLineVisibleThroughLayoutClips(window, cart, viewer, entry.Cart[^1]);
+                    if (index + 2 < sequence.Length) Gesture(sequence[index + 2]);
+                }
+                Assert.IsNull(cart.SelectedItem, "Reveal must preserve cart selection.");
+            }
+            finally { SynchronizationContext.SetSynchronizationContext(previousContext); window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void CaissePendingCartRevealCannotScrollAfterClearOrCloseOnSta(bool close)
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var product = SimpleProduct(Guid.NewGuid(), "A", "Premier", categoryId, "Plats");
+            using var shell = new ShellViewModel(new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(new DesktopCatalogue(product, categoryId), new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 800, Height = 520 };
+            window.Show();
+            try
+            {
+                VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]).IsSelected = true;
+                window.UpdateLayout();
+                var cart = (ListBox)typeof(MainWindow).GetField("orderCartList", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var viewer = VisualDescendants<ScrollViewer>(cart).Single();
+                var add = (Button)typeof(MainWindow).GetField("orderAddButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                for (var index = 0; index < 12; index++) entry.AddConfiguredLine(product, [], [], 1);
+                PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                viewer.ScrollToTop();
+                entry.SelectedProduct = entry.Products.Single();
+                PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Assert.IsGreaterThan(0D, viewer.ScrollableHeight);
+                Assert.AreEqual(0D, viewer.VerticalOffset, 0.01D);
+                add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.HasCount(13, entry.Cart, "The actual button handler added a line with a pending reveal.");
+                if (close) window.Close();
+                else entry.Cart.Clear();
+                PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.Background);
+                Assert.AreEqual(0D, viewer.VerticalOffset, 0.01D, "A stale reveal cannot scroll after clear/close.");
+                if (!close)
+                {
+                    Assert.IsEmpty(cart.Items);
+                    add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    PumpDispatcher(window, System.Windows.Threading.DispatcherPriority.Background);
+                    Assert.HasCount(1, entry.Cart, "A fresh gesture remains usable after the clear.");
+                    AssertCartLineVisibleThroughLayoutClips(window, cart, viewer, entry.Cart.Single());
+                }
+            }
+            finally { if (window.IsVisible) window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void CaisseCartRevealsOnlyNewlyInsertedLinesOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var product = SimpleProduct(Guid.NewGuid(), "CART", "Produit du panier", categoryId, "Plats");
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(new DesktopCatalogue(product, categoryId), new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 800, Height = 520 };
+            window.Show();
+            try
+            {
+                var caisse = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]);
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+                var cart = (ListBox)typeof(MainWindow).GetField("orderCartList", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var viewer = VisualDescendants<ScrollViewer>(cart).Single();
+
+                void FlushLayout()
+                {
+                    window.UpdateLayout();
+                    var frame = new System.Windows.Threading.DispatcherFrame();
+                    window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() => frame.Continue = false));
+                    System.Windows.Threading.Dispatcher.PushFrame(frame);
+                    window.UpdateLayout();
+                }
+
+                void AssertVisible(OrderEntryCartLineViewModel line)
+                {
+                    AssertCartLineVisibleThroughLayoutClips(window, cart, viewer, line);
+                }
+
+                for (var index = 0; index < 12; index++) entry.AddConfiguredLine(product, [], [], 1);
+                FlushLayout();
+                Assert.IsGreaterThan(0D, viewer.ScrollableHeight, "The cart must overflow before the reveal assertions.");
+                viewer.ScrollToTop();
+                FlushLayout();
+                Assert.AreEqual(0D, viewer.VerticalOffset, 0.01D);
+
+                entry.AddConfiguredLine(product, [], [], 1);
+                var firstNew = entry.Cart[^1];
+                FlushLayout();
+                AssertVisible(firstNew);
+                Assert.IsGreaterThan(0D, viewer.VerticalOffset);
+
+                entry.AddConfiguredLine(product, [], [], 1);
+                var secondNew = entry.Cart[^1];
+                FlushLayout();
+                AssertVisible(secondNew);
+
+                viewer.ScrollToTop();
+                FlushLayout();
+                entry.ChangeQuantity(entry.Cart[0], 2);
+                entry.UpdateConfiguredLine(entry.Cart[0], [], [], quantity: 3);
+                entry.RepriceAsync(clearManualOverride: false).GetAwaiter().GetResult();
+                entry.RemoveLine(entry.Cart[1]);
+                FlushLayout();
+                Assert.AreEqual(0D, viewer.VerticalOffset, 0.01D, "Edit, quantity, reprice and removal must not force a bottom jump.");
+                Assert.IsNull(cart.SelectedItem, "Auto-reveal must not change cart selection.");
+                entry.AddConfiguredLine(product, [], [], 1);
+                entry.Cart.Clear();
+                FlushLayout();
+                Assert.AreEqual(0D, viewer.VerticalOffset, 0.01D, "Clearing the cart must not leave a pending reveal.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
+    public void CaisseOptionDialogConfirmAddsOnceAndCancelAddsNoneOnSta()
+    {
+        RunOnSta(() =>
+        {
+            var categoryId = Guid.NewGuid();
+            var productId = Guid.NewGuid();
+            var groupId = Guid.NewGuid();
+            var optionId = Guid.NewGuid();
+            var product = new OrderEntryProduct(new ProductAggregate(
+                new Product(productId, "OPT", "Avec option", categoryId, Money.FromCents(1000), 10m, true, true, true, default, default),
+                [new OptionGroup(groupId, productId, "Choix", DomainSelectionMode.Single, true, null, null, 0, default, default)],
+                new Dictionary<Guid, IReadOnlyList<ProductOption>>
+                {
+                    [groupId] = [new(optionId, groupId, "Sauce", Money.Zero, true, 0, default, default)]
+                }), "Plats");
+            using var shell = new ShellViewModel(
+                new InMemorySelectedCultureStore(), true,
+                orderEntryService: new OrderEntryService(new DesktopCatalogue(product, categoryId), new DesktopSettingsStore(), new DesktopOrderStore(), new DesktopDispatcher(), new DesktopIds(), new DesktopClock()));
+            var entry = shell.Entry!;
+            entry.RefreshAsync().GetAwaiter().GetResult();
+            var window = new MainWindow(shell) { ShowInTaskbar = false, Width = 980, Height = 700 };
+            window.Show();
+            try
+            {
+                var caisse = VisualDescendants<TabItem>(window).Single(item => item.Header?.ToString() == shell.Localized["Caisse"]);
+                caisse.IsSelected = true;
+                window.UpdateLayout();
+                var grid = (DataGrid)typeof(MainWindow).GetField("orderProductsGrid", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                var add = (Button)typeof(MainWindow).GetField("orderAddButton", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+                grid.SelectedItem = entry.Products.Single();
+                window.UpdateLayout();
+
+                void ClickAndRespond(bool confirm)
+                {
+                    Exception? dialogFailure = null;
+                    window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
+                    {
+                        Window? dialog = null;
+                        try
+                        {
+                            dialog = window.OwnedWindows.Cast<Window>().Single(owned => owned.GetType().Name == "OptionSelectionDialog");
+                            if (confirm)
+                            {
+                                VisualDescendants<RadioButton>(dialog).Single(option => Equals(option.Tag, optionId)).IsChecked = true;
+                                VisualDescendants<Button>(dialog).Single(button => Equals(button.Content, shell.Localized["Add"]))
+                                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            }
+                            else
+                            {
+                                VisualDescendants<Button>(dialog).Single(button => Equals(button.Content, shell.Localized["Cancel"]))
+                                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            }
+                        }
+                        catch (Exception exception) { dialogFailure = exception; dialog?.Close(); }
+                    }));
+                    add.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    if (dialogFailure is not null) ExceptionDispatchInfo.Capture(dialogFailure).Throw();
+                }
+
+                ClickAndRespond(confirm: true);
+                Assert.HasCount(1, entry.Cart);
+                CollectionAssert.AreEqual(new[] { optionId }, entry.Cart[0].Draft.SelectedOptionIds.ToArray());
+
+                ClickAndRespond(confirm: false);
+                Assert.HasCount(1, entry.Cart, "Cancelling the next option dialog must not add another line.");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [TestMethod]
     public void OptionDialogControlsAcceptConfiguredMultiSelectionAndCustomAdjustmentOnSta()
     {
         RunOnSta(() =>
@@ -624,6 +1035,37 @@ public sealed class M04DesktopTests
             foreach (var descendant in VisualDescendants<T>(VisualTreeHelper.GetChild(root, index))) yield return descendant;
     }
 
+    private static void PumpDispatcher(Window window, System.Windows.Threading.DispatcherPriority priority)
+    {
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        window.Dispatcher.BeginInvoke(priority, new Action(() => frame.Continue = false));
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
+    }
+
+    private static void AssertCartLineVisibleThroughLayoutClips(Window window, ListBox cart, ScrollViewer viewer, OrderEntryCartLineViewModel line)
+    {
+        var container = (ListBoxItem?)cart.ItemContainerGenerator.ContainerFromItem(line);
+        Assert.IsNotNull(container, "The completed add must be realized before subsequent input.");
+        var bounds = container.TransformToAncestor(window).TransformBounds(new Rect(container.RenderSize));
+        var visible = bounds;
+        visible.Intersect(viewer.TransformToAncestor(window).TransformBounds(new Rect(viewer.RenderSize)));
+        if (window.Content is FrameworkElement content)
+            visible.Intersect(content.TransformToAncestor(window).TransformBounds(new Rect(content.RenderSize)));
+        for (DependencyObject? ancestor = container; ancestor is not null && !ReferenceEquals(ancestor, window); ancestor = VisualTreeHelper.GetParent(ancestor))
+        {
+            if (ancestor is not FrameworkElement element) continue;
+            var clip = System.Windows.Controls.Primitives.LayoutInformation.GetLayoutClip(element);
+            if (clip is not null)
+                visible.Intersect(element.TransformToAncestor(window).TransformBounds(clip.Bounds));
+            if (element.ClipToBounds)
+                visible.Intersect(element.TransformToAncestor(window).TransformBounds(new Rect(element.RenderSize)));
+        }
+        var slot = System.Windows.Controls.Primitives.LayoutInformation.GetLayoutSlot(cart);
+        Assert.IsGreaterThanOrEqualTo(bounds.Height - 2D, visible.IsEmpty ? 0D : visible.Height,
+            $"Completed line is clipped: item={bounds}; visible={visible}; cart nominal={cart.RenderSize}; allocated slot={slot}; viewer={viewer.RenderSize}. Nominal viewport visibility alone is insufficient.");
+        Assert.IsGreaterThanOrEqualTo(bounds.Width - 2D, visible.IsEmpty ? 0D : visible.Width, "The new line must also fit the visible width.");
+    }
+
     private static void RunOnSta(Action action)
     {
         Exception? failure = null;
@@ -641,7 +1083,7 @@ public sealed class M04DesktopTests
     private sealed class DesktopCatalogue(OrderEntryProduct product, Guid categoryId) : IOrderEntryCatalogueQueries
     {
         public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<CategorySummary>>([new(categoryId, "Plats")]);
-        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([new(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name, categoryId, product.CategoryName, product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, true, false)]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ProductSummary>>([new(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name, categoryId, product.CategoryName, product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, true, product.Aggregate.Product.OptionsEnabled)]);
         public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) => Task.FromResult<OrderEntryProduct?>(productId == product.Aggregate.Product.Id ? product : null);
     }
 
@@ -667,6 +1109,59 @@ public sealed class M04DesktopTests
 
         public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default) =>
             Task.FromResult(new[] { first, second }.SingleOrDefault(product => product.Aggregate.Product.Id == productId));
+    }
+
+    private sealed class ControlledProductCatalogue(params OrderEntryProduct[] products) : IOrderEntryCatalogueQueries
+    {
+        private TaskCompletionSource<OrderEntryProduct?>? pending;
+        public Guid PendingProductId { get; private set; }
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CategorySummary>>([new(products[0].Aggregate.Product.CategoryId, products[0].CategoryName)]);
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ProductSummary>>(products.Select(product => new ProductSummary(product.Aggregate.Product.Id,
+                product.Aggregate.Product.Code, product.Aggregate.Product.Name, product.Aggregate.Product.CategoryId, product.CategoryName,
+                product.Aggregate.Product.PriceTtc, product.Aggregate.Product.VatRate, true, true, false)).ToArray());
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default)
+        {
+            Assert.IsNull(pending, "The window must serialize product lookup requests.");
+            PendingProductId = productId;
+            pending = new TaskCompletionSource<OrderEntryProduct?>();
+            return pending.Task;
+        }
+        public void ReleaseNext()
+        {
+            var completion = pending!;
+            var product = products.Single(product => product.Aggregate.Product.Id == PendingProductId);
+            pending = null;
+            completion.SetResult(product);
+        }
+    }
+
+    private sealed class DelayedFirstProductCatalogue(params OrderEntryProduct[] products) : IOrderEntryCatalogueQueries
+    {
+        private readonly TaskCompletionSource<OrderEntryProduct?> firstLookup = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool firstLookupPending = true;
+
+        public Task<IReadOnlyList<CategorySummary>> ListCategoriesAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CategorySummary>>([new(products[0].Aggregate.Product.CategoryId, products[0].CategoryName)]);
+
+        public Task<IReadOnlyList<ProductSummary>> ListActiveProductsAsync(string? search = null, Guid? filterCategoryId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ProductSummary>>(products.Select(product =>
+                new ProductSummary(product.Aggregate.Product.Id, product.Aggregate.Product.Code, product.Aggregate.Product.Name,
+                    product.Aggregate.Product.CategoryId, product.CategoryName, product.Aggregate.Product.PriceTtc,
+                    product.Aggregate.Product.VatRate, true, true, false)).ToArray());
+
+        public Task<OrderEntryProduct?> GetActiveProductAsync(Guid productId, CancellationToken cancellationToken = default)
+        {
+            if (firstLookupPending && productId == products[0].Aggregate.Product.Id)
+            {
+                firstLookupPending = false;
+                return firstLookup.Task;
+            }
+            return Task.FromResult<OrderEntryProduct?>(products.SingleOrDefault(product => product.Aggregate.Product.Id == productId));
+        }
+
+        public void ReleaseFirst() => firstLookup.SetResult(products[0]);
     }
 
     private sealed class DisappearingCatalogue : IOrderEntryCatalogueQueries

@@ -1,5 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using Sushi81.Pos.Application.Foundation;
 using Sushi81.Pos.Application.Foundation.Paths;
 using Sushi81.Pos.Application.Foundation.Time;
 using Sushi81.Pos.Application.Printing;
@@ -555,6 +558,202 @@ public sealed class M08PrintingIntegrationTests
     }
 
     [TestMethod]
+    public async Task KitchenHandwritingReserveOccupies25MmAfterFinalTotalOnLastPage()
+    {
+        var blocks = new List<PrintReceiptBlock>
+        {
+            new(PrintReceiptBlockKind.Heading, "*** CUISINE ***", AtomicGroup: "header")
+        };
+        for (var index = 0; index < 24; index++)
+        {
+            blocks.Add(new(PrintReceiptBlockKind.Item, $"1x P-{index:000}", "Plat suffisamment long pour enrouler le texte"));
+            blocks.Add(new(PrintReceiptBlockKind.Option, $"Option-{index:000}", "0.50"));
+        }
+        blocks.Add(new(PrintReceiptBlockKind.Total, "TOTAL", "23.67 EUR", AtomicGroup: "kitchen-total"));
+        blocks.Add(new(PrintReceiptBlockKind.HandwritingSpace, string.Empty, AtomicGroup: "kitchen-total"));
+        var content = new PrintReceiptContent(blocks);
+
+        var result = await StaPrintThread.RunAsync(() =>
+        {
+            var surface = new PrintImageableSurface(280, 280, 5, 5, 270, 230);
+            var width = ThermalPrintLayout.EffectiveContentWidth(surface);
+            var pages = ThermalPrintLayout.RenderPages(content, surface);
+            var last = pages[^1];
+            var spacer = last[^1];
+            var withoutSpacer = ThermalPrintLayout.MeasureRenderedHeight(last.Take(last.Count - 1), width);
+            var withSpacer = ThermalPrintLayout.MeasureRenderedHeight(last, width);
+            return (PageCount: pages.Count,
+                ReserveCount: pages.Sum(page => page.Count(block => block.SpacerHeight > 0)),
+                EarlierReserveCount: pages.Take(pages.Count - 1).Sum(page => page.Count(block => block.SpacerHeight > 0)),
+                LastReserveCount: last.Count(block => block.SpacerHeight > 0),
+                LastTotalText: last[^2].Text, LastTotalGroup: last[^2].AtomicGroup,
+                SpacerText: spacer.Text, SpacerGroup: spacer.AtomicGroup, SpacerHeight: spacer.SpacerHeight,
+                ExtraHeight: withSpacer - withoutSpacer,
+                PagesWithinBounds: pages.All(page => ThermalPrintLayout.MeasureRenderedHeight(page, width) <= surface.ImageableHeight + 0.01),
+                Diagnostics: ThermalPrintLayout.Paginate(content, surface),
+                RenderedText: string.Join(" ", pages.SelectMany(page => page).Select(block => block.Text)));
+        }, CancellationToken.None);
+
+        Assert.IsGreaterThan(1, result.PageCount);
+        Assert.AreEqual(1, result.ReserveCount);
+        Assert.AreEqual(0, result.EarlierReserveCount);
+        Assert.AreEqual(1, result.LastReserveCount);
+        StringAssert.Contains(result.LastTotalText, "TOTAL : 23.67 EUR");
+        Assert.AreEqual("kitchen-total", result.LastTotalGroup);
+        Assert.AreEqual(result.LastTotalGroup, result.SpacerGroup);
+        Assert.AreEqual(string.Empty, result.SpacerText);
+        Assert.AreEqual(25d / 25.4d * 96d, result.SpacerHeight, 0.01);
+        Assert.AreEqual(result.SpacerHeight, result.ExtraHeight, 0.01);
+        Assert.IsTrue(result.PagesWithinBounds, "The total and physical reserve must not exceed any page's printable height.");
+        Assert.IsTrue(result.Diagnostics[^1].EndsWith("TOTAL : 23.67 EUR", StringComparison.Ordinal));
+        for (var index = 0; index < 24; index++)
+        {
+            StringAssert.Contains(result.RenderedText, $"P-{index:000}");
+            StringAssert.Contains(result.RenderedText, $"Option-{index:000}");
+        }
+    }
+
+    [TestMethod]
+    public async Task KitchenHandwritingReservePaintsOnlyTheBottomRightFeedAnchorAtNormalAndNarrowWidths()
+    {
+        var evidence = await StaPrintThread.RunAsync(() =>
+        {
+            var content = KitchenBoundaryContent();
+            var surface = new PrintImageableSurface(280, 500, 5, 5, 270, 480);
+            var spacer = ThermalPrintLayout.RenderPages(content, surface).Single()[^1];
+            return new[] { ThermalPrintLayout.EffectiveContentWidth(surface), 40d, 1d }
+                .Select(width => RasterizeReserve(spacer, width)).ToArray();
+        }, CancellationToken.None);
+
+        foreach (var raster in evidence)
+            AssertReserveRaster(raster);
+    }
+
+    [TestMethod]
+    public async Task KitchenTotalAndReserveStayTogetherAtTheExactPaginationBoundary()
+    {
+        var result = await StaPrintThread.RunAsync(() =>
+        {
+            var content = KitchenBoundaryContent();
+            var large = new PrintImageableSurface(280, 500, 5, 5, 270, 480);
+            var width = ThermalPrintLayout.EffectiveContentWidth(large);
+            var all = ThermalPrintLayout.RenderPages(content, large).Single();
+            var exactHeight = ThermalPrintLayout.MeasureRenderedHeight(all, width);
+            var exact = ThermalPrintLayout.RenderPages(content, large with { ImageableHeight = exactHeight });
+            var moved = ThermalPrintLayout.RenderPages(content, large with { ImageableHeight = exactHeight - 0.5 });
+            var final = moved[^1];
+            return (ExactPageCount: exact.Count, MovedPageCount: moved.Count,
+                ExactReserveCount: exact.SelectMany(page => page).Count(block => block.SpacerHeight > 0),
+                EarlierReserveCount: moved.Take(moved.Count - 1).SelectMany(page => page).Count(block => block.SpacerHeight > 0),
+                FinalBlockCount: final.Count, FinalTotalText: final[^2].Text,
+                FinalReserveHeight: final[^1].SpacerHeight,
+                SameGroup: final[^2].AtomicGroup == final[^1].AtomicGroup,
+                PagesWithinBounds: moved.All(page => ThermalPrintLayout.MeasureRenderedHeight(page, width) <= exactHeight - 0.5 + 0.01));
+        }, CancellationToken.None);
+
+        Assert.AreEqual(1, result.ExactPageCount, "An exactly fitting total and reserve must remain on the current page.");
+        Assert.AreEqual(2, result.MovedPageCount);
+        Assert.AreEqual(1, result.ExactReserveCount);
+        Assert.AreEqual(0, result.EarlierReserveCount);
+        Assert.AreEqual(2, result.FinalBlockCount, "The final page must contain both TOTAL and its reserve, never a reserve-only page.");
+        Assert.AreEqual("TOTAL : 12.50 EUR", result.FinalTotalText);
+        Assert.AreEqual(25d / 25.4d * 96d, result.FinalReserveHeight, 0.01);
+        Assert.IsTrue(result.SameGroup);
+        Assert.IsTrue(result.PagesWithinBounds);
+    }
+
+    [TestMethod]
+    public async Task KitchenTotalAndReserveRejectAPrintablePageTooShortForTheirAtomicGroup()
+    {
+        var message = await StaPrintThread.RunAsync(() =>
+        {
+            var content = KitchenBoundaryContent();
+            var large = new PrintImageableSurface(280, 500, 5, 5, 270, 480);
+            var width = ThermalPrintLayout.EffectiveContentWidth(large);
+            var rendered = ThermalPrintLayout.RenderPages(content, large).Single();
+            var footerHeight = ThermalPrintLayout.MeasureRenderedHeight(rendered.TakeLast(2), width);
+            var exception = Assert.ThrowsExactly<InvalidOperationException>(() =>
+                ThermalPrintLayout.RenderPages(content, large with { ImageableHeight = footerHeight - 0.5 }));
+            return exception.Message;
+        }, CancellationToken.None);
+
+        StringAssert.Contains(message, "kitchen total and physical handwriting reserve");
+    }
+
+    [TestMethod]
+    public async Task EveryKitchenFactoryVariantKeepsThePhysicalReserveWithoutChangingCustomerOrDiagnosticText()
+    {
+        var variantCount = await StaPrintThread.RunAsync(() =>
+        {
+            var count = 0;
+            var surface = new PrintImageableSurface(280, 1200, 5, 5, 270, 1180);
+            var width = ThermalPrintLayout.EffectiveContentWidth(surface);
+            foreach (var status in new[] { OrderStatus.Open, OrderStatus.Cancelled })
+            foreach (var intent in new[] { PrintIntent.InitialAutomatic, PrintIntent.InitialRetry, PrintIntent.ExplicitReprint })
+            foreach (var profile in new[] { DeploymentProfile.Production, DeploymentProfile.PreProduction })
+            {
+                var factory = new OrderPrintDocumentFactory(new FixedClock(), profile);
+                var order = SyntheticKitchenOrder(status);
+                var kitchen = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Kitchen, intent);
+                var kitchenDiagnostic = kitchen.Text;
+                var kitchenBusinessContent = new PrintReceiptContent(kitchen.Content.Blocks
+                    .Where(block => block.Kind != PrintReceiptBlockKind.HandwritingSpace).ToArray());
+                Assert.AreEqual(kitchenBusinessContent.ToDiagnosticText(), kitchenDiagnostic,
+                    "The physical reserve must not add business text or a synthetic blank line.");
+
+                var pages = ThermalPrintLayout.RenderPages(kitchen.Content, surface);
+                var final = pages[^1];
+                Assert.AreEqual(1, pages.SelectMany(page => page).Count(block => block.SpacerHeight > 0));
+                Assert.AreEqual(0, pages.Take(pages.Count - 1).SelectMany(page => page).Count(block => block.SpacerHeight > 0));
+                Assert.AreEqual("TOTAL : 12.50 EUR", final[^2].Text);
+                Assert.AreEqual(final[^2].AtomicGroup, final[^1].AtomicGroup);
+                Assert.AreEqual(25d / 25.4d * 96d, final[^1].SpacerHeight, 0.01);
+                Assert.IsTrue(pages.All(page => ThermalPrintLayout.MeasureRenderedHeight(page, width) <= surface.ImageableHeight + 0.01));
+                AssertReserveRaster(RasterizeReserve(final[^1], width));
+                Assert.AreEqual(kitchenDiagnostic, kitchen.Content.ToDiagnosticText());
+                Assert.IsTrue(ThermalPrintLayout.Paginate(kitchen.Content, surface)[^1].EndsWith("TOTAL : 12.50 EUR", StringComparison.Ordinal));
+
+                var customer = factory.Create(order, ReceiptIdentity.Default, PrintDocumentKind.Customer, intent);
+                var customerDiagnostic = customer.Text;
+                var customerRendered = ThermalPrintLayout.RenderPages(customer.Content, surface).SelectMany(page => page).ToArray();
+                Assert.AreEqual(0, customer.Content.Blocks.Count(block => block.Kind == PrintReceiptBlockKind.HandwritingSpace));
+                Assert.AreEqual(0, customerRendered.Count(block => block.SpacerHeight > 0));
+                Assert.AreEqual("Total EUR 12.50", customerRendered.Single(block => block.Total is not null).Text);
+                Assert.AreEqual(customerDiagnostic, customer.Content.ToDiagnosticText());
+                Assert.AreEqual(profile.IsPreProduction, customerDiagnostic.Contains("*** PREPROD ***", StringComparison.Ordinal));
+                Assert.AreEqual(status == OrderStatus.Cancelled, customerDiagnostic.Contains("ANNULÉ", StringComparison.Ordinal));
+                Assert.AreEqual(intent == PrintIntent.ExplicitReprint, customerDiagnostic.Contains("DUPLICATA", StringComparison.Ordinal));
+                StringAssert.Contains(kitchenDiagnostic, "H17-001");
+                StringAssert.Contains(kitchenDiagnostic, "Option synthétique");
+                StringAssert.Contains(customerDiagnostic, "H17-001");
+                StringAssert.Contains(customerDiagnostic, "Option synthétique");
+                count++;
+            }
+            return count;
+        }, CancellationToken.None);
+
+        Assert.AreEqual(12, variantCount);
+    }
+
+    [TestMethod]
+    public async Task CustomerDiscountRendersOneNegativeRemiseLineWithoutKitchenSpacer()
+    {
+        var content = new PrintReceiptContent([
+            new(PrintReceiptBlockKind.BusinessName, "Sushi 81"),
+            new(PrintReceiptBlockKind.Discount, "Remise", "-2.63 EUR", AtomicGroup: "customer-total"),
+            new(PrintReceiptBlockKind.Total, "Total EUR", "23.67", AtomicGroup: "customer-total")
+        ]);
+
+        var rendered = await StaPrintThread.RunAsync(() =>
+            ThermalPrintLayout.RenderPages(content, new PrintImageableSurface(300, 300, 5, 5, 290, 280))
+                .SelectMany(page => page).ToArray(), CancellationToken.None);
+
+        Assert.AreEqual(1, rendered.Count(block => block.Text == "Remise : -2.63 EUR"));
+        Assert.AreEqual(0, rendered.Count(block => block.SpacerHeight > 0));
+        Assert.AreEqual("Total EUR 23.67", rendered.Single(block => block.Total is not null).Text);
+    }
+
+    [TestMethod]
     public void PrintQueueSelectionNormalizesSortsAndResolvesStableIdentifiers()
     {
         var queues = PrintQueueSelection.Normalize([
@@ -585,6 +784,103 @@ public sealed class M08PrintingIntegrationTests
         ]);
 
         Assert.IsFalse(queues.Any(queue => PrintQueueSelection.Matches(queue, "missing-id", "Missing queue")));
+    }
+
+    private static PrintReceiptContent KitchenBoundaryContent() => new([
+        new(PrintReceiptBlockKind.Heading, "*** CUISINE ***", AtomicGroup: "kitchen-header"),
+        new(PrintReceiptBlockKind.Reference, "Cmd", "H17-001", AtomicGroup: "kitchen-header"),
+        new(PrintReceiptBlockKind.Total, "TOTAL", "12.50 EUR", AtomicGroup: "kitchen-total"),
+        new(PrintReceiptBlockKind.HandwritingSpace, string.Empty, AtomicGroup: "kitchen-total")
+    ]);
+
+    private static ReserveRaster RasterizeReserve(RenderedThermalReceiptBlock block, double width)
+    {
+        var visual = ThermalPrintLayout.CreateVisual(block, width);
+        Assert.IsInstanceOfType<Border>(visual);
+        var reserve = (Border)visual;
+        Assert.IsInstanceOfType<Border>(reserve.Child);
+        var anchor = (Border)reserve.Child;
+        Assert.IsNull(anchor.Child, "The feed anchor is a painted shape, not another business-text row.");
+        visual.Measure(new Size(width, double.PositiveInfinity));
+        visual.Arrange(new Rect(0, 0, width, visual.DesiredSize.Height));
+        visual.UpdateLayout();
+        var anchorBounds = anchor.TransformToAncestor(visual).TransformBounds(new Rect(anchor.RenderSize));
+        var pixelWidth = (int)Math.Ceiling(width);
+        var pixelHeight = (int)Math.Ceiling(visual.RenderSize.Height);
+        var bitmap = new RenderTargetBitmap(pixelWidth, pixelHeight, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        var pixels = new byte[pixelWidth * pixelHeight * 4];
+        bitmap.CopyPixels(pixels, pixelWidth * 4, 0);
+        return new(width, visual.DesiredSize.Height, visual.RenderSize.Height, anchorBounds,
+            reserve.ClipToBounds, anchor.Background is SolidColorBrush brush && brush.Color == Colors.Black,
+            pixelWidth, pixelHeight, pixels);
+    }
+
+    private static void AssertReserveRaster(ReserveRaster raster)
+    {
+        const double height = 25d / 25.4d * 96d;
+        var anchorWidth = Math.Min(2d, raster.Width);
+        Assert.AreEqual(height, raster.DesiredHeight, 0.01);
+        Assert.AreEqual(height, raster.ActualHeight, 0.01);
+        Assert.IsTrue(raster.ReserveClipsToBounds);
+        Assert.IsTrue(raster.AnchorIsBlack);
+        Assert.AreEqual(anchorWidth, raster.AnchorBounds.Width, 0.01);
+        Assert.AreEqual(2d, raster.AnchorBounds.Height, 0.01);
+        Assert.AreEqual(raster.Width - anchorWidth, raster.AnchorBounds.Left, 0.01);
+        Assert.AreEqual(height - 2d, raster.AnchorBounds.Top, 0.01);
+        Assert.AreEqual(raster.Width, raster.AnchorBounds.Right, 0.01);
+        Assert.AreEqual(height, raster.AnchorBounds.Bottom, 0.01);
+
+        var inkCount = 0;
+        var opaqueInkCount = 0;
+        var lastInkX = -1;
+        var lastInkY = -1;
+        for (var y = 0; y < raster.PixelHeight; y++)
+        for (var x = 0; x < raster.PixelWidth; x++)
+        {
+            var offset = (y * raster.PixelWidth + x) * 4;
+            var alpha = raster.Pixels[offset + 3];
+            // RenderTargetBitmap begins transparent; RGB zero without alpha is not ink.
+            if (alpha == 0)
+                continue;
+            Assert.IsTrue(raster.Pixels[offset] <= 16 && raster.Pixels[offset + 1] <= 16 && raster.Pixels[offset + 2] <= 16,
+                "The reserve may paint only its black feed anchor, with no gray or colored handwriting-area background.");
+            inkCount++;
+            if (alpha == 255) opaqueInkCount++;
+            lastInkX = Math.Max(lastInkX, x);
+            lastInkY = Math.Max(lastInkY, y);
+            Assert.IsTrue(x >= Math.Floor(raster.AnchorBounds.Left) - 1 &&
+                y >= Math.Floor(raster.AnchorBounds.Top) - 1,
+                "The handwriting reserve interior must remain ink-free; only the bottom-right anchor may paint.");
+        }
+        Assert.IsGreaterThan(0, inkCount, "A measured but unpainted reserve can be trimmed by a thermal driver.");
+        Assert.IsGreaterThan(0, opaqueInkCount);
+        Assert.IsLessThanOrEqualTo(16, inkCount, "The anchor must remain a small painted shape rather than a line or label.");
+        Assert.IsGreaterThanOrEqualTo((int)Math.Floor(raster.Width) - 1, lastInkX);
+        Assert.IsGreaterThanOrEqualTo((int)Math.Floor(height) - 1, lastInkY);
+    }
+
+    private sealed record ReserveRaster(double Width, double DesiredHeight, double ActualHeight,
+        Rect AnchorBounds, bool ReserveClipsToBounds, bool AnchorIsBlack,
+        int PixelWidth, int PixelHeight, byte[] Pixels);
+
+    private static OrderSnapshot SyntheticKitchenOrder(OrderStatus status)
+    {
+        var now = new DateTimeOffset(2026, 9, 12, 10, 15, 0, TimeSpan.Zero);
+        return new(
+            Guid.Parse("11111111-1111-1111-1111-111111111117"), OrderSourceType.Pos, status,
+            now, now, null, status == OrderStatus.Cancelled ? now : null,
+            FulfilmentMode.Livraison, new DateOnly(2026, 9, 12), new TimeOnly(18, 30), false,
+            "00 00 00 00 00", "1 rue Synthétique", "Note synthétique", Money.FromCents(1250),
+            false, false, null, Money.Zero,
+            [new(Guid.Parse("22222222-2222-2222-2222-222222222217"), 0,
+                Guid.Parse("33333333-3333-3333-3333-333333333317"), "H17-001", "Plat synthétique", "Plats",
+                Money.FromCents(1000), 10m, true, 1, Money.FromCents(1000), Money.FromCents(1250),
+                [new(Guid.Parse("44444444-4444-4444-4444-444444444417"), 0, OrderAdjustmentKind.PredefinedOption,
+                    Guid.Parse("55555555-5555-5555-5555-555555555517"), "Options", "Option synthétique",
+                    Money.FromCents(250), 10m)])],
+            [new(10m, Money.FromCents(1250), Money.FromCents(113))])
+        { Reference = "20260912-017" };
     }
 
     private sealed class FixedClock : IBusinessClock

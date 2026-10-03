@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
@@ -25,7 +26,10 @@ namespace Sushi81.Pos.Desktop;
 public partial class MainWindow : Window
 {
     private bool loaded;
+    private bool closed;
     private bool orderProductAddInProgress;
+    private readonly Queue<(OrderEntryShellViewModel Entry, Guid ProductId)> orderProductAddQueue = new();
+    private readonly OrderEntryShellViewModel? observedCartEntry;
     private int commandesGridResizeInvocationCount;
     private int commandesGridWidthMutationCount;
     private IDisposable? performanceTraceProbe;
@@ -37,6 +41,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = viewModel;
+        observedCartEntry = viewModel.Entry;
         this.fileDialogs = fileDialogs ?? new NativeCatalogueWorkbookFileDialogs();
         if (viewModel.Admin is { } admin) admin.FilterRefreshFailed += OnFilterRefreshFailed;
         ApplySelectedCultureToGestionExportDatePickers(viewModel);
@@ -125,6 +130,7 @@ public partial class MainWindow : Window
     {
         if (loaded || DataContext is not ShellViewModel viewModel || viewModel.Admin is null && viewModel.Entry is null && viewModel.GestionExportWorkflow is null && viewModel.ArchiveAccess is null) return;
         loaded = true;
+        if (observedCartEntry is not null) observedCartEntry.Cart.CollectionChanged += OnOrderCartChanged;
         performanceTraceProbe = PerformanceTrace.StartDispatcherGapProbe(Dispatcher);
         PerformanceTrace.Log("window.loaded");
         try
@@ -162,9 +168,24 @@ public partial class MainWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        closed = true;
+        if (observedCartEntry is not null) observedCartEntry.Cart.CollectionChanged -= OnOrderCartChanged;
         performanceTraceProbe?.Dispose();
         PerformanceTrace.Log("window.closed");
         (DataContext as ShellViewModel)?.Dispose();
+    }
+
+    private void OnOrderCartChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action != NotifyCollectionChangedAction.Add || e.NewItems is null) return;
+        foreach (var line in e.NewItems.OfType<OrderEntryCartLineViewModel>())
+        {
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(() =>
+            {
+                if (!closed && ReferenceEquals(sender, observedCartEntry?.Cart) && orderCartList.Items.Contains(line))
+                    orderCartList.ScrollIntoView(line);
+            }));
+        }
     }
 
     private async void OnLanguageSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -642,30 +663,49 @@ public partial class MainWindow : Window
     private async void OnAddOrderProduct(object sender, RoutedEventArgs e)
     {
         if (DataContext is not ShellViewModel { Entry: { } entry }) return;
-        if (orderProductAddInProgress) return;
+        ProductSummary? selected;
         if (ReferenceEquals(sender, orderProductsGrid))
         {
+            // WPF synthesizes MouseDoubleClick from a second mouse-down with new event args;
+            // the synthesized args have constructor-default ClickCount == 1.
+            if (e is not MouseButtonEventArgs { ChangedButton: MouseButton.Left }) return;
             if (FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject) is not { DataContext: ProductSummary productSummary }) return;
             entry.SelectedProduct = productSummary;
+            selected = productSummary;
         }
-        if (!entry.CanAddSelectedProduct) return;
+        else if (ReferenceEquals(sender, orderAddButton)) selected = entry.SelectedProduct;
+        else return;
+        if (!entry.CanAddSelectedProduct || selected is null) return;
+
+        // Capture each gesture's product before an earlier asynchronous lookup can finish.
+        orderProductAddQueue.Enqueue((entry, selected.Id));
+        if (orderProductAddInProgress) return;
         orderProductAddInProgress = true;
         try
         {
-            await entry.AddSelectedProductAsync();
-            if (entry.PendingProduct is { } product)
+            while (orderProductAddQueue.Count > 0)
             {
-                if (!product.Aggregate.Product.OptionsEnabled)
+                var request = orderProductAddQueue.Dequeue();
+                if (DataContext is not ShellViewModel { Entry: { } currentEntry }
+                    || !ReferenceEquals(currentEntry, request.Entry)
+                    || !currentEntry.CanWrite || currentEntry.IsBusy || currentEntry.IsCommitted) continue;
+                try
                 {
-                    entry.AddConfiguredLine(product, [], [], 1);
-                    return;
-                }
+                    var product = await currentEntry.LoadProductForAddAsync(request.ProductId);
+                    if (product is null || !currentEntry.CanWrite || currentEntry.IsBusy || currentEntry.IsCommitted) continue;
+                    if (!product.Aggregate.Product.OptionsEnabled)
+                    {
+                        currentEntry.AddConfiguredLine(product, [], [], 1);
+                        continue;
+                    }
 
-                var dialog = new OptionSelectionDialog(this, product, null);
-                if (dialog.ShowDialog() == true) entry.AddConfiguredLine(product, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
+                    var dialog = new OptionSelectionDialog(this, product, null);
+                    if (dialog.ShowDialog() == true)
+                        currentEntry.AddConfiguredLine(product, dialog.SelectedOptionIds, dialog.CustomAdjustments, dialog.Quantity);
+                }
+                catch (Exception exception) { ReportUnexpectedFailure(exception); MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
             }
         }
-        catch (Exception exception) { ReportUnexpectedFailure(exception); MessageBox.Show(this, LocalizedText(this, "OperationFailed", "Opération impossible. Consultez les diagnostics puis réessayez."), LocalizedText(this, "ShellTitle", "Sushi81 POS"), MessageBoxButton.OK, MessageBoxImage.Error); }
         finally { orderProductAddInProgress = false; }
     }
 

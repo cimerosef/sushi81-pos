@@ -91,6 +91,11 @@ public sealed class SqliteCatalogueStore(
             if (!string.IsNullOrWhiteSpace(search) && !row.Code.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase) && !row.Name.Contains(search.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
             result.Add(row);
         }
+        result.Sort(static (left, right) =>
+        {
+            var code = NaturalProductCodeComparer.Instance.Compare(left.Code, right.Code);
+            return code != 0 ? code : left.Id.CompareTo(right.Id);
+        });
         return result;
     }
 
